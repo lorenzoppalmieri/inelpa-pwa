@@ -3,7 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
 import { useAuth } from '../../auth/AuthContext'
 import { isoWeek } from '../../lib/time'
-import type { EstadoTarea } from '../../types'
+import type { EstadoTarea, Tarea } from '../../types'
 import { sectorById, TIPO_ESTACION_LABEL } from '../../types'
 import TareaCard from './TareaCard'
 
@@ -44,7 +44,7 @@ export default function OperarioView() {
   const tareas = useLiveQuery(
     () => maquinaId
       ? db.tareas.where('maquinaId').equals(maquinaId).and((t) => t.semana === semana).toArray()
-      : Promise.resolve([]),
+      : Promise.resolve([] as Tarea[]),
     [maquinaId, semana],
   )
 
