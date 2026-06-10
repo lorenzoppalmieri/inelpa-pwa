@@ -8,8 +8,8 @@ import {
   type MaterialBobina, type SectorId, type OrdenProduccion, type Tarea,
   type Semielaborado, type EstadoSemielaborado,
 } from '../../types'
-import { guardarOrden, guardarTarea, guardarSemielaborado } from '../../sync/syncEngine'
-import { isoWeek, fechaCorta } from '../../lib/time'
+import { guardarOrden, guardarTarea, guardarSemielaborado, eliminarTarea } from '../../sync/syncEngine'
+import { isoWeek, fechaCorta, hhmm } from '../../lib/time'
 
 // ============================================================
 // Vista Planificacion (solo planificador / gerencia).
@@ -155,6 +155,9 @@ function PanelAsignar() {
   const [prioridad, setPrioridad] = useState('1')
   const [estandar, setEstandar] = useState('120')
   const [nroTransformador, setNroTransformador] = useState('')
+  // v1.4: dia + hora de arranque planificado (alimenta el Gantt y el auto-shift).
+  const [fechaPlan, setFechaPlan] = useState(() => new Date().toLocaleDateString('en-CA'))
+  const [horaPlan, setHoraPlan] = useState('07:00')
   const [msg, setMsg] = useState('')
 
   const nombreMaquina = useMemo(() => {
@@ -180,6 +183,9 @@ function PanelAsignar() {
     if (!orden) { setMsg('Selecciona una orden.'); return }
     if (!maquinaId) { setMsg('Selecciona una estacion (maquina/box/linea) para el sector.'); return }
     if (operariosDelSector.length > 0 && !operarioId) { setMsg('Selecciona un colaborador.'); return }
+    if (!fechaPlan || !horaPlan) { setMsg('Indica dia y hora de arranque.'); return }
+    // Dia+hora elegidos -> ISO local. La semana ISO se deriva de esa fecha.
+    const inicioPlanificado = new Date(`${fechaPlan}T${horaPlan}`).toISOString()
     const t: Tarea = {
       id: crypto.randomUUID(),
       ordenId: orden.id,
@@ -189,15 +195,23 @@ function PanelAsignar() {
       operarioId: operarioId || undefined,
       modelo: orden.modelo,
       nroTransformador: nroTransformador.trim() || undefined,
-      semana,
+      semana: isoWeek(new Date(inicioPlanificado)),
       prioridad: Math.max(1, Number(prioridad) || 1),
       estado: 'pendiente',
       tiempoEstandarMin: Math.max(1, Number(estandar) || 1),
+      inicioPlanificado,
       paradas: [],
     }
     await guardarTarea(t)
     setNroTransformador('')
     setMsg(`Tarea asignada a ${nombreOperario(operarioId)} · ${nombreMaquina(maquinaId)} en ${sectorById(sectorId).nombre}.`)
+  }
+
+  async function borrar(t: Tarea) {
+    if (t.estado !== 'pendiente') { setMsg('Solo se pueden eliminar tareas que aun no arrancaron.'); return }
+    if (!window.confirm(`Eliminar la tarea de ${t.modelo}${t.nroTransformador ? ` · ${t.nroTransformador}` : ''}? Esta accion no se puede deshacer.`)) return
+    await eliminarTarea(t)
+    setMsg('Tarea eliminada.')
   }
 
   const tareasOrdenadas = useMemo(
@@ -253,6 +267,14 @@ function PanelAsignar() {
             <label>Tiempo estandar (min)</label>
             <input className="input" type="number" min={1} value={estandar} onChange={(e) => setEstandar(e.target.value)} />
           </div>
+          <div className="field">
+            <label>Dia de arranque</label>
+            <input className="input" type="date" value={fechaPlan} onChange={(e) => setFechaPlan(e.target.value)} />
+          </div>
+          <div className="field">
+            <label>Hora de arranque</label>
+            <input className="input" type="time" value={horaPlan} onChange={(e) => setHoraPlan(e.target.value)} />
+          </div>
         </div>
         <button className="btn btn-primary btn-bloque" onClick={asignar}>＋ Asignar tarea</button>
         {msg && <div className="meta" style={{ marginTop: 10 }}>{msg}</div>}
@@ -266,12 +288,19 @@ function PanelAsignar() {
               <h3>{t.modelo}{t.nroTransformador ? ` · ${t.nroTransformador}` : ''}</h3>
               <div className="meta">
                 {sectorById(t.sectorId).nombre} · {nombreOperario(t.operarioId)} · {nombreMaquina(t.maquinaId)} · Prioridad <strong>{t.prioridad}</strong> · Estandar <strong>{t.tiempoEstandarMin}m</strong>
+                {t.inicioPlanificado ? <> · Arranque <strong>{fechaCorta(t.inicioPlanificado)} {hhmm(t.inicioPlanificado)}</strong></> : null}
               </div>
             </div>
             <span className={'estado-chip e-' + (t.estado === 'en_proceso' ? 'proceso' : t.estado === 'pausada' ? 'pausa' : t.estado === 'finalizada' ? 'finalizado' : 'pendiente')}>
               {t.estado}
             </span>
           </div>
+          {/* v1.4: solo se puede borrar una tarea que AUN no arranco. */}
+          {t.estado === 'pendiente' && (
+            <div className="row-actions">
+              <button className="btn btn-rojo" style={{ flex: 1 }} onClick={() => borrar(t)}>🗑 Eliminar tarea</button>
+            </div>
+          )}
         </div>
       ))}
       {tareasOrdenadas.length === 0 && <div className="empty">Aun no hay tareas asignadas esta semana.</div>}

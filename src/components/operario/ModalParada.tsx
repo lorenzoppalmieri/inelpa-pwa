@@ -10,7 +10,7 @@ function norm(s: string): string {
 }
 
 // Orden de categorias en el modal.
-const ORDEN_CAT: CategoriaParada[] = ['material', 'logistica', 'maquina', 'personal', 'calidad', 'otra']
+const ORDEN_CAT: CategoriaParada[] = ['material', 'logistica', 'maquina', 'personal', 'calidad', 'no_productiva', 'otra']
 
 export default function ModalParada({ onConfirm, onCancel }: {
   onConfirm: (causa: CausaParada, obs: string) => void

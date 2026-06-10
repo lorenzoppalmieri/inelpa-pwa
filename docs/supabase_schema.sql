@@ -107,6 +107,7 @@ create table tareas (
   prioridad          int default 5,
   estado             estado_tarea default 'pendiente',
   tiempo_estandar_min int not null,
+  inicio_planificado timestamptz,           -- v1.4: dia+hora de arranque planificado (Gantt)
   inicio_real        timestamptz,
   fin_real           timestamptz,
   calidad_ok         boolean,

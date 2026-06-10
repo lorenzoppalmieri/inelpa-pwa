@@ -169,6 +169,25 @@ button { font-family: inherit; cursor: pointer; border: none; }
   box-shadow: 0 1px 4px rgba(0,0,0,.3);
 }
 .gantt-grid-line { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--borde); }
+.gantt-banda-muerta {
+  position: absolute; top: 0; bottom: 0;
+  background: repeating-linear-gradient(45deg, rgba(100,116,139,.28), rgba(100,116,139,.28) 5px, transparent 5px, transparent 10px);
+  border-left: 1px dashed rgba(100,116,139,.5); border-right: 1px dashed rgba(100,116,139,.5);
+  pointer-events: none;
+}
+.gantt-daycell { font-weight: 700; color: var(--texto); text-transform: capitalize; }
+
+/* ---------- Controles de escala del Gantt (Semana / Día) ---------- */
+.gantt-ctrl { display: flex; align-items: center; gap: 12px; padding: 12px 16px; flex-wrap: wrap; }
+.gantt-ctrl .select { width: auto; min-width: 180px; }
+.seg { display: inline-flex; background: var(--panel-2); border: 1px solid var(--borde); border-radius: 9px; padding: 3px; gap: 3px; }
+.seg-btn {
+  border: none; background: transparent; color: var(--texto-tenue);
+  padding: 6px 16px; border-radius: 7px; font-size: .82rem; font-weight: 700;
+  cursor: pointer; transition: background .12s, color .12s;
+}
+.seg-btn:hover { color: var(--texto); }
+.seg-btn.on { background: var(--naranja); color: #1a1206; }
 
 /* ---------- Pareto / barras ---------- */
 .pareto-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }

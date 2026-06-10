@@ -39,6 +39,8 @@ insert into causas_parada (id, label, categoria, codigo, activo) values
   ('retrabajo', 'Retrabajo', 'calidad', 10, true),
   ('calidad_alambre', 'Problemas calidad del alambre o planchuela', 'calidad', 18, true),
   ('bobina_bt_defectuosa', 'Bobina de BT defectuosa', 'calidad', 40, true),
+  -- v1.4: pausa programada (no penaliza el OEE)
+  ('almuerzo', 'Almuerzo', 'no_productiva', 50, true),
   ('otra', 'Otra', 'otra', null, true)
 on conflict (id) do nothing;
 

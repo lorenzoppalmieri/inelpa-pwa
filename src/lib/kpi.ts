@@ -1,14 +1,25 @@
 import type { Tarea, Parada, CausaParada } from '../types'
 import { minutosEntre } from './time'
-import { causaLabel } from '../types'
+import { causaLabel, esParadaNoProductiva } from '../types'
 
 // ============================================================
 // Calculo de KPIs de planta (OEE simplificado, desvios, Pareto).
 // ============================================================
 
-// Minutos totales de parada de una tarea (suma de paradas cerradas).
+// Minutos de parada PRODUCTIVA (demoras reales). Excluye pausas programadas
+// como el almuerzo, que no deben penalizar el OEE (v1.4).
 export function minutosParada(t: Tarea): number {
-  return t.paradas.reduce((acc, p) => acc + minutosEntre(p.inicio, p.fin), 0)
+  return t.paradas
+    .filter((p) => !esParadaNoProductiva(p.causa))
+    .reduce((acc, p) => acc + minutosEntre(p.inicio, p.fin), 0)
+}
+
+// Minutos de paradas NO productivas (almuerzo, pausas programadas). Se restan
+// del tiempo disponible: es como si esa franja no existiera para el KPI.
+export function minutosNoProductivos(t: Tarea): number {
+  return t.paradas
+    .filter((p) => esParadaNoProductiva(p.causa))
+    .reduce((acc, p) => acc + minutosEntre(p.inicio, p.fin), 0)
 }
 
 // Tiempo real de ejecucion de una tarea finalizada (incluye paradas).
@@ -16,9 +27,23 @@ export function tiempoRealBruto(t: Tarea): number {
   return minutosEntre(t.inicioReal, t.finReal)
 }
 
-// Tiempo real neto (descontando paradas) = tiempo efectivo de trabajo.
+// Tiempo disponible = bruto sin las pausas programadas (almuerzo).
+export function tiempoDisponible(t: Tarea): number {
+  return Math.max(0, tiempoRealBruto(t) - minutosNoProductivos(t))
+}
+
+// Tiempo real neto (descontando paradas productivas) = trabajo efectivo.
 export function tiempoRealNeto(t: Tarea): number {
-  return Math.max(0, tiempoRealBruto(t) - minutosParada(t))
+  return Math.max(0, tiempoDisponible(t) - minutosParada(t))
+}
+
+// Filtra tareas cuyo trabajo cae dentro de [desdeISO, hastaISO) segun su
+// inicio real (o planificado). Base del filtro de periodo del Dashboard (v1.4).
+export function filtrarPorRango(tareas: Tarea[], desdeISO: string, hastaISO: string): Tarea[] {
+  return tareas.filter((t) => {
+    const ref = t.inicioReal ?? t.inicioPlanificado
+    return ref != null && ref >= desdeISO && ref < hastaISO
+  })
 }
 
 export interface OEE {
@@ -38,11 +63,12 @@ export function calcularOEE(tareas: Tarea[]): OEE {
 
   let bruto = 0, paradas = 0, estandar = 0, neto = 0, ok = 0
   for (const t of fin) {
-    const b = tiempoRealBruto(t)
+    // Base = tiempo disponible (sin almuerzo); las paradas son solo productivas.
+    const base = Math.max(1, tiempoDisponible(t))
     const par = minutosParada(t)
-    bruto += b
+    bruto += base
     paradas += par
-    neto += Math.max(1, b - par)
+    neto += Math.max(1, base - par)
     estandar += t.tiempoEstandarMin
     if (t.calidadOk !== false) ok++
   }
@@ -95,6 +121,7 @@ export function paretoDemoras(tareas: Tarea[]): ParetoItem[] {
   const all: Parada[] = tareas.flatMap((t) => t.paradas)
   const map = new Map<CausaParada, { min: number; ev: number }>()
   for (const p of all) {
+    if (esParadaNoProductiva(p.causa)) continue // el almuerzo no es una demora
     const min = minutosEntre(p.inicio, p.fin)
     if (min <= 0) continue // ignora paradas en curso sin cierre
     const cur = map.get(p.causa) ?? { min: 0, ev: 0 }
@@ -125,7 +152,7 @@ export function eficienciaPorOperario(tareas: Tarea[]): Map<string, EficienciaOp
     // a quien atribuir la eficiencia: se omite de este KPI.
     if (!t.operarioId) continue
     const par = minutosParada(t)
-    const bruto = t.finReal ? tiempoRealBruto(t) : 0
+    const bruto = t.finReal ? tiempoDisponible(t) : 0
     const activos = Math.max(0, bruto - par)
     const cur = map.get(t.operarioId) ?? { operarioId: t.operarioId, activos: 0, parada: 0, eficiencia: 0 }
     cur.activos += activos

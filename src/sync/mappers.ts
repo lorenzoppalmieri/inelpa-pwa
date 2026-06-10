@@ -31,6 +31,7 @@ export interface TareaRow {
   prioridad: number
   estado: string
   tiempo_estandar_min: number
+  inicio_planificado: string | null
   inicio_real: string | null
   fin_real: string | null
   calidad_ok: boolean | null
@@ -128,6 +129,7 @@ export function tareaFromRow(r: TareaRow, paradas: Parada[] = []): Tarea {
     prioridad: r.prioridad,
     estado: r.estado as EstadoTarea,
     tiempoEstandarMin: r.tiempo_estandar_min,
+    inicioPlanificado: u(r.inicio_planificado),
     inicioReal: u(r.inicio_real),
     finReal: u(r.fin_real),
     calidadOk: u(r.calidad_ok),
@@ -209,6 +211,7 @@ export function tareaToRow(t: Tarea): TareaRow {
     prioridad: t.prioridad,
     estado: t.estado,
     tiempo_estandar_min: t.tiempoEstandarMin,
+    inicio_planificado: t.inicioPlanificado ?? null,
     inicio_real: t.inicioReal ?? null,
     fin_real: t.finReal ?? null,
     calidad_ok: t.calidadOk ?? null,

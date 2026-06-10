@@ -231,6 +231,16 @@ export async function procesarCola(): Promise<void> {
 async function empujar(op: SyncOp): Promise<boolean> {
   if (!BACKEND_ACTIVO || !supabase) return true // modo demo: nada que enviar
   try {
+    // Borrado fisico (solo gestion, via RLS). La tabla de cada entidad.
+    if (op.tipo === 'delete') {
+      const tabla = op.entidad === 'tarea' ? 'tareas'
+        : op.entidad === 'orden' ? 'ordenes'
+        : op.entidad === 'semielaborado' ? 'semielaborados'
+        : 'paradas'
+      const { error } = await supabase.from(tabla).delete().eq('id', op.entidadId)
+      if (error) { console.warn(`[sync] delete ${op.entidad}:`, error.message); return false }
+      return true
+    }
     switch (op.entidad) {
       case 'tarea': {
         const t = op.payload as Tarea
@@ -288,6 +298,13 @@ async function empujar(op: SyncOp): Promise<boolean> {
 export async function guardarTarea(t: Tarea): Promise<void> {
   await db.tareas.put(t)
   await encolar({ entidad: 'tarea', entidadId: t.id, tipo: 'upsert', payload: t })
+}
+
+// Borra una tarea planificada (aun NO iniciada). Quita de Dexie y encola el
+// delete contra Supabase. La validacion de "no iniciada" la hace quien llama.
+export async function eliminarTarea(t: Tarea): Promise<void> {
+  await db.tareas.delete(t.id)
+  await encolar({ entidad: 'tarea', entidadId: t.id, tipo: 'delete', payload: { id: t.id } })
 }
 
 export async function guardarOrden(o: OrdenProduccion): Promise<void> {

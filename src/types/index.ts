@@ -170,7 +170,7 @@ export type EstadoTarea = 'pendiente' | 'en_proceso' | 'pausada' | 'finalizada'
 // y trae buscador, sin tocar componentes.
 export type CausaParada = string
 
-export type CategoriaParada = 'material' | 'logistica' | 'maquina' | 'personal' | 'calidad' | 'otra'
+export type CategoriaParada = 'material' | 'logistica' | 'maquina' | 'personal' | 'calidad' | 'no_productiva' | 'otra'
 
 export interface Parada {
   id: string
@@ -205,6 +205,7 @@ export interface Tarea {
   prioridad: number        // 1 = mas alta
   estado: EstadoTarea
   tiempoEstandarMin: number // tiempo estandar de la operacion (min)
+  inicioPlanificado?: string // dia+hora planificado de arranque (ISO); base del Gantt (v1.4)
   inicioReal?: string      // timestamp al pasar a en_proceso
   finReal?: string         // timestamp al pasar a finalizada
   calidadOk?: boolean      // resultado del control de calidad
@@ -317,12 +318,15 @@ export const CAUSAS_PARADA: CausaParadaDef[] = [
   { id: 'calidad_alambre', label: 'Problemas calidad del alambre o planchuela', categoria: 'calidad', codigo: 18 },
   { id: 'bobina_bt_defectuosa', label: 'Bobina de BT defectuosa', categoria: 'calidad', codigo: 40 },
   // --- Otras ---
+  // --- No productivas (NO penalizan el OEE: pausas programadas de planta) ---
+  { id: 'almuerzo', label: 'Almuerzo', categoria: 'no_productiva', codigo: 50 },
+
   { id: 'otra', label: 'Otra', categoria: 'otra' },
 ]
 
 export const CATEGORIA_LABEL: Record<CategoriaParada, string> = {
   material: 'Materiales / produccion', logistica: 'Logistica', maquina: 'Maquina / equipo',
-  personal: 'Personal', calidad: 'Calidad', otra: 'Otras',
+  personal: 'Personal', calidad: 'Calidad', no_productiva: 'Pausas programadas', otra: 'Otras',
 }
 
 export function sectorById(id: SectorId): Sector {
@@ -330,6 +334,10 @@ export function sectorById(id: SectorId): Sector {
 }
 export function causaLabel(c: CausaParada): string {
   return CAUSAS_PARADA.find((x) => x.id === c)?.label ?? c
+}
+// Paradas no productivas (almuerzo, pausas programadas): no penalizan el OEE.
+export function esParadaNoProductiva(c: CausaParada): boolean {
+  return CAUSAS_PARADA.find((x) => x.id === c)?.categoria === 'no_productiva'
 }
 
 // ============================================================
