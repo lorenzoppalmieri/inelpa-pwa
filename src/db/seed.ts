@@ -205,7 +205,7 @@ const semielaborados: Semielaborado[] = [
 export async function ensureSeed(): Promise<void> {
   const n = await db.usuarios.count()
   if (n > 0) return
-  await db.transaction('rw', db.usuarios, db.ordenes, db.tareas, db.semielaborados, db.maquinas, async () => {
+  await db.transaction('rw', [db.usuarios, db.ordenes, db.tareas, db.semielaborados, db.maquinas], async () => {
     await db.usuarios.bulkAdd(usuarios)
     await db.ordenes.bulkAdd(ordenes)
     await db.maquinas.bulkAdd(maquinas)
