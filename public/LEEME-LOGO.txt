@@ -1,0 +1,28 @@
+LOGO DE LA APLICACION
+=====================
+
+Guarda aqui el logo de INELPA con el nombre EXACTO:
+
+    logo.png
+
+Ruta completa:  inelpa-pwa/public/logo.png
+
+La pantalla de Login lo carga automaticamente desde "/logo.png".
+Si el archivo no existe, la app muestra el texto "INELPA" como respaldo.
+
+De donde sacar el logo:
+- Logo vertical (cuadrado):   https://www.inelpa.com.ar/core/views/0bfbc6e345/images/logo.png
+- Logo horizontal (apaisado): https://www.inelpa.com.ar/core/views/0bfbc6e345/images/logo-hor.png
+
+Pasos:
+1. Abri uno de esos enlaces en el navegador.
+2. Clic derecho sobre la imagen -> "Guardar imagen como..."
+3. Guardala en esta carpeta (inelpa-pwa/public/) con el nombre logo.png
+4. Recomendado: usar el logo horizontal (logo-hor.png) y renombrarlo a logo.png,
+   queda mejor sobre la tarjeta de login.
+
+Recomendaciones:
+- Formato PNG con fondo transparente.
+- Ancho aprox. 400-600 px (la app lo achica solo).
+- Tambien podes reemplazar los iconos de la PWA en public/icons/ con la misma
+  imagen para que el acceso directo en la tablet muestre el logo.
