@@ -1,14 +1,14 @@
 // Modelo de horario laboral de planta INELPA (todas las areas productivas).
 //
-// Turno productivo:
-//   Lunes a Jueves: 07:00 - 17:00  (16:00-17:00 = recuperacion de horas)
-//   Viernes:        07:00 - 16:00  (15:00 normal; 15:00-16:00 = recuperacion)
+// Turno productivo (la recuperacion de horas cuenta como tiempo estandar):
+//   Lunes a Jueves: 07:00 - 16:00 normal, 16:00 - 17:00 recuperacion
+//   Viernes:        07:00 - 15:00 normal, 15:00 - 16:00 recuperacion
 //   Sabado/Domingo: no laborable
-// La recuperacion de horas cuenta como tiempo productivo estandar.
-// Limpieza = ultimos 15 min del cierre: Lun-Jue 16:45-17:00, Vie 15:45-16:00.
+// Limpieza = ultimos 15 min del cierre NORMAL: Lun-Jue 15:45-16:00, Vie 14:45-15:00.
+// La recuperacion va DESPUES de la limpieza (16-17 Lun-Jue, 15-16 Vie).
 //
 // Tiempo NO productivo (no cuenta como disponible ni se grafica como ocupado):
-//   - Ultimos 15 min de cada dia: limpieza del area.
+//   - Limpieza del area: ultimos 15 min del cierre normal (antes de recuperacion).
 //   - Almuerzo 12:00 - 13:00 (banda comun; los turnos escalonados de 30 min
 //     caen dentro de esta franja).
 //
@@ -21,10 +21,17 @@ const LIMPIEZA_MIN = 15           // ultimos 15 min sin produccion
 const ALM_INI = 12 * 60           // 12:00
 const ALM_FIN = 13 * 60           // 13:00
 
-// Minuto de cierre del turno segun dia de semana (0=Dom .. 6=Sab). null = no laborable.
-function cierreMin(dow: number): number | null {
-  if (dow >= 1 && dow <= 4) return 17 * 60 // Lun-Jue (incluye recuperacion 16-17)
-  if (dow === 5) return 16 * 60            // Vie (incluye recuperacion 15-16)
+// Cierre del turno NORMAL (donde cae la limpieza de fin de jornada).
+// dow: 0=Dom .. 6=Sab. null = no laborable.
+function cierreNormalMin(dow: number): number | null {
+  if (dow >= 1 && dow <= 4) return 16 * 60 // Lun-Jue
+  if (dow === 5) return 15 * 60            // Vie
+  return null                              // Sab/Dom
+}
+// Cierre con recuperacion de horas (limite del tiempo productivo del dia).
+function cierreRecupMin(dow: number): number | null {
+  if (dow >= 1 && dow <= 4) return 17 * 60 // Lun-Jue
+  if (dow === 5) return 16 * 60            // Vie
   return null                              // Sab/Dom
 }
 
@@ -41,15 +48,20 @@ function conMinutos(base: Date, min: number): Date {
   return d
 }
 
-// Tramos productivos de un dia concreto (vacio si no es laborable).
-// Manana (apertura -> almuerzo) y tarde (fin almuerzo -> cierre menos limpieza).
+// Tramos productivos de un dia concreto (vacio si no es laborable):
+//   1) Manana:       apertura -> almuerzo (07:00-12:00)
+//   2) Tarde:        fin almuerzo -> inicio limpieza (cierre normal - 15 min)
+//   3) Recuperacion: cierre normal -> cierre con recuperacion (productivo estandar)
+// La limpieza (cierre normal - 15 min .. cierre normal) queda como hueco entre 2 y 3.
 export function tramosLaborables(fecha: Date): Tramo[] {
-  const cierre = cierreMin(fecha.getDay())
-  if (cierre == null) return []
-  const finProd = cierre - LIMPIEZA_MIN
+  const normal = cierreNormalMin(fecha.getDay())
+  const recup = cierreRecupMin(fecha.getDay())
+  if (normal == null || recup == null) return []
+  const iniLimpieza = normal - LIMPIEZA_MIN
   const tramos: Tramo[] = []
-  if (APERTURA_MIN < ALM_INI) tramos.push({ iniMin: APERTURA_MIN, finMin: Math.min(ALM_INI, finProd) })
-  if (ALM_FIN < finProd) tramos.push({ iniMin: ALM_FIN, finMin: finProd })
+  if (APERTURA_MIN < ALM_INI) tramos.push({ iniMin: APERTURA_MIN, finMin: ALM_INI })
+  if (ALM_FIN < iniLimpieza) tramos.push({ iniMin: ALM_FIN, finMin: iniLimpieza })
+  if (normal < recup) tramos.push({ iniMin: normal, finMin: recup })
   return tramos.filter((t) => t.finMin > t.iniMin)
 }
 

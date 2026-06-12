@@ -32,8 +32,8 @@ function sumarDias(d: Date, n: number): Date {
 }
 
 // Bandas NO productivas de un dia = complemento de los tramos laborables dentro
-// de [07:00, 17:00]. Cubre almuerzo (12-13), limpieza (ult. 15 min) y, los
-// viernes, la franja cerrada 16:00-17:00.
+// de [07:00, 17:00]. Cubre almuerzo (12-13), limpieza de fin de jornada
+// (Lun-Jue 15:45-16:00, Vie 14:45-15:00) y, los viernes, la franja cerrada 16-17.
 function bandasMuertasDia(day: Date): { ini: number; fin: number }[] {
   const tramos = tramosLaborables(day)
   const bands: { ini: number; fin: number }[] = []
