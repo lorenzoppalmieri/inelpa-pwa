@@ -1,9 +1,11 @@
 // Modelo de horario laboral de planta INELPA (todas las areas productivas).
 //
 // Turno productivo:
-//   Lunes a Jueves: 07:00 - 16:00
-//   Viernes:        07:00 - 15:00
+//   Lunes a Jueves: 07:00 - 17:00  (16:00-17:00 = recuperacion de horas)
+//   Viernes:        07:00 - 16:00  (15:00 normal; 15:00-16:00 = recuperacion)
 //   Sabado/Domingo: no laborable
+// La recuperacion de horas cuenta como tiempo productivo estandar.
+// Limpieza = ultimos 15 min del cierre: Lun-Jue 16:45-17:00, Vie 15:45-16:00.
 //
 // Tiempo NO productivo (no cuenta como disponible ni se grafica como ocupado):
 //   - Ultimos 15 min de cada dia: limpieza del area.
@@ -21,8 +23,8 @@ const ALM_FIN = 13 * 60           // 13:00
 
 // Minuto de cierre del turno segun dia de semana (0=Dom .. 6=Sab). null = no laborable.
 function cierreMin(dow: number): number | null {
-  if (dow >= 1 && dow <= 4) return 16 * 60 // Lun-Jue
-  if (dow === 5) return 15 * 60            // Vie
+  if (dow >= 1 && dow <= 4) return 17 * 60 // Lun-Jue (incluye recuperacion 16-17)
+  if (dow === 5) return 16 * 60            // Vie (incluye recuperacion 15-16)
   return null                              // Sab/Dom
 }
 

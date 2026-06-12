@@ -4,10 +4,12 @@ import { sectorById } from '../../types'
 import { hhmm, fmtDur } from '../../lib/time'
 import { sumarMinutosLaborables, proximoInstanteLaborable, tramosLaborables } from '../../lib/calendario'
 
-// Ventana horaria de cada dia (turno de planta: 07:00 - 16:00 reloj visible).
+// Ventana horaria visible de cada dia (turno de planta: 07:00 - 17:00 reloj
+// visible). La franja 16:00-17:00 es recuperacion de horas y cuenta como
+// produccion estandar (definida en lib/calendario.ts).
 const H_INI = 7
-const H_FIN = 16
-const DAY_MIN = (H_FIN - H_INI) * 60 // 540
+const H_FIN = 17
+const DAY_MIN = (H_FIN - H_INI) * 60 // 600
 
 const COLOR: Record<EstadoTarea, string> = {
   pendiente: 'var(--estado-pendiente)',
@@ -30,8 +32,8 @@ function sumarDias(d: Date, n: number): Date {
 }
 
 // Bandas NO productivas de un dia = complemento de los tramos laborables dentro
-// de [07:00, 16:00]. Cubre almuerzo (12-13), limpieza (ult. 15 min) y, los
-// viernes, la franja cerrada 15:00-16:00.
+// de [07:00, 17:00]. Cubre almuerzo (12-13), limpieza (ult. 15 min) y, los
+// viernes, la franja cerrada 16:00-17:00.
 function bandasMuertasDia(day: Date): { ini: number; fin: number }[] {
   const tramos = tramosLaborables(day)
   const bands: { ini: number; fin: number }[] = []
