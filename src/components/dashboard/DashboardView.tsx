@@ -72,8 +72,10 @@ export default function DashboardView() {
     }
   }, [sectoresPermitidos, sectorFiltro, linea])
 
-  // Gantt: tareas de la semana corriente.
-  const filtradas = useMemo(() => (tareas ?? []).filter(pasaFiltros), [tareas, pasaFiltros])
+  // Gantt: TODA la tabla (filtrada por rol/linea/sector). El propio Gantt recorta
+  // por los dias visibles, asi que la vista "Dia" puede mostrar cualquier fecha
+  // (anterior o posterior a la semana activa).
+  const filtradas = useMemo(() => (todasTareas ?? []).filter(pasaFiltros), [todasTareas, pasaFiltros])
 
   // KPIs: tareas del periodo elegido (mes actual / anterior / acumulado anual).
   const kpiFiltradas = useMemo(() => {

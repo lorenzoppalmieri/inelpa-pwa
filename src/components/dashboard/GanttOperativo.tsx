@@ -120,16 +120,20 @@ export default function GanttOperativo({ tareas, agrupar, nombreOperario, nombre
   const ahora = new Date()
   const ahoraISO = ahora.toISOString()
   const [escala, setEscala] = useState<Escala>('semana')
-  const [diaSel, setDiaSel] = useState<number>(() => Math.min(4, (new Date().getDay() + 6) % 7))
+  // En vista "dia" se puede elegir CUALQUIER fecha (anterior o posterior), no solo la semana activa.
+  const [fechaSel, setFechaSel] = useState<string>(() => new Date().toLocaleDateString('en-CA'))
 
-  // Dias laborables (Lun-Vie) de la semana activa.
+  // Dias laborables (Lun-Vie) de la semana activa (vista "semana").
   const diasSemana = useMemo(() => {
     const lun = lunesDeSemana(new Date())
     return Array.from({ length: 5 }, (_, i) => sumarDias(lun, i))
   }, [])
 
+  // Dia unico elegido en vista "dia" (a las 00:00 local).
+  const diaUnico = useMemo(() => new Date(`${fechaSel}T00:00:00`), [fechaSel])
+
   // Dias efectivamente dibujados segun la escala.
-  const dias = escala === 'semana' ? diasSemana : [diasSemana[diaSel]]
+  const dias = escala === 'semana' ? diasSemana : [diaUnico]
   const N = dias.length
 
   const grupos = useMemo(() => {
@@ -176,11 +180,12 @@ export default function GanttOperativo({ tareas, agrupar, nombreOperario, nombre
           <button className={'seg-btn' + (escala === 'dia' ? ' on' : '')} onClick={() => setEscala('dia')}>Día</button>
         </div>
         {escala === 'dia' && (
-          <select className="select" value={diaSel} onChange={(e) => setDiaSel(Number(e.target.value))}>
-            {diasSemana.map((d, i) => (
-              <option key={i} value={i}>{d.toLocaleDateString('es-AR', { weekday: 'long', day: '2-digit', month: '2-digit' })}</option>
-            ))}
-          </select>
+          <input
+            type="date"
+            className="select"
+            value={fechaSel}
+            onChange={(e) => e.target.value && setFechaSel(e.target.value)}
+          />
         )}
       </div>
 
