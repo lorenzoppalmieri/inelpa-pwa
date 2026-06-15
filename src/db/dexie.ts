@@ -1,5 +1,8 @@
 import Dexie, { type Table } from 'dexie'
-import type { Usuario, Tarea, OrdenProduccion, SyncOp, Semielaborado, Maquina } from '../types'
+import type {
+  Usuario, Tarea, OrdenProduccion, SyncOp, Semielaborado, Maquina,
+  ModeloTransformador, ComponenteSemielaborado,
+} from '../types'
 
 // ============================================================
 // Capa offline-first con IndexedDB (via Dexie).
@@ -13,6 +16,8 @@ export class InelpaDB extends Dexie {
   syncQueue!: Table<SyncOp, string>
   semielaborados!: Table<Semielaborado, string>
   maquinas!: Table<Maquina, string>
+  modelos!: Table<ModeloTransformador, string>
+  componentes!: Table<ComponenteSemielaborado, string>
 
   constructor() {
     super('inelpa_pwa')
@@ -33,6 +38,12 @@ export class InelpaDB extends Dexie {
     this.version(3).stores({
       maquinas: 'id, sectorId, tipo',
       tareas: 'id, ordenId, sectorId, operarioId, maquinaId, estado, semana',
+    })
+    // v1.5: catalogo maestro estatico (modelos de transformador + componentes/BOM),
+    // sembrado desde SAP B1 (OITM). PK = codigo (ItemCode).
+    this.version(4).stores({
+      modelos: 'codigo, linea, fase, material',
+      componentes: 'codigo, categoria, sectorId, linea, nivel',
     })
   }
 }

@@ -1,6 +1,7 @@
 import { db } from './dexie'
 import type { Usuario, Tarea, OrdenProduccion, Parada, Semielaborado, Maquina, SectorId, GrupoNomina } from '../types'
 import { generarMaquinas, SECTORES_HERRERIA } from '../types'
+import { MODELOS_CATALOGO, COMPONENTES_CATALOGO } from '../data/catalogo'
 import { isoWeek } from '../lib/time'
 
 // ============================================================
@@ -214,9 +215,27 @@ export async function ensureSeed(): Promise<void> {
   })
 }
 
+// ============================================================
+// Catalogo MAESTRO (v1.5): modelos + componentes (semielaborados).
+// Es data estatica desde SAP B1 (OITM). Se siembra SIEMPRE (con o sin backend),
+// porque la PWA opera standalone con este catalogo. Idempotente: solo siembra
+// si la tabla esta vacia. NO se borra en el fetch inicial de Supabase.
+// ============================================================
+export async function ensureCatalogo(): Promise<void> {
+  // Re-siembra si esta vacio o si cambio el tamano del catalogo (nuevo export SAP).
+  // bulkPut es upsert por PK (codigo), asi que es seguro re-ejecutar.
+  const [nm, nc] = await Promise.all([db.modelos.count(), db.componentes.count()])
+  if (nm === MODELOS_CATALOGO.length && nc === COMPONENTES_CATALOGO.length) return
+  await db.transaction('rw', [db.modelos, db.componentes], async () => {
+    await db.modelos.bulkPut(MODELOS_CATALOGO)
+    await db.componentes.bulkPut(COMPONENTES_CATALOGO)
+  })
+}
+
 // Util para desarrollo: limpiar y resembrar.
 export async function resetDemo(): Promise<void> {
   await db.delete()
   await db.open()
   await ensureSeed()
+  await ensureCatalogo()
 }

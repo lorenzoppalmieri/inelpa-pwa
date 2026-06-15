@@ -245,6 +245,56 @@ export interface Semielaborado {
   actualizado: string
 }
 
+// ============================================================
+// CATALOGO MAESTRO (v1.5) — modelos de transformador + componentes.
+// Origen: maestro de articulos SAP B1 (OITM) export 'SEMIELABORADOS.xlsx'.
+// Es data ESTATICA/maestra: se siembra en Dexie y Supabase y no se muta en planta.
+// (Distinto de 'Semielaborado', que es la instancia productiva con estado/trazabilidad.)
+// ============================================================
+export type CategoriaComponente =
+  | 'bobina_at' | 'bobina_bt' | 'prensayugo' | 'parte_activa'
+  | 'herreria_cuba' | 'herreria_tapa' | 'herreria_tanque' | 'accesorio' | 'otro'
+
+export const CATEGORIA_COMPONENTE_LABEL: Record<CategoriaComponente, string> = {
+  bobina_at: 'Bobina A.T.',
+  bobina_bt: 'Bobina B.T.',
+  prensayugo: 'Prensayugo / corte',
+  parte_activa: 'Parte activa',
+  herreria_cuba: 'Cuba (herreria)',
+  herreria_tapa: 'Tapa (herreria)',
+  herreria_tanque: 'Tanque (herreria)',
+  accesorio: 'Accesorio',
+  otro: 'Otro',
+}
+
+// Modelo de transformador (= Articulo OITM, grupo "MODELO DE TRANSFORMADOR").
+export interface ModeloTransformador {
+  codigo: string                 // = ItemCode (OITM)
+  nombre: string                 // = ItemName (ej "TTD 16/13 - Tanque Expansion - Monoposte - Cobre")
+  linea: LineaProduccion
+  fase: 'monofasico' | 'bifasico' | 'trifasico'
+  material: MaterialBobina | null
+  potencia: number | null
+  tension: number | null
+  montaje: string | null
+  tanque: string | null
+  componentes: string[]          // BOM: codigos de ComponenteSemielaborado asociados
+}
+
+// Componente / semielaborado maestro (= Articulo OITM componente del arbol OITT).
+export interface ComponenteSemielaborado {
+  codigo: string                 // = ItemCode (OITM)
+  descripcion: string            // = ItemName
+  categoria: CategoriaComponente
+  sectorId: SectorId | null      // sector productivo de la PWA que lo fabrica
+  nivel: 'AT' | 'BT' | null
+  linea: LineaProduccion | null
+  fase: string | null
+  material: MaterialBobina | null
+  potencia: number | null
+  tension: number | null
+}
+
 // Cola de sincronizacion: cada cambio offline se encola y se empuja al backend.
 export interface SyncOp {
   id: string

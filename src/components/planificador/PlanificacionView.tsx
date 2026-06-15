@@ -3,11 +3,12 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
 import {
   SECTORES, sectorById,
-  MODELOS_TRANSFORMADOR, MATERIALES, lineaDesdeModelo, materialLabel,
+  MATERIALES, lineaDesdeModelo, materialLabel, CATEGORIA_COMPONENTE_LABEL,
   operariosParaSector, esSectorHerreria,
   type MaterialBobina, type SectorId, type OrdenProduccion, type Tarea,
   type Semielaborado, type EstadoSemielaborado,
 } from '../../types'
+import { MODELOS_CATALOGO, modeloPorNombre, componentesDeModelo } from '../../data/catalogo'
 import { guardarOrden, guardarTarea, guardarSemielaborado, eliminarTarea } from '../../sync/syncEngine'
 import { isoWeek, fechaCorta, hhmm } from '../../lib/time'
 
@@ -54,6 +55,16 @@ function PanelOrdenes() {
 
   // La linea se infiere del prefijo del modelo (TTD=distribucion, TMR/TBR/TTR=rural).
   const linea = modelo ? lineaDesdeModelo(modelo) : null
+  // Modelo del catalogo maestro + sus componentes (semielaborados) asociados.
+  const modeloSel = modeloPorNombre(modelo)
+  const componentes = componentesDeModelo(modeloSel)
+
+  // Al elegir un modelo, el material queda determinado por el propio modelo.
+  function elegirModelo(nombre: string) {
+    setModelo(nombre)
+    const m = modeloPorNombre(nombre)
+    if (m?.material) setMaterial(m.material)
+  }
 
   async function crear() {
     if (!nroOrden.trim() || !modelo || !material || !fechaEntrega) {
@@ -90,14 +101,19 @@ function PanelOrdenes() {
           </div>
           <div className="field">
             <label>Modelo de transformador</label>
-            <select className="input" value={modelo} onChange={(e) => setModelo(e.target.value)}>
+            <select className="input" value={modelo} onChange={(e) => elegirModelo(e.target.value)}>
               <option value="">— Selecciona —</option>
-              {MODELOS_TRANSFORMADOR.map((m) => <option key={m} value={m}>{m}</option>)}
+              <optgroup label="Distribucion">
+                {MODELOS_CATALOGO.filter((m) => m.linea === 'distribucion').map((m) => <option key={m.codigo} value={m.nombre}>{m.nombre}</option>)}
+              </optgroup>
+              <optgroup label="Rural">
+                {MODELOS_CATALOGO.filter((m) => m.linea === 'rural').map((m) => <option key={m.codigo} value={m.nombre}>{m.nombre}</option>)}
+              </optgroup>
             </select>
           </div>
           <div className="field">
-            <label>Material</label>
-            <select className="input" value={material} onChange={(e) => setMaterial(e.target.value as MaterialBobina | '')}>
+            <label>Material (segun modelo)</label>
+            <select className="input" value={material} onChange={(e) => setMaterial(e.target.value as MaterialBobina | '')} disabled={!!modeloSel?.material}>
               <option value="">— Selecciona —</option>
               {MATERIALES.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
             </select>
@@ -115,7 +131,26 @@ function PanelOrdenes() {
             <input className="input" type="date" value={fechaEntrega} onChange={(e) => setFechaEntrega(e.target.value)} />
           </div>
         </div>
-        <button className="btn btn-primary btn-bloque" onClick={crear}>＋ Crear orden</button>
+        {modeloSel && (
+          <div className="semi-preview">
+            <div className="meta" style={{ marginBottom: 8 }}>
+              Semielaborados del modelo <strong>{modeloSel.nombre}</strong> ({componentes.length})
+            </div>
+            {componentes.length === 0 ? (
+              <div className="empty" style={{ padding: '12px 0' }}>Este modelo no tiene componentes mapeados.</div>
+            ) : (
+              <div className="semi-chips">
+                {componentes.map((c) => (
+                  <div key={c.codigo} className="semi-chip" title={c.codigo}>
+                    <span className="semi-cat">{CATEGORIA_COMPONENTE_LABEL[c.categoria]}</span>
+                    <span>{c.descripcion}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+        <button className="btn btn-primary btn-bloque" onClick={crear} style={{ marginTop: 12 }}>＋ Crear orden</button>
         {msg && <div className="meta" style={{ marginTop: 10 }}>{msg}</div>}
       </div>
 
@@ -385,7 +420,7 @@ function PanelSemielaborados() {
             <label>Modelo asociado</label>
             <select className="input" value={modelo} onChange={(e) => setModelo(e.target.value)}>
               <option value="">— Selecciona —</option>
-              {MODELOS_TRANSFORMADOR.map((m) => <option key={m} value={m}>{m}</option>)}
+              {MODELOS_CATALOGO.map((m) => <option key={m.codigo} value={m.nombre}>{m.nombre}</option>)}
             </select>
           </div>
           <div className="field">

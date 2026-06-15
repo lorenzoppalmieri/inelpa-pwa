@@ -224,6 +224,12 @@ button { font-family: inherit; cursor: pointer; border: none; }
 /* ---------- Barra de exportacion ---------- */
 .export-bar { display: flex; gap: 10px; flex-wrap: wrap; margin: 0 0 14px; }
 
+/* ---------- Vista previa de semielaborados del modelo ---------- */
+.semi-preview { margin-top: 12px; padding: 12px; background: var(--panel-2); border: 1px solid var(--borde); border-radius: var(--radio); }
+.semi-chips { display: flex; flex-direction: column; gap: 6px; max-height: 280px; overflow-y: auto; }
+.semi-chip { display: flex; align-items: center; gap: 10px; font-size: .82rem; padding: 6px 8px; background: var(--panel); border-radius: 8px; }
+.semi-chip .semi-cat { flex: none; min-width: 130px; font-weight: 700; color: var(--naranja); font-size: .72rem; text-transform: uppercase; letter-spacing: .4px; }
+
 @media (max-width: 640px) {
   .causa-grid { grid-template-columns: 1fr; }
   .gantt-lblcol, .gantt-rowlbl { width: 130px; }
