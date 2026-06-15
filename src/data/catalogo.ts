@@ -22,6 +22,9 @@ export function modeloPorCodigo(codigo?: string): ModeloTransformador | undefine
 export function modeloPorNombre(nombre?: string): ModeloTransformador | undefined {
   return nombre ? _modeloByNombre.get(nombre) : undefined
 }
+export function componentePorCodigo(codigo?: string): ComponenteSemielaborado | undefined {
+  return codigo ? _compByCodigo.get(codigo) : undefined
+}
 
 // Componentes (semielaborados) asociados a un modelo, en orden de su BOM.
 export function componentesDeModelo(modelo?: ModeloTransformador): ComponenteSemielaborado[] {

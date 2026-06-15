@@ -205,6 +205,9 @@ export interface Tarea {
   prioridad: number        // 1 = mas alta
   estado: EstadoTarea
   tiempoEstandarMin: number // tiempo estandar de la operacion (min)
+  // v1.5: semielaborado (componente del catalogo maestro) que produce esta tarea,
+  // segun el sector. Ej. en Bobinado Dist A.T. se designa la bobina AT del modelo.
+  componenteCodigo?: string  // = ComponenteSemielaborado.codigo (ItemCode SAP)
   inicioPlanificado?: string // dia+hora planificado de arranque (ISO); base del Gantt (v1.4)
   inicioReal?: string      // timestamp al pasar a en_proceso
   finReal?: string         // timestamp al pasar a finalizada

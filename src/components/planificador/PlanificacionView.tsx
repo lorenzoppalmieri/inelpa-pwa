@@ -8,7 +8,7 @@ import {
   type MaterialBobina, type SectorId, type OrdenProduccion, type Tarea,
   type Semielaborado, type EstadoSemielaborado,
 } from '../../types'
-import { MODELOS_CATALOGO, modeloPorNombre, componentesDeModelo } from '../../data/catalogo'
+import { MODELOS_CATALOGO, modeloPorNombre, componentesDeModelo, componentePorCodigo } from '../../data/catalogo'
 import { guardarOrden, guardarTarea, guardarSemielaborado, eliminarTarea } from '../../sync/syncEngine'
 import { isoWeek, fechaCorta, hhmm } from '../../lib/time'
 
@@ -187,6 +187,7 @@ function PanelAsignar() {
   const [sectorId, setSectorId] = useState<SectorId>('bob_dist_at')
   const [operarioId, setOperarioId] = useState('')
   const [maquinaId, setMaquinaId] = useState('')
+  const [componenteCodigo, setComponenteCodigo] = useState('')
   const [prioridad, setPrioridad] = useState('1')
   const [estandar, setEstandar] = useState('120')
   const [nroTransformador, setNroTransformador] = useState('')
@@ -210,8 +211,15 @@ function PanelAsignar() {
   // Colaboradores elegibles: regla Herreria para las 4 sub-etapas, sector directo para el resto.
   const operariosDelSector = operariosParaSector(sectorId, usuarios ?? [])
 
-  // Al cambiar de sector se reinician estacion y colaborador (cambia el universo elegible).
-  function cambiarSector(s: SectorId) { setSectorId(s); setMaquinaId(''); setOperarioId('') }
+  // v1.5: semielaborados elegibles = componentes del modelo de la orden que se
+  // fabrican EN ESTE SECTOR. Ej. Bobinado Dist A.T. -> bobinas AT del modelo.
+  const ordenSel = (ordenes ?? []).find((o) => o.id === ordenId)
+  const modeloSel = modeloPorNombre(ordenSel?.modelo)
+  const componentesDelSector = componentesDeModelo(modeloSel).filter((c) => c.sectorId === sectorId)
+
+  // Al cambiar de sector se reinician estacion, colaborador y semielaborado.
+  function cambiarSector(s: SectorId) { setSectorId(s); setMaquinaId(''); setOperarioId(''); setComponenteCodigo('') }
+  function cambiarOrden(id: string) { setOrdenId(id); setComponenteCodigo('') }
 
   async function asignar() {
     const orden = (ordenes ?? []).find((o) => o.id === ordenId)
@@ -229,6 +237,7 @@ function PanelAsignar() {
       // v1.3: el planificador asigna colaborador + estacion simultaneamente.
       operarioId: operarioId || undefined,
       modelo: orden.modelo,
+      componenteCodigo: componenteCodigo || undefined,
       nroTransformador: nroTransformador.trim() || undefined,
       semana: isoWeek(new Date(inicioPlanificado)),
       prioridad: Math.max(1, Number(prioridad) || 1),
@@ -238,7 +247,7 @@ function PanelAsignar() {
       paradas: [],
     }
     await guardarTarea(t)
-    setNroTransformador('')
+    setNroTransformador(''); setComponenteCodigo('')
     setMsg(`Tarea asignada a ${nombreOperario(operarioId)} · ${nombreMaquina(maquinaId)} en ${sectorById(sectorId).nombre}.`)
   }
 
@@ -261,7 +270,7 @@ function PanelAsignar() {
         <div className="form-grid">
           <div className="field">
             <label>Orden de fabricacion</label>
-            <select className="input" value={ordenId} onChange={(e) => setOrdenId(e.target.value)}>
+            <select className="input" value={ordenId} onChange={(e) => cambiarOrden(e.target.value)}>
               <option value="">— Selecciona —</option>
               {(ordenes ?? []).map((o) => <option key={o.id} value={o.id}>{o.nroOrden} · {o.modelo}</option>)}
             </select>
@@ -271,6 +280,14 @@ function PanelAsignar() {
             <select className="input" value={sectorId} onChange={(e) => cambiarSector(e.target.value as SectorId)}>
               {SECTORES.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
             </select>
+          </div>
+          <div className="field">
+            <label>Semielaborado (segun sector)</label>
+            <select className="input" value={componenteCodigo} onChange={(e) => setComponenteCodigo(e.target.value)} disabled={!ordenSel || componentesDelSector.length === 0}>
+              <option value="">— {!ordenSel ? 'Elegi una orden primero' : componentesDelSector.length === 0 ? 'Sin semielaborados para este sector' : 'Selecciona'} —</option>
+              {componentesDelSector.map((c) => <option key={c.codigo} value={c.codigo}>{c.descripcion}</option>)}
+            </select>
+            {ordenSel && !modeloSel && <div className="meta" style={{ marginTop: 6 }}>El modelo de la orden no esta en el catalogo maestro.</div>}
           </div>
           <div className="field">
             <label>Colaborador</label>
@@ -324,6 +341,7 @@ function PanelAsignar() {
               <div className="meta">
                 {sectorById(t.sectorId).nombre} · {nombreOperario(t.operarioId)} · {nombreMaquina(t.maquinaId)} · Prioridad <strong>{t.prioridad}</strong> · Estandar <strong>{t.tiempoEstandarMin}m</strong>
                 {t.inicioPlanificado ? <> · Arranque <strong>{fechaCorta(t.inicioPlanificado)} {hhmm(t.inicioPlanificado)}</strong></> : null}
+                {t.componenteCodigo ? <> · Semielaborado <strong>{componentePorCodigo(t.componenteCodigo)?.descripcion ?? t.componenteCodigo}</strong></> : null}
               </div>
             </div>
             <span className={'estado-chip e-' + (t.estado === 'en_proceso' ? 'proceso' : t.estado === 'pausada' ? 'pausa' : t.estado === 'finalizada' ? 'finalizado' : 'pendiente')}>
