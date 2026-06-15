@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react'
+import { type PointerEvent as ReactPointerEvent, useMemo, useRef, useState } from 'react'
 import type { Tarea, EstadoTarea } from '../../types'
 import { sectorById } from '../../types'
-import { hhmm, fmtDur } from '../../lib/time'
+import { hhmm, fmtDur, isoWeek } from '../../lib/time'
 import { sumarMinutosLaborables, proximoInstanteLaborable, tramosLaborables } from '../../lib/calendario'
+import { guardarTarea } from '../../sync/syncEngine'
 
 // Ventana horaria visible de cada dia (turno de planta: 07:00 - 17:00 reloj
 // visible). La franja 16:00-17:00 es recuperacion de horas y cuenta como
@@ -10,6 +11,10 @@ import { sumarMinutosLaborables, proximoInstanteLaborable, tramosLaborables } fr
 const H_INI = 7
 const H_FIN = 17
 const DAY_MIN = (H_FIN - H_INI) * 60 // 600
+
+// Zoom (solo vista Dia): px por hora segun el tamano de bloque elegido.
+//  bloque 1h = mas detalle/ancho; 4h = mas comprimido.
+const PX_HORA: Record<number, number> = { 1: 150, 2: 92, 4: 58 }
 
 const COLOR: Record<EstadoTarea, string> = {
   pendiente: 'var(--estado-pendiente)',
@@ -19,6 +24,7 @@ const COLOR: Record<EstadoTarea, string> = {
 }
 
 function minClock(d: Date): number { return d.getHours() * 60 + d.getMinutes() }
+function mismaFecha(a: Date, b: Date): boolean { return a.toDateString() === b.toDateString() }
 
 // Lunes (00:00) de la semana que contiene a `d`.
 function lunesDeSemana(d: Date): Date {
@@ -93,7 +99,7 @@ function programar(tareas: Tarea[], ahoraISO: string): Map<string, Plan> {
   return out
 }
 
-// Parte un intervalo [start,end] en segmentos por dia visible (clip a 07:00-16:00).
+// Parte un intervalo [start,end] en segmentos por dia visible (clip a 07:00-17:00).
 function segmentosPorDia(startISO: string, endISO: string, dias: Date[]) {
   const s = new Date(startISO), e = new Date(endISO)
   const segs: { idx: number; ini: number; fin: number }[] = []
@@ -109,7 +115,7 @@ function segmentosPorDia(startISO: string, endISO: string, dias: Date[]) {
   return segs
 }
 
-interface Segmento { tarea: Tarea; idx: number; left: number; width: number; estimada: boolean; plan: Plan }
+interface Segmento { tarea: Tarea; idx: number; left: number; width: number; estimada: boolean; esInicio: boolean; plan: Plan }
 
 type Escala = 'semana' | 'dia'
 
@@ -124,6 +130,8 @@ export default function GanttOperativo({ tareas, agrupar, nombreOperario, nombre
   const [escala, setEscala] = useState<Escala>('semana')
   // En vista "dia" se puede elegir CUALQUIER fecha (anterior o posterior), no solo la semana activa.
   const [fechaSel, setFechaSel] = useState<string>(() => new Date().toLocaleDateString('en-CA'))
+  // Zoom del eje X en vista "dia": 1, 2 o 4 horas por bloque.
+  const [bloque, setBloque] = useState<1 | 2 | 4>(2)
 
   // Dias laborables (Lun-Vie) de la semana activa (vista "semana").
   const diasSemana = useMemo(() => {
@@ -146,6 +154,7 @@ export default function GanttOperativo({ tareas, agrupar, nombreOperario, nombre
       if (!p) continue
       const segs = segmentosPorDia(p.startISO, p.endISO, dias)
       if (segs.length === 0) continue
+      const startD = new Date(p.startISO)
       const key = agrupar === 'sector'
         ? sectorById(t.sectorId).nombre
         : agrupar === 'maquina'
@@ -155,12 +164,75 @@ export default function GanttOperativo({ tareas, agrupar, nombreOperario, nombre
       for (const sg of segs) {
         const left = ((sg.idx + (sg.ini - H_INI * 60) / DAY_MIN) / N) * 100
         const width = Math.max(0.6, ((sg.fin - sg.ini) / DAY_MIN / N) * 100)
-        arr.push({ tarea: t, idx: sg.idx, left, width, estimada: p.estimada, plan: p })
+        const esInicio = mismaFecha(dias[sg.idx], startD) && sg.ini === minClock(startD)
+        arr.push({ tarea: t, idx: sg.idx, left, width, estimada: p.estimada, esInicio, plan: p })
       }
       map.set(key, arr)
     }
     return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]))
   }, [tareas, agrupar, ahoraISO, nombreOperario, nombreMaquina, dias, N])
+
+  // ============================================================
+  // Drag & Drop: reprogramar tareas PENDIENTES arrastrando su barra.
+  //  - Solo la barra de inicio de una tarea pendiente es arrastrable.
+  //  - Al soltar: posicion X -> dia+hora; se encaja (snap) al proximo tramo
+  //    productivo y nunca antes de "ahora"; se persiste (Dexie + sync) y el
+  //    auto-shift se re-ejecuta solo al actualizar las tareas.
+  // ============================================================
+  const dragRef = useRef<{ tarea: Tarea; rect: DOMRect; grabPx: number; barWpx: number } | null>(null)
+  const [ghost, setGhost] = useState<{ id: string; leftPx: number } | null>(null)
+
+  // Fraccion [0,1] sobre el track -> instante candidato (dia + minuto del dia).
+  function instanteDesdeFraccion(frac: number): Date {
+    const fN = Math.max(0, Math.min(1, frac)) * N
+    let dayIdx = Math.floor(fN)
+    if (dayIdx >= N) dayIdx = N - 1
+    if (dayIdx < 0) dayIdx = 0
+    const within = fN - dayIdx
+    const minDia = H_INI * 60 + within * DAY_MIN
+    const d = new Date(dias[dayIdx]); d.setHours(0, 0, 0, 0); d.setMinutes(Math.round(minDia))
+    return d
+  }
+
+  function iniciarArrastre(e: ReactPointerEvent<HTMLDivElement>, b: Segmento) {
+    if (b.tarea.estado !== 'pendiente' || !b.esInicio) return // solo pendientes
+    e.preventDefault()
+    const track = e.currentTarget.parentElement as HTMLElement
+    const rect = track.getBoundingClientRect()
+    const barLeftPx = (b.left / 100) * rect.width
+    const barWpx = (b.width / 100) * rect.width
+    const grabPx = e.clientX - rect.left - barLeftPx
+    dragRef.current = { tarea: b.tarea, rect, grabPx, barWpx }
+    setGhost({ id: b.tarea.id, leftPx: barLeftPx })
+
+    const clampLeft = (clientX: number) => {
+      const s = dragRef.current!
+      const px = clientX - s.rect.left - s.grabPx
+      return Math.max(0, Math.min(px, s.rect.width - s.barWpx))
+    }
+    const onMove = (ev: PointerEvent) => {
+      if (!dragRef.current) return
+      setGhost({ id: dragRef.current.tarea.id, leftPx: clampLeft(ev.clientX) })
+    }
+    const onUp = async (ev: PointerEvent) => {
+      window.removeEventListener('pointermove', onMove)
+      const s = dragRef.current
+      dragRef.current = null
+      setGhost(null)
+      if (!s) return
+      const frac = clampLeft(ev.clientX) / s.rect.width
+      const cand = instanteDesdeFraccion(frac)
+      // No permitir arrastrar al pasado, y encajar al proximo tramo productivo.
+      const nowISO = new Date().toISOString()
+      let candISO = cand.toISOString()
+      if (candISO < nowISO) candISO = nowISO
+      const snapped = proximoInstanteLaborable(candISO)
+      if (snapped === s.tarea.inicioPlanificado) return
+      await guardarTarea({ ...s.tarea, inicioPlanificado: snapped, semana: isoWeek(new Date(snapped)) })
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp, { once: true })
+  }
 
   // Linea "ahora": solo si hoy es uno de los dias visibles y estamos en turno.
   const ahoraPct = (() => {
@@ -172,6 +244,8 @@ export default function GanttOperativo({ tareas, agrupar, nombreOperario, nombre
   })()
 
   const horas = Array.from({ length: H_FIN - H_INI }, (_, i) => H_INI + i)
+  // En vista dia, ancho explicito del contenido segun el zoom (habilita scroll-x).
+  const innerStyle = escala === 'dia' ? { width: 200 + (H_FIN - H_INI) * PX_HORA[bloque] } : undefined
 
   return (
     <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
@@ -182,17 +256,24 @@ export default function GanttOperativo({ tareas, agrupar, nombreOperario, nombre
           <button className={'seg-btn' + (escala === 'dia' ? ' on' : '')} onClick={() => setEscala('dia')}>Día</button>
         </div>
         {escala === 'dia' && (
-          <input
-            type="date"
-            className="select"
-            value={fechaSel}
-            onChange={(e) => e.target.value && setFechaSel(e.target.value)}
-          />
+          <>
+            <input
+              type="date"
+              className="select"
+              value={fechaSel}
+              onChange={(e) => e.target.value && setFechaSel(e.target.value)}
+            />
+            <div className="seg" title="Zoom del eje horario">
+              {([1, 2, 4] as const).map((b) => (
+                <button key={b} className={'seg-btn' + (bloque === b ? ' on' : '')} onClick={() => setBloque(b)}>{b}h</button>
+              ))}
+            </div>
+          </>
         )}
       </div>
 
       <div className="gantt">
-        <div className="gantt-inner">
+        <div className="gantt-inner" style={innerStyle}>
           <div className="gantt-head">
             <div className="gantt-lblcol">{agrupar === 'sector' ? 'Sector' : agrupar === 'maquina' ? 'Estación' : 'Colaborador'}</div>
             <div className="gantt-timeline">
@@ -202,7 +283,11 @@ export default function GanttOperativo({ tareas, agrupar, nombreOperario, nombre
                       {d.toLocaleDateString('es-AR', { weekday: 'short', day: '2-digit', month: '2-digit' })}
                     </div>
                   ))
-                : horas.map((h) => <div key={h} className="gantt-hcell">{String(h).padStart(2, '0')}:00</div>)}
+                : horas.map((h) => (
+                    <div key={h} className="gantt-hcell">
+                      {(h - H_INI) % bloque === 0 ? `${String(h).padStart(2, '0')}:00` : ''}
+                    </div>
+                  ))}
             </div>
           </div>
 
@@ -223,30 +308,36 @@ export default function GanttOperativo({ tareas, agrupar, nombreOperario, nombre
                 {escala === 'semana' && dias.slice(1).map((_, i) => (
                   <div key={`sep${i}`} className="gantt-grid-line" style={{ left: `${((i + 1) / N) * 100}%`, background: 'var(--borde)', width: 2 }} />
                 ))}
-                {/* en vista dia: lineas de grilla por hora */}
-                {escala === 'dia' && horas.slice(1).map((h, i) => (
-                  <div key={h} className="gantt-grid-line" style={{ left: `${((i + 1) / DAY_MIN) * 60 * 100}%` }} />
+                {/* en vista dia: lineas de grilla cada `bloque` horas */}
+                {escala === 'dia' && horas.filter((h) => h > H_INI && (h - H_INI) % bloque === 0).map((h) => (
+                  <div key={h} className="gantt-grid-line" style={{ left: `${((h - H_INI) * 60 / DAY_MIN) * 100}%` }} />
                 ))}
                 {/* linea "ahora" */}
                 {ahoraPct >= 0 && ahoraPct <= 100 && (
                   <div className="gantt-grid-line" style={{ left: `${ahoraPct}%`, background: 'var(--rojo)', width: 2 }} />
                 )}
-                {segs.map((b, i) => (
-                  <div
-                    key={b.tarea.id + '-' + b.idx + '-' + i}
-                    className="gantt-bar"
-                    style={{
-                      left: `${b.left}%`, width: `${b.width}%`,
-                      background: COLOR[b.tarea.estado],
-                      opacity: b.estimada ? 0.55 : 1,
-                      border: b.estimada ? '1px dashed rgba(255,255,255,.5)' : 'none',
-                      color: b.tarea.estado === 'pausada' ? '#1a1206' : '#fff',
-                    }}
-                    title={`${b.tarea.modelo} · ${b.tarea.estado} · ${b.estimada ? 'plan' : 'real'} ${hhmm(b.plan.startISO)}–${hhmm(b.plan.endISO)} · ${fmtDur(b.tarea.tiempoEstandarMin)}`}
-                  >
-                    {b.tarea.modelo}
-                  </div>
-                ))}
+                {segs.map((b, i) => {
+                  const arrastrable = b.tarea.estado === 'pendiente' && b.esInicio
+                  const dragging = ghost?.id === b.tarea.id && b.esInicio
+                  return (
+                    <div
+                      key={b.tarea.id + '-' + b.idx + '-' + i}
+                      className={'gantt-bar' + (arrastrable ? ' arrastrable' : '') + (dragging ? ' dragging' : '')}
+                      onPointerDown={arrastrable ? (e) => iniciarArrastre(e, b) : undefined}
+                      style={{
+                        left: dragging ? `${ghost!.leftPx}px` : `${b.left}%`,
+                        width: `${b.width}%`,
+                        background: COLOR[b.tarea.estado],
+                        opacity: dragging ? 0.85 : b.estimada ? 0.55 : 1,
+                        border: b.estimada ? '1px dashed rgba(255,255,255,.5)' : 'none',
+                        color: b.tarea.estado === 'pausada' ? '#1a1206' : '#fff',
+                      }}
+                      title={`${b.tarea.modelo} · ${b.tarea.estado} · ${b.estimada ? 'plan' : 'real'} ${hhmm(b.plan.startISO)}–${hhmm(b.plan.endISO)} · ${fmtDur(b.tarea.tiempoEstandarMin)}${arrastrable ? ' · arrastrá para reprogramar' : ''}`}
+                    >
+                      {b.tarea.modelo}
+                    </div>
+                  )
+                })}
               </div>
             </div>
           ))}

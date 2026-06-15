@@ -168,6 +168,9 @@ button { font-family: inherit; cursor: pointer; border: none; }
   color: #fff; overflow: hidden; white-space: nowrap; cursor: pointer;
   box-shadow: 0 1px 4px rgba(0,0,0,.3);
 }
+.gantt-bar.arrastrable { cursor: grab; touch-action: none; }
+.gantt-bar.arrastrable:hover { box-shadow: 0 0 0 2px var(--naranja), 0 1px 4px rgba(0,0,0,.3); }
+.gantt-bar.dragging { cursor: grabbing; z-index: 5; box-shadow: 0 0 0 2px var(--naranja), 0 4px 12px rgba(0,0,0,.5); }
 .gantt-grid-line { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--borde); }
 .gantt-banda-muerta {
   position: absolute; top: 0; bottom: 0;
