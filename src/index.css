@@ -221,8 +221,30 @@ button { font-family: inherit; cursor: pointer; border: none; }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
 .legend i { width: 14px; height: 14px; border-radius: 4px; display: inline-block; }
 
+/* ---------- Barra de exportacion ---------- */
+.export-bar { display: flex; gap: 10px; flex-wrap: wrap; margin: 0 0 14px; }
+
 @media (max-width: 640px) {
   .causa-grid { grid-template-columns: 1fr; }
   .gantt-lblcol, .gantt-rowlbl { width: 130px; }
   .gantt-inner { min-width: 620px; }
+}
+
+/* ---------- Impresion (Imprimir reporte / PDF A4) ----------
+   Oculta el chrome de la app y formatea el reporte de KPIs en claro, A4. */
+@media print {
+  @page { size: A4; margin: 14mm; }
+  .no-print { display: none !important; }
+  html, body { background: #fff !important; color: #000 !important; }
+  .app-shell, .content { display: block !important; padding: 0 !important; margin: 0 !important; }
+  .section-title { color: #000 !important; }
+  /* Tarjetas y barras en claro para impresion legible */
+  .card, .kpi { background: #fff !important; border: 1px solid #999 !important; color: #000 !important; box-shadow: none !important; }
+  .kpi .label, .kpi .value, .pareto-lbl, .meta, .sub { color: #000 !important; }
+  .kpi .bar { background: #e5e7eb !important; }
+  .pareto-bar-wrap { background: #e5e7eb !important; }
+  /* Forzar impresion de colores de las barras (Disponibilidad, OEE, etc.) */
+  .kpi .bar > span, .pareto-bar { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .kpi-grid { break-inside: avoid; }
+  .pareto-row { break-inside: avoid; }
 }

@@ -2,7 +2,8 @@ import { type PointerEvent as ReactPointerEvent, useMemo, useRef, useState } fro
 import type { Tarea, EstadoTarea } from '../../types'
 import { sectorById } from '../../types'
 import { hhmm, fmtDur, isoWeek } from '../../lib/time'
-import { sumarMinutosLaborables, proximoInstanteLaborable, tramosLaborables } from '../../lib/calendario'
+import { proximoInstanteLaborable, tramosLaborables } from '../../lib/calendario'
+import { programar, type Plan } from '../../lib/programacion'
 import { guardarTarea } from '../../sync/syncEngine'
 
 // Ventana horaria visible de cada dia (turno de planta: 07:00 - 17:00 reloj
@@ -50,53 +51,6 @@ function bandasMuertasDia(day: Date): { ini: number; fin: number }[] {
   }
   if (cursor < H_FIN * 60) bands.push({ ini: cursor, fin: H_FIN * 60 })
   return bands
-}
-
-interface Plan { startISO: string; endISO: string; estimada: boolean }
-
-// ============================================================
-// Programacion por maquina con auto-shift (multi-dia).
-//  - Tareas iniciadas (inicioReal): fijas; si una en curso sobrepasa su
-//    estimado, la maquina sigue ocupada hasta "ahora" y empuja a las siguientes.
-//  - Tareas pendientes: arrancan en su inicioPlanificado; si colisionan en su
-//    maquina se corren hacia adelante respetando turno + almuerzo (cruza dias).
-// ============================================================
-function programar(tareas: Tarea[], ahoraISO: string): Map<string, Plan> {
-  const out = new Map<string, Plan>()
-  const porMaquina = new Map<string, Tarea[]>()
-  for (const t of tareas) {
-    const arr = porMaquina.get(t.maquinaId) ?? []
-    arr.push(t)
-    porMaquina.set(t.maquinaId, arr)
-  }
-  for (const [, arr] of porMaquina) {
-    const ordenadas = [...arr].sort((a, b) => {
-      const ak = a.inicioReal ?? a.inicioPlanificado ?? ''
-      const bk = b.inicioReal ?? b.inicioPlanificado ?? ''
-      if (ak && bk && ak !== bk) return ak < bk ? -1 : 1
-      if (ak && !bk) return -1
-      if (!ak && bk) return 1
-      return a.prioridad - b.prioridad
-    })
-    let cursor = ''
-    for (const t of ordenadas) {
-      if (t.inicioReal) {
-        const estEnd = sumarMinutosLaborables(t.inicioReal, t.tiempoEstandarMin)
-        let endISO = t.finReal ?? estEnd
-        if (!t.finReal && t.estado !== 'finalizada') endISO = ahoraISO > estEnd ? ahoraISO : estEnd
-        out.set(t.id, { startISO: t.inicioReal, endISO, estimada: false })
-        if (!cursor || endISO > cursor) cursor = endISO
-      } else {
-        let startISO = t.inicioPlanificado ?? cursor ?? ahoraISO
-        if (cursor && cursor > startISO) startISO = cursor
-        startISO = proximoInstanteLaborable(startISO || ahoraISO)
-        const endISO = sumarMinutosLaborables(startISO, t.tiempoEstandarMin)
-        out.set(t.id, { startISO, endISO, estimada: true })
-        cursor = endISO
-      }
-    }
-  }
-  return out
 }
 
 // Parte un intervalo [start,end] en segmentos por dia visible (clip a 07:00-17:00).

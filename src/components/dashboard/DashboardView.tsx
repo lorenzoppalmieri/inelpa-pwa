@@ -2,9 +2,12 @@ import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
 import { useAuth } from '../../auth/AuthContext'
-import { SECTORES, type LineaProduccion, type SectorId, type Tarea } from '../../types'
+import { SECTORES, materialLabel, type LineaProduccion, type SectorId, type Tarea } from '../../types'
 import { isoWeek } from '../../lib/time'
 import { filtrarPorRango } from '../../lib/kpi'
+import {
+  exportarKpisCSV, exportarProgramacionCSV, hayDatosKpi, hayDatosProgramacion,
+} from '../../lib/export'
 import GanttOperativo from './GanttOperativo'
 import KpiPanel from './KpiPanel'
 import PlanificacionView from '../planificador/PlanificacionView'
@@ -45,6 +48,7 @@ export default function DashboardView() {
   const todasTareas = useLiveQuery(() => db.tareas.toArray(), [])
   const usuarios = useLiveQuery(() => db.usuarios.toArray(), [])
   const maquinas = useLiveQuery(() => db.maquinas.toArray(), [])
+  const ordenes = useLiveQuery(() => db.ordenes.toArray(), [])
 
   const nombreOperario = useMemo(() => {
     const m = new Map((usuarios ?? []).map((u) => [u.id, u.nombre]))
@@ -55,6 +59,12 @@ export default function DashboardView() {
     const m = new Map((maquinas ?? []).map((x) => [x.id, x.nombre]))
     return (id: string) => m.get(id) ?? id
   }, [maquinas])
+
+  // Material de una tarea: vive en su orden de fabricacion (no en la tarea).
+  const materialTarea = useMemo(() => {
+    const m = new Map((ordenes ?? []).map((o) => [o.id, o.material]))
+    return (t: Tarea) => { const mat = m.get(t.ordenId); return mat ? materialLabel(mat) : '-' }
+  }, [ordenes])
 
   const sectoresVisibles = SECTORES.filter((s) => sectoresPermitidos.includes(s.id))
 
@@ -95,7 +105,7 @@ export default function DashboardView() {
         {enParada > 0 && <span className="estado-chip e-pausa" style={{ marginLeft: 10 }}>{enParada} en parada</span>}
       </div>
 
-      <div className="tabs">
+      <div className="tabs no-print">
         <button className={'tab' + (vista === 'gantt' ? ' active' : '')} onClick={() => setVista('gantt')}>Gantt operativo</button>
         <button className={'tab' + (vista === 'kpis' ? ' active' : '')} onClick={() => setVista('kpis')}>Eficiencia / KPIs</button>
         {permisos?.cargarProgramacion && (
@@ -114,6 +124,7 @@ export default function DashboardView() {
             sectoresVisibles={sectoresVisibles}
             filtradas={filtradas} kpiFiltradas={kpiFiltradas}
             nombreOperario={nombreOperario} nombreMaquina={nombreMaquina}
+            materialTarea={materialTarea}
           />}
     </div>
   )
@@ -134,11 +145,17 @@ function DashboardCuerpo(props: {
   kpiFiltradas: Tarea[]
   nombreOperario: (id: string) => string
   nombreMaquina: (id: string) => string
+  materialTarea: (t: Tarea) => string
 }) {
-  const { vista, linea, setLinea, sectorFiltro, setSectorFiltro, agrupar, setAgrupar, periodo, setPeriodo, sectoresVisibles, filtradas, kpiFiltradas, nombreOperario, nombreMaquina } = props
+  const { vista, linea, setLinea, sectorFiltro, setSectorFiltro, agrupar, setAgrupar, periodo, setPeriodo, sectoresVisibles, filtradas, kpiFiltradas, nombreOperario, nombreMaquina, materialTarea } = props
+
+  const periodoLabel = PERIODOS.find((p) => p.id === periodo)?.label ?? ''
+  const puedeKpi = hayDatosKpi(kpiFiltradas)
+  const puedeProg = hayDatosProgramacion(filtradas)
+
   return (
     <>
-      <div className="filtros">
+      <div className="filtros no-print">
         <select className="select" value={linea} onChange={(e) => setLinea(e.target.value as any)}>
           <option value="todas">Todas las lineas</option>
           <option value="distribucion">Distribucion</option>
@@ -159,6 +176,35 @@ function DashboardCuerpo(props: {
           <select className="select" value={periodo} onChange={(e) => setPeriodo(e.target.value as Periodo)}>
             {PERIODOS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
           </select>
+        )}
+      </div>
+
+      <div className="export-bar no-print">
+        {vista === 'kpis' ? (
+          <>
+            <button
+              className="btn btn-primary"
+              disabled={!puedeKpi}
+              title={puedeKpi ? 'Descargar KPIs/OEE del periodo en CSV (Excel)' : 'No hay tareas finalizadas en el periodo'}
+              onClick={() => exportarKpisCSV(kpiFiltradas, nombreMaquina, periodoLabel)}
+            >⬇ Exportar KPIs (Excel)</button>
+            <button
+              className="btn"
+              disabled={!puedeKpi}
+              title={puedeKpi ? 'Imprimir / guardar como PDF (vista A4)' : 'No hay datos para imprimir'}
+              onClick={() => window.print()}
+            >🖨 Imprimir reporte</button>
+          </>
+        ) : (
+          <button
+            className="btn btn-primary"
+            disabled={!puedeProg}
+            title={puedeProg ? 'Descargar la cola de programacion activa en CSV (Excel)' : 'No hay tareas en cola'}
+            onClick={() => exportarProgramacionCSV(filtradas, new Date().toISOString(), nombreMaquina, nombreOperario, materialTarea)}
+          >⬇ Exportar programación (Excel)</button>
+        )}
+        {((vista === 'kpis' && !puedeKpi) || (vista === 'gantt' && !puedeProg)) && (
+          <span className="meta" style={{ alignSelf: 'center' }}>Sin datos para exportar en esta selección.</span>
         )}
       </div>
 
