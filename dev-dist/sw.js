@@ -67,7 +67,7 @@ if (!self.define) {
     });
   };
 }
-define(['./workbox-290dd570'], (function (workbox) { 'use strict';
+define(['./workbox-d90baac9'], (function (workbox) { 'use strict';
 
   self.skipWaiting();
   workbox.clientsClaim();
@@ -81,20 +81,25 @@ define(['./workbox-290dd570'], (function (workbox) { 'use strict';
     "revision": "3ca0b8505b4bec776b69afdba2768812"
   }, {
     "url": "/index.html",
-    "revision": "0.ctf4fnnj30k"
+    "revision": "0.hedqnvalf6"
   }], {});
   workbox.cleanupOutdatedCaches();
   workbox.registerRoute(new workbox.NavigationRoute(workbox.createHandlerBoundToURL("/index.html"), {
-    allowlist: [/^\/$/]
+    allowlist: [/^\/$/],
+    denylist: [/^\/rest\//, /^\/auth\//, /^\/realtime\//, /^\/functions\//, /^\/storage\//]
   }));
   workbox.registerRoute(({
     url
-  }) => url.pathname.startsWith("/rest/") || url.host.includes("supabase"), new workbox.NetworkFirst({
-    "cacheName": "api-cache",
-    "networkTimeoutSeconds": 4,
+  }) => url.hostname.includes("supabase") || url.pathname.startsWith("/rest/") || url.pathname.startsWith("/auth/") || url.pathname.startsWith("/realtime/") || url.pathname.startsWith("/functions/"), new workbox.NetworkOnly(), 'GET');
+  workbox.registerRoute(({
+    request,
+    url,
+    sameOrigin
+  }) => sameOrigin && (request.destination === "style" || request.destination === "script" || request.destination === "image" || request.destination === "font") && !url.hostname.includes("supabase"), new workbox.StaleWhileRevalidate({
+    "cacheName": "assets-estaticos",
     plugins: [new workbox.ExpirationPlugin({
       maxEntries: 200,
-      maxAgeSeconds: 86400
+      maxAgeSeconds: 2592000
     })]
   }), 'GET');
 

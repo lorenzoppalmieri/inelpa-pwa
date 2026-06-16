@@ -1,5 +1,5 @@
 import type { Tarea } from '../types'
-import { sumarMinutosLaborables, proximoInstanteLaborable } from './calendario'
+import { sumarMinutosLaborables, proximoInstanteLaborable, type GrupoAlmuerzo, GRUPO_ALMUERZO_DEFAULT } from './calendario'
 
 // ============================================================
 // Programacion por maquina con auto-shift (multi-dia).
@@ -13,7 +13,7 @@ import { sumarMinutosLaborables, proximoInstanteLaborable } from './calendario'
 // ============================================================
 export interface Plan { startISO: string; endISO: string; estimada: boolean }
 
-export function programar(tareas: Tarea[], ahoraISO: string): Map<string, Plan> {
+export function programar(tareas: Tarea[], ahoraISO: string, grupo: GrupoAlmuerzo = GRUPO_ALMUERZO_DEFAULT): Map<string, Plan> {
   const out = new Map<string, Plan>()
   const porMaquina = new Map<string, Tarea[]>()
   for (const t of tareas) {

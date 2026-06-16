@@ -2,7 +2,7 @@ import { type PointerEvent as ReactPointerEvent, useMemo, useRef, useState } fro
 import type { Tarea, EstadoTarea, Maquina } from '../../types'
 import { sectorById } from '../../types'
 import { hhmm, fmtDur, isoWeek } from '../../lib/time'
-import { proximoInstanteLaborable, tramosLaborables } from '../../lib/calendario'
+import { proximoInstanteLaborable, tramosLaborables, type GrupoAlmuerzo } from '../../lib/calendario'
 import { programar, type Plan } from '../../lib/programacion'
 import { guardarTarea } from '../../sync/syncEngine'
 
@@ -34,8 +34,8 @@ function lunesDeSemana(d: Date): Date {
 function sumarDias(d: Date, n: number): Date { const r = new Date(d); r.setDate(r.getDate() + n); return r }
 
 // Bandas NO productivas de un dia (complemento de tramos laborables en [7,17]).
-function bandasMuertasDia(day: Date): { ini: number; fin: number }[] {
-  const tramos = tramosLaborables(day)
+function bandasMuertasDia(day: Date, grupo: GrupoAlmuerzo): { ini: number; fin: number }[] {
+  const tramos = tramosLaborables(day, grupo)
   const bands: { ini: number; fin: number }[] = []
   let cursor = H_INI * 60
   for (const t of tramos) {
@@ -79,6 +79,8 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
   const [escala, setEscala] = useState<Escala>('semana')
   const [fechaSel, setFechaSel] = useState<string>(() => new Date().toLocaleDateString('en-CA'))
   const [bloque, setBloque] = useState<1 | 2 | 4>(2)
+  // Turno de almuerzo activo en la vista (rota cada 15 dias por sector/linea).
+  const [almuerzo, setAlmuerzo] = useState<GrupoAlmuerzo>('A')
 
   const diasSemana = useMemo(() => {
     const lun = lunesDeSemana(new Date())
@@ -116,7 +118,7 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
 
   // Segmentos por carril (con auto-shift por maquina).
   const segsPorLane = useMemo(() => {
-    const plan = programar(tareas, ahoraISO)
+    const plan = programar(tareas, ahoraISO, almuerzo)
     const map = new Map<string, Segmento[]>()
     for (const t of tareas) {
       const p = plan.get(t.id)
@@ -136,7 +138,7 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
     }
     return map
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tareas, agrupar, ahoraISO, dias, N])
+  }, [tareas, agrupar, ahoraISO, dias, N, almuerzo])
 
   // ============================================================
   // Drag & Drop 2D: X = inicioPlanificado (hora/fecha), Y = carril (maquina u
@@ -190,7 +192,7 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
       const nowISO = new Date().toISOString()
       let candISO = cand.toISOString()
       if (candISO < nowISO) candISO = nowISO
-      const snapped = proximoInstanteLaborable(candISO)
+      const snapped = proximoInstanteLaborable(candISO, almuerzo)
 
       const patch: Partial<Tarea> = { inicioPlanificado: snapped, semana: isoWeek(new Date(snapped)) }
       if (reasignable && laneId && laneId !== SIN_ASIGNAR) {
@@ -246,6 +248,11 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
             </div>
           </>
         )}
+        <div className="seg" title="Turno de almuerzo (30 min) activo en la vista">
+          <span className="seg-cap">Almuerzo</span>
+          <button className={'seg-btn' + (almuerzo === 'A' ? ' on' : '')} onClick={() => setAlmuerzo('A')}>A · 12:00–12:30</button>
+          <button className={'seg-btn' + (almuerzo === 'B' ? ' on' : '')} onClick={() => setAlmuerzo('B')}>B · 12:30–13:00</button>
+        </div>
         {reasignable && <span className="meta" style={{ alignSelf: 'center' }}>Arrastrá una barra pendiente para moverla de {agrupar === 'maquina' ? 'máquina' : 'colaborador'} y horario.</span>}
       </div>
 
@@ -276,7 +283,7 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
                   <div className="sub">{lane.sub ? `${lane.sub} · ` : ''}{nTareas} tarea(s)</div>
                 </div>
                 <div className="gantt-track" data-lane-id={lane.id}>
-                  {dias.flatMap((day, idx) => bandasMuertasDia(day).map((bd, j) => {
+                  {dias.flatMap((day, idx) => bandasMuertasDia(day, almuerzo).map((bd, j) => {
                     const left = ((idx + (bd.ini - H_INI * 60) / DAY_MIN) / N) * 100
                     const width = ((bd.fin - bd.ini) / DAY_MIN / N) * 100
                     return <div key={`${idx}-${j}`} className="gantt-banda-muerta" style={{ left: `${left}%`, width: `${width}%` }} title="Sin producción" />

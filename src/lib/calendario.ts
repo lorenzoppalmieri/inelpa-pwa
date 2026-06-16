@@ -9,17 +9,28 @@
 //
 // Tiempo NO productivo (no cuenta como disponible ni se grafica como ocupado):
 //   - Limpieza del area: ultimos 15 min del cierre normal (antes de recuperacion).
-//   - Almuerzo 12:00 - 13:00 (banda comun; los turnos escalonados de 30 min
-//     caen dentro de esta franja).
+//   - Almuerzo: SOLO 30 min dentro de la franja 12:00-13:00, segun el grupo de
+//     turno rotativo (cambia cada 15 dias). Los otros 30 min SON productivos.
+//       Grupo A: almuerza 12:00-12:30  (12:30-13:00 produce)
+//       Grupo B: almuerza 12:30-13:00  (12:00-12:30 produce)
 //
 // Todas las funciones trabajan en hora LOCAL del navegador (la tablet de planta).
 
 export interface Tramo { iniMin: number; finMin: number } // minutos desde 00:00 del dia
 
+// Grupo de turno de almuerzo (rotativo por sector/linea, lo elige el planificador).
+export type GrupoAlmuerzo = 'A' | 'B'
+export const GRUPO_ALMUERZO_DEFAULT: GrupoAlmuerzo = 'A'
+
 const APERTURA_MIN = 7 * 60       // 07:00
 const LIMPIEZA_MIN = 15           // ultimos 15 min sin produccion
-const ALM_INI = 12 * 60           // 12:00
-const ALM_FIN = 13 * 60           // 13:00
+
+// Franja de 30 min de almuerzo segun el grupo (dentro de 12:00-13:00).
+export function tramoAlmuerzo(grupo: GrupoAlmuerzo): Tramo {
+  return grupo === 'B'
+    ? { iniMin: 12 * 60 + 30, finMin: 13 * 60 } // 12:30 - 13:00
+    : { iniMin: 12 * 60, finMin: 12 * 60 + 30 } // 12:00 - 12:30
+}
 
 // Cierre del turno NORMAL (donde cae la limpieza de fin de jornada).
 // dow: 0=Dom .. 6=Sab. null = no laborable.
@@ -49,34 +60,36 @@ function conMinutos(base: Date, min: number): Date {
 }
 
 // Tramos productivos de un dia concreto (vacio si no es laborable):
-//   1) Manana:       apertura -> almuerzo (07:00-12:00)
-//   2) Tarde:        fin almuerzo -> inicio limpieza (cierre normal - 15 min)
+//   1) Manana:       apertura -> inicio del almuerzo del grupo
+//   2) Tarde:        fin del almuerzo -> inicio limpieza (cierre normal - 15 min)
 //   3) Recuperacion: cierre normal -> cierre con recuperacion (productivo estandar)
-// La limpieza (cierre normal - 15 min .. cierre normal) queda como hueco entre 2 y 3.
-export function tramosLaborables(fecha: Date): Tramo[] {
+// La limpieza queda como hueco entre 2 y 3. El almuerzo (30 min del grupo) queda
+// como hueco entre 1 y 2; los otros 30 min de 12-13 son productivos (van en 1 o 2).
+export function tramosLaborables(fecha: Date, grupo: GrupoAlmuerzo = GRUPO_ALMUERZO_DEFAULT): Tramo[] {
   const normal = cierreNormalMin(fecha.getDay())
   const recup = cierreRecupMin(fecha.getDay())
   if (normal == null || recup == null) return []
+  const alm = tramoAlmuerzo(grupo)
   const iniLimpieza = normal - LIMPIEZA_MIN
   const tramos: Tramo[] = []
-  if (APERTURA_MIN < ALM_INI) tramos.push({ iniMin: APERTURA_MIN, finMin: ALM_INI })
-  if (ALM_FIN < iniLimpieza) tramos.push({ iniMin: ALM_FIN, finMin: iniLimpieza })
+  if (APERTURA_MIN < alm.iniMin) tramos.push({ iniMin: APERTURA_MIN, finMin: alm.iniMin })
+  if (alm.finMin < iniLimpieza) tramos.push({ iniMin: alm.finMin, finMin: iniLimpieza })
   if (normal < recup) tramos.push({ iniMin: normal, finMin: recup })
   return tramos.filter((t) => t.finMin > t.iniMin)
 }
 
 // Minutos productivos totales de un dia (para grilla / capacidad).
-export function minutosProductivosDia(fecha: Date): number {
-  return tramosLaborables(fecha).reduce((s, t) => s + (t.finMin - t.iniMin), 0)
+export function minutosProductivosDia(fecha: Date, grupo: GrupoAlmuerzo = GRUPO_ALMUERZO_DEFAULT): number {
+  return tramosLaborables(fecha, grupo).reduce((s, t) => s + (t.finMin - t.iniMin), 0)
 }
 
 // Primer instante productivo del proximo dia laborable posterior a `d`.
-function siguienteApertura(d: Date): Date {
+function siguienteApertura(d: Date, grupo: GrupoAlmuerzo): Date {
   const n = new Date(d)
   n.setDate(n.getDate() + 1)
   n.setHours(0, 0, 0, 0)
   for (let i = 0; i < 14; i++) {
-    if (tramosLaborables(n).length > 0) return conMinutos(n, APERTURA_MIN)
+    if (tramosLaborables(n, grupo).length > 0) return conMinutos(n, APERTURA_MIN)
     n.setDate(n.getDate() + 1)
   }
   return conMinutos(n, APERTURA_MIN)
@@ -84,32 +97,32 @@ function siguienteApertura(d: Date): Date {
 
 // Lleva un instante cualquiera al proximo instante productivo (>= al dado).
 // Si ya esta dentro de un tramo, lo devuelve tal cual.
-export function proximoInstanteLaborable(iso: string): string {
+export function proximoInstanteLaborable(iso: string, grupo: GrupoAlmuerzo = GRUPO_ALMUERZO_DEFAULT): string {
   let cursor = new Date(iso)
   let guard = 0
   while (guard++ < 4000) {
     const curMin = minDelDia(cursor)
-    const tr = tramosLaborables(cursor).find((t) => curMin < t.finMin)
+    const tr = tramosLaborables(cursor, grupo).find((t) => curMin < t.finMin)
     if (tr) {
       if (curMin < tr.iniMin) return conMinutos(cursor, tr.iniMin).toISOString()
       return cursor.toISOString()
     }
-    cursor = siguienteApertura(cursor)
+    cursor = siguienteApertura(cursor, grupo)
   }
   return cursor.toISOString()
 }
 
-// Avanza `minutos` de tiempo PRODUCTIVO desde `inicioISO`, saltando almuerzo,
-// limpieza, fines de turno y fines de semana. Devuelve el ISO del instante final.
-export function sumarMinutosLaborables(inicioISO: string, minutos: number): string {
-  let cursor = new Date(proximoInstanteLaborable(inicioISO))
+// Avanza `minutos` de tiempo PRODUCTIVO desde `inicioISO`, saltando el almuerzo
+// del grupo, limpieza, fines de turno y fines de semana. Devuelve el ISO final.
+export function sumarMinutosLaborables(inicioISO: string, minutos: number, grupo: GrupoAlmuerzo = GRUPO_ALMUERZO_DEFAULT): string {
+  let cursor = new Date(proximoInstanteLaborable(inicioISO, grupo))
   let restante = Math.max(0, minutos)
   let guard = 0
   while (restante > 0 && guard++ < 4000) {
     const curMin = minDelDia(cursor)
-    const tramos = tramosLaborables(cursor)
+    const tramos = tramosLaborables(cursor, grupo)
     const tr = tramos.find((t) => curMin < t.finMin)
-    if (!tr) { cursor = siguienteApertura(cursor); continue }
+    if (!tr) { cursor = siguienteApertura(cursor, grupo); continue }
     if (curMin < tr.iniMin) cursor = conMinutos(cursor, tr.iniMin)
     const ini = minDelDia(cursor)
     const disponible = tr.finMin - ini
@@ -119,7 +132,7 @@ export function sumarMinutosLaborables(inicioISO: string, minutos: number): stri
     } else {
       restante -= disponible
       const sig = tramos.find((t) => t.iniMin >= tr.finMin)
-      cursor = sig ? conMinutos(cursor, sig.iniMin) : siguienteApertura(cursor)
+      cursor = sig ? conMinutos(cursor, sig.iniMin) : siguienteApertura(cursor, grupo)
     }
   }
   return cursor.toISOString()
@@ -127,7 +140,7 @@ export function sumarMinutosLaborables(inicioISO: string, minutos: number): stri
 
 // Minutos de tiempo PRODUCTIVO entre dos instantes (descuenta almuerzo, limpieza,
 // fuera de turno y fines de semana). Base para Disponibilidad real del OEE.
-export function minutosLaborablesEntre(aIso?: string, bIso?: string): number {
+export function minutosLaborablesEntre(aIso?: string, bIso?: string, grupo: GrupoAlmuerzo = GRUPO_ALMUERZO_DEFAULT): number {
   if (!aIso || !bIso) return 0
   const a = new Date(aIso)
   const b = new Date(bIso)
@@ -137,15 +150,15 @@ export function minutosLaborablesEntre(aIso?: string, bIso?: string): number {
   let guard = 0
   while (cursor < b && guard++ < 8000) {
     const curMin = minDelDia(cursor)
-    const tramos = tramosLaborables(cursor)
+    const tramos = tramosLaborables(cursor, grupo)
     const tr = tramos.find((t) => curMin < t.finMin)
-    if (!tr) { cursor = siguienteApertura(cursor); continue }
+    if (!tr) { cursor = siguienteApertura(cursor, grupo); continue }
     const inicioTramo = curMin < tr.iniMin ? conMinutos(cursor, tr.iniMin) : new Date(cursor)
     const finTramo = conMinutos(cursor, tr.finMin)
     const hasta = finTramo < b ? finTramo : b
     if (hasta > inicioTramo) total += (hasta.getTime() - inicioTramo.getTime()) / 60000
     const sig = tramos.find((t) => t.iniMin >= tr.finMin)
-    cursor = sig ? conMinutos(cursor, sig.iniMin) : siguienteApertura(cursor)
+    cursor = sig ? conMinutos(cursor, sig.iniMin) : siguienteApertura(cursor, grupo)
   }
   return Math.round(total)
 }
