@@ -170,7 +170,15 @@ button { font-family: inherit; cursor: pointer; border: none; }
 }
 .gantt-bar.arrastrable { cursor: grab; touch-action: none; }
 .gantt-bar.arrastrable:hover { box-shadow: 0 0 0 2px var(--naranja), 0 1px 4px rgba(0,0,0,.3); }
-.gantt-bar.dragging { cursor: grabbing; z-index: 5; box-shadow: 0 0 0 2px var(--naranja), 0 4px 12px rgba(0,0,0,.5); }
+/* Fantasma flotante que sigue al cursor durante el arrastre 2D (carril + hora). */
+.gantt-ghost {
+  position: fixed; transform: translateY(-50%); z-index: 1000; pointer-events: none;
+  height: 28px; display: flex; align-items: center; padding: 0 10px;
+  border-radius: 7px; font-size: .72rem; font-weight: 700; color: #fff;
+  background: var(--naranja); color: #1a1206;
+  box-shadow: 0 6px 18px rgba(0,0,0,.55); white-space: nowrap; overflow: hidden;
+  opacity: .95;
+}
 .gantt-grid-line { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--borde); }
 .gantt-banda-muerta {
   position: absolute; top: 0; bottom: 0;

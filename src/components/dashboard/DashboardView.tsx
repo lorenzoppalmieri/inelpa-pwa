@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
 import { useAuth } from '../../auth/AuthContext'
-import { SECTORES, materialLabel, type LineaProduccion, type SectorId, type Tarea } from '../../types'
+import { SECTORES, materialLabel, type LineaProduccion, type SectorId, type Tarea, type Maquina } from '../../types'
 import { isoWeek } from '../../lib/time'
 import { filtrarPorRango } from '../../lib/kpi'
 import {
@@ -68,19 +68,33 @@ export default function DashboardView() {
 
   const sectoresVisibles = SECTORES.filter((s) => sectoresPermitidos.includes(s.id))
 
-  // Filtro comun de alcance (rol) + linea + sector.
-  const pasaFiltros = useMemo(() => {
+  // Predicado de SECTOR (alcance por rol) + linea + sector. Base de todos los filtros.
+  const sectorPasa = useMemo(() => {
     const permitidos = new Set(sectoresPermitidos)
-    return (t: Tarea) => {
-      if (!permitidos.has(t.sectorId)) return false
-      if (sectorFiltro !== 'todos' && t.sectorId !== sectorFiltro) return false
+    return (sid: SectorId) => {
+      if (!permitidos.has(sid)) return false
+      if (sectorFiltro !== 'todos' && sid !== sectorFiltro) return false
       if (linea !== 'todas') {
-        const sec = SECTORES.find((s) => s.id === t.sectorId)!
+        const sec = SECTORES.find((s) => s.id === sid)!
         if (sec.linea !== linea && sec.linea !== 'general') return false
       }
       return true
     }
   }, [sectoresPermitidos, sectorFiltro, linea])
+
+  const pasaFiltros = useMemo(() => (t: Tarea) => sectorPasa(t.sectorId), [sectorPasa])
+
+  // Carriles del Gantt (eje Y): maquinas activas y operarios dentro del alcance.
+  const maquinasVisibles = useMemo(
+    () => (maquinas ?? []).filter((m) => m.activo && sectorPasa(m.sectorId)),
+    [maquinas, sectorPasa],
+  )
+  const operariosVisibles = useMemo(
+    () => (usuarios ?? [])
+      .filter((u) => u.rol === 'operario' && (u.sectores ?? []).some(sectorPasa))
+      .map((u) => ({ id: u.id, nombre: u.nombre })),
+    [usuarios, sectorPasa],
+  )
 
   // Gantt: TODA la tabla (filtrada por rol/linea/sector). El propio Gantt recorta
   // por los dias visibles, asi que la vista "Dia" puede mostrar cualquier fecha
@@ -123,6 +137,7 @@ export default function DashboardView() {
             periodo={periodo} setPeriodo={setPeriodo}
             sectoresVisibles={sectoresVisibles}
             filtradas={filtradas} kpiFiltradas={kpiFiltradas}
+            maquinasVisibles={maquinasVisibles} operariosVisibles={operariosVisibles}
             nombreOperario={nombreOperario} nombreMaquina={nombreMaquina}
             materialTarea={materialTarea}
           />}
@@ -143,11 +158,13 @@ function DashboardCuerpo(props: {
   sectoresVisibles: typeof SECTORES
   filtradas: Tarea[]
   kpiFiltradas: Tarea[]
+  maquinasVisibles: Maquina[]
+  operariosVisibles: { id: string; nombre: string }[]
   nombreOperario: (id: string) => string
   nombreMaquina: (id: string) => string
   materialTarea: (t: Tarea) => string
 }) {
-  const { vista, linea, setLinea, sectorFiltro, setSectorFiltro, agrupar, setAgrupar, periodo, setPeriodo, sectoresVisibles, filtradas, kpiFiltradas, nombreOperario, nombreMaquina, materialTarea } = props
+  const { vista, linea, setLinea, sectorFiltro, setSectorFiltro, agrupar, setAgrupar, periodo, setPeriodo, sectoresVisibles, filtradas, kpiFiltradas, maquinasVisibles, operariosVisibles, nombreOperario, nombreMaquina, materialTarea } = props
 
   const periodoLabel = PERIODOS.find((p) => p.id === periodo)?.label ?? ''
   const puedeKpi = hayDatosKpi(kpiFiltradas)
@@ -209,7 +226,7 @@ function DashboardCuerpo(props: {
       </div>
 
       {vista === 'gantt'
-        ? <GanttOperativo tareas={filtradas} agrupar={agrupar} nombreOperario={nombreOperario} nombreMaquina={nombreMaquina} />
+        ? <GanttOperativo tareas={filtradas} agrupar={agrupar} maquinas={maquinasVisibles} operarios={operariosVisibles} nombreOperario={nombreOperario} nombreMaquina={nombreMaquina} />
         : <KpiPanel tareas={kpiFiltradas} nombreOperario={nombreOperario} />}
     </>
   )

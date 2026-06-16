@@ -1,5 +1,5 @@
 import { type PointerEvent as ReactPointerEvent, useMemo, useRef, useState } from 'react'
-import type { Tarea, EstadoTarea } from '../../types'
+import type { Tarea, EstadoTarea, Maquina } from '../../types'
 import { sectorById } from '../../types'
 import { hhmm, fmtDur, isoWeek } from '../../lib/time'
 import { proximoInstanteLaborable, tramosLaborables } from '../../lib/calendario'
@@ -12,10 +12,8 @@ import { guardarTarea } from '../../sync/syncEngine'
 const H_INI = 7
 const H_FIN = 17
 const DAY_MIN = (H_FIN - H_INI) * 60 // 600
-
-// Zoom (solo vista Dia): px por hora segun el tamano de bloque elegido.
-//  bloque 1h = mas detalle/ancho; 4h = mas comprimido.
 const PX_HORA: Record<number, number> = { 1: 150, 2: 92, 4: 58 }
+const SIN_ASIGNAR = '__sin__'
 
 const COLOR: Record<EstadoTarea, string> = {
   pendiente: 'var(--estado-pendiente)',
@@ -27,20 +25,15 @@ const COLOR: Record<EstadoTarea, string> = {
 function minClock(d: Date): number { return d.getHours() * 60 + d.getMinutes() }
 function mismaFecha(a: Date, b: Date): boolean { return a.toDateString() === b.toDateString() }
 
-// Lunes (00:00) de la semana que contiene a `d`.
 function lunesDeSemana(d: Date): Date {
   const r = new Date(d); r.setHours(0, 0, 0, 0)
-  const dow = (r.getDay() + 6) % 7 // 0 = lunes
+  const dow = (r.getDay() + 6) % 7
   r.setDate(r.getDate() - dow)
   return r
 }
-function sumarDias(d: Date, n: number): Date {
-  const r = new Date(d); r.setDate(r.getDate() + n); return r
-}
+function sumarDias(d: Date, n: number): Date { const r = new Date(d); r.setDate(r.getDate() + n); return r }
 
-// Bandas NO productivas de un dia = complemento de los tramos laborables dentro
-// de [07:00, 17:00]. Cubre almuerzo (12-13), limpieza de fin de jornada
-// (Lun-Jue 15:45-16:00, Vie 14:45-15:00) y, los viernes, la franja cerrada 16-17.
+// Bandas NO productivas de un dia (complemento de tramos laborables en [7,17]).
 function bandasMuertasDia(day: Date): { ini: number; fin: number }[] {
   const tramos = tramosLaborables(day)
   const bands: { ini: number; fin: number }[] = []
@@ -70,37 +63,59 @@ function segmentosPorDia(startISO: string, endISO: string, dias: Date[]) {
 }
 
 interface Segmento { tarea: Tarea; idx: number; left: number; width: number; estimada: boolean; esInicio: boolean; plan: Plan }
-
+interface Lane { id: string; label: string; sub?: string }
 type Escala = 'semana' | 'dia'
 
-export default function GanttOperativo({ tareas, agrupar, nombreOperario, nombreMaquina }: {
+export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, nombreOperario, nombreMaquina }: {
   tareas: Tarea[]
   agrupar: 'sector' | 'operario' | 'maquina'
+  maquinas: Maquina[]
+  operarios: { id: string; nombre: string }[]
   nombreOperario: (id: string) => string
   nombreMaquina: (id: string) => string
 }) {
   const ahora = new Date()
   const ahoraISO = ahora.toISOString()
   const [escala, setEscala] = useState<Escala>('semana')
-  // En vista "dia" se puede elegir CUALQUIER fecha (anterior o posterior), no solo la semana activa.
   const [fechaSel, setFechaSel] = useState<string>(() => new Date().toLocaleDateString('en-CA'))
-  // Zoom del eje X en vista "dia": 1, 2 o 4 horas por bloque.
   const [bloque, setBloque] = useState<1 | 2 | 4>(2)
 
-  // Dias laborables (Lun-Vie) de la semana activa (vista "semana").
   const diasSemana = useMemo(() => {
     const lun = lunesDeSemana(new Date())
     return Array.from({ length: 5 }, (_, i) => sumarDias(lun, i))
   }, [])
-
-  // Dia unico elegido en vista "dia" (a las 00:00 local).
   const diaUnico = useMemo(() => new Date(`${fechaSel}T00:00:00`), [fechaSel])
-
-  // Dias efectivamente dibujados segun la escala.
   const dias = escala === 'semana' ? diasSemana : [diaUnico]
   const N = dias.length
 
-  const grupos = useMemo(() => {
+  // El drag puede reasignar de carril (cambia maquina/operario) solo en esos modos.
+  const reasignable = agrupar === 'maquina' || agrupar === 'operario'
+
+  // Carril (lane) de una tarea segun el modo de agrupacion.
+  function laneDeTarea(t: Tarea): string {
+    if (agrupar === 'maquina') return t.maquinaId
+    if (agrupar === 'operario') return t.operarioId ?? SIN_ASIGNAR
+    return t.sectorId
+  }
+
+  // CARRILES (eje Y). En maquina/operario se muestran TODOS los del catalogo
+  // (aunque esten vacios) para poder soltar tareas sobre ellos. En sector, los
+  // sectores presentes en las tareas.
+  const lanes = useMemo<Lane[]>(() => {
+    if (agrupar === 'maquina') {
+      return maquinas.map((m) => ({ id: m.id, label: m.nombre, sub: sectorById(m.sectorId).nombre }))
+    }
+    if (agrupar === 'operario') {
+      const base = operarios.map((o) => ({ id: o.id, label: o.nombre }))
+      const hayHuerfanas = tareas.some((t) => !t.operarioId)
+      return hayHuerfanas ? [...base, { id: SIN_ASIGNAR, label: 'Sin asignar' }] : base
+    }
+    const ids = [...new Set(tareas.map((t) => t.sectorId))]
+    return ids.map((id) => ({ id, label: sectorById(id).nombre })).sort((a, b) => a.label.localeCompare(b.label))
+  }, [agrupar, maquinas, operarios, tareas])
+
+  // Segmentos por carril (con auto-shift por maquina).
+  const segsPorLane = useMemo(() => {
     const plan = programar(tareas, ahoraISO)
     const map = new Map<string, Segmento[]>()
     for (const t of tareas) {
@@ -109,39 +124,33 @@ export default function GanttOperativo({ tareas, agrupar, nombreOperario, nombre
       const segs = segmentosPorDia(p.startISO, p.endISO, dias)
       if (segs.length === 0) continue
       const startD = new Date(p.startISO)
-      const key = agrupar === 'sector'
-        ? sectorById(t.sectorId).nombre
-        : agrupar === 'maquina'
-          ? nombreMaquina(t.maquinaId)
-          : (t.operarioId ? nombreOperario(t.operarioId) : 'Sin iniciar')
-      const arr = map.get(key) ?? []
+      const laneId = laneDeTarea(t)
+      const arr = map.get(laneId) ?? []
       for (const sg of segs) {
         const left = ((sg.idx + (sg.ini - H_INI * 60) / DAY_MIN) / N) * 100
         const width = Math.max(0.6, ((sg.fin - sg.ini) / DAY_MIN / N) * 100)
         const esInicio = mismaFecha(dias[sg.idx], startD) && sg.ini === minClock(startD)
         arr.push({ tarea: t, idx: sg.idx, left, width, estimada: p.estimada, esInicio, plan: p })
       }
-      map.set(key, arr)
+      map.set(laneId, arr)
     }
-    return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]))
-  }, [tareas, agrupar, ahoraISO, nombreOperario, nombreMaquina, dias, N])
+    return map
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tareas, agrupar, ahoraISO, dias, N])
 
   // ============================================================
-  // Drag & Drop: reprogramar tareas PENDIENTES arrastrando su barra.
-  //  - Solo la barra de inicio de una tarea pendiente es arrastrable.
-  //  - Al soltar: posicion X -> dia+hora; se encaja (snap) al proximo tramo
-  //    productivo y nunca antes de "ahora"; se persiste (Dexie + sync) y el
-  //    auto-shift se re-ejecuta solo al actualizar las tareas.
+  // Drag & Drop 2D: X = inicioPlanificado (hora/fecha), Y = carril (maquina u
+  // operario). Se usa un "fantasma" flotante que sigue al cursor; al soltar se
+  // resuelve el carril destino con elementFromPoint (data-lane-id) y el instante
+  // con el bounding box de ese track. Persiste en Dexie (guardarTarea) y el
+  // auto-shift reordena las tareas subsiguientes del carril en el proximo render.
   // ============================================================
-  const dragRef = useRef<{ tarea: Tarea; rect: DOMRect; grabPx: number; barWpx: number } | null>(null)
-  const [ghost, setGhost] = useState<{ id: string; leftPx: number } | null>(null)
+  const dragRef = useRef<{ tarea: Tarea; grabPx: number } | null>(null)
+  const [ghost, setGhost] = useState<{ id: string; x: number; y: number; w: number; label: string } | null>(null)
 
-  // Fraccion [0,1] sobre el track -> instante candidato (dia + minuto del dia).
   function instanteDesdeFraccion(frac: number): Date {
-    const fN = Math.max(0, Math.min(1, frac)) * N
-    let dayIdx = Math.floor(fN)
-    if (dayIdx >= N) dayIdx = N - 1
-    if (dayIdx < 0) dayIdx = 0
+    const fN = Math.max(0, Math.min(0.9999, frac)) * N
+    const dayIdx = Math.min(N - 1, Math.max(0, Math.floor(fN)))
     const within = fN - dayIdx
     const minDia = H_INI * 60 + within * DAY_MIN
     const d = new Date(dias[dayIdx]); d.setHours(0, 0, 0, 0); d.setMinutes(Math.round(minDia))
@@ -149,46 +158,65 @@ export default function GanttOperativo({ tareas, agrupar, nombreOperario, nombre
   }
 
   function iniciarArrastre(e: ReactPointerEvent<HTMLDivElement>, b: Segmento) {
-    if (b.tarea.estado !== 'pendiente' || !b.esInicio) return // solo pendientes
+    if (b.tarea.estado !== 'pendiente' || !b.esInicio) return // solo tareas pendientes
     e.preventDefault()
     const track = e.currentTarget.parentElement as HTMLElement
     const rect = track.getBoundingClientRect()
     const barLeftPx = (b.left / 100) * rect.width
-    const barWpx = (b.width / 100) * rect.width
-    const grabPx = e.clientX - rect.left - barLeftPx
-    dragRef.current = { tarea: b.tarea, rect, grabPx, barWpx }
-    setGhost({ id: b.tarea.id, leftPx: barLeftPx })
+    const barWpx = Math.max(60, (b.width / 100) * rect.width)
+    // offset del cursor respecto del borde izquierdo de la barra (precision en X)
+    const grabPx = e.clientX - (rect.left + barLeftPx)
+    dragRef.current = { tarea: b.tarea, grabPx }
+    setGhost({ id: b.tarea.id, x: e.clientX, y: e.clientY, w: barWpx, label: b.tarea.modelo })
 
-    const clampLeft = (clientX: number) => {
-      const s = dragRef.current!
-      const px = clientX - s.rect.left - s.grabPx
-      return Math.max(0, Math.min(px, s.rect.width - s.barWpx))
-    }
-    const onMove = (ev: PointerEvent) => {
-      if (!dragRef.current) return
-      setGhost({ id: dragRef.current.tarea.id, leftPx: clampLeft(ev.clientX) })
-    }
+    const onMove = (ev: PointerEvent) => setGhost((g) => (g ? { ...g, x: ev.clientX, y: ev.clientY } : g))
     const onUp = async (ev: PointerEvent) => {
       window.removeEventListener('pointermove', onMove)
       const s = dragRef.current
       dragRef.current = null
-      setGhost(null)
-      if (!s) return
-      const frac = clampLeft(ev.clientX) / s.rect.width
+      if (!s) { setGhost(null); return }
+
+      // Carril destino (eje Y) por la celda bajo el cursor.
+      const el = document.elementFromPoint(ev.clientX, ev.clientY) as HTMLElement | null
+      const laneEl = el?.closest('.gantt-track') as HTMLElement | null
+      if (!laneEl) { setGhost(null); return } // soltado fuera de la grilla: cancelar
+      const laneId = laneEl.dataset.laneId
+
+      // Instante (eje X) por el bounding box del track destino.
+      const rect = laneEl.getBoundingClientRect()
+      const leftPx = Math.max(0, Math.min(ev.clientX - s.grabPx - rect.left, rect.width))
+      const frac = leftPx / rect.width
       const cand = instanteDesdeFraccion(frac)
-      // No permitir arrastrar al pasado, y encajar al proximo tramo productivo.
       const nowISO = new Date().toISOString()
       let candISO = cand.toISOString()
       if (candISO < nowISO) candISO = nowISO
       const snapped = proximoInstanteLaborable(candISO)
-      if (snapped === s.tarea.inicioPlanificado) return
-      await guardarTarea({ ...s.tarea, inicioPlanificado: snapped, semana: isoWeek(new Date(snapped)) })
+
+      const patch: Partial<Tarea> = { inicioPlanificado: snapped, semana: isoWeek(new Date(snapped)) }
+      if (reasignable && laneId && laneId !== SIN_ASIGNAR) {
+        if (agrupar === 'maquina') {
+          patch.maquinaId = laneId
+          const m = maquinas.find((x) => x.id === laneId)
+          if (m) patch.sectorId = m.sectorId // mover de maquina mueve el sector consistentemente
+        } else if (agrupar === 'operario') {
+          patch.operarioId = laneId
+        }
+      }
+      // Sin cambios reales: evitar escritura (y el re-render asociado).
+      const sinCambios = patch.inicioPlanificado === s.tarea.inicioPlanificado &&
+        (patch.maquinaId ?? s.tarea.maquinaId) === s.tarea.maquinaId &&
+        (patch.operarioId ?? s.tarea.operarioId) === s.tarea.operarioId
+      if (sinCambios) { setGhost(null); return }
+
+      // Persistencia inmediata en Dexie + cola de sync; el fantasma se mantiene
+      // hasta consolidar para evitar el "rubber-banding" del useLiveQuery.
+      await guardarTarea({ ...s.tarea, ...patch })
+      setGhost(null)
     }
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', onUp, { once: true })
   }
 
-  // Linea "ahora": solo si hoy es uno de los dias visibles y estamos en turno.
   const ahoraPct = (() => {
     const idx = dias.findIndex((d) => d.toDateString() === ahora.toDateString())
     if (idx < 0) return -1
@@ -198,12 +226,11 @@ export default function GanttOperativo({ tareas, agrupar, nombreOperario, nombre
   })()
 
   const horas = Array.from({ length: H_FIN - H_INI }, (_, i) => H_INI + i)
-  // En vista dia, ancho explicito del contenido segun el zoom (habilita scroll-x).
   const innerStyle = escala === 'dia' ? { width: 200 + (H_FIN - H_INI) * PX_HORA[bloque] } : undefined
+  const lblCol = agrupar === 'sector' ? 'Sector' : agrupar === 'maquina' ? 'Estación' : 'Colaborador'
 
   return (
     <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-      {/* Controles de escala */}
       <div className="gantt-ctrl">
         <div className="seg">
           <button className={'seg-btn' + (escala === 'semana' ? ' on' : '')} onClick={() => setEscala('semana')}>Semana</button>
@@ -211,12 +238,7 @@ export default function GanttOperativo({ tareas, agrupar, nombreOperario, nombre
         </div>
         {escala === 'dia' && (
           <>
-            <input
-              type="date"
-              className="select"
-              value={fechaSel}
-              onChange={(e) => e.target.value && setFechaSel(e.target.value)}
-            />
+            <input type="date" className="select" value={fechaSel} onChange={(e) => e.target.value && setFechaSel(e.target.value)} />
             <div className="seg" title="Zoom del eje horario">
               {([1, 2, 4] as const).map((b) => (
                 <button key={b} className={'seg-btn' + (bloque === b ? ' on' : '')} onClick={() => setBloque(b)}>{b}h</button>
@@ -224,12 +246,13 @@ export default function GanttOperativo({ tareas, agrupar, nombreOperario, nombre
             </div>
           </>
         )}
+        {reasignable && <span className="meta" style={{ alignSelf: 'center' }}>Arrastrá una barra pendiente para moverla de {agrupar === 'maquina' ? 'máquina' : 'colaborador'} y horario.</span>}
       </div>
 
       <div className="gantt">
         <div className="gantt-inner" style={innerStyle}>
           <div className="gantt-head">
-            <div className="gantt-lblcol">{agrupar === 'sector' ? 'Sector' : agrupar === 'maquina' ? 'Estación' : 'Colaborador'}</div>
+            <div className="gantt-lblcol">{lblCol}</div>
             <div className="gantt-timeline">
               {escala === 'semana'
                 ? dias.map((d, i) => (
@@ -238,66 +261,68 @@ export default function GanttOperativo({ tareas, agrupar, nombreOperario, nombre
                     </div>
                   ))
                 : horas.map((h) => (
-                    <div key={h} className="gantt-hcell">
-                      {(h - H_INI) % bloque === 0 ? `${String(h).padStart(2, '0')}:00` : ''}
-                    </div>
+                    <div key={h} className="gantt-hcell">{(h - H_INI) % bloque === 0 ? `${String(h).padStart(2, '0')}:00` : ''}</div>
                   ))}
             </div>
           </div>
 
-          {grupos.map(([key, segs]) => (
-            <div className="gantt-row" key={key}>
-              <div className="gantt-rowlbl">
-                <div>{key}</div>
-                <div className="sub">{new Set(segs.map((s) => s.tarea.id)).size} tarea(s)</div>
+          {lanes.map((lane) => {
+            const segs = segsPorLane.get(lane.id) ?? []
+            const nTareas = new Set(segs.map((s) => s.tarea.id)).size
+            return (
+              <div className="gantt-row" key={lane.id}>
+                <div className="gantt-rowlbl">
+                  <div>{lane.label}</div>
+                  <div className="sub">{lane.sub ? `${lane.sub} · ` : ''}{nTareas} tarea(s)</div>
+                </div>
+                <div className="gantt-track" data-lane-id={lane.id}>
+                  {dias.flatMap((day, idx) => bandasMuertasDia(day).map((bd, j) => {
+                    const left = ((idx + (bd.ini - H_INI * 60) / DAY_MIN) / N) * 100
+                    const width = ((bd.fin - bd.ini) / DAY_MIN / N) * 100
+                    return <div key={`${idx}-${j}`} className="gantt-banda-muerta" style={{ left: `${left}%`, width: `${width}%` }} title="Sin producción" />
+                  }))}
+                  {escala === 'semana' && dias.slice(1).map((_, i) => (
+                    <div key={`sep${i}`} className="gantt-grid-line" style={{ left: `${((i + 1) / N) * 100}%`, background: 'var(--borde)', width: 2 }} />
+                  ))}
+                  {escala === 'dia' && horas.filter((h) => h > H_INI && (h - H_INI) % bloque === 0).map((h) => (
+                    <div key={h} className="gantt-grid-line" style={{ left: `${((h - H_INI) * 60 / DAY_MIN) * 100}%` }} />
+                  ))}
+                  {ahoraPct >= 0 && ahoraPct <= 100 && (
+                    <div className="gantt-grid-line" style={{ left: `${ahoraPct}%`, background: 'var(--rojo)', width: 2 }} />
+                  )}
+                  {segs.map((b, i) => {
+                    const arrastrable = b.tarea.estado === 'pendiente' && b.esInicio
+                    const dragging = ghost?.id === b.tarea.id && b.esInicio
+                    return (
+                      <div
+                        key={b.tarea.id + '-' + b.idx + '-' + i}
+                        className={'gantt-bar' + (arrastrable ? ' arrastrable' : '')}
+                        onPointerDown={arrastrable ? (e) => iniciarArrastre(e, b) : undefined}
+                        style={{
+                          left: `${b.left}%`, width: `${b.width}%`,
+                          background: COLOR[b.tarea.estado],
+                          opacity: dragging ? 0.3 : b.estimada ? 0.55 : 1,
+                          border: b.estimada ? '1px dashed rgba(255,255,255,.5)' : 'none',
+                          color: b.tarea.estado === 'pausada' ? '#1a1206' : '#fff',
+                        }}
+                        title={`${b.tarea.modelo} · ${b.tarea.estado} · ${nombreMaquina(b.tarea.maquinaId)} · ${b.tarea.operarioId ? nombreOperario(b.tarea.operarioId) : 'sin colaborador'} · ${hhmm(b.plan.startISO)}–${hhmm(b.plan.endISO)} · ${fmtDur(b.tarea.tiempoEstandarMin)}${arrastrable ? ' · arrastrá para reprogramar' : ''}`}
+                      >
+                        {b.tarea.modelo}
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
-              <div className="gantt-track">
-                {/* bandas no productivas por dia */}
-                {dias.flatMap((day, idx) => bandasMuertasDia(day).map((bd, j) => {
-                  const left = ((idx + (bd.ini - H_INI * 60) / DAY_MIN) / N) * 100
-                  const width = ((bd.fin - bd.ini) / DAY_MIN / N) * 100
-                  return <div key={`${idx}-${j}`} className="gantt-banda-muerta" style={{ left: `${left}%`, width: `${width}%` }} title="Sin producción" />
-                }))}
-                {/* separadores entre dias */}
-                {escala === 'semana' && dias.slice(1).map((_, i) => (
-                  <div key={`sep${i}`} className="gantt-grid-line" style={{ left: `${((i + 1) / N) * 100}%`, background: 'var(--borde)', width: 2 }} />
-                ))}
-                {/* en vista dia: lineas de grilla cada `bloque` horas */}
-                {escala === 'dia' && horas.filter((h) => h > H_INI && (h - H_INI) % bloque === 0).map((h) => (
-                  <div key={h} className="gantt-grid-line" style={{ left: `${((h - H_INI) * 60 / DAY_MIN) * 100}%` }} />
-                ))}
-                {/* linea "ahora" */}
-                {ahoraPct >= 0 && ahoraPct <= 100 && (
-                  <div className="gantt-grid-line" style={{ left: `${ahoraPct}%`, background: 'var(--rojo)', width: 2 }} />
-                )}
-                {segs.map((b, i) => {
-                  const arrastrable = b.tarea.estado === 'pendiente' && b.esInicio
-                  const dragging = ghost?.id === b.tarea.id && b.esInicio
-                  return (
-                    <div
-                      key={b.tarea.id + '-' + b.idx + '-' + i}
-                      className={'gantt-bar' + (arrastrable ? ' arrastrable' : '') + (dragging ? ' dragging' : '')}
-                      onPointerDown={arrastrable ? (e) => iniciarArrastre(e, b) : undefined}
-                      style={{
-                        left: dragging ? `${ghost!.leftPx}px` : `${b.left}%`,
-                        width: `${b.width}%`,
-                        background: COLOR[b.tarea.estado],
-                        opacity: dragging ? 0.85 : b.estimada ? 0.55 : 1,
-                        border: b.estimada ? '1px dashed rgba(255,255,255,.5)' : 'none',
-                        color: b.tarea.estado === 'pausada' ? '#1a1206' : '#fff',
-                      }}
-                      title={`${b.tarea.modelo} · ${b.tarea.estado} · ${b.estimada ? 'plan' : 'real'} ${hhmm(b.plan.startISO)}–${hhmm(b.plan.endISO)} · ${fmtDur(b.tarea.tiempoEstandarMin)}${arrastrable ? ' · arrastrá para reprogramar' : ''}`}
-                    >
-                      {b.tarea.modelo}
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          ))}
-          {grupos.length === 0 && <div className="empty">Sin tareas para los filtros seleccionados.</div>}
+            )
+          })}
+          {lanes.length === 0 && <div className="empty">Sin carriles para los filtros seleccionados.</div>}
         </div>
       </div>
+
+      {ghost && (
+        <div className="gantt-ghost" style={{ left: ghost.x, top: ghost.y, width: ghost.w }}>{ghost.label}</div>
+      )}
+
       <div className="legend" style={{ padding: '12px 16px' }}>
         <span><i style={{ background: 'var(--estado-pendiente)' }} /> Planificado/Pendiente</span>
         <span><i style={{ background: 'var(--estado-proceso)' }} /> En proceso</span>
