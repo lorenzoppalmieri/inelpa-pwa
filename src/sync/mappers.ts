@@ -32,6 +32,8 @@ export interface TareaRow {
   estado: string
   tiempo_estandar_min: number
   componente_codigo: string | null
+  activa_hora_recuperacion: boolean | null
+  duracion_efectiva_min: number | null
   inicio_planificado: string | null
   inicio_real: string | null
   fin_real: string | null
@@ -131,6 +133,8 @@ export function tareaFromRow(r: TareaRow, paradas: Parada[] = []): Tarea {
     estado: r.estado as EstadoTarea,
     tiempoEstandarMin: r.tiempo_estandar_min,
     componenteCodigo: u(r.componente_codigo),
+    activaHoraRecuperacion: u(r.activa_hora_recuperacion),
+    duracionEfectivaMin: u(r.duracion_efectiva_min),
     inicioPlanificado: u(r.inicio_planificado),
     inicioReal: u(r.inicio_real),
     finReal: u(r.fin_real),
@@ -214,6 +218,8 @@ export function tareaToRow(t: Tarea): TareaRow {
     estado: t.estado,
     tiempo_estandar_min: t.tiempoEstandarMin,
     componente_codigo: t.componenteCodigo ?? null,
+    activa_hora_recuperacion: t.activaHoraRecuperacion ?? false,
+    duracion_efectiva_min: t.duracionEfectivaMin ?? null,
     inicio_planificado: t.inicioPlanificado ?? null,
     inicio_real: t.inicioReal ?? null,
     fin_real: t.finReal ?? null,

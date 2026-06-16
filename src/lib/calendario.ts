@@ -65,7 +65,15 @@ function conMinutos(base: Date, min: number): Date {
 //   3) Recuperacion: cierre normal -> cierre con recuperacion (productivo estandar)
 // La limpieza queda como hueco entre 2 y 3. El almuerzo (30 min del grupo) queda
 // como hueco entre 1 y 2; los otros 30 min de 12-13 son productivos (van en 1 o 2).
-export function tramosLaborables(fecha: Date, grupo: GrupoAlmuerzo = GRUPO_ALMUERZO_DEFAULT): Tramo[] {
+// `conRecuperacion` (default true): incluye la franja 16-17 (Lun-Jue) / 15-16
+// (Vie) como tiempo productivo. En false, el dia cierra estricto en la hora
+// normal (16:00 / 15:00) — usado por el calculo de tiempo neto cuando la tarea
+// NO tiene habilitada la hora de recuperacion.
+export function tramosLaborables(
+  fecha: Date,
+  grupo: GrupoAlmuerzo = GRUPO_ALMUERZO_DEFAULT,
+  conRecuperacion = true,
+): Tramo[] {
   const normal = cierreNormalMin(fecha.getDay())
   const recup = cierreRecupMin(fecha.getDay())
   if (normal == null || recup == null) return []
@@ -74,7 +82,7 @@ export function tramosLaborables(fecha: Date, grupo: GrupoAlmuerzo = GRUPO_ALMUE
   const tramos: Tramo[] = []
   if (APERTURA_MIN < alm.iniMin) tramos.push({ iniMin: APERTURA_MIN, finMin: alm.iniMin })
   if (alm.finMin < iniLimpieza) tramos.push({ iniMin: alm.finMin, finMin: iniLimpieza })
-  if (normal < recup) tramos.push({ iniMin: normal, finMin: recup })
+  if (conRecuperacion && normal < recup) tramos.push({ iniMin: normal, finMin: recup })
   return tramos.filter((t) => t.finMin > t.iniMin)
 }
 
@@ -84,12 +92,12 @@ export function minutosProductivosDia(fecha: Date, grupo: GrupoAlmuerzo = GRUPO_
 }
 
 // Primer instante productivo del proximo dia laborable posterior a `d`.
-function siguienteApertura(d: Date, grupo: GrupoAlmuerzo): Date {
+function siguienteApertura(d: Date, grupo: GrupoAlmuerzo, conRecuperacion = true): Date {
   const n = new Date(d)
   n.setDate(n.getDate() + 1)
   n.setHours(0, 0, 0, 0)
   for (let i = 0; i < 14; i++) {
-    if (tramosLaborables(n, grupo).length > 0) return conMinutos(n, APERTURA_MIN)
+    if (tramosLaborables(n, grupo, conRecuperacion).length > 0) return conMinutos(n, APERTURA_MIN)
     n.setDate(n.getDate() + 1)
   }
   return conMinutos(n, APERTURA_MIN)
@@ -140,7 +148,15 @@ export function sumarMinutosLaborables(inicioISO: string, minutos: number, grupo
 
 // Minutos de tiempo PRODUCTIVO entre dos instantes (descuenta almuerzo, limpieza,
 // fuera de turno y fines de semana). Base para Disponibilidad real del OEE.
-export function minutosLaborablesEntre(aIso?: string, bIso?: string, grupo: GrupoAlmuerzo = GRUPO_ALMUERZO_DEFAULT): number {
+// Algoritmo: avanza tramo-por-tramo (no minuto a minuto), saltando de tramo
+// productivo al siguiente y de dia laborable al siguiente -> liviano aunque la
+// tarea dure varios dias (cota de iteraciones por guarda).
+export function minutosLaborablesEntre(
+  aIso?: string,
+  bIso?: string,
+  grupo: GrupoAlmuerzo = GRUPO_ALMUERZO_DEFAULT,
+  conRecuperacion = true,
+): number {
   if (!aIso || !bIso) return 0
   const a = new Date(aIso)
   const b = new Date(bIso)
@@ -150,15 +166,36 @@ export function minutosLaborablesEntre(aIso?: string, bIso?: string, grupo: Grup
   let guard = 0
   while (cursor < b && guard++ < 8000) {
     const curMin = minDelDia(cursor)
-    const tramos = tramosLaborables(cursor, grupo)
+    const tramos = tramosLaborables(cursor, grupo, conRecuperacion)
     const tr = tramos.find((t) => curMin < t.finMin)
-    if (!tr) { cursor = siguienteApertura(cursor, grupo); continue }
+    if (!tr) { cursor = siguienteApertura(cursor, grupo, conRecuperacion); continue }
     const inicioTramo = curMin < tr.iniMin ? conMinutos(cursor, tr.iniMin) : new Date(cursor)
     const finTramo = conMinutos(cursor, tr.finMin)
     const hasta = finTramo < b ? finTramo : b
     if (hasta > inicioTramo) total += (hasta.getTime() - inicioTramo.getTime()) / 60000
     const sig = tramos.find((t) => t.iniMin >= tr.finMin)
-    cursor = sig ? conMinutos(cursor, sig.iniMin) : siguienteApertura(cursor, grupo)
+    cursor = sig ? conMinutos(cursor, sig.iniMin) : siguienteApertura(cursor, grupo, conRecuperacion)
   }
   return Math.round(total)
+}
+
+// ============================================================
+// TIEMPO NETO PRODUCTIVO de una tarea (corrige el bug de restar timestamps
+// crudos). Descuenta: fines de semana, franja nocturna (cierre -> 07:00), y los
+// 30 min del almuerzo del grupo. La franja de recuperacion (16-17 / 15-16) se
+// cuenta SOLO si la tarea la tiene habilitada (horaRecuperacion = true).
+// ============================================================
+export interface ConfigTiempoNeto {
+  grupo?: GrupoAlmuerzo          // turno de almuerzo del sector (default A)
+  horaRecuperacion?: boolean     // tarea habilitada para trabajar 16-17 / 15-16
+}
+
+export function calcularTiempoNetoProductivo(
+  inicio: Date,
+  fin: Date,
+  config: ConfigTiempoNeto = {},
+): number {
+  const grupo = config.grupo ?? GRUPO_ALMUERZO_DEFAULT
+  const conRecup = config.horaRecuperacion ?? false // por defecto, cierre estricto
+  return minutosLaborablesEntre(inicio.toISOString(), fin.toISOString(), grupo, conRecup)
 }

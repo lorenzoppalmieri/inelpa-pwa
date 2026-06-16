@@ -194,6 +194,8 @@ function PanelAsignar() {
   // v1.4: dia + hora de arranque planificado (alimenta el Gantt y el auto-shift).
   const [fechaPlan, setFechaPlan] = useState(() => new Date().toLocaleDateString('en-CA'))
   const [horaPlan, setHoraPlan] = useState('07:00')
+  // v1.6: habilitar la hora de recuperacion (16-17 / 15-16) para esta tarea.
+  const [horaRecup, setHoraRecup] = useState(false)
   const [msg, setMsg] = useState('')
 
   const nombreMaquina = useMemo(() => {
@@ -243,12 +245,19 @@ function PanelAsignar() {
       prioridad: Math.max(1, Number(prioridad) || 1),
       estado: 'pendiente',
       tiempoEstandarMin: Math.max(1, Number(estandar) || 1),
+      activaHoraRecuperacion: horaRecup,
       inicioPlanificado,
       paradas: [],
     }
     await guardarTarea(t)
-    setNroTransformador(''); setComponenteCodigo('')
+    setNroTransformador(''); setComponenteCodigo(''); setHoraRecup(false)
     setMsg(`Tarea asignada a ${nombreOperario(operarioId)} · ${nombreMaquina(maquinaId)} en ${sectorById(sectorId).nombre}.`)
+  }
+
+  // v1.6: activar/desactivar la hora de recuperacion de una tarea ya cargada.
+  async function toggleRecup(t: Tarea) {
+    await guardarTarea({ ...t, activaHoraRecuperacion: !t.activaHoraRecuperacion })
+    setMsg(`Hora de recuperación ${!t.activaHoraRecuperacion ? 'activada' : 'desactivada'} para ${t.modelo}.`)
   }
 
   async function borrar(t: Tarea) {
@@ -327,6 +336,13 @@ function PanelAsignar() {
             <label>Hora de arranque</label>
             <input className="input" type="time" value={horaPlan} onChange={(e) => setHoraPlan(e.target.value)} />
           </div>
+          <div className="field">
+            <label>Hora de recuperación (16–17 / 15–16)</label>
+            <label className="check-inline">
+              <input type="checkbox" checked={horaRecup} onChange={(e) => setHoraRecup(e.target.checked)} />
+              <span>Computar la franja extra como tiempo productivo de esta tarea</span>
+            </label>
+          </div>
         </div>
         <button className="btn btn-primary btn-bloque" onClick={asignar}>＋ Asignar tarea</button>
         {msg && <div className="meta" style={{ marginTop: 10 }}>{msg}</div>}
@@ -342,18 +358,26 @@ function PanelAsignar() {
                 {sectorById(t.sectorId).nombre} · {nombreOperario(t.operarioId)} · {nombreMaquina(t.maquinaId)} · Prioridad <strong>{t.prioridad}</strong> · Estandar <strong>{t.tiempoEstandarMin}m</strong>
                 {t.inicioPlanificado ? <> · Arranque <strong>{fechaCorta(t.inicioPlanificado)} {hhmm(t.inicioPlanificado)}</strong></> : null}
                 {t.componenteCodigo ? <> · Semielaborado <strong>{componentePorCodigo(t.componenteCodigo)?.descripcion ?? t.componenteCodigo}</strong></> : null}
+                {t.activaHoraRecuperacion ? <> · <strong style={{ color: 'var(--naranja)' }}>Hora recup. ON</strong></> : null}
+                {t.duracionEfectivaMin != null ? <> · Neto <strong>{t.duracionEfectivaMin}m</strong></> : null}
               </div>
             </div>
             <span className={'estado-chip e-' + (t.estado === 'en_proceso' ? 'proceso' : t.estado === 'pausada' ? 'pausa' : t.estado === 'finalizada' ? 'finalizado' : 'pendiente')}>
               {t.estado}
             </span>
           </div>
-          {/* v1.4: solo se puede borrar una tarea que AUN no arranco. */}
-          {t.estado === 'pendiente' && (
-            <div className="row-actions">
+          <div className="row-actions">
+            {/* v1.6: boton rapido para alternar la hora de recuperacion (mientras no este finalizada). */}
+            {t.estado !== 'finalizada' && (
+              <button className="btn" style={{ flex: 1 }} onClick={() => toggleRecup(t)}>
+                {t.activaHoraRecuperacion ? '⏱ Quitar hora recup.' : '⏱ Habilitar hora recup.'}
+              </button>
+            )}
+            {/* v1.4: solo se puede borrar una tarea que AUN no arranco. */}
+            {t.estado === 'pendiente' && (
               <button className="btn btn-rojo" style={{ flex: 1 }} onClick={() => borrar(t)}>🗑 Eliminar tarea</button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       ))}
       {tareasOrdenadas.length === 0 && <div className="empty">Aun no hay tareas asignadas esta semana.</div>}

@@ -4,6 +4,7 @@ import { sectorById, causaLabel, requiereDatosBobinado } from '../../types'
 import { guardarTarea } from '../../sync/syncEngine'
 import { useAuth } from '../../auth/AuthContext'
 import { hhmm, cronometro, fmtDur, minutosEntre } from '../../lib/time'
+import { calcularTiempoNetoProductivo } from '../../lib/calendario'
 import { minutosParada } from '../../lib/kpi'
 import ModalParada from './ModalParada'
 
@@ -80,9 +81,17 @@ export default function TareaCard({ tarea }: { tarea: Tarea }) {
     const ok = window.confirm('Control de calidad: ¿la pieza esta OK? (Aceptar = OK, Cancelar = con defecto)')
     let defecto: string | undefined
     if (!ok) defecto = window.prompt('Describir el defecto / rechazo:') || 'Defecto no especificado'
-    const paradas = tarea.paradas.map((p) => (p.fin ? p : { ...p, fin: new Date().toISOString() }))
+    const finReal = new Date().toISOString()
+    const paradas = tarea.paradas.map((p) => (p.fin ? p : { ...p, fin: finReal }))
+    // v1.6: tiempo PRODUCTIVO NETO real (descuenta noches, finde y almuerzo).
+    const duracionEfectivaMin = tarea.inicioReal
+      ? calcularTiempoNetoProductivo(new Date(tarea.inicioReal), new Date(finReal), {
+          horaRecuperacion: tarea.activaHoraRecuperacion,
+        })
+      : 0
     await guardarTarea({
-      ...tarea, estado: 'finalizada', finReal: new Date().toISOString(), calidadOk: ok, defecto, paradas,
+      ...tarea, estado: 'finalizada', finReal, calidadOk: ok, defecto, paradas,
+      duracionEfectivaMin,
       datosBobinado: datosBobinado ?? tarea.datosBobinado,
     })
   }

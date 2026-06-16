@@ -216,6 +216,8 @@ button { font-family: inherit; cursor: pointer; border: none; }
 .seg-btn:hover { color: var(--texto); }
 .seg-btn.on { background: var(--naranja); color: #1a1206; }
 .seg-cap { font-size: .68rem; font-weight: 700; color: var(--texto-tenue); padding: 0 8px; align-self: center; text-transform: uppercase; letter-spacing: .4px; }
+.check-inline { display: flex; align-items: center; gap: 8px; font-size: .82rem; color: var(--texto); cursor: pointer; }
+.check-inline input { width: 18px; height: 18px; flex: none; accent-color: var(--naranja); }
 
 /* ---------- Pareto / barras ---------- */
 .pareto-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }

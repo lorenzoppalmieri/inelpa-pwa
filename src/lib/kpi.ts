@@ -1,5 +1,6 @@
 import type { Tarea, Parada, CausaParada } from '../types'
 import { minutosEntre } from './time'
+import { calcularTiempoNetoProductivo } from './calendario'
 import { causaLabel, esParadaNoProductiva } from '../types'
 
 // ============================================================
@@ -22,14 +23,24 @@ export function minutosNoProductivos(t: Tarea): number {
     .reduce((acc, p) => acc + minutosEntre(p.inicio, p.fin), 0)
 }
 
-// Tiempo real de ejecucion de una tarea finalizada (incluye paradas).
+// Tiempo real de ejecucion BRUTO (resta cruda de timestamps). Solo informativo
+// (incluye noches/finde si la tarea cruzo el cierre); NO usar para OEE.
 export function tiempoRealBruto(t: Tarea): number {
   return minutosEntre(t.inicioReal, t.finReal)
 }
 
-// Tiempo disponible = bruto sin las pausas programadas (almuerzo).
+// Tiempo PRODUCTIVO NETO disponible (v1.6): descuenta noches, fines de semana y
+// almuerzo via el calendario. Usa la duracion efectiva guardada al finalizar; si
+// no esta (tareas viejas), la recalcula. Ya excluye el almuerzo, asi que NO se
+// vuelve a restar minutosNoProductivos.
 export function tiempoDisponible(t: Tarea): number {
-  return Math.max(0, tiempoRealBruto(t) - minutosNoProductivos(t))
+  if (t.duracionEfectivaMin != null) return Math.max(0, t.duracionEfectivaMin)
+  if (t.inicioReal && t.finReal) {
+    return calcularTiempoNetoProductivo(new Date(t.inicioReal), new Date(t.finReal), {
+      horaRecuperacion: t.activaHoraRecuperacion,
+    })
+  }
+  return 0
 }
 
 // Tiempo real neto (descontando paradas productivas) = trabajo efectivo.

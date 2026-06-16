@@ -208,6 +208,13 @@ export interface Tarea {
   // v1.5: semielaborado (componente del catalogo maestro) que produce esta tarea,
   // segun el sector. Ej. en Bobinado Dist A.T. se designa la bobina AT del modelo.
   componenteCodigo?: string  // = ComponenteSemielaborado.codigo (ItemCode SAP)
+  // v1.6: habilita la franja de recuperacion (16-17 Lun-Jue / 15-16 Vie) como
+  // tiempo productivo PARA ESTA TAREA. Si false, el dia cierra estricto a las
+  // 16:00 / 15:00 a efectos del tiempo neto.
+  activaHoraRecuperacion?: boolean
+  // v1.6: tiempo PRODUCTIVO NETO real (min), calculado al finalizar descontando
+  // noches, fines de semana y almuerzo. Base de KPIs/OEE (no la resta cruda).
+  duracionEfectivaMin?: number
   inicioPlanificado?: string // dia+hora planificado de arranque (ISO); base del Gantt (v1.4)
   inicioReal?: string      // timestamp al pasar a en_proceso
   finReal?: string         // timestamp al pasar a finalizada

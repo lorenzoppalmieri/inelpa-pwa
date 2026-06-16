@@ -108,6 +108,8 @@ create table tareas (
   estado             estado_tarea default 'pendiente',
   tiempo_estandar_min int not null,
   componente_codigo  text,                  -- v1.5: semielaborado designado segun el sector (= componentes.codigo)
+  activa_hora_recuperacion boolean not null default false, -- v1.6: usa la franja 16-17 / 15-16
+  duracion_efectiva_min int,                -- v1.6: tiempo PRODUCTIVO NETO al finalizar (min)
   inicio_planificado timestamptz,           -- v1.4: dia+hora de arranque planificado (Gantt)
   inicio_real        timestamptz,
   fin_real           timestamptz,
