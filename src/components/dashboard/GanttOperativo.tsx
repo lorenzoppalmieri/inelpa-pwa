@@ -300,21 +300,23 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
                   {segs.map((b, i) => {
                     const arrastrable = b.tarea.estado === 'pendiente' && b.esInicio
                     const dragging = ghost?.id === b.tarea.id && b.esInicio
+                    const recup = !!b.tarea.activaHoraRecuperacion
                     return (
                       <div
                         key={b.tarea.id + '-' + b.idx + '-' + i}
-                        className={'gantt-bar' + (arrastrable ? ' arrastrable' : '')}
+                        className={'gantt-bar' + (arrastrable ? ' arrastrable' : '') + (recup ? ' recup' : '')}
                         onPointerDown={arrastrable ? (e) => iniciarArrastre(e, b) : undefined}
                         style={{
                           left: `${b.left}%`, width: `${b.width}%`,
-                          background: COLOR[b.tarea.estado],
+                          backgroundColor: COLOR[b.tarea.estado],
                           opacity: dragging ? 0.3 : b.estimada ? 0.55 : 1,
                           border: b.estimada ? '1px dashed rgba(255,255,255,.5)' : 'none',
                           color: b.tarea.estado === 'pausada' ? '#1a1206' : '#fff',
                         }}
-                        title={`${b.tarea.modelo} · ${b.tarea.estado} · ${nombreMaquina(b.tarea.maquinaId)} · ${b.tarea.operarioId ? nombreOperario(b.tarea.operarioId) : 'sin colaborador'} · ${hhmm(b.plan.startISO)}–${hhmm(b.plan.endISO)} · ${fmtDur(b.tarea.tiempoEstandarMin)}${arrastrable ? ' · arrastrá para reprogramar' : ''}`}
+                        title={`${b.tarea.modelo} · ${b.tarea.estado} · ${nombreMaquina(b.tarea.maquinaId)} · ${b.tarea.operarioId ? nombreOperario(b.tarea.operarioId) : 'sin colaborador'} · ${hhmm(b.plan.startISO)}–${hhmm(b.plan.endISO)} · ${fmtDur(b.tarea.tiempoEstandarMin)}${recup ? ' · con hora de recuperación (16–17 / 15–16)' : ''}${arrastrable ? ' · arrastrá para reprogramar' : ''}`}
                       >
-                        {b.tarea.modelo}
+                        {recup && b.esInicio && <span className="gantt-recup-tag">⏱+1h</span>}
+                        <span className="gantt-bar-txt">{b.tarea.modelo}</span>
                       </div>
                     )
                   })}
@@ -337,6 +339,7 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
         <span><i style={{ background: 'var(--estado-fin)' }} /> Finalizado</span>
         <span><i style={{ background: 'var(--rojo)', width: 3 }} /> Ahora</span>
         <span><i style={{ background: 'repeating-linear-gradient(45deg,#64748b,#64748b 4px,transparent 4px,transparent 8px)' }} /> Sin producción</span>
+        <span><i style={{ background: 'var(--estado-proceso)', boxShadow: 'inset 4px 0 0 0 var(--naranja)' }} /> Con hora de recuperación (+1h)</span>
       </div>
     </div>
   )
