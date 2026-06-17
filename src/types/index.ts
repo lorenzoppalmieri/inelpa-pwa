@@ -338,51 +338,128 @@ export const SECTORES: Sector[] = [
 // Para sumar causas: agregar una linea aqui. El UI (ModalParada) las agrupa por
 // categoria y trae buscador; no hay que tocar componentes.
 // ============================================================
+// Area de demoras: agrupa los sectores que comparten el MISMO listado de causas.
+// El operario solo ve las causas de su area (+ las globales). v1.7.
+export type AreaDemora = 'bobinado' | 'herreria' | 'montaje' | 'pintura' | 'general'
+
+export const AREA_DEMORA_POR_SECTOR: Record<SectorId, AreaDemora> = {
+  bob_dist_at: 'bobinado', bob_dist_bt: 'bobinado', bob_rural_at: 'bobinado', bob_rural_bt: 'bobinado',
+  corte_conformado: 'herreria', soldadura_dist: 'herreria', soldadura_rural: 'herreria',
+  montaje_pa_dist: 'montaje', montaje_po_dist: 'montaje', montaje_pa_rural: 'montaje', montaje_po_rural: 'montaje',
+  lavado_pintura: 'pintura',
+  laboratorio: 'general',
+}
+export function areaDemora(id: SectorId): AreaDemora {
+  return AREA_DEMORA_POR_SECTOR[id] ?? 'general'
+}
+
 export interface CausaParadaDef {
   id: CausaParada
   label: string
   categoria: CategoriaParada
   codigo?: number          // numero en la planilla maestra de planta
+  // Areas donde aplica la causa. Sin definir = GLOBAL (visible en todas las
+  // secciones, ej. Almuerzo y Otra). El operario ve: su area + las globales.
+  areas?: AreaDemora[]
 }
 
 export const CAUSAS_PARADA: CausaParadaDef[] = [
-  // --- Materiales / produccion ---
-  { id: 'espera_prod_bt', label: 'Espera produccion de BT', categoria: 'material', codigo: 1 },
-  { id: 'espera_prod_aislacion', label: 'Espera produccion de aislacion', categoria: 'material', codigo: 2 },
-  { id: 'espera_alambre', label: 'Espera de alambre (cobre o aluminio)', categoria: 'material', codigo: 30 },
-  { id: 'espera_especificaciones', label: 'Espera especificaciones tecnicas / diseno', categoria: 'material', codigo: 28 },
-  // --- Logistica ---
-  { id: 'espera_canales', label: 'Espera de canales (logistica)', categoria: 'logistica', codigo: 31 },
-  { id: 'espera_consumibles', label: 'Espera de consumibles (logistica)', categoria: 'logistica', codigo: 32 },
-  { id: 'espera_gas_oxigeno', label: 'Espera gas y oxigeno (logistica)', categoria: 'logistica', codigo: 36 },
-  { id: 'pasillos_obstruidos', label: 'Pasillos obstruidos', categoria: 'logistica', codigo: 17 },
-  { id: 'subir_bajar_bobina', label: 'Espera para subir / bajar bobina', categoria: 'logistica', codigo: 21 },
-  // --- Maquina / equipo ---
-  { id: 'mant_correctivo', label: 'Mantenimiento correctivo', categoria: 'maquina', codigo: 5 },
-  { id: 'mant_preventivo', label: 'Mantenimiento preventivo', categoria: 'maquina', codigo: 6 },
-  { id: 'replanif_cambio', label: 'Replanificacion cambio potencia / modelo', categoria: 'maquina', codigo: 16 },
-  { id: 'falta_herramienta', label: 'Faltante / rotura de herramienta', categoria: 'maquina', codigo: 27 },
-  { id: 'espera_soldadora', label: 'Espera soldadora', categoria: 'maquina', codigo: 35 },
-  { id: 'corte_luz', label: 'Corte de luz', categoria: 'maquina', codigo: 37 },
-  // --- Personal ---
-  { id: 'capacitacion', label: 'Capacitacion laboral', categoria: 'personal', codigo: 8 },
-  { id: 'reunion_charla', label: 'Reunion / charla', categoria: 'personal', codigo: 9 },
-  { id: 'ayuda_sector', label: 'Ayuda en sector', categoria: 'personal', codigo: 19 },
-  { id: 'ayuda_otro_sector', label: 'Ayuda en otro sector', categoria: 'personal', codigo: 39 },
-  { id: 'retiro', label: 'Retiro', categoria: 'personal', codigo: 23 },
-  { id: 'accidente_laboral', label: 'Accidente laboral', categoria: 'personal', codigo: 29 },
-  { id: 'espera_encargado', label: 'Espera a encargado', categoria: 'personal', codigo: 4 },
-  // --- Calidad ---
-  { id: 'taco_defectuoso', label: 'Taco defectuoso', categoria: 'calidad', codigo: 38 },
-  { id: 'retrabajo', label: 'Retrabajo', categoria: 'calidad', codigo: 10 },
-  { id: 'calidad_alambre', label: 'Problemas calidad del alambre o planchuela', categoria: 'calidad', codigo: 18 },
-  { id: 'bobina_bt_defectuosa', label: 'Bobina de BT defectuosa', categoria: 'calidad', codigo: 40 },
-  // --- Otras ---
-  // --- No productivas (NO penalizan el OEE: pausas programadas de planta) ---
-  { id: 'almuerzo', label: 'Almuerzo', categoria: 'no_productiva', codigo: 50 },
+  // ===== BOBINADO (catalogo original; sin cambios). 'general' = tambien Laboratorio.
+  { id: 'espera_prod_bt', label: 'Espera produccion de BT', categoria: 'material', codigo: 1, areas: ['bobinado', 'general'] },
+  { id: 'espera_prod_aislacion', label: 'Espera produccion de aislacion', categoria: 'material', codigo: 2, areas: ['bobinado', 'general'] },
+  { id: 'espera_alambre', label: 'Espera de alambre (cobre o aluminio)', categoria: 'material', codigo: 30, areas: ['bobinado', 'general'] },
+  { id: 'espera_especificaciones', label: 'Espera especificaciones tecnicas / diseno', categoria: 'material', codigo: 28, areas: ['bobinado', 'general'] },
+  { id: 'espera_canales', label: 'Espera de canales (logistica)', categoria: 'logistica', codigo: 31, areas: ['bobinado', 'general'] },
+  { id: 'espera_consumibles', label: 'Espera de consumibles (logistica)', categoria: 'logistica', codigo: 32, areas: ['bobinado', 'general'] },
+  { id: 'espera_gas_oxigeno', label: 'Espera gas y oxigeno (logistica)', categoria: 'logistica', codigo: 36, areas: ['bobinado', 'general'] },
+  { id: 'pasillos_obstruidos', label: 'Pasillos obstruidos', categoria: 'logistica', codigo: 17, areas: ['bobinado', 'general'] },
+  { id: 'subir_bajar_bobina', label: 'Espera para subir / bajar bobina', categoria: 'logistica', codigo: 21, areas: ['bobinado', 'general'] },
+  { id: 'mant_correctivo', label: 'Mantenimiento correctivo', categoria: 'maquina', codigo: 5, areas: ['bobinado', 'general'] },
+  { id: 'mant_preventivo', label: 'Mantenimiento preventivo', categoria: 'maquina', codigo: 6, areas: ['bobinado', 'general'] },
+  { id: 'replanif_cambio', label: 'Replanificacion cambio potencia / modelo', categoria: 'maquina', codigo: 16, areas: ['bobinado', 'general'] },
+  { id: 'falta_herramienta', label: 'Faltante / rotura de herramienta', categoria: 'maquina', codigo: 27, areas: ['bobinado', 'general'] },
+  { id: 'espera_soldadora', label: 'Espera soldadora', categoria: 'maquina', codigo: 35, areas: ['bobinado', 'general'] },
+  { id: 'corte_luz', label: 'Corte de luz', categoria: 'maquina', codigo: 37, areas: ['bobinado', 'general'] },
+  { id: 'capacitacion', label: 'Capacitacion laboral', categoria: 'personal', codigo: 8, areas: ['bobinado', 'general'] },
+  { id: 'reunion_charla', label: 'Reunion / charla', categoria: 'personal', codigo: 9, areas: ['bobinado', 'general'] },
+  { id: 'ayuda_sector', label: 'Ayuda en sector', categoria: 'personal', codigo: 19, areas: ['bobinado', 'general'] },
+  { id: 'ayuda_otro_sector', label: 'Ayuda en otro sector', categoria: 'personal', codigo: 39, areas: ['bobinado', 'general'] },
+  { id: 'retiro', label: 'Retiro', categoria: 'personal', codigo: 23, areas: ['bobinado', 'general'] },
+  { id: 'accidente_laboral', label: 'Accidente laboral', categoria: 'personal', codigo: 29, areas: ['bobinado', 'general'] },
+  { id: 'espera_encargado', label: 'Espera a encargado', categoria: 'personal', codigo: 4, areas: ['bobinado', 'general'] },
+  { id: 'taco_defectuoso', label: 'Taco defectuoso', categoria: 'calidad', codigo: 38, areas: ['bobinado', 'general'] },
+  { id: 'retrabajo', label: 'Retrabajo', categoria: 'calidad', codigo: 10, areas: ['bobinado', 'general'] },
+  { id: 'calidad_alambre', label: 'Problemas calidad del alambre o planchuela', categoria: 'calidad', codigo: 18, areas: ['bobinado', 'general'] },
+  { id: 'bobina_bt_defectuosa', label: 'Bobina de BT defectuosa', categoria: 'calidad', codigo: 40, areas: ['bobinado', 'general'] },
 
+  // ===== HERRERIA (Corte y conformado + Soldaduras) =====
+  { id: 'her_espera_cuba', label: 'Espera cuba', categoria: 'material', areas: ['herreria'] },
+  { id: 'her_espera_materiales', label: 'Espera materiales / herramientas / etc.', categoria: 'material', areas: ['herreria'] },
+  { id: 'her_falta_tapa', label: 'Falta de tapa', categoria: 'material', areas: ['herreria'] },
+  { id: 'her_retrabajo_tercero', label: 'Retrabajo de un 3° del sector', categoria: 'calidad', areas: ['herreria'] },
+  { id: 'her_retrabajo_propio', label: 'Retrabajo propio', categoria: 'calidad', areas: ['herreria'] },
+  { id: 'her_retrabajo_cuba_tapa_tanque', label: 'Retrabajo en su cuba / tapa / tanque', categoria: 'calidad', areas: ['herreria'] },
+  { id: 'her_retrabajo', label: 'Retrabajo', categoria: 'calidad', areas: ['herreria'] },
+  { id: 'her_retrabajo_otro_sector', label: 'Retrabajo (de otro sector)', categoria: 'calidad', areas: ['herreria'] },
+  { id: 'her_retrabajo_proveedor', label: 'Retrabajo (problemas proveedor)', categoria: 'calidad', areas: ['herreria'] },
+  { id: 'her_perdidas_hermetizado', label: 'Perdidas en hermetizado', categoria: 'calidad', areas: ['herreria'] },
+  { id: 'her_hermetizado', label: 'Hermetizado', categoria: 'otra', areas: ['herreria'] },
+  { id: 'her_capacitacion', label: 'Capacitacion', categoria: 'personal', areas: ['herreria'] },
+  { id: 'her_reunion_charla', label: 'Reunion informativa / charla', categoria: 'personal', areas: ['herreria'] },
+  { id: 'her_ayuda_sector', label: 'Ayuda en sector u otro sector', categoria: 'personal', areas: ['herreria'] },
+  { id: 'her_finaliza_companero', label: 'Finaliza trabajo de companero', categoria: 'personal', areas: ['herreria'] },
+  { id: 'her_trabajos_no_planificados', label: 'Realizacion de trabajos no planificados', categoria: 'personal', areas: ['herreria'] },
+  { id: 'her_orden_limpieza', label: 'Orden y limpieza', categoria: 'personal', areas: ['herreria'] },
+  { id: 'her_retiro', label: 'Retiro', categoria: 'personal', areas: ['herreria'] },
+  { id: 'her_accidente_laboral', label: 'Accidente laboral', categoria: 'personal', areas: ['herreria'] },
+  { id: 'her_suspension', label: 'Suspension', categoria: 'personal', areas: ['herreria'] },
+  { id: 'her_licencia_ausencia', label: 'Licencia / ausencia no programada', categoria: 'personal', areas: ['herreria'] },
+
+  // ===== MONTAJE (PA/PO Distribucion y Rural) =====
+  { id: 'mon_espera_prensayugos', label: 'Espera / faltan prensayugos', categoria: 'material', areas: ['montaje'] },
+  { id: 'mon_espera_nucleo', label: 'Espera / falta nucleo', categoria: 'material', areas: ['montaje'] },
+  { id: 'mon_espera_bobina', label: 'Espera bobina', categoria: 'material', areas: ['montaje'] },
+  { id: 'mon_espera_chapones', label: 'Espera / faltan chapones', categoria: 'material', areas: ['montaje'] },
+  { id: 'mon_espera_tacos', label: 'Espera / faltan tacos', categoria: 'material', areas: ['montaje'] },
+  { id: 'mon_espera_cartones', label: 'Espera cartones', categoria: 'material', areas: ['montaje'] },
+  { id: 'mon_espera_patas', label: 'Espera patas', categoria: 'material', areas: ['montaje'] },
+  { id: 'mon_espera_chapa', label: 'Espera chapa', categoria: 'material', areas: ['montaje'] },
+  { id: 'mon_espera_aislador', label: 'Espera / falta aislador', categoria: 'material', areas: ['montaje'] },
+  { id: 'mon_espera_tubo_oxigeno', label: 'Espera tubo oxigeno', categoria: 'logistica', areas: ['montaje'] },
+  { id: 'mon_error_entrega_insumos', label: 'Error en entrega de insumos', categoria: 'logistica', areas: ['montaje'] },
+  { id: 'mon_obstruccion_sector', label: 'Sin lugar / obstruccion en el sector', categoria: 'logistica', areas: ['montaje'] },
+  { id: 'mon_espera_relaciometro', label: 'Espera relaciometro', categoria: 'maquina', areas: ['montaje'] },
+  { id: 'mon_espera_secado_pintura', label: 'Espera secado pintura o barnizado', categoria: 'maquina', areas: ['montaje'] },
+  { id: 'mon_sin_luz', label: 'Sin luz', categoria: 'maquina', areas: ['montaje'] },
+  { id: 'mon_espera_soldador', label: 'Espera / falta soldador', categoria: 'personal', areas: ['montaje'] },
+  { id: 'mon_capacitacion', label: 'Capacitacion', categoria: 'personal', areas: ['montaje'] },
+  { id: 'mon_reunion_charla', label: 'Reunion informativa / charla', categoria: 'personal', areas: ['montaje'] },
+  { id: 'mon_ayuda_sector', label: 'Ayuda en el sector', categoria: 'personal', areas: ['montaje'] },
+  { id: 'mon_ayuda_otro_sector', label: 'Ayuda en otro sector', categoria: 'personal', areas: ['montaje'] },
+  { id: 'mon_retiro', label: 'Retiro', categoria: 'personal', areas: ['montaje'] },
+  { id: 'mon_retrabajo_bobina', label: 'Retrabajo bobina', categoria: 'calidad', areas: ['montaje'] },
+  { id: 'mon_no_da_relacion', label: 'No da relacion la/s bobina/s', categoria: 'calidad', areas: ['montaje'] },
+  { id: 'mon_insumos_defectuosos', label: 'Materiales o insumos defectuosos (chapa, prensayugos, llave, angulos)', categoria: 'calidad', areas: ['montaje'] },
+  { id: 'mon_modif_materiales', label: 'Modificacion de materiales / insumos recibidos', categoria: 'calidad', areas: ['montaje'] },
+  { id: 'mon_solucionando_retrabajo', label: 'Solucionando retrabajo', categoria: 'calidad', areas: ['montaje'] },
+  { id: 'mon_pintaron_prensayugo', label: 'Pintaron prensayugo en el sector', categoria: 'otra', areas: ['montaje'] },
+
+  // ===== PINTURA (Lavado y Pintura) =====
+  { id: 'pin_falta_cubas', label: 'Falta de cubas', categoria: 'material', areas: ['pintura'] },
+  { id: 'pin_falta_material_logistico', label: 'Falta de material logistico', categoria: 'logistica', areas: ['pintura'] },
+  { id: 'pin_corte_luz', label: 'Corte de luz', categoria: 'maquina', areas: ['pintura'] },
+
+  // ===== GLOBALES (visibles en TODAS las secciones) =====
+  // No productiva (NO penaliza el OEE: pausa programada de planta).
+  { id: 'almuerzo', label: 'Almuerzo', categoria: 'no_productiva', codigo: 50 },
   { id: 'otra', label: 'Otra', categoria: 'otra' },
 ]
+
+// Causas visibles para un sector: las de su area + las globales (sin areas).
+export function causasDeSector(id: SectorId): CausaParadaDef[] {
+  const area = areaDemora(id)
+  return CAUSAS_PARADA.filter((c) => !c.areas || c.areas.includes(area))
+}
 
 export const CATEGORIA_LABEL: Record<CategoriaParada, string> = {
   material: 'Materiales / produccion', logistica: 'Logistica', maquina: 'Maquina / equipo',

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import {
-  CAUSAS_PARADA, CATEGORIA_LABEL,
-  type CausaParada, type CategoriaParada, type CausaParadaDef,
+  causasDeSector, CATEGORIA_LABEL,
+  type CausaParada, type CategoriaParada, type CausaParadaDef, type SectorId,
 } from '../../types'
 
 // Normaliza para buscar sin acentos ni mayusculas.
@@ -12,7 +12,8 @@ function norm(s: string): string {
 // Orden de categorias en el modal.
 const ORDEN_CAT: CategoriaParada[] = ['material', 'logistica', 'maquina', 'personal', 'calidad', 'no_productiva', 'otra']
 
-export default function ModalParada({ onConfirm, onCancel }: {
+export default function ModalParada({ sectorId, onConfirm, onCancel }: {
+  sectorId: SectorId
   onConfirm: (causa: CausaParada, obs: string) => void
   onCancel: () => void
 }) {
@@ -20,19 +21,20 @@ export default function ModalParada({ onConfirm, onCancel }: {
   const [obs, setObs] = useState('')
   const [q, setQ] = useState('')
 
-  // Filtra por texto (label) y agrupa por categoria, respetando ORDEN_CAT.
+  // Causas de la SECCION del operario (+ globales) -> filtro por texto -> agrupa.
   const grupos = useMemo(() => {
+    const base = causasDeSector(sectorId)
     const qn = norm(q.trim())
     const filtradas = qn
-      ? CAUSAS_PARADA.filter((c) => norm(c.label).includes(qn) || String(c.codigo ?? '').includes(qn))
-      : CAUSAS_PARADA
+      ? base.filter((c) => norm(c.label).includes(qn) || String(c.codigo ?? '').includes(qn))
+      : base
     const out: { cat: CategoriaParada; items: CausaParadaDef[] }[] = []
     for (const cat of ORDEN_CAT) {
       const items = filtradas.filter((c) => c.categoria === cat)
       if (items.length) out.push({ cat, items })
     }
     return out
-  }, [q])
+  }, [q, sectorId])
 
   const total = grupos.reduce((n, g) => n + g.items.length, 0)
 

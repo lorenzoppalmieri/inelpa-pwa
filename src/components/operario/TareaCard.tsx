@@ -199,7 +199,7 @@ export default function TareaCard({ tarea }: { tarea: Tarea }) {
         )}
       </div>
 
-      {modal && <ModalParada onConfirm={confirmarParada} onCancel={() => setModal(false)} />}
+      {modal && <ModalParada sectorId={tarea.sectorId} onConfirm={confirmarParada} onCancel={() => setModal(false)} />}
     </div>
   )
 }
