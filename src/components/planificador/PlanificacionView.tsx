@@ -9,7 +9,7 @@ import {
   type Semielaborado, type EstadoSemielaborado, type TipoTarea,
 } from '../../types'
 import { MODELOS_CATALOGO, modeloPorNombre, componentesDeModelo, componentePorCodigo } from '../../data/catalogo'
-import { guardarOrden, guardarTarea, guardarSemielaborado, eliminarTarea } from '../../sync/syncEngine'
+import { guardarOrden, guardarTarea, guardarSemielaborado, eliminarTarea, eliminarOrden } from '../../sync/syncEngine'
 import { useAuth } from '../../auth/AuthContext'
 import { isoWeek, fechaCorta, hhmm } from '../../lib/time'
 
@@ -49,6 +49,7 @@ export default function PlanificacionView() {
 // ------------------------------------------------------------
 function PanelOrdenes() {
   const ordenes = useLiveQuery(() => db.ordenes.toArray(), [])
+  const todasTareas = useLiveQuery(() => db.tareas.toArray(), []) ?? []
   const [nroOrden, setNroOrden] = useState('')
   const [nroContrato, setNroContrato] = useState('')
   const [modelo, setModelo] = useState('')
@@ -88,6 +89,19 @@ function PanelOrdenes() {
     await guardarOrden(o)
     setNroOrden(''); setNroContrato(''); setModelo(''); setMaterial(''); setCantidad('1'); setFechaEntrega('')
     setMsg(`Orden ${o.nroOrden} creada.`)
+  }
+
+  // Borrado manual por error de carga. SEGURIDAD: si la OF ya tiene tareas, se
+  // bloquea (la FK borra en cascada y arruinaria el historial/OEE).
+  async function borrarOrden(o: OrdenProduccion) {
+    const nTareas = todasTareas.filter((t) => t.ordenId === o.id).length
+    if (nTareas > 0) {
+      window.alert(`⚠ La ${o.nroOrden} ya tiene ${nTareas} tarea(s) creada(s) en planta.\n\nNo se puede eliminar para no borrar trabajo real ni el historial. Si fue un error, eliminá primero esas tareas desde "Asignar tareas".`)
+      return
+    }
+    if (!window.confirm(`¿Estás seguro de que querés eliminar la ${o.nroOrden} (${o.modelo})? Esta acción no se puede deshacer.`)) return
+    await eliminarOrden(o)
+    setMsg(`Orden ${o.nroOrden} eliminada.`)
   }
 
   return (
@@ -159,19 +173,28 @@ function PanelOrdenes() {
       </div>
 
       <div className="section-title">Ordenes cargadas ({ordenes?.length ?? 0})</div>
-      {(ordenes ?? []).map((o) => (
-        <div className="card" key={o.id}>
-          <div className="card-header">
-            <div>
-              <h3>{o.nroOrden} · {o.modelo}</h3>
-              <div className="meta">
-                {o.nroContrato ? <>Contrato {o.nroContrato} · </> : null}
-                Material <strong>{materialLabel(o.material)}</strong> · Linea <strong>{o.linea}</strong> · Cantidad <strong>{o.cantidad}</strong> · Entrega <strong>{fechaCorta(o.fechaEntrega)}</strong>
+      {(ordenes ?? []).map((o) => {
+        const nTareas = todasTareas.filter((t) => t.ordenId === o.id).length
+        return (
+          <div className="card" key={o.id}>
+            <div className="card-header">
+              <div>
+                <h3>{o.nroOrden} · {o.modelo}</h3>
+                <div className="meta">
+                  {o.nroContrato ? <>Contrato {o.nroContrato} · </> : null}
+                  Material <strong>{materialLabel(o.material)}</strong> · Linea <strong>{o.linea}</strong> · Cantidad <strong>{o.cantidad}</strong> · Entrega <strong>{fechaCorta(o.fechaEntrega)}</strong>
+                  {nTareas > 0 && <> · <strong>{nTareas}</strong> tarea(s)</>}
+                </div>
               </div>
+              <button
+                className="btn btn-rojo"
+                title={nTareas > 0 ? 'No se puede: la orden ya tiene tareas en planta' : 'Eliminar orden (error de carga)'}
+                onClick={() => borrarOrden(o)}
+              >🗑</button>
             </div>
           </div>
-        </div>
-      ))}
+        )
+      })}
       {(!ordenes || ordenes.length === 0) && <div className="empty">Aun no hay ordenes cargadas.</div>}
     </>
   )
@@ -186,6 +209,7 @@ function PanelAsignar({ soloReparacion = false }: { soloReparacion?: boolean }) 
   const maquinas = useLiveQuery(() => db.maquinas.toArray(), [])
   const usuarios = useLiveQuery(() => db.usuarios.toArray(), [])
   const tareas = useLiveQuery(() => db.tareas.where('semana').equals(semana).toArray(), [semana])
+  const todasTareas = useLiveQuery(() => db.tareas.toArray(), []) ?? []
 
   const [ordenId, setOrdenId] = useState('')
   const [sectorId, setSectorId] = useState<SectorId>('bob_dist_at')
@@ -224,6 +248,13 @@ function PanelAsignar({ soloReparacion = false }: { soloReparacion?: boolean }) 
   // fabrican EN ESTE SECTOR. Ej. Bobinado Dist A.T. -> bobinas AT del modelo.
   const ordenSel = (ordenes ?? []).find((o) => o.id === ordenId)
   const modeloSel = modeloPorNombre(ordenSel?.modelo)
+
+  // OF "activa" = aun tiene trabajo: sin tareas creadas o con alguna NO finalizada.
+  // Las OF con TODAS sus tareas finalizadas se ocultan del desplegable (no se borran).
+  const ordenesActivas = (ordenes ?? []).filter((o) => {
+    const ts = todasTareas.filter((t) => t.ordenId === o.id)
+    return ts.length === 0 || ts.some((t) => t.estado !== 'finalizada') || o.id === ordenId
+  })
   const componentesDelSector = componentesDeModelo(modeloSel).filter((c) => c.sectorId === sectorId)
 
   // Al cambiar de sector se reinician estacion, colaborador y semielaborado.
@@ -308,7 +339,7 @@ function PanelAsignar({ soloReparacion = false }: { soloReparacion?: boolean }) 
               <label>Orden de fabricacion</label>
               <select className="input" value={ordenId} onChange={(e) => cambiarOrden(e.target.value)}>
                 <option value="">— Selecciona —</option>
-                {(ordenes ?? []).map((o) => <option key={o.id} value={o.id}>{o.nroOrden} · {o.modelo}</option>)}
+                {ordenesActivas.map((o) => <option key={o.id} value={o.id}>{o.nroOrden} · {o.modelo}</option>)}
               </select>
             </div>
           ) : (

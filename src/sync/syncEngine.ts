@@ -330,6 +330,12 @@ export async function guardarOrden(o: OrdenProduccion): Promise<void> {
   await encolar({ entidad: 'orden', entidadId: o.id, tipo: 'upsert', payload: o })
 }
 
+// Borra una orden (error de carga). Quien llama valida que NO tenga tareas.
+export async function eliminarOrden(o: OrdenProduccion): Promise<void> {
+  await db.ordenes.delete(o.id)
+  await encolar({ entidad: 'orden', entidadId: o.id, tipo: 'delete', payload: { id: o.id } })
+}
+
 export async function guardarSemielaborado(s: Semielaborado): Promise<void> {
   await db.semielaborados.put(s)
   await encolar({ entidad: 'semielaborado', entidadId: s.id, tipo: 'upsert', payload: s })
