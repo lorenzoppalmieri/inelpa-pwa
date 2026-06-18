@@ -36,14 +36,9 @@ export default function OperarioView() {
   }
 
   // v1.10: el operario alterna entre su trabajo y el tablero ANDON (premios).
+  // OJO: el estado va aca, pero el "return" condicional debe ir DESPUES de todos
+  // los hooks (Reglas de Hooks), si no React crashea (pantalla en blanco).
   const [pantalla, setPantalla] = useState<'trabajo' | 'andon'>('trabajo')
-  const tabsTop = (
-    <div className="tabs">
-      <button className={'tab' + (pantalla === 'trabajo' ? ' active' : '')} onClick={() => setPantalla('trabajo')}>Mi trabajo</button>
-      <button className={'tab' + (pantalla === 'andon' ? ' active' : '')} onClick={() => setPantalla('andon')}>🏆 Andon</button>
-    </div>
-  )
-  if (pantalla === 'andon') return <div>{tabsTop}<AndonView /></div>
 
   // Estaciones disponibles para el operario (las de sus sectores asignados).
   const maquinas = useLiveQuery(
@@ -60,6 +55,15 @@ export default function OperarioView() {
   )
 
   const [filtro, setFiltro] = useState<'activas' | 'pendientes' | 'finalizadas'>('activas')
+
+  // Barra de pestañas Mi trabajo / Andon (ya pasaron todos los hooks).
+  const tabsTop = (
+    <div className="tabs">
+      <button className={'tab' + (pantalla === 'trabajo' ? ' active' : '')} onClick={() => setPantalla('trabajo')}>Mi trabajo</button>
+      <button className={'tab' + (pantalla === 'andon' ? ' active' : '')} onClick={() => setPantalla('andon')}>🏆 Andon</button>
+    </div>
+  )
+  if (pantalla === 'andon') return <div>{tabsTop}<AndonView /></div>
 
   if (!maquinas) return <div className="meta">Cargando estaciones...</div>
 
