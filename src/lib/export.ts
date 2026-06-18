@@ -2,6 +2,7 @@ import type { Tarea, EstadoTarea } from '../types'
 import { sectorById } from '../types'
 import { calcularOEE } from './kpi'
 import { programar } from './programacion'
+import { componentePorCodigo } from '../data/catalogo'
 import { fmtDur } from './time'
 
 const ESTADO_LABEL: Record<EstadoTarea, string> = {
@@ -132,13 +133,17 @@ export function exportarProgramacionCSV(
   filas.push(['Generado', new Date().toLocaleString('es-AR')])
   filas.push(['Tareas en cola', rows.length])
   filas.push([])
-  filas.push(['ID Tarea', 'Estacion', 'Operario', 'Modelo', 'Material', 'Estado', 'Inicio planificado', 'Fin estimado', 'Duracion estimada'])
+  filas.push(['ID Tarea', 'Estacion', 'Operario', 'Modelo', 'Semielaborado', 'Material', 'Estado', 'Inicio planificado', 'Fin estimado', 'Duracion estimada'])
   for (const { t, p } of rows) {
+    // Descripcion del semielaborado (OITM/OITT) resuelta desde el catalogo,
+    // igual que en la barra del Gantt. '-' si la tarea no tiene (ej. reparacion).
+    const semielaborado = componentePorCodigo(t.componenteCodigo)?.descripcion ?? '-'
     filas.push([
       t.id,
       nombreMaquina(t.maquinaId),
       t.operarioId ? nombreOperario(t.operarioId) : '-',
       t.modelo,
+      semielaborado,
       materialTarea(t),
       ESTADO_LABEL[t.estado] ?? t.estado,
       fechaHora(p.startISO),
