@@ -1,7 +1,7 @@
 import Dexie, { type Table } from 'dexie'
 import type {
   Usuario, Tarea, OrdenProduccion, SyncOp, Semielaborado, Maquina,
-  ModeloTransformador, ComponenteSemielaborado,
+  ModeloTransformador, ComponenteSemielaborado, Objetivo,
 } from '../types'
 
 // ============================================================
@@ -18,6 +18,7 @@ export class InelpaDB extends Dexie {
   maquinas!: Table<Maquina, string>
   modelos!: Table<ModeloTransformador, string>
   componentes!: Table<ComponenteSemielaborado, string>
+  objetivos!: Table<Objetivo, string>
 
   constructor() {
     super('inelpa_pwa')
@@ -44,6 +45,10 @@ export class InelpaDB extends Dexie {
     this.version(4).stores({
       modelos: 'codigo, linea, fase, material',
       componentes: 'codigo, categoria, sectorId, linea, nivel',
+    })
+    // v1.10: objetivos mensuales de produccion por area (ANDON).
+    this.version(5).stores({
+      objetivos: 'id, periodo, area',
     })
   }
 }

@@ -311,10 +311,32 @@ export interface ComponenteSemielaborado {
   tension: number | null
 }
 
+// ============================================================
+// ANDON (v1.10) — objetivos mensuales de produccion por area + premios.
+// El planificador configura la cantidad objetivo por area cada mes.
+// ============================================================
+export type AndonAreaId =
+  | 'montaje_dist' | 'montaje_rural'
+  | 'bob_dist_at' | 'bob_dist_bt' | 'bob_rural_at' | 'bob_rural_bt'
+  | 'herreria_dist' | 'herreria_rural'
+
+export interface Objetivo {
+  id: string            // `${periodo}_${area}`  (ej "2026-06_montaje_dist")
+  periodo: string       // 'YYYY-MM' (mes del objetivo; se resetea cada mes)
+  area: AndonAreaId
+  cantidad: number      // unidades objetivo de la empresa para ese mes/area
+  actualizado: string
+}
+
+// Mes calendario local en formato 'YYYY-MM'.
+export function periodoMensual(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
 // Cola de sincronizacion: cada cambio offline se encola y se empuja al backend.
 export interface SyncOp {
   id: string
-  entidad: 'tarea' | 'parada' | 'orden' | 'semielaborado'
+  entidad: 'tarea' | 'parada' | 'orden' | 'semielaborado' | 'objetivo'
   entidadId: string
   tipo: 'upsert' | 'delete'
   payload: unknown

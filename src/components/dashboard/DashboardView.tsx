@@ -10,6 +10,7 @@ import {
 } from '../../lib/export'
 import GanttOperativo from './GanttOperativo'
 import KpiPanel from './KpiPanel'
+import AndonView from './AndonView'
 import PlanificacionView from '../planificador/PlanificacionView'
 
 // Periodo de analisis del Dashboard de KPIs (v1.4). No borra datos: solo acota
@@ -31,7 +32,7 @@ function rangoPeriodo(periodo: Periodo, now: Date): { desde: string; hasta: stri
 
 export default function DashboardView() {
   const { usuario, permisos } = useAuth()
-  const [vista, setVista] = useState<'gantt' | 'kpis' | 'planificacion'>('gantt')
+  const [vista, setVista] = useState<'gantt' | 'kpis' | 'planificacion' | 'andon'>('gantt')
   const [linea, setLinea] = useState<'todas' | LineaProduccion>('todas')
   const [sectorFiltro, setSectorFiltro] = useState<'todos' | SectorId>('todos')
   const [agrupar, setAgrupar] = useState<'sector' | 'operario' | 'maquina'>('sector')
@@ -121,16 +122,19 @@ export default function DashboardView() {
 
       <div className="tabs no-print">
         <button className={'tab' + (vista === 'gantt' ? ' active' : '')} onClick={() => setVista('gantt')}>Gantt operativo</button>
+        <button className={'tab' + (vista === 'andon' ? ' active' : '')} onClick={() => setVista('andon')}>🏆 Andon</button>
         <button className={'tab' + (vista === 'kpis' ? ' active' : '')} onClick={() => setVista('kpis')}>Eficiencia / KPIs</button>
         {(permisos?.cargarProgramacion || permisos?.crearReparacion) && (
           <button className={'tab' + (vista === 'planificacion' ? ' active' : '')} onClick={() => setVista('planificacion')}>Planificacion</button>
         )}
       </div>
 
-      {vista === 'planificacion' && (permisos?.cargarProgramacion || permisos?.crearReparacion)
+      {vista === 'andon'
+        ? <AndonView />
+        : vista === 'planificacion' && (permisos?.cargarProgramacion || permisos?.crearReparacion)
         ? <PlanificacionView />
         : <DashboardCuerpo
-            vista={vista === 'planificacion' ? 'gantt' : vista}
+            vista={vista === 'gantt' || vista === 'kpis' ? vista : 'gantt'}
             linea={linea} setLinea={setLinea}
             sectorFiltro={sectorFiltro} setSectorFiltro={setSectorFiltro}
             agrupar={agrupar} setAgrupar={setAgrupar}

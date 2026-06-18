@@ -10,6 +10,7 @@ import type {
   Tarea, Parada, OrdenProduccion, Semielaborado, Maquina, Usuario,
   SectorId, Rol, EstadoTarea, MaterialBobina, LineaProduccion,
   EstadoSemielaborado, TipoEstacion, GrupoNomina, DatosBobinado, TipoTarea,
+  Objetivo, AndonAreaId,
 } from '../types'
 
 // null -> undefined (Supabase devuelve null; la app usa undefined en opcionales).
@@ -78,6 +79,14 @@ export interface SemiRow {
   estado: string
   tiempo_estimado_min: number | null
   sap_item_code: string | null
+  actualizado_en: string | null
+}
+
+export interface ObjetivoRow {
+  id: string
+  periodo: string
+  area: string
+  cantidad: number
   actualizado_en: string | null
 }
 
@@ -175,6 +184,25 @@ export function semiFromRow(r: SemiRow): Semielaborado {
     tiempoEstimadoMin: u(r.tiempo_estimado_min),
     sapItemCode: u(r.sap_item_code),
     actualizado: r.actualizado_en ?? new Date().toISOString(),
+  }
+}
+
+export function objetivoFromRow(r: ObjetivoRow): Objetivo {
+  return {
+    id: r.id,
+    periodo: r.periodo,
+    area: r.area as AndonAreaId,
+    cantidad: r.cantidad,
+    actualizado: r.actualizado_en ?? new Date().toISOString(),
+  }
+}
+export function objetivoToRow(o: Objetivo): ObjetivoRow {
+  return {
+    id: o.id,
+    periodo: o.periodo,
+    area: o.area,
+    cantidad: o.cantidad,
+    actualizado_en: o.actualizado,
   }
 }
 

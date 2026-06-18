@@ -6,6 +6,7 @@ import { isoWeek } from '../../lib/time'
 import type { EstadoTarea, Tarea } from '../../types'
 import { sectorById, TIPO_ESTACION_LABEL } from '../../types'
 import TareaCard from './TareaCard'
+import AndonView from '../dashboard/AndonView'
 
 const ORDEN: Record<EstadoTarea, number> = { pausada: 0, en_proceso: 1, pendiente: 2, finalizada: 3 }
 const FILTROS: { id: 'activas' | 'pendientes' | 'finalizadas'; label: string }[] = [
@@ -34,6 +35,16 @@ export default function OperarioView() {
     if (usuario) localStorage.removeItem(lsKey(usuario.id))
   }
 
+  // v1.10: el operario alterna entre su trabajo y el tablero ANDON (premios).
+  const [pantalla, setPantalla] = useState<'trabajo' | 'andon'>('trabajo')
+  const tabsTop = (
+    <div className="tabs">
+      <button className={'tab' + (pantalla === 'trabajo' ? ' active' : '')} onClick={() => setPantalla('trabajo')}>Mi trabajo</button>
+      <button className={'tab' + (pantalla === 'andon' ? ' active' : '')} onClick={() => setPantalla('andon')}>🏆 Andon</button>
+    </div>
+  )
+  if (pantalla === 'andon') return <div>{tabsTop}<AndonView /></div>
+
   // Estaciones disponibles para el operario (las de sus sectores asignados).
   const maquinas = useLiveQuery(
     () => db.maquinas.where('sectorId').anyOf(usuario?.sectores ?? []).and((m) => m.activo).toArray(),
@@ -56,6 +67,7 @@ export default function OperarioView() {
   if (!maquinaId) {
     return (
       <div>
+        {tabsTop}
         <div className="section-title">¿En qué estación vas a trabajar hoy?</div>
         {maquinas.length === 0
           ? <div className="empty">No tenés estaciones asignadas. Avisá a tu encargado.</div>
@@ -87,6 +99,7 @@ export default function OperarioView() {
 
   return (
     <div>
+      {tabsTop}
       <div className="card-header" style={{ marginBottom: 12 }}>
         <div>
           <div className="section-title" style={{ margin: 0 }}>

@@ -268,6 +268,36 @@ button { font-family: inherit; cursor: pointer; border: none; }
 .evr-desvio.bien { color: var(--estado-fin); }
 .evr-desvio.mal { color: var(--rojo); }
 
+/* ---------- ANDON (objetivos del mes + premios por area) ---------- */
+.andon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.andon-card {
+  background: var(--panel); border: 1px solid var(--borde); border-left: 7px solid var(--tier, var(--borde));
+  border-radius: var(--radio); padding: 14px; display: flex; flex-direction: column; gap: 6px;
+}
+.andon-titulo { font-weight: 800; font-size: .92rem; }
+.andon-num { font-variant-numeric: tabular-nums; }
+.andon-real { font-size: 1.8rem; font-weight: 800; color: var(--tier, var(--texto)); }
+.andon-obj { color: var(--texto-tenue); font-size: 1rem; }
+.andon-pct { font-weight: 800; font-size: 1.05rem; color: var(--tier, var(--texto)); }
+.andon-barra { height: 10px; border-radius: 999px; background: var(--panel-2); overflow: hidden; }
+.andon-barra > span { display: block; height: 100%; border-radius: 999px; background: var(--tier, var(--estado-fin)); transition: width .3s; }
+.andon-tier { font-size: .76rem; font-weight: 700; color: var(--texto-tenue); }
+.andon-retra { font-size: .8rem; font-weight: 800; color: #fb923c; }   /* retrabajos: color distinto */
+
+/* Colores de la escala de premios (variable --tier por tarjeta + swatch leyenda) */
+.andon-rojo    { --tier: #ef4444; }
+.andon-amarillo{ --tier: #eab308; }
+.andon-verde1  { --tier: #4ade80; }
+.andon-verde2  { --tier: #22c55e; }
+.andon-verde3  { --tier: #15803d; }
+.andon-violeta { --tier: #a855f7; }
+.legend i.andon-rojo    { background: #ef4444; }
+.legend i.andon-amarillo{ background: #eab308; }
+.legend i.andon-verde1  { background: #4ade80; }
+.legend i.andon-verde2  { background: #22c55e; }
+.legend i.andon-verde3  { background: #15803d; }
+.legend i.andon-violeta { background: #a855f7; }
+
 /* ---------- Modal ---------- */
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.7); display: grid; place-items: center; z-index: 100; padding: 16px; }
 .modal { width: 100%; max-width: 520px; background: var(--panel); border: 1px solid var(--borde); border-radius: 18px; padding: 20px; }
