@@ -9,9 +9,12 @@ export interface Permisos {
   verDashboard: boolean           // Gantt + KPIs
   validarDatos: boolean           // encargado: validar cargas de planta
   reasignarPrioridad: boolean     // encargado: prioridades diarias
-  cargarProgramacion: boolean     // planificador: programacion semanal
+  cargarProgramacion: boolean     // planificador: programacion semanal (ordenes/fabricacion)
   configurarEstandares: boolean   // planificador: tiempos estandar
   verTodosSectores: boolean       // planificador: planta completa
+  // v1.9: granularidad para reparaciones.
+  gestionProduccion: boolean      // crear/editar/mover ordenes de FABRICACION + drag del Gantt
+  crearReparacion: boolean        // cargar tareas de tipo 'reparacion' (encargados de planta)
 }
 
 export const PERMISOS: Record<Rol, Permisos> = {
@@ -19,16 +22,20 @@ export const PERMISOS: Record<Rol, Permisos> = {
     verTareasPropias: true, cambiarEstadoTarea: true, verDashboard: false,
     validarDatos: false, reasignarPrioridad: false, cargarProgramacion: false,
     configurarEstandares: false, verTodosSectores: false,
+    gestionProduccion: false, crearReparacion: false,
   },
   encargado: {
     verTareasPropias: false, cambiarEstadoTarea: true, verDashboard: true,
     validarDatos: true, reasignarPrioridad: true, cargarProgramacion: false,
     configurarEstandares: false, verTodosSectores: false,
+    // Encargados de planta (ulises, omar, santiago): SOLO reparaciones, sin produccion.
+    gestionProduccion: false, crearReparacion: true,
   },
   planificador: {
     verTareasPropias: false, cambiarEstadoTarea: true, verDashboard: true,
     validarDatos: true, reasignarPrioridad: true, cargarProgramacion: true,
     configurarEstandares: true, verTodosSectores: true,
+    gestionProduccion: true, crearReparacion: true,
   },
 }
 

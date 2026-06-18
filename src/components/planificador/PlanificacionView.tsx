@@ -10,6 +10,7 @@ import {
 } from '../../types'
 import { MODELOS_CATALOGO, modeloPorNombre, componentesDeModelo, componentePorCodigo } from '../../data/catalogo'
 import { guardarOrden, guardarTarea, guardarSemielaborado, eliminarTarea } from '../../sync/syncEngine'
+import { useAuth } from '../../auth/AuthContext'
 import { isoWeek, fechaCorta, hhmm } from '../../lib/time'
 
 // ============================================================
@@ -23,19 +24,22 @@ import { isoWeek, fechaCorta, hhmm } from '../../lib/time'
 type SubVista = 'ordenes' | 'asignar' | 'semi'
 
 export default function PlanificacionView() {
-  const [sub, setSub] = useState<SubVista>('ordenes')
+  const { permisos } = useAuth()
+  // v1.9: encargados de planta solo pueden cargar REPARACIONES (sin produccion).
+  const soloReparacion = !!(permisos?.crearReparacion && !permisos?.gestionProduccion)
+  const [sub, setSub] = useState<SubVista>(soloReparacion ? 'asignar' : 'ordenes')
 
   return (
     <div>
       <div className="tabs">
-        <button className={'tab' + (sub === 'ordenes' ? ' active' : '')} onClick={() => setSub('ordenes')}>Ordenes de fabricacion</button>
-        <button className={'tab' + (sub === 'asignar' ? ' active' : '')} onClick={() => setSub('asignar')}>Asignar tareas</button>
-        <button className={'tab' + (sub === 'semi' ? ' active' : '')} onClick={() => setSub('semi')}>Semielaborados</button>
+        {!soloReparacion && <button className={'tab' + (sub === 'ordenes' ? ' active' : '')} onClick={() => setSub('ordenes')}>Ordenes de fabricacion</button>}
+        <button className={'tab' + (sub === 'asignar' ? ' active' : '')} onClick={() => setSub('asignar')}>{soloReparacion ? 'Cargar reparación' : 'Asignar tareas'}</button>
+        {!soloReparacion && <button className={'tab' + (sub === 'semi' ? ' active' : '')} onClick={() => setSub('semi')}>Semielaborados</button>}
       </div>
 
-      {sub === 'ordenes' && <PanelOrdenes />}
-      {sub === 'asignar' && <PanelAsignar />}
-      {sub === 'semi' && <PanelSemielaborados />}
+      {sub === 'ordenes' && !soloReparacion && <PanelOrdenes />}
+      {sub === 'asignar' && <PanelAsignar soloReparacion={soloReparacion} />}
+      {sub === 'semi' && !soloReparacion && <PanelSemielaborados />}
     </div>
   )
 }
@@ -176,7 +180,7 @@ function PanelOrdenes() {
 // ------------------------------------------------------------
 // 2) Asignar tareas (operacion x sector) a colaboradores
 // ------------------------------------------------------------
-function PanelAsignar() {
+function PanelAsignar({ soloReparacion = false }: { soloReparacion?: boolean }) {
   const semana = isoWeek(new Date())
   const ordenes = useLiveQuery(() => db.ordenes.toArray(), [])
   const maquinas = useLiveQuery(() => db.maquinas.toArray(), [])
@@ -196,8 +200,8 @@ function PanelAsignar() {
   const [horaPlan, setHoraPlan] = useState('07:00')
   // v1.6: habilitar la hora de recuperacion (16-17 / 15-16) para esta tarea.
   const [horaRecup, setHoraRecup] = useState(false)
-  // v1.8: tipo de tarea (fabricacion estandar o reparacion no productiva).
-  const [tipo, setTipo] = useState<TipoTarea>('fabricacion')
+  // v1.8/v1.9: tipo de tarea. Los encargados solo cargan reparaciones.
+  const [tipo, setTipo] = useState<TipoTarea>(soloReparacion ? 'reparacion' : 'fabricacion')
   const [descripcion, setDescripcion] = useState('') // texto libre para reparaciones
   const [msg, setMsg] = useState('')
 
@@ -227,7 +231,7 @@ function PanelAsignar() {
   function cambiarOrden(id: string) { setOrdenId(id); setComponenteCodigo('') }
 
   async function asignar() {
-    const esRep = tipo === 'reparacion'
+    const esRep = soloReparacion || tipo === 'reparacion' // v1.9: encargado siempre reparacion
     // Fabricacion necesita orden; reparacion necesita descripcion (no lleva orden).
     const orden = (ordenes ?? []).find((o) => o.id === ordenId)
     if (!esRep && !orden) { setMsg('Selecciona una orden.'); return }
@@ -239,7 +243,7 @@ function PanelAsignar() {
     const inicioPlanificado = new Date(`${fechaPlan}T${horaPlan}`).toISOString()
     const t: Tarea = {
       id: crypto.randomUUID(),
-      tipo,
+      tipo: esRep ? 'reparacion' : 'fabricacion',
       ordenId: esRep ? undefined : orden!.id,
       sectorId,
       maquinaId,
@@ -285,11 +289,18 @@ function PanelAsignar() {
       <div className="card">
         <div className="section-title">Asignar {tipo === 'reparacion' ? 'reparación' : 'tarea'} · semana {semana.split('-W')[1]}</div>
 
-        {/* v1.8: tipo de tarea. La reparacion no cuenta para el OEE. */}
-        <div className="seg" style={{ marginBottom: 12 }}>
-          <button className={'seg-btn' + (tipo === 'fabricacion' ? ' on' : '')} onClick={() => setTipo('fabricacion')}>🏭 Fabricación</button>
-          <button className={'seg-btn' + (tipo === 'reparacion' ? ' on' : '')} onClick={() => setTipo('reparacion')}>🔧 Reparación</button>
-        </div>
+        {/* v1.8: tipo de tarea. La reparacion no cuenta para el OEE.
+            v1.9: los encargados quedan bloqueados en 'reparacion' (sin fabricacion). */}
+        {soloReparacion ? (
+          <div className="seg" style={{ marginBottom: 12 }}>
+            <button className="seg-btn on" disabled>🔧 Reparación</button>
+          </div>
+        ) : (
+          <div className="seg" style={{ marginBottom: 12 }}>
+            <button className={'seg-btn' + (tipo === 'fabricacion' ? ' on' : '')} onClick={() => setTipo('fabricacion')}>🏭 Fabricación</button>
+            <button className={'seg-btn' + (tipo === 'reparacion' ? ' on' : '')} onClick={() => setTipo('reparacion')}>🔧 Reparación</button>
+          </div>
+        )}
 
         <div className="form-grid">
           {tipo === 'fabricacion' ? (
@@ -390,18 +401,21 @@ function PanelAsignar() {
               {t.estado}
             </span>
           </div>
-          <div className="row-actions">
-            {/* v1.6: boton rapido para alternar la hora de recuperacion (mientras no este finalizada). */}
-            {t.estado !== 'finalizada' && (
-              <button className="btn" style={{ flex: 1 }} onClick={() => toggleRecup(t)}>
-                {t.activaHoraRecuperacion ? '⏱ Quitar hora recup.' : '⏱ Habilitar hora recup.'}
-              </button>
-            )}
-            {/* v1.4: solo se puede borrar una tarea que AUN no arranco. */}
-            {t.estado === 'pendiente' && (
-              <button className="btn btn-rojo" style={{ flex: 1 }} onClick={() => borrar(t)}>🗑 Eliminar tarea</button>
-            )}
-          </div>
+          {/* v1.9: el encargado solo edita/borra sus reparaciones, no produccion. */}
+          {(!soloReparacion || t.tipo === 'reparacion') && (
+            <div className="row-actions">
+              {/* v1.6: boton rapido para alternar la hora de recuperacion (mientras no este finalizada). */}
+              {t.estado !== 'finalizada' && (
+                <button className="btn" style={{ flex: 1 }} onClick={() => toggleRecup(t)}>
+                  {t.activaHoraRecuperacion ? '⏱ Quitar hora recup.' : '⏱ Habilitar hora recup.'}
+                </button>
+              )}
+              {/* v1.4: solo se puede borrar una tarea que AUN no arranco. */}
+              {t.estado === 'pendiente' && (
+                <button className="btn btn-rojo" style={{ flex: 1 }} onClick={() => borrar(t)}>🗑 Eliminar tarea</button>
+              )}
+            </div>
+          )}
         </div>
       ))}
       {tareasOrdenadas.length === 0 && <div className="empty">Aun no hay tareas asignadas esta semana.</div>}

@@ -67,13 +67,15 @@ interface Segmento { tarea: Tarea; idx: number; left: number; width: number; est
 interface Lane { id: string; label: string; sub?: string }
 type Escala = 'semana' | 'dia'
 
-export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, nombreOperario, nombreMaquina }: {
+export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, nombreOperario, nombreMaquina, puedeMoverProduccion = true }: {
   tareas: Tarea[]
   agrupar: 'sector' | 'operario' | 'maquina'
   maquinas: Maquina[]
   operarios: { id: string; nombre: string }[]
   nombreOperario: (id: string) => string
   nombreMaquina: (id: string) => string
+  // v1.9: si es false (encargados), solo se pueden arrastrar tareas de reparacion.
+  puedeMoverProduccion?: boolean
 }) {
   const ahora = new Date()
   const ahoraISO = ahora.toISOString()
@@ -299,7 +301,9 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
                     <div className="gantt-grid-line" style={{ left: `${ahoraPct}%`, background: 'var(--rojo)', width: 2 }} />
                   )}
                   {segs.map((b, i) => {
+                    // v1.9: encargados (puedeMoverProduccion=false) solo arrastran reparaciones.
                     const arrastrable = b.tarea.estado === 'pendiente' && b.esInicio
+                      && (puedeMoverProduccion || b.tarea.tipo === 'reparacion')
                     const dragging = ghost?.id === b.tarea.id && b.esInicio
                     const recup = !!b.tarea.activaHoraRecuperacion
                     const reparacion = b.tarea.tipo === 'reparacion'

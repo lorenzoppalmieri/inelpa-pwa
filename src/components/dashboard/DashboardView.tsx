@@ -122,12 +122,12 @@ export default function DashboardView() {
       <div className="tabs no-print">
         <button className={'tab' + (vista === 'gantt' ? ' active' : '')} onClick={() => setVista('gantt')}>Gantt operativo</button>
         <button className={'tab' + (vista === 'kpis' ? ' active' : '')} onClick={() => setVista('kpis')}>Eficiencia / KPIs</button>
-        {permisos?.cargarProgramacion && (
+        {(permisos?.cargarProgramacion || permisos?.crearReparacion) && (
           <button className={'tab' + (vista === 'planificacion' ? ' active' : '')} onClick={() => setVista('planificacion')}>Planificacion</button>
         )}
       </div>
 
-      {vista === 'planificacion' && permisos?.cargarProgramacion
+      {vista === 'planificacion' && (permisos?.cargarProgramacion || permisos?.crearReparacion)
         ? <PlanificacionView />
         : <DashboardCuerpo
             vista={vista === 'planificacion' ? 'gantt' : vista}
@@ -140,6 +140,7 @@ export default function DashboardView() {
             maquinasVisibles={maquinasVisibles} operariosVisibles={operariosVisibles}
             nombreOperario={nombreOperario} nombreMaquina={nombreMaquina}
             materialTarea={materialTarea}
+            puedeMoverProduccion={!!permisos?.gestionProduccion}
           />}
     </div>
   )
@@ -163,8 +164,9 @@ function DashboardCuerpo(props: {
   nombreOperario: (id: string) => string
   nombreMaquina: (id: string) => string
   materialTarea: (t: Tarea) => string
+  puedeMoverProduccion: boolean
 }) {
-  const { vista, linea, setLinea, sectorFiltro, setSectorFiltro, agrupar, setAgrupar, periodo, setPeriodo, sectoresVisibles, filtradas, kpiFiltradas, maquinasVisibles, operariosVisibles, nombreOperario, nombreMaquina, materialTarea } = props
+  const { vista, linea, setLinea, sectorFiltro, setSectorFiltro, agrupar, setAgrupar, periodo, setPeriodo, sectoresVisibles, filtradas, kpiFiltradas, maquinasVisibles, operariosVisibles, nombreOperario, nombreMaquina, materialTarea, puedeMoverProduccion } = props
 
   const periodoLabel = PERIODOS.find((p) => p.id === periodo)?.label ?? ''
   const puedeKpi = hayDatosKpi(kpiFiltradas)
@@ -226,7 +228,7 @@ function DashboardCuerpo(props: {
       </div>
 
       {vista === 'gantt'
-        ? <GanttOperativo tareas={filtradas} agrupar={agrupar} maquinas={maquinasVisibles} operarios={operariosVisibles} nombreOperario={nombreOperario} nombreMaquina={nombreMaquina} />
+        ? <GanttOperativo tareas={filtradas} agrupar={agrupar} maquinas={maquinasVisibles} operarios={operariosVisibles} nombreOperario={nombreOperario} nombreMaquina={nombreMaquina} puedeMoverProduccion={puedeMoverProduccion} />
         : <KpiPanel tareas={kpiFiltradas} nombreOperario={nombreOperario} nombreMaquina={nombreMaquina} />}
     </>
   )

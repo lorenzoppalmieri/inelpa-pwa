@@ -127,10 +127,16 @@ create policy sel_tareas on tareas for select to authenticated using (
   or operario_id = app_uid()
   or sector_id in (select app_sectores())
 );
--- Alta/edicion/borrado completo: planificador y encargado.
+-- Alta/edicion/borrado: planificador = todo; encargado = SOLO reparaciones (v1.9).
 create policy wr_tareas_gestion on tareas for all to authenticated
-  using (app_rol() in ('planificador','encargado'))
-  with check (app_rol() in ('planificador','encargado'));
+  using (
+    app_rol() = 'planificador'
+    or (app_rol() = 'encargado' and tipo = 'reparacion')
+  )
+  with check (
+    app_rol() = 'planificador'
+    or (app_rol() = 'encargado' and tipo = 'reparacion')
+  );
 -- Operario: puede ACTUALIZAR (cambiar estado, marcar inicio/fin) las tareas
 -- de sus sectores o asignadas a el. No puede crear ni borrar.
 create policy upd_tareas_operario on tareas for update to authenticated
