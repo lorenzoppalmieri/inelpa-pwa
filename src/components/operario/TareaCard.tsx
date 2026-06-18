@@ -5,6 +5,7 @@ import { guardarTarea } from '../../sync/syncEngine'
 import { useAuth } from '../../auth/AuthContext'
 import { hhmm, cronometro, fmtDur, minutosEntre } from '../../lib/time'
 import { calcularTiempoNetoProductivo } from '../../lib/calendario'
+import { componentePorCodigo } from '../../data/catalogo'
 import { minutosParada } from '../../lib/kpi'
 import ModalParada from './ModalParada'
 
@@ -99,12 +100,17 @@ export default function TareaCard({ tarea }: { tarea: Tarea }) {
   const totalParada = minutosParada(tarea)
   const ejecutado = tarea.inicioReal ? minutosEntre(tarea.inicioReal, tarea.finReal ?? new Date().toISOString()) : 0
 
+  // Titulo principal = SEMIELABORADO completo (descripcion del maestro de articulos).
+  // Fallback al modelo si la tarea no tiene semielaborado asignado.
+  const comp = componentePorCodigo(tarea.componenteCodigo)
+  const titulo = comp ? comp.descripcion : tarea.modelo
+
   return (
     <div className="card">
       <div className="card-header">
         <div>
-          <h3>{tarea.modelo}{tarea.fase ? ` · ${tarea.fase}` : ''}</h3>
-          <div className="meta">{sector.nombre}</div>
+          <h3>{titulo}{tarea.fase ? ` · ${tarea.fase}` : ''}</h3>
+          <div className="meta">{sector.nombre}{comp ? ` · Modelo ${tarea.modelo}` : ''}</div>
         </div>
         <span className={'estado-chip ' + ESTADO_CHIP[tarea.estado]}>{ESTADO_TXT[tarea.estado]}</span>
       </div>
