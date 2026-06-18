@@ -60,7 +60,12 @@ insert into usuarios (nombre, usuario, rol, grupo_nomina, activo) values
   ('Duarte Facundo Tomas', 'duarte.facundo', 'operario', 'montaje_rural', true),
   ('García Maximiliano Ezequiel', 'garcia.maximiliano', 'operario', 'montaje_rural', true),
   ('Moreira Nestor Brian', 'moreira.nestor', 'operario', 'montaje_rural', true),
-  ('Tamagna Patricio Ruben', 'tamagna.patricio', 'operario', 'montaje_rural', true)
+  ('Tamagna Patricio Ruben', 'tamagna.patricio', 'operario', 'montaje_rural', true),
+  -- v1.9: cuentas GRUPALES de Montaje (se trabaja por equipo/linea, no por puesto).
+  ('Equipo Montaje PA Distribucion', 'montaje_linea1_pad', 'operario', 'montaje_dist', true),
+  ('Equipo Montaje PO Distribucion', 'montaje_linea1_pod', 'operario', 'montaje_dist', true),
+  ('Equipo Montaje PA Rural', 'montaje_linea2_par', 'operario', 'montaje_rural', true),
+  ('Equipo Montaje PO Rural', 'montaje_linea2_por', 'operario', 'montaje_rural', true)
 on conflict (usuario) do nothing;
 
 -- 2) Sectores que ejecuta cada operario (N:N). Carpinteria / corte_aislacion /
@@ -110,7 +115,12 @@ join (values
   ('duarte.facundo','montaje_pa_rural'),('duarte.facundo','montaje_po_rural'),
   ('garcia.maximiliano','montaje_pa_rural'),('garcia.maximiliano','montaje_po_rural'),
   ('moreira.nestor','montaje_pa_rural'),('moreira.nestor','montaje_po_rural'),
-  ('tamagna.patricio','montaje_pa_rural'),('tamagna.patricio','montaje_po_rural')
+  ('tamagna.patricio','montaje_pa_rural'),('tamagna.patricio','montaje_po_rural'),
+  -- v1.9: cuentas grupales -> cada una a SU linea/sector.
+  ('montaje_linea1_pad','montaje_pa_dist'),
+  ('montaje_linea1_pod','montaje_po_dist'),
+  ('montaje_linea2_par','montaje_pa_rural'),
+  ('montaje_linea2_por','montaje_po_rural')
 ) as s(usuario, sector_id) on s.usuario = u.usuario
 on conflict do nothing;
 
