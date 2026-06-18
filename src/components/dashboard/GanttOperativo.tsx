@@ -1,6 +1,7 @@
 import { type PointerEvent as ReactPointerEvent, useMemo, useRef, useState } from 'react'
 import type { Tarea, EstadoTarea, Maquina } from '../../types'
 import { sectorById } from '../../types'
+import { componentePorCodigo } from '../../data/catalogo'
 import { hhmm, fmtDur, isoWeek } from '../../lib/time'
 import { proximoInstanteLaborable, tramosLaborables, type GrupoAlmuerzo } from '../../lib/calendario'
 import { programar, type Plan } from '../../lib/programacion'
@@ -302,6 +303,12 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
                     const dragging = ghost?.id === b.tarea.id && b.esInicio
                     const recup = !!b.tarea.activaHoraRecuperacion
                     const reparacion = b.tarea.tipo === 'reparacion'
+                    // Etiqueta principal = SEMIELABORADO completo (nombre del maestro
+                    // de articulos: incluye potencia/tension, fase y material).
+                    // Fallback al modelo si la tarea no tiene semielaborado asignado.
+                    const comp = componentePorCodigo(b.tarea.componenteCodigo)
+                    const etiqueta = comp ? comp.descripcion : (b.tarea.modelo || '—')
+                    const semiTxt = comp ? comp.descripcion : (b.tarea.componenteCodigo ? b.tarea.componenteCodigo : 'sin semielaborado')
                     return (
                       <div
                         key={b.tarea.id + '-' + b.idx + '-' + i}
@@ -314,11 +321,11 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
                           border: b.estimada ? '1px dashed rgba(255,255,255,.5)' : 'none',
                           color: b.tarea.estado === 'pausada' && !reparacion ? '#1a1206' : '#fff',
                         }}
-                        title={`${reparacion ? '🔧 REPARACIÓN · ' : ''}${b.tarea.modelo} · ${b.tarea.estado} · ${nombreMaquina(b.tarea.maquinaId)} · ${b.tarea.operarioId ? nombreOperario(b.tarea.operarioId) : 'sin colaborador'} · ${hhmm(b.plan.startISO)}–${hhmm(b.plan.endISO)} · ${fmtDur(b.tarea.tiempoEstandarMin)}${reparacion ? ' · no productivo (excluido del OEE)' : ''}${recup ? ' · con hora de recuperación' : ''}${arrastrable ? ' · arrastrá para reprogramar' : ''}`}
+                        title={`${reparacion ? '🔧 REPARACIÓN · ' : ''}Semielaborado: ${semiTxt}\nModelo: ${b.tarea.modelo}\n${b.tarea.estado} · ${nombreMaquina(b.tarea.maquinaId)} · ${b.tarea.operarioId ? nombreOperario(b.tarea.operarioId) : 'sin colaborador'} · ${hhmm(b.plan.startISO)}–${hhmm(b.plan.endISO)} · ${fmtDur(b.tarea.tiempoEstandarMin)}${reparacion ? ' · no productivo (excluido del OEE)' : ''}${recup ? ' · con hora de recuperación' : ''}${arrastrable ? ' · arrastrá para reprogramar' : ''}`}
                       >
                         {reparacion && b.esInicio && <span className="gantt-rep-tag">🔧</span>}
                         {recup && b.esInicio && <span className="gantt-recup-tag">⏱+1h</span>}
-                        <span className="gantt-bar-txt">{b.tarea.modelo}</span>
+                        <span className="gantt-bar-txt">{etiqueta}</span>
                       </div>
                     )
                   })}
