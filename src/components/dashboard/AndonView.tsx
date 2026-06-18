@@ -4,7 +4,7 @@ import { db } from '../../db/dexie'
 import { useAuth } from '../../auth/AuthContext'
 import type { AndonAreaId, Objetivo, Tarea } from '../../types'
 import { periodoMensual } from '../../types'
-import { ANDON_AREAS, calcularAndon, areasDeSectores } from '../../lib/andon'
+import { ANDON_AREAS, calcularAndon, areasDeSectores, type FilaAndon } from '../../lib/andon'
 import { guardarObjetivo } from '../../sync/syncEngine'
 
 // ============================================================
@@ -32,6 +32,22 @@ export default function AndonView() {
 
   const [editar, setEditar] = useState(false)
   const mesLabel = new Date().toLocaleDateString('es-AR', { month: 'long', year: 'numeric' })
+
+  // ---- Vista OPERARIO: numeros grandes + mensaje motivacional ----
+  if (usuario?.rol === 'operario') {
+    return (
+      <div>
+        <div className="section-title" style={{ textTransform: 'capitalize' }}>🏆 Mi equipo este mes · {mesLabel}</div>
+        {filas.length === 0 ? (
+          <div className="empty">Todavía no hay objetivo cargado para tu área. ¡Seguí sumando producción!</div>
+        ) : (
+          <div className="andon-hero-grid">
+            {filas.map((f) => <HeroArea key={f.area.id} f={f} />)}
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div>
@@ -71,6 +87,39 @@ export default function AndonView() {
         <span><i className="andon-verde3" /> ≥115%</span>
         <span><i className="andon-violeta" /> ≥120%</span>
       </div>
+    </div>
+  )
+}
+
+// ---------- Tarjeta grande motivacional (operario) ----------
+const MENSAJE: Record<string, string> = {
+  violeta: '¡IMPARABLES! 🚀 Premio máximo',
+  verde3: '¡Tremendo! Casi al tope 💪',
+  verde2: '¡Superando el objetivo! 🔥',
+  verde1: '¡Objetivo cumplido! 🎉',
+  amarillo: '¡Vamos que se llega! Falta poco para el premio',
+  rojo: '¡A meterle que se puede! 💥',
+}
+const ESCALONES = [0.8, 1.0, 1.1, 1.15, 1.2]
+
+function HeroArea({ f }: { f: FilaAndon }) {
+  const sinObjetivo = f.objetivo <= 0
+  const sig = ESCALONES.find((e) => f.pct < e)
+  const faltan = sig && !sinObjetivo ? Math.max(0, Math.ceil(sig * f.objetivo) - f.terminados) : 0
+  return (
+    <div className={'andon-hero ' + f.tier.clase}>
+      <div className="andon-hero-area">{f.area.label}</div>
+      <div className="andon-hero-num">
+        <span className="andon-hero-real">{f.terminados}</span>
+        <span className="andon-hero-obj">/ {sinObjetivo ? '—' : f.objetivo}</span>
+      </div>
+      <div className="andon-hero-pct">{sinObjetivo ? 'objetivo no cargado' : `${Math.round(f.pct * 100)}%`}</div>
+      <div className="andon-hero-barra"><span style={{ width: `${Math.min(100, f.pct * 100)}%` }} /></div>
+      <div className="andon-hero-msg">{sinObjetivo ? '¡Seguí sumando!' : MENSAJE[f.tier.id]}</div>
+      {!sinObjetivo && faltan > 0 && (
+        <div className="andon-hero-faltan">Faltan <strong>{faltan}</strong> para el próximo premio</div>
+      )}
+      {f.retrabajos > 0 && <div className="andon-retra">⚠ {f.retrabajos} retrabajo(s) este mes</div>}
     </div>
   )
 }

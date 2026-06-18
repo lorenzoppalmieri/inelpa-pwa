@@ -284,6 +284,23 @@ button { font-family: inherit; cursor: pointer; border: none; }
 .andon-tier { font-size: .76rem; font-weight: 700; color: var(--texto-tenue); }
 .andon-retra { font-size: .8rem; font-weight: 800; color: #fb923c; }   /* retrabajos: color distinto */
 
+/* Vista OPERARIO: numeros grandes + motivacion */
+.andon-hero-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+.andon-hero {
+  background: var(--panel); border: 2px solid var(--tier, var(--borde));
+  border-radius: 20px; padding: 22px; text-align: center;
+  box-shadow: 0 0 24px -8px var(--tier, transparent);
+}
+.andon-hero-area { font-size: 1.05rem; font-weight: 800; color: var(--texto); margin-bottom: 6px; }
+.andon-hero-num { display: flex; align-items: baseline; justify-content: center; gap: 10px; }
+.andon-hero-real { font-size: 5rem; font-weight: 900; line-height: 1; color: var(--tier, var(--texto)); font-variant-numeric: tabular-nums; }
+.andon-hero-obj { font-size: 1.8rem; font-weight: 700; color: var(--texto-tenue); }
+.andon-hero-pct { font-size: 1.6rem; font-weight: 900; color: var(--tier, var(--texto)); margin-top: 4px; }
+.andon-hero-barra { height: 16px; border-radius: 999px; background: var(--panel-2); overflow: hidden; margin: 12px 0; }
+.andon-hero-barra > span { display: block; height: 100%; border-radius: 999px; background: var(--tier, var(--estado-fin)); transition: width .4s; }
+.andon-hero-msg { font-size: 1.15rem; font-weight: 800; color: var(--tier, var(--texto)); }
+.andon-hero-faltan { font-size: .95rem; color: var(--texto-tenue); margin-top: 6px; }
+
 /* Colores de la escala de premios (variable --tier por tarjeta + swatch leyenda) */
 .andon-rojo    { --tier: #ef4444; }
 .andon-amarillo{ --tier: #eab308; }
