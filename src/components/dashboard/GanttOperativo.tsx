@@ -1,6 +1,6 @@
 import { type PointerEvent as ReactPointerEvent, useMemo, useRef, useState } from 'react'
 import type { Tarea, EstadoTarea, Maquina } from '../../types'
-import { sectorById } from '../../types'
+import { sectorById, causaLabel, esParadaNoProductiva } from '../../types'
 import { componentePorCodigo } from '../../data/catalogo'
 import { hhmm, fmtDur, isoWeek } from '../../lib/time'
 import { proximoInstanteLaborable, tramosLaborables, type GrupoAlmuerzo } from '../../lib/calendario'
@@ -329,6 +329,26 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
                       </div>
                     )
                   })}
+                  {/* Sub-bloques de PARADA (tiempo no productivo registrado por el
+                      operario) superpuestos sobre la barra, en su tramo real. */}
+                  {[...new Map(segs.map((s) => [s.tarea.id, s.tarea])).values()].flatMap((t) =>
+                    t.paradas
+                      .filter((p) => p.fin && !esParadaNoProductiva(p.causa))
+                      .flatMap((p, k) =>
+                        segmentosPorDia(p.inicio, p.fin as string, dias).map((sg, j) => {
+                          const left = ((sg.idx + (sg.ini - H_INI * 60) / DAY_MIN) / N) * 100
+                          const width = Math.max(0.4, ((sg.fin - sg.ini) / DAY_MIN / N) * 100)
+                          return (
+                            <div
+                              key={`par-${t.id}-${k}-${j}`}
+                              className="gantt-parada-sub"
+                              style={{ left: `${left}%`, width: `${width}%` }}
+                              title={`Parada · ${causaLabel(p.causa)} · ${hhmm(p.inicio)}–${hhmm(p.fin as string)}`}
+                            />
+                          )
+                        }),
+                      ),
+                  )}
                 </div>
               </div>
             )
@@ -349,6 +369,7 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
         <span><i style={{ background: 'var(--rojo)', width: 3 }} /> Ahora</span>
         <span><i style={{ background: 'repeating-linear-gradient(45deg,#64748b,#64748b 4px,transparent 4px,transparent 8px)' }} /> Sin producción</span>
         <span><i style={{ background: 'var(--estado-proceso)', boxShadow: 'inset 4px 0 0 0 var(--naranja)' }} /> Con hora de recuperación (+1h)</span>
+        <span><i style={{ background: 'repeating-linear-gradient(45deg,var(--rojo),var(--rojo) 3px,rgba(239,68,68,.35) 3px,rgba(239,68,68,.35) 6px)' }} /> Parada (no productivo)</span>
         <span><i style={{ background: 'var(--reparacion)' }} /> Reparación (no productivo)</span>
       </div>
     </div>

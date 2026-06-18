@@ -197,6 +197,12 @@ button { font-family: inherit; cursor: pointer; border: none; }
   background-image: repeating-linear-gradient(45deg, rgba(255,255,255,.14), rgba(255,255,255,.14) 5px, transparent 5px, transparent 11px);
 }
 .gantt-rep-tag { flex: none; margin-right: 5px; font-size: .8rem; line-height: 1; }
+/* Sub-bloque de PARADA: se superpone a la barra en el tramo real no productivo. */
+.gantt-parada-sub {
+  position: absolute; top: 11px; height: 28px; border-radius: 4px; z-index: 4; pointer-events: none;
+  background: repeating-linear-gradient(45deg, var(--rojo), var(--rojo) 4px, rgba(239,68,68,.45) 4px, rgba(239,68,68,.45) 8px);
+  box-shadow: inset 0 0 0 1px rgba(239,68,68,.85);
+}
 .gantt-recup-tag {
   flex: none; margin-right: 6px; padding: 1px 5px; border-radius: 5px;
   background: var(--naranja); color: #1a1206; font-size: .62rem; font-weight: 800; line-height: 1.3;
