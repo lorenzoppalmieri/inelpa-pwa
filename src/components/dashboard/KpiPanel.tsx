@@ -2,6 +2,7 @@ import type { Tarea } from '../../types'
 import { calcularOEE, desviosPorModelo, eficienciaPorOperario, pct } from '../../lib/kpi'
 import { fmtDur } from '../../lib/time'
 import ParetoDemoras from './ParetoDemoras'
+import EstimadoVsRealizado from './EstimadoVsRealizado'
 
 function barColor(v: number): string {
   if (v >= 0.85) return 'var(--estado-fin)'
@@ -19,9 +20,10 @@ function KpiBar({ label, value }: { label: string; value: number }) {
   )
 }
 
-export default function KpiPanel({ tareas, nombreOperario }: {
+export default function KpiPanel({ tareas, nombreOperario, nombreMaquina }: {
   tareas: Tarea[]
   nombreOperario: (id: string) => string
+  nombreMaquina: (id: string) => string
 }) {
   const oee = calcularOEE(tareas)
   const desvios = desviosPorModelo(tareas)
@@ -41,6 +43,10 @@ export default function KpiPanel({ tareas, nombreOperario }: {
         <KpiBar label="Rendimiento" value={oee.rendimiento} />
         <KpiBar label="Calidad" value={oee.calidad} />
       </div>
+
+      {/* Tiempo estimado vs realizado (por maquina / modelo) */}
+      <div className="section-title">Tiempo estimado vs realizado</div>
+      <EstimadoVsRealizado tareas={tareas} nombreMaquina={nombreMaquina} />
 
       {/* Real vs Estandar por modelo */}
       <div className="section-title">Tiempos reales vs estandar por modelo</div>

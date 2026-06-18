@@ -248,6 +248,26 @@ button { font-family: inherit; cursor: pointer; border: none; }
 .pareto-bar-wrap { flex: 1; background: var(--panel-2); border-radius: 8px; height: 26px; overflow: hidden; }
 .pareto-bar { height: 100%; background: var(--naranja); display: flex; align-items: center; padding: 0 8px; font-size: .75rem; font-weight: 800; color: #1a1206; border-radius: 8px; }
 
+/* ---------- KPI Estimado vs Realizado ---------- */
+.evr-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.evr-legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: .74rem; color: var(--texto-tenue); }
+.evr-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.evr-legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.evr-row { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-top: 1px solid var(--borde); }
+.evr-row:first-of-type { border-top: none; }
+.evr-lbl { width: 190px; flex: none; font-size: .85rem; font-weight: 700; }
+.evr-lbl .sub { font-weight: 400; }
+.evr-bars { flex: 1; display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.evr-track { position: relative; display: flex; align-items: center; gap: 8px; }
+.evr-bar { height: 16px; border-radius: 5px; min-width: 2px; transition: width .2s; }
+.evr-est { background: var(--azul-claro); }
+.evr-ok { background: var(--estado-fin); }
+.evr-over { background: var(--rojo); }
+.evr-val { font-size: .74rem; font-variant-numeric: tabular-nums; color: var(--texto); white-space: nowrap; }
+.evr-desvio { width: 64px; flex: none; text-align: right; font-weight: 800; font-size: .9rem; }
+.evr-desvio.bien { color: var(--estado-fin); }
+.evr-desvio.mal { color: var(--rojo); }
+
 /* ---------- Modal ---------- */
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.7); display: grid; place-items: center; z-index: 100; padding: 16px; }
 .modal { width: 100%; max-width: 520px; background: var(--panel); border: 1px solid var(--borde); border-radius: 18px; padding: 20px; }

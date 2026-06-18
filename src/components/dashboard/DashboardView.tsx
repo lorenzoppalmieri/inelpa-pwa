@@ -227,7 +227,7 @@ function DashboardCuerpo(props: {
 
       {vista === 'gantt'
         ? <GanttOperativo tareas={filtradas} agrupar={agrupar} maquinas={maquinasVisibles} operarios={operariosVisibles} nombreOperario={nombreOperario} nombreMaquina={nombreMaquina} />
-        : <KpiPanel tareas={kpiFiltradas} nombreOperario={nombreOperario} />}
+        : <KpiPanel tareas={kpiFiltradas} nombreOperario={nombreOperario} nombreMaquina={nombreMaquina} />}
     </>
   )
 }
