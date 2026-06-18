@@ -255,7 +255,18 @@ function PanelAsignar({ soloReparacion = false }: { soloReparacion?: boolean }) 
     const ts = todasTareas.filter((t) => t.ordenId === o.id)
     return ts.length === 0 || ts.some((t) => t.estado !== 'finalizada') || o.id === ordenId
   })
-  const componentesDelSector = componentesDeModelo(modeloSel).filter((c) => c.sectorId === sectorId)
+  // Semielaborados del sector con CUPO segun la cantidad de la OF. Aplica a TODOS
+  // los semielaborados del transformador: cada tarea ya planificada (cualquier
+  // estado) de ese componente en esta orden consume 1 unidad. Se ocultan los que
+  // ya estan completos (planificado >= cantidad de la OF).
+  const cantidadOrden = ordenSel?.cantidad ?? 1
+  const componentesDelSector = componentesDeModelo(modeloSel)
+    .filter((c) => c.sectorId === sectorId)
+    .map((c) => {
+      const planificado = todasTareas.filter((t) => t.ordenId === ordenId && t.componenteCodigo === c.codigo).length
+      return { c, restante: cantidadOrden - planificado }
+    })
+    .filter((x) => x.restante > 0)
 
   // Al cambiar de sector se reinician estacion, colaborador y semielaborado.
   function cambiarSector(s: SectorId) { setSectorId(s); setMaquinaId(''); setOperarioId(''); setComponenteCodigo('') }
@@ -358,8 +369,10 @@ function PanelAsignar({ soloReparacion = false }: { soloReparacion?: boolean }) 
             <div className="field">
               <label>Semielaborado (segun sector)</label>
               <select className="input" value={componenteCodigo} onChange={(e) => setComponenteCodigo(e.target.value)} disabled={!ordenSel || componentesDelSector.length === 0}>
-                <option value="">— {!ordenSel ? 'Elegi una orden primero' : componentesDelSector.length === 0 ? 'Sin semielaborados para este sector' : 'Selecciona'} —</option>
-                {componentesDelSector.map((c) => <option key={c.codigo} value={c.codigo}>{c.descripcion}</option>)}
+                <option value="">— {!ordenSel ? 'Elegi una orden primero' : componentesDelSector.length === 0 ? 'Todos los semielaborados ya planificados' : 'Selecciona'} —</option>
+                {componentesDelSector.map(({ c, restante }) => (
+                  <option key={c.codigo} value={c.codigo}>{c.descripcion}{cantidadOrden > 1 ? ` (faltan ${restante})` : ''}</option>
+                ))}
               </select>
               {ordenSel && !modeloSel && <div className="meta" style={{ marginTop: 6 }}>El modelo de la orden no esta en el catalogo maestro.</div>}
             </div>
