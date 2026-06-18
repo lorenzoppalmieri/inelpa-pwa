@@ -9,7 +9,7 @@
 import type {
   Tarea, Parada, OrdenProduccion, Semielaborado, Maquina, Usuario,
   SectorId, Rol, EstadoTarea, MaterialBobina, LineaProduccion,
-  EstadoSemielaborado, TipoEstacion, GrupoNomina, DatosBobinado,
+  EstadoSemielaborado, TipoEstacion, GrupoNomina, DatosBobinado, TipoTarea,
 } from '../types'
 
 // null -> undefined (Supabase devuelve null; la app usa undefined en opcionales).
@@ -20,7 +20,8 @@ function u<T>(v: T | null | undefined): T | undefined {
 // ---------- Tipos crudos de fila (solo los campos que usamos) ----------
 export interface TareaRow {
   id: string
-  orden_id: string
+  tipo: string | null
+  orden_id: string | null
   sector_id: string
   maquina_id: string
   operario_id: string | null
@@ -121,7 +122,8 @@ export function tareaFromRow(r: TareaRow, paradas: Parada[] = []): Tarea {
     datos.diametroExternoMm !== undefined || datos.codigoBobina !== undefined
   return {
     id: r.id,
-    ordenId: r.orden_id,
+    tipo: (r.tipo as TipoTarea) ?? 'fabricacion',
+    ordenId: u(r.orden_id),
     sectorId: r.sector_id as SectorId,
     maquinaId: r.maquina_id,
     operarioId: u(r.operario_id),
@@ -206,7 +208,8 @@ export function usuarioFromRow(r: UsuarioRow, sectores: SectorId[]): Usuario {
 export function tareaToRow(t: Tarea): TareaRow {
   return {
     id: t.id,
-    orden_id: t.ordenId,
+    tipo: t.tipo ?? 'fabricacion',
+    orden_id: t.ordenId ?? null,
     sector_id: t.sectorId,
     maquina_id: t.maquinaId,
     operario_id: t.operarioId ?? null,

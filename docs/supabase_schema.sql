@@ -92,6 +92,8 @@ create table ordenes (
 -- ---------- Tareas (operacion de un sector sobre una orden) ----------
 create table tareas (
   id                 uuid primary key default gen_random_uuid(),
+  tipo               text not null default 'fabricacion'    -- v1.8: 'fabricacion' | 'reparacion'
+                       check (tipo in ('fabricacion','reparacion')),
   orden_id           uuid references ordenes(id) on delete cascade,
   sector_id          text references sectores(id),
   -- v1.2/v1.3: la tarea se asigna a una ESTACION (maquina/box/linea) Y a un colaborador.

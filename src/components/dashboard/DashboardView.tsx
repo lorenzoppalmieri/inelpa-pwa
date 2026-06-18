@@ -63,7 +63,7 @@ export default function DashboardView() {
   // Material de una tarea: vive en su orden de fabricacion (no en la tarea).
   const materialTarea = useMemo(() => {
     const m = new Map((ordenes ?? []).map((o) => [o.id, o.material]))
-    return (t: Tarea) => { const mat = m.get(t.ordenId); return mat ? materialLabel(mat) : '-' }
+    return (t: Tarea) => { const mat = t.ordenId ? m.get(t.ordenId) : undefined; return mat ? materialLabel(mat) : '-' }
   }, [ordenes])
 
   const sectoresVisibles = SECTORES.filter((s) => sectoresPermitidos.includes(s.id))

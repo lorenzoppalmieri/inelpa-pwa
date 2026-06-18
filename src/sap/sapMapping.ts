@@ -62,7 +62,7 @@ export function tareaAPayloadSap(t: Tarea, netoMin: number, paradaMin: number) {
     [UDF.minutosParada]: paradaMin,
     [UDF.calidadOk]: t.calidadOk ? 'Y' : 'N',
     [UDF.defecto]: t.defecto ?? '',
-    OrderRef: t.ordenId,
+    OrderRef: t.ordenId ?? '',
     Sector: t.sectorId,
   }
 }

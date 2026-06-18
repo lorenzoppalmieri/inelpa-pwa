@@ -192,9 +192,15 @@ export interface DatosBobinado {
 
 // Una tarea = una operacion de un sector sobre una orden de produccion,
 // asignada a una ESTACION DE TRABAJO (maquina/box/linea) para la semana corriente.
+// v1.8: una tarea puede ser de fabricacion (orden estandar) o una reparacion
+// (corregir errores no detectados a tiempo). La reparacion NO cuenta como tiempo
+// productivo y queda EXCLUIDA del OEE (igual que el almuerzo: no penaliza).
+export type TipoTarea = 'fabricacion' | 'reparacion'
+
 export interface Tarea {
   id: string
-  ordenId: string
+  tipo?: TipoTarea         // v1.8: default 'fabricacion'
+  ordenId?: string         // v1.8: opcional (una reparacion puede no tener orden)
   sectorId: SectorId
   maquinaId: string        // estacion de trabajo asignada (v1.2; reemplaza la asignacion por colaborador)
   operarioId?: string      // colaborador que EJECUTA (se estampa al iniciar; trazabilidad y KPIs)
@@ -475,6 +481,10 @@ export function causaLabel(c: CausaParada): string {
 // Paradas no productivas (almuerzo, pausas programadas): no penalizan el OEE.
 export function esParadaNoProductiva(c: CausaParada): boolean {
   return CAUSAS_PARADA.find((x) => x.id === c)?.categoria === 'no_productiva'
+}
+// v1.8: una reparacion es tiempo NO productivo (se excluye del OEE, no penaliza).
+export function esReparacion(t: { tipo?: TipoTarea }): boolean {
+  return t.tipo === 'reparacion'
 }
 
 // ============================================================

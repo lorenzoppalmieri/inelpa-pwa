@@ -1,7 +1,7 @@
 import type { Tarea, Parada, CausaParada } from '../types'
 import { minutosEntre } from './time'
 import { calcularTiempoNetoProductivo } from './calendario'
-import { causaLabel, esParadaNoProductiva } from '../types'
+import { causaLabel, esParadaNoProductiva, esReparacion } from '../types'
 
 // ============================================================
 // Calculo de KPIs de planta (OEE simplificado, desvios, Pareto).
@@ -69,7 +69,8 @@ export interface OEE {
 //  Rendimiento    = tiempo estandar / tiempo neto (ideal vs real efectivo)
 //  Calidad        = piezas OK / piezas totales
 export function calcularOEE(tareas: Tarea[]): OEE {
-  const fin = tareas.filter((t) => t.estado === 'finalizada' && t.inicioReal && t.finReal)
+  // v1.8: las reparaciones son tiempo no productivo -> NO entran al OEE.
+  const fin = tareas.filter((t) => t.estado === 'finalizada' && t.inicioReal && t.finReal && !esReparacion(t))
   if (fin.length === 0) return { disponibilidad: 0, rendimiento: 0, calidad: 0, oee: 0 }
 
   let bruto = 0, paradas = 0, estandar = 0, neto = 0, ok = 0
@@ -99,7 +100,7 @@ export interface DesvioModelo {
 
 // Real vs estandar agrupado por modelo de transformador.
 export function desviosPorModelo(tareas: Tarea[]): DesvioModelo[] {
-  const fin = tareas.filter((t) => t.estado === 'finalizada' && t.inicioReal && t.finReal)
+  const fin = tareas.filter((t) => t.estado === 'finalizada' && t.inicioReal && t.finReal && !esReparacion(t))
   const map = new Map<string, { est: number; real: number; n: number }>()
   for (const t of fin) {
     const k = t.modelo
@@ -129,7 +130,7 @@ export interface ParetoItem {
 
 // Pareto de demoras: causas ordenadas por minutos perdidos + % acumulado.
 export function paretoDemoras(tareas: Tarea[]): ParetoItem[] {
-  const all: Parada[] = tareas.flatMap((t) => t.paradas)
+  const all: Parada[] = tareas.filter((t) => !esReparacion(t)).flatMap((t) => t.paradas)
   const map = new Map<CausaParada, { min: number; ev: number }>()
   for (const p of all) {
     if (esParadaNoProductiva(p.causa)) continue // el almuerzo no es una demora
@@ -159,6 +160,7 @@ export function eficienciaPorOperario(tareas: Tarea[]): Map<string, EficienciaOp
   const map = new Map<string, EficienciaOperario>()
   for (const t of tareas) {
     if (!t.inicioReal) continue
+    if (esReparacion(t)) continue // v1.8: reparacion = no productivo, fuera del KPI
     // v1.2: operarioId es opcional (se estampa al iniciar). Sin operario no hay
     // a quien atribuir la eficiencia: se omite de este KPI.
     if (!t.operarioId) continue

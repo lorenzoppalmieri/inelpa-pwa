@@ -6,7 +6,7 @@ import {
   MATERIALES, lineaDesdeModelo, materialLabel, CATEGORIA_COMPONENTE_LABEL,
   operariosParaSector, esSectorHerreria,
   type MaterialBobina, type SectorId, type OrdenProduccion, type Tarea,
-  type Semielaborado, type EstadoSemielaborado,
+  type Semielaborado, type EstadoSemielaborado, type TipoTarea,
 } from '../../types'
 import { MODELOS_CATALOGO, modeloPorNombre, componentesDeModelo, componentePorCodigo } from '../../data/catalogo'
 import { guardarOrden, guardarTarea, guardarSemielaborado, eliminarTarea } from '../../sync/syncEngine'
@@ -196,6 +196,9 @@ function PanelAsignar() {
   const [horaPlan, setHoraPlan] = useState('07:00')
   // v1.6: habilitar la hora de recuperacion (16-17 / 15-16) para esta tarea.
   const [horaRecup, setHoraRecup] = useState(false)
+  // v1.8: tipo de tarea (fabricacion estandar o reparacion no productiva).
+  const [tipo, setTipo] = useState<TipoTarea>('fabricacion')
+  const [descripcion, setDescripcion] = useState('') // texto libre para reparaciones
   const [msg, setMsg] = useState('')
 
   const nombreMaquina = useMemo(() => {
@@ -224,8 +227,11 @@ function PanelAsignar() {
   function cambiarOrden(id: string) { setOrdenId(id); setComponenteCodigo('') }
 
   async function asignar() {
+    const esRep = tipo === 'reparacion'
+    // Fabricacion necesita orden; reparacion necesita descripcion (no lleva orden).
     const orden = (ordenes ?? []).find((o) => o.id === ordenId)
-    if (!orden) { setMsg('Selecciona una orden.'); return }
+    if (!esRep && !orden) { setMsg('Selecciona una orden.'); return }
+    if (esRep && !descripcion.trim()) { setMsg('Describe la reparacion (que se corrige).'); return }
     if (!maquinaId) { setMsg('Selecciona una estacion (maquina/box/linea) para el sector.'); return }
     if (operariosDelSector.length > 0 && !operarioId) { setMsg('Selecciona un colaborador.'); return }
     if (!fechaPlan || !horaPlan) { setMsg('Indica dia y hora de arranque.'); return }
@@ -233,13 +239,14 @@ function PanelAsignar() {
     const inicioPlanificado = new Date(`${fechaPlan}T${horaPlan}`).toISOString()
     const t: Tarea = {
       id: crypto.randomUUID(),
-      ordenId: orden.id,
+      tipo,
+      ordenId: esRep ? undefined : orden!.id,
       sectorId,
       maquinaId,
       // v1.3: el planificador asigna colaborador + estacion simultaneamente.
       operarioId: operarioId || undefined,
-      modelo: orden.modelo,
-      componenteCodigo: componenteCodigo || undefined,
+      modelo: esRep ? descripcion.trim() : orden!.modelo,
+      componenteCodigo: esRep ? undefined : (componenteCodigo || undefined),
       nroTransformador: nroTransformador.trim() || undefined,
       semana: isoWeek(new Date(inicioPlanificado)),
       prioridad: Math.max(1, Number(prioridad) || 1),
@@ -250,8 +257,9 @@ function PanelAsignar() {
       paradas: [],
     }
     await guardarTarea(t)
-    setNroTransformador(''); setComponenteCodigo(''); setHoraRecup(false)
-    setMsg(`Tarea asignada a ${nombreOperario(operarioId)} · ${nombreMaquina(maquinaId)} en ${sectorById(sectorId).nombre}.`)
+    setNroTransformador(''); setComponenteCodigo(''); setHoraRecup(false); setDescripcion('')
+    const queTipo = esRep ? 'Reparacion' : 'Tarea'
+    setMsg(`${queTipo} asignada a ${nombreOperario(operarioId)} · ${nombreMaquina(maquinaId)} en ${sectorById(sectorId).nombre}.`)
   }
 
   // v1.6: activar/desactivar la hora de recuperacion de una tarea ya cargada.
@@ -275,29 +283,45 @@ function PanelAsignar() {
   return (
     <>
       <div className="card">
-        <div className="section-title">Asignar tarea · semana {semana.split('-W')[1]}</div>
+        <div className="section-title">Asignar {tipo === 'reparacion' ? 'reparación' : 'tarea'} · semana {semana.split('-W')[1]}</div>
+
+        {/* v1.8: tipo de tarea. La reparacion no cuenta para el OEE. */}
+        <div className="seg" style={{ marginBottom: 12 }}>
+          <button className={'seg-btn' + (tipo === 'fabricacion' ? ' on' : '')} onClick={() => setTipo('fabricacion')}>🏭 Fabricación</button>
+          <button className={'seg-btn' + (tipo === 'reparacion' ? ' on' : '')} onClick={() => setTipo('reparacion')}>🔧 Reparación</button>
+        </div>
+
         <div className="form-grid">
-          <div className="field">
-            <label>Orden de fabricacion</label>
-            <select className="input" value={ordenId} onChange={(e) => cambiarOrden(e.target.value)}>
-              <option value="">— Selecciona —</option>
-              {(ordenes ?? []).map((o) => <option key={o.id} value={o.id}>{o.nroOrden} · {o.modelo}</option>)}
-            </select>
-          </div>
+          {tipo === 'fabricacion' ? (
+            <div className="field">
+              <label>Orden de fabricacion</label>
+              <select className="input" value={ordenId} onChange={(e) => cambiarOrden(e.target.value)}>
+                <option value="">— Selecciona —</option>
+                {(ordenes ?? []).map((o) => <option key={o.id} value={o.id}>{o.nroOrden} · {o.modelo}</option>)}
+              </select>
+            </div>
+          ) : (
+            <div className="field">
+              <label>Descripción de la reparación</label>
+              <input className="input" value={descripcion} onChange={(e) => setDescripcion(e.target.value)} placeholder="ej. Rehacer hermetizado TR-10231" />
+            </div>
+          )}
           <div className="field">
             <label>Sector / operacion</label>
             <select className="input" value={sectorId} onChange={(e) => cambiarSector(e.target.value as SectorId)}>
               {SECTORES.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
             </select>
           </div>
-          <div className="field">
-            <label>Semielaborado (segun sector)</label>
-            <select className="input" value={componenteCodigo} onChange={(e) => setComponenteCodigo(e.target.value)} disabled={!ordenSel || componentesDelSector.length === 0}>
-              <option value="">— {!ordenSel ? 'Elegi una orden primero' : componentesDelSector.length === 0 ? 'Sin semielaborados para este sector' : 'Selecciona'} —</option>
-              {componentesDelSector.map((c) => <option key={c.codigo} value={c.codigo}>{c.descripcion}</option>)}
-            </select>
-            {ordenSel && !modeloSel && <div className="meta" style={{ marginTop: 6 }}>El modelo de la orden no esta en el catalogo maestro.</div>}
-          </div>
+          {tipo === 'fabricacion' && (
+            <div className="field">
+              <label>Semielaborado (segun sector)</label>
+              <select className="input" value={componenteCodigo} onChange={(e) => setComponenteCodigo(e.target.value)} disabled={!ordenSel || componentesDelSector.length === 0}>
+                <option value="">— {!ordenSel ? 'Elegi una orden primero' : componentesDelSector.length === 0 ? 'Sin semielaborados para este sector' : 'Selecciona'} —</option>
+                {componentesDelSector.map((c) => <option key={c.codigo} value={c.codigo}>{c.descripcion}</option>)}
+              </select>
+              {ordenSel && !modeloSel && <div className="meta" style={{ marginTop: 6 }}>El modelo de la orden no esta en el catalogo maestro.</div>}
+            </div>
+          )}
           <div className="field">
             <label>Colaborador</label>
             <select className="input" value={operarioId} onChange={(e) => setOperarioId(e.target.value)}>
@@ -344,7 +368,7 @@ function PanelAsignar() {
             </label>
           </div>
         </div>
-        <button className="btn btn-primary btn-bloque" onClick={asignar}>＋ Asignar tarea</button>
+        <button className="btn btn-primary btn-bloque" onClick={asignar}>＋ Asignar {tipo === 'reparacion' ? 'reparación' : 'tarea'}</button>
         {msg && <div className="meta" style={{ marginTop: 10 }}>{msg}</div>}
       </div>
 
@@ -353,7 +377,7 @@ function PanelAsignar() {
         <div className="card" key={t.id}>
           <div className="card-header">
             <div>
-              <h3>{t.modelo}{t.nroTransformador ? ` · ${t.nroTransformador}` : ''}</h3>
+              <h3>{t.tipo === 'reparacion' ? '🔧 ' : ''}{t.modelo}{t.nroTransformador ? ` · ${t.nroTransformador}` : ''}{t.tipo === 'reparacion' && <span className="estado-chip" style={{ background: 'var(--reparacion)', color: '#fff', marginLeft: 8 }}>Reparación</span>}</h3>
               <div className="meta">
                 {sectorById(t.sectorId).nombre} · {nombreOperario(t.operarioId)} · {nombreMaquina(t.maquinaId)} · Prioridad <strong>{t.prioridad}</strong> · Estandar <strong>{t.tiempoEstandarMin}m</strong>
                 {t.inicioPlanificado ? <> · Arranque <strong>{fechaCorta(t.inicioPlanificado)} {hhmm(t.inicioPlanificado)}</strong></> : null}
