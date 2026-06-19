@@ -333,10 +333,40 @@ export function periodoMensual(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
+// ============================================================
+// TAREAS LOGISTICAS (v1.12) — organizador de pedidos de abastecimiento.
+// Giuliano crea la tarea y asigna un responsable; el equipo la marca finalizada.
+// El tiempo de resolucion = finalizada - creada (cuando se dio la orden).
+// Entidad propia, separada de las tareas de produccion.
+// ============================================================
+export type PrioridadLog = 'alta' | 'media' | 'baja'
+export const PRIORIDADES_LOG: { id: PrioridadLog; label: string }[] = [
+  { id: 'alta', label: 'Alta' },
+  { id: 'media', label: 'Media' },
+  { id: 'baja', label: 'Baja' },
+]
+// Equipo de logistica (responsables asignables). No son cuentas de login.
+export const RESPONSABLES_LOGISTICA: string[] = [
+  'Guillermo', 'Maximiliano', 'Santiago', 'Lucas', 'Enzo', 'Orlando',
+]
+
+export interface TareaLogistica {
+  id: string
+  titulo: string
+  detalle?: string
+  responsable: string            // nombre del equipo de logistica
+  prioridad: PrioridadLog
+  estado: 'pendiente' | 'finalizada'
+  creada: string                 // ISO: cuando Giuliano dio la orden
+  creadaPor?: string             // usuario que la creo
+  finalizada?: string            // ISO al completar
+  finalizadaPor?: string         // usuario que la completo
+}
+
 // Cola de sincronizacion: cada cambio offline se encola y se empuja al backend.
 export interface SyncOp {
   id: string
-  entidad: 'tarea' | 'parada' | 'orden' | 'semielaborado' | 'objetivo'
+  entidad: 'tarea' | 'parada' | 'orden' | 'semielaborado' | 'objetivo' | 'tarea_logistica'
   entidadId: string
   tipo: 'upsert' | 'delete'
   payload: unknown

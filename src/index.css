@@ -281,6 +281,22 @@ button { font-family: inherit; cursor: pointer; border: none; }
 .logi-alert-causa { flex: 1; min-width: 180px; color: #fca5a5; font-weight: 700; }
 .logi-alert-time { font-variant-numeric: tabular-nums; font-weight: 800; color: #fecaca; }
 
+/* ---------- Logistica: organizador de tareas ---------- */
+.logi-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.logi-kpi { background: var(--panel); border: 1px solid var(--borde); border-radius: var(--radio); padding: 12px; text-align: center; }
+.logi-kpi .n { font-size: 1.6rem; font-weight: 900; line-height: 1; }
+.logi-kpi .l { font-size: .72rem; color: var(--texto-tenue); margin-top: 4px; }
+.logi-kpi.prio-alta .n { color: var(--rojo); }
+.logi-kpi.prio-media .n { color: var(--naranja); }
+.logi-kpi.prio-baja .n { color: var(--estado-proceso); }
+.prio-chip { font-size: .64rem; font-weight: 900; padding: 2px 7px; border-radius: 999px; margin-right: 6px; color: #fff; }
+.prio-chip.prio-alta { background: var(--rojo); }
+.prio-chip.prio-media { background: var(--naranja); color: #1a1206; }
+.prio-chip.prio-baja { background: var(--estado-proceso); }
+.logi-tarea.prio-alta { border-left: 6px solid var(--rojo); }
+.logi-tarea.prio-media { border-left: 6px solid var(--naranja); }
+.logi-tarea.prio-baja { border-left: 6px solid var(--estado-proceso); }
+
 /* ---------- ANDON (objetivos del mes + premios por area) ---------- */
 .andon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
 .andon-card {

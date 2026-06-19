@@ -1,11 +1,11 @@
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import { db } from '../db/dexie'
 import { supabase, SUPABASE_HABILITADO } from '../lib/supabaseClient'
-import type { SyncOp, Tarea, OrdenProduccion, Semielaborado, SectorId, Objetivo } from '../types'
+import type { SyncOp, Tarea, OrdenProduccion, Semielaborado, SectorId, Objetivo, TareaLogistica } from '../types'
 import {
-  tareaFromRow, paradaFromRow, ordenFromRow, semiFromRow, maquinaFromRow, usuarioFromRow, objetivoFromRow,
-  tareaToRow, paradaToRow, ordenToRow, semiToRow, objetivoToRow,
-  type TareaRow, type ParadaRow, type OrdenRow, type SemiRow, type MaquinaRow, type UsuarioRow, type ObjetivoRow,
+  tareaFromRow, paradaFromRow, ordenFromRow, semiFromRow, maquinaFromRow, usuarioFromRow, objetivoFromRow, tareaLogFromRow,
+  tareaToRow, paradaToRow, ordenToRow, semiToRow, objetivoToRow, tareaLogToRow,
+  type TareaRow, type ParadaRow, type OrdenRow, type SemiRow, type MaquinaRow, type UsuarioRow, type ObjetivoRow, type TareaLogisticaRow,
 } from './mappers'
 
 // ============================================================
@@ -65,9 +65,10 @@ export async function fetchInicial(): Promise<void> {
     await Promise.all([
       db.maquinas.clear(), db.usuarios.clear(), db.ordenes.clear(),
       db.semielaborados.clear(), db.tareas.clear(), db.objetivos.clear(),
+      db.tareasLogistica.clear(),
     ])
 
-    const [maqs, usrs, uss, ords, semis, tars, pars, objs] = await Promise.all([
+    const [maqs, usrs, uss, ords, semis, tars, pars, objs, tlog] = await Promise.all([
       supabase.from('maquinas').select('*'),
       supabase.from('usuarios').select('id, nombre, usuario, rol, grupo_nomina, activo'),
       supabase.from('usuario_sectores').select('usuario_id, sector_id'),
@@ -76,6 +77,7 @@ export async function fetchInicial(): Promise<void> {
       supabase.from('tareas').select('*'),
       supabase.from('paradas').select('*'),
       supabase.from('objetivos').select('*'),
+      supabase.from('tareas_logistica').select('*'),
     ])
 
     // Maquinas
@@ -102,6 +104,9 @@ export async function fetchInicial(): Promise<void> {
 
     // Objetivos mensuales (ANDON)
     if (objs.data) await db.objetivos.bulkPut((objs.data as ObjetivoRow[]).map(objetivoFromRow))
+
+    // Tareas logisticas
+    if (tlog.data) await db.tareasLogistica.bulkPut((tlog.data as TareaLogisticaRow[]).map(tareaLogFromRow))
 
     // Tareas (+ paradas anidadas)
     if (tars.data) {
@@ -177,6 +182,11 @@ async function onObjetivoChange(payload: Payload) {
   await db.objetivos.put(objetivoFromRow(payload.new as unknown as ObjetivoRow))
 }
 
+async function onTareaLogChange(payload: Payload) {
+  if (payload.eventType === 'DELETE') { await db.tareasLogistica.delete((payload.old as { id: string }).id); return }
+  await db.tareasLogistica.put(tareaLogFromRow(payload.new as unknown as TareaLogisticaRow))
+}
+
 function suscribirRealtime() {
   if (!supabase || canal) return
   canal = supabase
@@ -187,6 +197,7 @@ function suscribirRealtime() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'semielaborados' }, onSemiChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'maquinas' }, onMaquinaChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'objetivos' }, onObjetivoChange)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'tareas_logistica' }, onTareaLogChange)
     .subscribe()
 }
 
@@ -247,6 +258,7 @@ async function empujar(op: SyncOp): Promise<boolean> {
         : op.entidad === 'orden' ? 'ordenes'
         : op.entidad === 'semielaborado' ? 'semielaborados'
         : op.entidad === 'objetivo' ? 'objetivos'
+        : op.entidad === 'tarea_logistica' ? 'tareas_logistica'
         : 'paradas'
       const { error } = await supabase.from(tabla).delete().eq('id', op.entidadId)
       if (error) { console.warn(`[sync] delete ${op.entidad}:`, error.message); return false }
@@ -301,6 +313,13 @@ async function empujar(op: SyncOp): Promise<boolean> {
         if (error) { console.warn('[sync] upsert objetivo:', error.message); return false }
         return true
       }
+      case 'tarea_logistica': {
+        const { error } = await supabase
+          .from('tareas_logistica')
+          .upsert(tareaLogToRow(op.payload as TareaLogistica), { onConflict: 'id' })
+        if (error) { console.warn('[sync] upsert tarea_logistica:', error.message); return false }
+        return true
+      }
       default:
         return true
     }
@@ -345,6 +364,16 @@ export async function guardarSemielaborado(s: Semielaborado): Promise<void> {
 export async function guardarObjetivo(o: Objetivo): Promise<void> {
   await db.objetivos.put(o)
   await encolar({ entidad: 'objetivo', entidadId: o.id, tipo: 'upsert', payload: o })
+}
+
+// v1.12: tareas logisticas (organizador de abastecimiento).
+export async function guardarTareaLogistica(t: TareaLogistica): Promise<void> {
+  await db.tareasLogistica.put(t)
+  await encolar({ entidad: 'tarea_logistica', entidadId: t.id, tipo: 'upsert', payload: t })
+}
+export async function eliminarTareaLogistica(t: TareaLogistica): Promise<void> {
+  await db.tareasLogistica.delete(t.id)
+  await encolar({ entidad: 'tarea_logistica', entidadId: t.id, tipo: 'delete', payload: { id: t.id } })
 }
 
 // Auto-disparo al recuperar conexion.

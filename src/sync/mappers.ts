@@ -10,7 +10,7 @@ import type {
   Tarea, Parada, OrdenProduccion, Semielaborado, Maquina, Usuario,
   SectorId, Rol, EstadoTarea, MaterialBobina, LineaProduccion,
   EstadoSemielaborado, TipoEstacion, GrupoNomina, DatosBobinado, TipoTarea,
-  Objetivo, AndonAreaId,
+  Objetivo, AndonAreaId, TareaLogistica, PrioridadLog,
 } from '../types'
 
 // null -> undefined (Supabase devuelve null; la app usa undefined en opcionales).
@@ -88,6 +88,19 @@ export interface ObjetivoRow {
   area: string
   cantidad: number
   actualizado_en: string | null
+}
+
+export interface TareaLogisticaRow {
+  id: string
+  titulo: string
+  detalle: string | null
+  responsable: string
+  prioridad: string
+  estado: string
+  creada_en: string
+  creada_por: string | null
+  finalizada_en: string | null
+  finalizada_por: string | null
 }
 
 export interface MaquinaRow {
@@ -203,6 +216,35 @@ export function objetivoToRow(o: Objetivo): ObjetivoRow {
     area: o.area,
     cantidad: o.cantidad,
     actualizado_en: o.actualizado,
+  }
+}
+
+export function tareaLogFromRow(r: TareaLogisticaRow): TareaLogistica {
+  return {
+    id: r.id,
+    titulo: r.titulo,
+    detalle: u(r.detalle),
+    responsable: r.responsable,
+    prioridad: r.prioridad as PrioridadLog,
+    estado: r.estado as TareaLogistica['estado'],
+    creada: r.creada_en,
+    creadaPor: u(r.creada_por),
+    finalizada: u(r.finalizada_en),
+    finalizadaPor: u(r.finalizada_por),
+  }
+}
+export function tareaLogToRow(t: TareaLogistica): TareaLogisticaRow {
+  return {
+    id: t.id,
+    titulo: t.titulo,
+    detalle: t.detalle ?? null,
+    responsable: t.responsable,
+    prioridad: t.prioridad,
+    estado: t.estado,
+    creada_en: t.creada,
+    creada_por: t.creadaPor ?? null,
+    finalizada_en: t.finalizada ?? null,
+    finalizada_por: t.finalizadaPor ?? null,
   }
 }
 

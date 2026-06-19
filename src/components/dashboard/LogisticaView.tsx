@@ -1,49 +1,102 @@
 import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
+import { SECTORES, materialLabel, type LineaProduccion, type SectorId, type Tarea } from '../../types'
+import { exportarProgramacionCSV, hayDatosProgramacion } from '../../lib/export'
 import GanttOperativo from './GanttOperativo'
 import AlertaMaterial from './AlertaMaterial'
+import LogisticaTareas from './LogisticaTareas'
 
 // ============================================================
-// Vista LOGISTICA (Fase 1, solo lectura). El equipo de logistica:
-//  - ve una alerta roja cuando una tarea queda 'pausada' por espera de material,
-//  - ve el Gantt de toda la planta (sin poder editar) para anticipar consumos.
+// Vista LOGISTICA. Dos pestañas:
+//  - Gantt de planta (solo lectura) con los MISMOS filtros que el planificador + export.
+//  - Organizador de tareas logisticas (crear/asignar/finalizar).
+// La alerta de espera de material queda arriba, siempre visible.
 // ============================================================
 export default function LogisticaView() {
+  const [pestania, setPestania] = useState<'gantt' | 'tareas'>('gantt')
+  return (
+    <div>
+      <div className="section-title" style={{ margin: '4px 0 12px' }}>Logística</div>
+      <AlertaMaterial />
+
+      <div className="tabs no-print" style={{ marginTop: 12 }}>
+        <button className={'tab' + (pestania === 'gantt' ? ' active' : '')} onClick={() => setPestania('gantt')}>Gantt de planta</button>
+        <button className={'tab' + (pestania === 'tareas' ? ' active' : '')} onClick={() => setPestania('tareas')}>📋 Tareas logísticas</button>
+      </div>
+
+      {pestania === 'gantt' ? <LogisticaGantt /> : <LogisticaTareas />}
+    </div>
+  )
+}
+
+// ---------- Gantt de planta (solo lectura) con filtros + export ----------
+function LogisticaGantt() {
   const tareas = useLiveQuery(() => db.tareas.toArray(), []) ?? []
   const maquinas = useLiveQuery(() => db.maquinas.toArray(), []) ?? []
   const usuarios = useLiveQuery(() => db.usuarios.toArray(), []) ?? []
-  const [agrupar, setAgrupar] = useState<'maquina' | 'sector' | 'operario'>('maquina')
+  const ordenes = useLiveQuery(() => db.ordenes.toArray(), []) ?? []
+
+  const [linea, setLinea] = useState<'todas' | LineaProduccion>('todas')
+  const [sectorFiltro, setSectorFiltro] = useState<'todos' | SectorId>('todos')
+  const [agrupar, setAgrupar] = useState<'sector' | 'maquina' | 'operario'>('maquina')
+
+  const sectorPasa = useMemo(() => (sid: SectorId) => {
+    if (sectorFiltro !== 'todos' && sid !== sectorFiltro) return false
+    if (linea !== 'todas') {
+      const sec = SECTORES.find((s) => s.id === sid)
+      if (sec && sec.linea !== linea && sec.linea !== 'general') return false
+    }
+    return true
+  }, [linea, sectorFiltro])
+
+  const filtradas = useMemo(() => tareas.filter((t) => sectorPasa(t.sectorId)), [tareas, sectorPasa])
+  const maquinasVis = useMemo(() => maquinas.filter((m) => m.activo && sectorPasa(m.sectorId)), [maquinas, sectorPasa])
+  const operarios = useMemo(() => usuarios.filter((u) => u.rol === 'operario' && (u.sectores ?? []).some(sectorPasa)).map((u) => ({ id: u.id, nombre: u.nombre })), [usuarios, sectorPasa])
 
   const nombreMaquina = useMemo(() => { const m = new Map(maquinas.map((x) => [x.id, x.nombre])); return (id: string) => m.get(id) ?? id }, [maquinas])
   const nombreOperario = useMemo(() => { const m = new Map(usuarios.map((u) => [u.id, u.nombre])); return (id: string) => m.get(id) ?? id }, [usuarios])
-  const operarios = useMemo(() => usuarios.filter((u) => u.rol === 'operario').map((u) => ({ id: u.id, nombre: u.nombre })), [usuarios])
-  const maquinasActivas = useMemo(() => maquinas.filter((m) => m.activo), [maquinas])
+  const materialTarea = useMemo(() => {
+    const m = new Map(ordenes.map((o) => [o.id, o.material]))
+    return (t: Tarea) => { const mat = t.ordenId ? m.get(t.ordenId) : undefined; return mat ? materialLabel(mat) : '-' }
+  }, [ordenes])
+
+  const puedeExportar = hayDatosProgramacion(filtradas)
 
   return (
-    <div>
-      <div className="section-title" style={{ margin: '4px 0 12px' }}>Logística · vista de planta (solo lectura)</div>
-
-      {/* ---- Alerta de material ---- */}
-      <AlertaMaterial />
-
-      {/* ---- Gantt solo lectura ---- */}
-      <div className="filtros no-print" style={{ marginTop: 14 }}>
+    <>
+      <div className="filtros no-print">
+        <select className="select" value={linea} onChange={(e) => setLinea(e.target.value as 'todas' | LineaProduccion)}>
+          <option value="todas">Todas las lineas</option>
+          <option value="distribucion">Distribucion</option>
+          <option value="rural">Rural</option>
+        </select>
+        <select className="select" value={sectorFiltro} onChange={(e) => setSectorFiltro(e.target.value as 'todos' | SectorId)}>
+          <option value="todos">Todos los sectores</option>
+          {SECTORES.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+        </select>
         <select className="select" value={agrupar} onChange={(e) => setAgrupar(e.target.value as typeof agrupar)}>
-          <option value="maquina">Agrupar por estación</option>
+          <option value="maquina">Agrupar por estacion</option>
           <option value="sector">Agrupar por sector</option>
           <option value="operario">Agrupar por colaborador</option>
         </select>
       </div>
+      <div className="export-bar no-print">
+        <button className="btn btn-primary" disabled={!puedeExportar}
+          title={puedeExportar ? 'Descargar la programacion en CSV (Excel)' : 'No hay tareas para exportar'}
+          onClick={() => exportarProgramacionCSV(filtradas, new Date().toISOString(), nombreMaquina, nombreOperario, materialTarea)}
+        >⬇ Exportar programación (Excel)</button>
+      </div>
+
       <GanttOperativo
-        tareas={tareas}
+        tareas={filtradas}
         agrupar={agrupar}
-        maquinas={maquinasActivas}
+        maquinas={maquinasVis}
         operarios={operarios}
         nombreOperario={nombreOperario}
         nombreMaquina={nombreMaquina}
         soloLectura
       />
-    </div>
+    </>
   )
 }

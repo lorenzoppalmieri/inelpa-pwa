@@ -38,8 +38,18 @@ insert into usuarios (nombre, usuario, rol, grupo_nomina, activo) values
   ('Equipo Logística',     'logistica_equipo',   'logistica', null, true)
 on conflict (usuario) do nothing;
 
--- Verificacion
-select usuario, rol from usuarios where rol = 'logistica';
+-- 2.4) Vincular cada cuenta de Auth con su perfil (por email). Correr DESPUES de
+--      que existan las cuentas de Auth (via dashboard o crear_cuentas_auth.mjs).
+--      Insensible a mayus/minus. Sin esto, el login dice "sin perfil de planta".
+update usuarios u
+set auth_id = a.id
+from auth.users a
+where lower(a.email) = lower(u.usuario) || '@inelpa.local'
+  and u.auth_id is distinct from a.id;
+
+-- Verificacion: las 2 filas deben tener auth_id no nulo.
+select usuario, rol, activo, (auth_id is not null) as tiene_cuenta
+from usuarios where rol = 'logistica';
 
 -- ============================================================
 -- >>> Crear las cuentas de acceso (PIN) con el script generico <<<
