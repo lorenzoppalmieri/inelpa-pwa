@@ -35,7 +35,7 @@ export default function Layout({ children }: { children: ReactNode }) {
     <div className="app-shell">
       <header className="topbar no-print">
         <div className="brand">
-          <svg className="logo" viewBox="0 0 64 64"><rect width="64" height="64" rx="12" fill="#0b3d6b"/><path d="M20 14h6v36h-6zM38 14h6v36h-6z" fill="#f59e0b"/><path d="M26 30h12v6H26z" fill="#f59e0b"/></svg>
+          <svg className="logo" viewBox="0 0 64 64"><rect width="64" height="64" rx="12" fill="#0b3d6b"/><path d="M36 6 L16 36 H28 L26 58 L48 26 H34 L38 6 Z" fill="#f59e0b"/></svg>
           <span>INELPA</span>
         </div>
         <div className="user">
