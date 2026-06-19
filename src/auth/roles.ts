@@ -37,10 +37,18 @@ export const PERMISOS: Record<Rol, Permisos> = {
     configurarEstandares: true, verTodosSectores: true,
     gestionProduccion: true, crearReparacion: true,
   },
+  // v1.11: Logistica = SOLO lectura. Ve la planta para anticipar abastecimiento.
+  logistica: {
+    verTareasPropias: false, cambiarEstadoTarea: false, verDashboard: true,
+    validarDatos: false, reasignarPrioridad: false, cargarProgramacion: false,
+    configurarEstandares: false, verTodosSectores: true,
+    gestionProduccion: false, crearReparacion: false,
+  },
 }
 
 export const ROL_LABEL: Record<Rol, string> = {
   operario: 'Operario',
   encargado: 'Encargado',
   planificador: 'Planificador',
+  logistica: 'Logística',
 }

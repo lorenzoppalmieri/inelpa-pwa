@@ -67,7 +67,7 @@ interface Segmento { tarea: Tarea; idx: number; left: number; width: number; est
 interface Lane { id: string; label: string; sub?: string }
 type Escala = 'semana' | 'dia'
 
-export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, nombreOperario, nombreMaquina, puedeMoverProduccion = true }: {
+export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, nombreOperario, nombreMaquina, puedeMoverProduccion = true, soloLectura = false }: {
   tareas: Tarea[]
   agrupar: 'sector' | 'operario' | 'maquina'
   maquinas: Maquina[]
@@ -76,6 +76,8 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
   nombreMaquina: (id: string) => string
   // v1.9: si es false (encargados), solo se pueden arrastrar tareas de reparacion.
   puedeMoverProduccion?: boolean
+  // v1.11: modo 100% lectura (logistica): sin drag de ninguna barra.
+  soloLectura?: boolean
 }) {
   const ahora = new Date()
   const ahoraISO = ahora.toISOString()
@@ -301,8 +303,8 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
                     <div className="gantt-grid-line" style={{ left: `${ahoraPct}%`, background: 'var(--rojo)', width: 2 }} />
                   )}
                   {segs.map((b, i) => {
-                    // v1.9: encargados (puedeMoverProduccion=false) solo arrastran reparaciones.
-                    const arrastrable = b.tarea.estado === 'pendiente' && b.esInicio
+                    // v1.9: encargados solo reparaciones. v1.11: logistica = sin drag.
+                    const arrastrable = !soloLectura && b.tarea.estado === 'pendiente' && b.esInicio
                       && (puedeMoverProduccion || b.tarea.tipo === 'reparacion')
                     const dragging = ghost?.id === b.tarea.id && b.esInicio
                     const recup = !!b.tarea.activaHoraRecuperacion

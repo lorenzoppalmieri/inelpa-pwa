@@ -11,6 +11,7 @@ import {
 import GanttOperativo from './GanttOperativo'
 import KpiPanel from './KpiPanel'
 import AndonView from './AndonView'
+import AlertaMaterial from './AlertaMaterial'
 import PlanificacionView from '../planificador/PlanificacionView'
 
 // Periodo de analisis del Dashboard de KPIs (v1.4). No borra datos: solo acota
@@ -119,6 +120,9 @@ export default function DashboardView() {
         Tablero de control · {permisos?.verTodosSectores ? 'Planta completa' : 'Mis sectores'} · semana {semana.split('-W')[1]}
         {enParada > 0 && <span className="estado-chip e-pausa" style={{ marginLeft: 10 }}>{enParada} en parada</span>}
       </div>
+
+      {/* v1.11: alerta de espera de material visible para encargado/planificador. */}
+      <AlertaMaterial compacto />
 
       <div className="tabs no-print">
         <button className={'tab' + (vista === 'gantt' ? ' active' : '')} onClick={() => setVista('gantt')}>Gantt operativo</button>

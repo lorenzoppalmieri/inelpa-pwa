@@ -123,7 +123,7 @@ create policy wr_ordenes  on ordenes for all    to authenticated
 -- ---- Tareas ----
 -- Lectura: gestion ve todo; operario ve las de sus sectores o asignadas a el.
 create policy sel_tareas on tareas for select to authenticated using (
-  app_rol() in ('planificador','encargado')
+  app_rol() in ('planificador','encargado','logistica')
   or operario_id = app_uid()
   or sector_id in (select app_sectores())
 );

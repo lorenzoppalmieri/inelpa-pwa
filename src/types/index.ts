@@ -4,7 +4,7 @@
 // (ver src/sap/sapMapping.ts)
 // ============================================================
 
-export type Rol = 'operario' | 'encargado' | 'planificador'
+export type Rol = 'operario' | 'encargado' | 'planificador' | 'logistica'
 
 export type LineaProduccion = 'distribucion' | 'rural' | 'general'
 
@@ -477,11 +477,39 @@ export const CAUSAS_PARADA: CausaParadaDef[] = [
   { id: 'pin_falta_material_logistico', label: 'Falta de material logistico', categoria: 'logistica', areas: ['pintura'] },
   { id: 'pin_corte_luz', label: 'Corte de luz', categoria: 'maquina', areas: ['pintura'] },
 
+  // ===== v1.11: nuevas esperas de ABASTECIMIENTO (disparan alerta a Logistica) =====
+  { id: 'mon_espera_consumibles', label: 'Espera de consumibles', categoria: 'logistica', areas: ['montaje'] },
+  { id: 'her_espera_consumibles', label: 'Espera de consumibles', categoria: 'logistica', areas: ['herreria'] },
+  { id: 'her_espera_materia_prima', label: 'Espera de materia prima', categoria: 'material', areas: ['herreria'] },
+  { id: 'her_espera_gas', label: 'Espera de gas', categoria: 'logistica', areas: ['herreria'] },
+  { id: 'bob_espera_planchuela', label: 'Espera de planchuela (cobre o aluminio)', categoria: 'material', areas: ['bobinado'] },
+  { id: 'bob_espera_folio', label: 'Espera de folio (cobre o aluminio)', categoria: 'material', areas: ['bobinado'] },
+  { id: 'bob_espera_aislacion', label: 'Espera de aislacion (canales, pressphan, diamantado)', categoria: 'material', areas: ['bobinado'] },
+
   // ===== GLOBALES (visibles en TODAS las secciones) =====
   // No productiva (NO penaliza el OEE: pausa programada de planta).
   { id: 'almuerzo', label: 'Almuerzo', categoria: 'no_productiva', codigo: 50 },
   { id: 'otra', label: 'Otra', categoria: 'otra' },
 ]
+
+// v1.11: causas de ABASTECIMIENTO que disparan la alerta de Logistica cuando una
+// tarea queda 'pausada' por una de ellas. (Esperas de material / insumo / gas.)
+export const CAUSAS_LOGISTICA = new Set<CausaParada>([
+  // Bobinado
+  'espera_alambre', 'espera_consumibles', 'espera_gas_oxigeno', 'espera_canales',
+  'bob_espera_planchuela', 'bob_espera_folio', 'bob_espera_aislacion',
+  // Montaje
+  'mon_espera_prensayugos', 'mon_espera_nucleo', 'mon_espera_bobina', 'mon_espera_chapones',
+  'mon_espera_tacos', 'mon_espera_cartones', 'mon_espera_patas', 'mon_espera_chapa',
+  'mon_espera_aislador', 'mon_espera_tubo_oxigeno', 'mon_error_entrega_insumos',
+  'mon_insumos_defectuosos', 'mon_modif_materiales', 'mon_espera_consumibles',
+  // Herreria
+  'her_espera_cuba', 'her_espera_materiales', 'her_falta_tapa',
+  'her_espera_consumibles', 'her_espera_materia_prima', 'her_espera_gas',
+])
+export function esCausaLogistica(c: CausaParada): boolean {
+  return CAUSAS_LOGISTICA.has(c)
+}
 
 // Causas visibles para un sector: las de su area + las globales (sin areas).
 export function causasDeSector(id: SectorId): CausaParadaDef[] {

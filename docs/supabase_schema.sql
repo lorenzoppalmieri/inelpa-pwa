@@ -5,7 +5,7 @@
 -- ============================================================
 
 -- ---------- Catalogos ----------
-create type rol_usuario as enum ('operario', 'encargado', 'planificador');
+create type rol_usuario as enum ('operario', 'encargado', 'planificador', 'logistica');
 create type linea_prod  as enum ('distribucion', 'rural', 'general');
 create type estado_tarea as enum ('pendiente', 'en_proceso', 'pausada', 'finalizada');
 -- v1.2: material del bobinado (obligatorio en la orden).
