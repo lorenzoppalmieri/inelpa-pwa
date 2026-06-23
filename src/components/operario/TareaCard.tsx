@@ -26,7 +26,7 @@ export default function TareaCard({ tarea }: { tarea: Tarea }) {
   const paradaAbierta = tarea.paradas.find((p) => !p.fin)
   // v1.13: estado de la solicitud de material (si la parada abierta es de logistica).
   const solicitud = useLiveQuery(
-    () => (paradaAbierta ? db.solicitudesLogistica.get(paradaAbierta.id) : Promise.resolve(undefined)),
+    async () => (paradaAbierta ? await db.solicitudesLogistica.get(paradaAbierta.id) : undefined),
     [paradaAbierta?.id],
   )
 
