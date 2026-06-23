@@ -363,10 +363,34 @@ export interface TareaLogistica {
   finalizadaPor?: string         // usuario que la completo
 }
 
+// ============================================================
+// SOLICITUDES LOGISTICAS (v1.13) — cola de pedidos de material.
+// Se enlaza 1:1 con la PARADA de material (id = parada.id). Es la "capa logistica"
+// encima de la parada: a quien se asigno y en que estado de entrega esta.
+// ============================================================
+export type EstadoSolicitudLog = 'pendiente' | 'en_camino' | 'entregado'
+export const ESTADOS_SOLICITUD_LOG: { id: EstadoSolicitudLog; label: string; clase: string }[] = [
+  { id: 'pendiente', label: 'Pendiente', clase: 'sol-pendiente' },
+  { id: 'en_camino', label: 'En camino', clase: 'sol-camino' },
+  { id: 'entregado', label: 'Entregado', clase: 'sol-entregado' },
+]
+
+export interface SolicitudLogistica {
+  id: string                 // = parada.id (1 solicitud por parada de material)
+  paradaId: string
+  tareaId: string
+  asignado?: string          // responsable del equipo de logistica
+  estado: EstadoSolicitudLog
+  creada: string             // = parada.inicio (cuando el operario pidio material)
+  tomadaEn?: string          // paso a 'en_camino'
+  entregadaEn?: string       // paso a 'entregado'
+  actualizado: string
+}
+
 // Cola de sincronizacion: cada cambio offline se encola y se empuja al backend.
 export interface SyncOp {
   id: string
-  entidad: 'tarea' | 'parada' | 'orden' | 'semielaborado' | 'objetivo' | 'tarea_logistica'
+  entidad: 'tarea' | 'parada' | 'orden' | 'semielaborado' | 'objetivo' | 'tarea_logistica' | 'solicitud_logistica'
   entidadId: string
   tipo: 'upsert' | 'delete'
   payload: unknown

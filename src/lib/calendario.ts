@@ -190,6 +190,38 @@ export interface ConfigTiempoNeto {
   horaRecuperacion?: boolean     // tarea habilitada para trabajar 16-17 / 15-16
 }
 
+// ============================================================
+// HORARIO DE LOGISTICA: Lunes a Viernes 08:00 - 17:00 (sin almuerzo partido).
+// Mide tiempos de respuesta de logistica solo dentro de su jornada.
+// ============================================================
+const LOG_INI = 8 * 60
+const LOG_FIN = 17 * 60
+
+export function minutosLaboralesLogistica(aIso?: string, bIso?: string): number {
+  if (!aIso || !bIso) return 0
+  const a = new Date(aIso), b = new Date(bIso)
+  if (b <= a) return 0
+  let cursor = new Date(a)
+  let total = 0
+  let guard = 0
+  while (cursor < b && guard++ < 4000) {
+    const dow = cursor.getDay()
+    if (dow === 0 || dow === 6) { // fin de semana -> saltar al lunes 08:00
+      cursor.setDate(cursor.getDate() + 1); cursor.setHours(0, 0, 0, 0); continue
+    }
+    const cur = minDelDia(cursor)
+    if (cur >= LOG_FIN) { // despues del cierre -> dia siguiente
+      cursor.setDate(cursor.getDate() + 1); cursor.setHours(0, 0, 0, 0); continue
+    }
+    const ini = cur < LOG_INI ? conMinutos(cursor, LOG_INI) : new Date(cursor)
+    const fin = conMinutos(cursor, LOG_FIN)
+    const hasta = fin < b ? fin : b
+    if (hasta > ini) total += (hasta.getTime() - ini.getTime()) / 60000
+    cursor = conMinutos(cursor, LOG_FIN) // saltar al cierre y de ahi al dia sig.
+  }
+  return Math.round(total)
+}
+
 export function calcularTiempoNetoProductivo(
   inicio: Date,
   fin: Date,

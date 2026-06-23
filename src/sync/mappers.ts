@@ -11,6 +11,7 @@ import type {
   SectorId, Rol, EstadoTarea, MaterialBobina, LineaProduccion,
   EstadoSemielaborado, TipoEstacion, GrupoNomina, DatosBobinado, TipoTarea,
   Objetivo, AndonAreaId, TareaLogistica, PrioridadLog,
+  SolicitudLogistica, EstadoSolicitudLog,
 } from '../types'
 
 // null -> undefined (Supabase devuelve null; la app usa undefined en opcionales).
@@ -245,6 +246,44 @@ export function tareaLogToRow(t: TareaLogistica): TareaLogisticaRow {
     creada_por: t.creadaPor ?? null,
     finalizada_en: t.finalizada ?? null,
     finalizada_por: t.finalizadaPor ?? null,
+  }
+}
+
+export interface SolicitudLogisticaRow {
+  id: string
+  parada_id: string
+  tarea_id: string
+  asignado: string | null
+  estado: string
+  creada_en: string
+  tomada_en: string | null
+  entregada_en: string | null
+  actualizado_en: string | null
+}
+export function solicitudLogFromRow(r: SolicitudLogisticaRow): SolicitudLogistica {
+  return {
+    id: r.id,
+    paradaId: r.parada_id,
+    tareaId: r.tarea_id,
+    asignado: u(r.asignado),
+    estado: r.estado as EstadoSolicitudLog,
+    creada: r.creada_en,
+    tomadaEn: u(r.tomada_en),
+    entregadaEn: u(r.entregada_en),
+    actualizado: r.actualizado_en ?? new Date().toISOString(),
+  }
+}
+export function solicitudLogToRow(s: SolicitudLogistica): SolicitudLogisticaRow {
+  return {
+    id: s.id,
+    parada_id: s.paradaId,
+    tarea_id: s.tareaId,
+    asignado: s.asignado ?? null,
+    estado: s.estado,
+    creada_en: s.creada,
+    tomada_en: s.tomadaEn ?? null,
+    entregada_en: s.entregadaEn ?? null,
+    actualizado_en: s.actualizado,
   }
 }
 

@@ -281,6 +281,29 @@ button { font-family: inherit; cursor: pointer; border: none; }
 .logi-alert-causa { flex: 1; min-width: 180px; color: #fca5a5; font-weight: 700; }
 .logi-alert-time { font-variant-numeric: tabular-nums; font-weight: 800; color: #fecaca; }
 
+/* ---------- Logistica: cola interactiva de pedidos de material ---------- */
+.cola-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.cola-card { background: var(--panel); border: 1px solid var(--borde); border-left: 7px solid var(--cola, var(--rojo));
+  border-radius: var(--radio); padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+.cola-card.sol-pendiente { --cola: var(--rojo); }
+.cola-card.sol-camino    { --cola: var(--naranja); }
+.cola-card.sol-entregado { --cola: var(--estado-fin); }
+.cola-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cola-maq { font-weight: 800; }
+.cola-estado { font-size: .68rem; font-weight: 900; text-transform: uppercase; color: var(--cola); }
+.cola-sec { color: var(--texto-tenue); font-size: .82rem; }
+.cola-causa { color: #fca5a5; font-weight: 700; font-size: .85rem; }
+.cola-time { font-size: .76rem; color: var(--texto-tenue); }
+.cola-lbl { font-size: .7rem; color: var(--texto-tenue); margin-top: 4px; }
+.cola-acciones { display: flex; gap: 4px; margin-top: 4px; }
+.cola-acciones .seg-btn { flex: 1; border: 1px solid var(--borde); border-radius: 7px; padding: 6px 4px; font-size: .72rem; }
+
+/* Badge de material en la vista del operario */
+.badge-mat { margin-top: 6px; display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: .78rem; font-weight: 800; }
+.badge-mat.pedido    { background: rgba(148,163,184,.25); color: #e2e8f0; }
+.badge-mat.camino    { background: rgba(245,158,11,.22); color: #fde68a; }
+.badge-mat.entregado { background: rgba(34,197,94,.2); color: #bbf7d0; }
+
 /* ---------- Logistica: organizador de tareas ---------- */
 .logi-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 14px; }
 .logi-kpi { background: var(--panel); border: 1px solid var(--borde); border-radius: var(--radio); padding: 12px; text-align: center; }

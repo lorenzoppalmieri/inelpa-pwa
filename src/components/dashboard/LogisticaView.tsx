@@ -4,7 +4,7 @@ import { db } from '../../db/dexie'
 import { SECTORES, materialLabel, type LineaProduccion, type SectorId, type Tarea } from '../../types'
 import { exportarProgramacionCSV, hayDatosProgramacion } from '../../lib/export'
 import GanttOperativo from './GanttOperativo'
-import AlertaMaterial from './AlertaMaterial'
+import ColaMaterial from './ColaMaterial'
 import LogisticaTareas from './LogisticaTareas'
 
 // ============================================================
@@ -17,8 +17,8 @@ export default function LogisticaView() {
   const [pestania, setPestania] = useState<'gantt' | 'tareas'>('gantt')
   return (
     <div>
-      <div className="section-title" style={{ margin: '4px 0 12px' }}>Logística</div>
-      <AlertaMaterial />
+      <div className="section-title" style={{ margin: '4px 0 12px' }}>Logística · cola de pedidos de material</div>
+      <ColaMaterial />
 
       <div className="tabs no-print" style={{ marginTop: 12 }}>
         <button className={'tab' + (pestania === 'gantt' ? ' active' : '')} onClick={() => setPestania('gantt')}>Gantt de planta</button>

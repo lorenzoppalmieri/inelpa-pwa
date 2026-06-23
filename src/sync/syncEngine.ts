@@ -1,11 +1,11 @@
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import { db } from '../db/dexie'
 import { supabase, SUPABASE_HABILITADO } from '../lib/supabaseClient'
-import type { SyncOp, Tarea, OrdenProduccion, Semielaborado, SectorId, Objetivo, TareaLogistica } from '../types'
+import type { SyncOp, Tarea, OrdenProduccion, Semielaborado, SectorId, Objetivo, TareaLogistica, SolicitudLogistica } from '../types'
 import {
-  tareaFromRow, paradaFromRow, ordenFromRow, semiFromRow, maquinaFromRow, usuarioFromRow, objetivoFromRow, tareaLogFromRow,
-  tareaToRow, paradaToRow, ordenToRow, semiToRow, objetivoToRow, tareaLogToRow,
-  type TareaRow, type ParadaRow, type OrdenRow, type SemiRow, type MaquinaRow, type UsuarioRow, type ObjetivoRow, type TareaLogisticaRow,
+  tareaFromRow, paradaFromRow, ordenFromRow, semiFromRow, maquinaFromRow, usuarioFromRow, objetivoFromRow, tareaLogFromRow, solicitudLogFromRow,
+  tareaToRow, paradaToRow, ordenToRow, semiToRow, objetivoToRow, tareaLogToRow, solicitudLogToRow,
+  type TareaRow, type ParadaRow, type OrdenRow, type SemiRow, type MaquinaRow, type UsuarioRow, type ObjetivoRow, type TareaLogisticaRow, type SolicitudLogisticaRow,
 } from './mappers'
 
 // ============================================================
@@ -65,10 +65,10 @@ export async function fetchInicial(): Promise<void> {
     await Promise.all([
       db.maquinas.clear(), db.usuarios.clear(), db.ordenes.clear(),
       db.semielaborados.clear(), db.tareas.clear(), db.objetivos.clear(),
-      db.tareasLogistica.clear(),
+      db.tareasLogistica.clear(), db.solicitudesLogistica.clear(),
     ])
 
-    const [maqs, usrs, uss, ords, semis, tars, pars, objs, tlog] = await Promise.all([
+    const [maqs, usrs, uss, ords, semis, tars, pars, objs, tlog, slog] = await Promise.all([
       supabase.from('maquinas').select('*'),
       supabase.from('usuarios').select('id, nombre, usuario, rol, grupo_nomina, activo'),
       supabase.from('usuario_sectores').select('usuario_id, sector_id'),
@@ -78,6 +78,7 @@ export async function fetchInicial(): Promise<void> {
       supabase.from('paradas').select('*'),
       supabase.from('objetivos').select('*'),
       supabase.from('tareas_logistica').select('*'),
+      supabase.from('solicitudes_logistica').select('*'),
     ])
 
     // Maquinas
@@ -107,6 +108,9 @@ export async function fetchInicial(): Promise<void> {
 
     // Tareas logisticas
     if (tlog.data) await db.tareasLogistica.bulkPut((tlog.data as TareaLogisticaRow[]).map(tareaLogFromRow))
+
+    // Solicitudes logisticas (cola de material)
+    if (slog.data) await db.solicitudesLogistica.bulkPut((slog.data as SolicitudLogisticaRow[]).map(solicitudLogFromRow))
 
     // Tareas (+ paradas anidadas)
     if (tars.data) {
@@ -187,6 +191,11 @@ async function onTareaLogChange(payload: Payload) {
   await db.tareasLogistica.put(tareaLogFromRow(payload.new as unknown as TareaLogisticaRow))
 }
 
+async function onSolicitudLogChange(payload: Payload) {
+  if (payload.eventType === 'DELETE') { await db.solicitudesLogistica.delete((payload.old as { id: string }).id); return }
+  await db.solicitudesLogistica.put(solicitudLogFromRow(payload.new as unknown as SolicitudLogisticaRow))
+}
+
 function suscribirRealtime() {
   if (!supabase || canal) return
   canal = supabase
@@ -198,6 +207,7 @@ function suscribirRealtime() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'maquinas' }, onMaquinaChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'objetivos' }, onObjetivoChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'tareas_logistica' }, onTareaLogChange)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'solicitudes_logistica' }, onSolicitudLogChange)
     .subscribe()
 }
 
@@ -259,6 +269,7 @@ async function empujar(op: SyncOp): Promise<boolean> {
         : op.entidad === 'semielaborado' ? 'semielaborados'
         : op.entidad === 'objetivo' ? 'objetivos'
         : op.entidad === 'tarea_logistica' ? 'tareas_logistica'
+        : op.entidad === 'solicitud_logistica' ? 'solicitudes_logistica'
         : 'paradas'
       const { error } = await supabase.from(tabla).delete().eq('id', op.entidadId)
       if (error) { console.warn(`[sync] delete ${op.entidad}:`, error.message); return false }
@@ -374,6 +385,12 @@ export async function guardarTareaLogistica(t: TareaLogistica): Promise<void> {
 export async function eliminarTareaLogistica(t: TareaLogistica): Promise<void> {
   await db.tareasLogistica.delete(t.id)
   await encolar({ entidad: 'tarea_logistica', entidadId: t.id, tipo: 'delete', payload: { id: t.id } })
+}
+
+// v1.13: solicitud logistica (cola de material). id = parada.id.
+export async function guardarSolicitudLogistica(s: SolicitudLogistica): Promise<void> {
+  await db.solicitudesLogistica.put(s)
+  await encolar({ entidad: 'solicitud_logistica', entidadId: s.id, tipo: 'upsert', payload: s })
 }
 
 // Auto-disparo al recuperar conexion.

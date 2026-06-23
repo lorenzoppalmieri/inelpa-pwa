@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
+import { useLiveQuery } from 'dexie-react-hooks'
+import { db } from '../../db/dexie'
 import type { Tarea, CausaParada, DatosBobinado } from '../../types'
-import { sectorById, causaLabel, requiereDatosBobinado } from '../../types'
+import { sectorById, causaLabel, requiereDatosBobinado, esCausaLogistica } from '../../types'
 import { guardarTarea } from '../../sync/syncEngine'
 import { useAuth } from '../../auth/AuthContext'
 import { hhmm, cronometro, fmtDur, minutosEntre } from '../../lib/time'
@@ -22,6 +24,11 @@ export default function TareaCard({ tarea }: { tarea: Tarea }) {
   const [ahora, setAhora] = useState(Date.now())
   const sector = sectorById(tarea.sectorId)
   const paradaAbierta = tarea.paradas.find((p) => !p.fin)
+  // v1.13: estado de la solicitud de material (si la parada abierta es de logistica).
+  const solicitud = useLiveQuery(
+    () => (paradaAbierta ? db.solicitudesLogistica.get(paradaAbierta.id) : Promise.resolve(undefined)),
+    [paradaAbierta?.id],
+  )
 
   // Campos tecnicos de bobinado (solo sectores AT/BT). null = no aplica.
   const reqBob = requiereDatosBobinado(tarea.sectorId)
@@ -131,6 +138,14 @@ export default function TareaCard({ tarea }: { tarea: Tarea }) {
           <div>
             <div className="t">PAUSADO · {causaLabel(paradaAbierta.causa)}</div>
             <div className="meta">Desde {hhmm(paradaAbierta.inicio)} · <span className="timer">{cronometro(paradaAbierta.inicio, ahora)}</span></div>
+            {/* v1.13: feedback de logistica si es una espera de material */}
+            {esCausaLogistica(paradaAbierta.causa) && (
+              solicitud?.estado === 'entregado'
+                ? <div className="badge-mat entregado">✓ Material entregado</div>
+                : solicitud?.estado === 'en_camino'
+                  ? <div className="badge-mat camino">🚚 Material en preparación{solicitud.asignado ? ` · ${solicitud.asignado}` : ''}</div>
+                  : <div className="badge-mat pedido">📦 Pedido de material registrado</div>
+            )}
           </div>
           <button className="btn btn-verde" onClick={reanudar}>Reanudar</button>
         </div>
