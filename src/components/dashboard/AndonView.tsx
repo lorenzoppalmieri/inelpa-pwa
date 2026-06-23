@@ -80,12 +80,10 @@ export default function AndonView() {
       </div>
 
       <div className="legend" style={{ marginTop: 14 }}>
-        <span><i className="andon-rojo" /> &lt;80% sin premio</span>
-        <span><i className="andon-amarillo" /> ≥80%</span>
-        <span><i className="andon-verde1" /> ≥100%</span>
-        <span><i className="andon-verde2" /> ≥110%</span>
-        <span><i className="andon-verde3" /> ≥115%</span>
-        <span><i className="andon-violeta" /> ≥120%</span>
+        <span><i className="andon-rojo" /> &lt;80% · sin premio</span>
+        <span><i className="andon-verde1" /> 81–90% · premio parcial</span>
+        <span><i className="andon-verde3" /> 91–99% · premio parcial</span>
+        <span><i className="andon-violeta" /> 100% · premio completo</span>
       </div>
     </div>
   )
@@ -93,14 +91,12 @@ export default function AndonView() {
 
 // ---------- Tarjeta grande motivacional (operario) ----------
 const MENSAJE: Record<string, string> = {
-  violeta: '¡IMPARABLES! 🚀 Premio máximo',
-  verde3: '¡Tremendo! Casi al tope 💪',
-  verde2: '¡Superando el objetivo! 🔥',
-  verde1: '¡Objetivo cumplido! 🎉',
-  amarillo: '¡Vamos que se llega! Falta poco para el premio',
+  violeta: '¡IMPARABLES! 🚀 Premio completo de producción',
+  verde_fuerte: '¡A un paso del 100%! Ya tienen premio parcial 🔥',
+  verde: '¡Vamos bien! Premio parcial asegurado 💪',
   rojo: '¡A meterle que se puede! 💥',
 }
-const ESCALONES = [0.8, 1.0, 1.1, 1.15, 1.2]
+const ESCALONES = [0.8, 0.91, 1.0]
 
 function HeroArea({ f }: { f: FilaAndon }) {
   const sinObjetivo = f.objetivo <= 0

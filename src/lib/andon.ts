@@ -71,13 +71,15 @@ export function areasDeSectores(sectores: SectorId[]): AndonAreaId[] {
 }
 
 // Escala de premios por % de cumplimiento (terminado / objetivo).
+//  <80%       -> rojo        : sin premio
+//  81% a 90%  -> verde       : premio parcial
+//  91% a 99%  -> verde fuerte: premio parcial
+//  100%       -> violeta     : premio completo de produccion
 export interface Tier { id: string; label: string; clase: string }
 export function tierDe(pct: number): Tier {
-  if (pct >= 1.20) return { id: 'violeta', label: '≥120% · premio máximo', clase: 'andon-violeta' }
-  if (pct >= 1.15) return { id: 'verde3', label: '≥115%', clase: 'andon-verde3' }
-  if (pct >= 1.10) return { id: 'verde2', label: '≥110%', clase: 'andon-verde2' }
-  if (pct >= 1.00) return { id: 'verde1', label: '≥100% · objetivo', clase: 'andon-verde1' }
-  if (pct >= 0.80) return { id: 'amarillo', label: '≥80% · premio mínimo', clase: 'andon-amarillo' }
+  if (pct >= 1.00) return { id: 'violeta', label: '100% · premio completo', clase: 'andon-violeta' }
+  if (pct >= 0.91) return { id: 'verde_fuerte', label: '91–99% · premio parcial', clase: 'andon-verde3' }
+  if (pct >= 0.80) return { id: 'verde', label: '81–90% · premio parcial', clase: 'andon-verde1' }
   return { id: 'rojo', label: '<80% · sin premio', clase: 'andon-rojo' }
 }
 
