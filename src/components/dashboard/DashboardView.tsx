@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
 import { useAuth } from '../../auth/AuthContext'
-import { SECTORES, materialLabel, type LineaProduccion, type SectorId, type Tarea, type Maquina } from '../../types'
+import { SECTORES, materialLabel, esSectorBobinado, BOBINADO_SECTORES, type LineaProduccion, type SectorId, type Tarea, type Maquina } from '../../types'
 import { isoWeek } from '../../lib/time'
 import { filtrarPorRango } from '../../lib/kpi'
 import {
@@ -88,7 +88,9 @@ export default function DashboardView() {
 
   // Carriles del Gantt (eje Y): maquinas activas y operarios dentro del alcance.
   const maquinasVisibles = useMemo(
-    () => (maquinas ?? []).filter((m) => m.activo && sectorPasa(m.sectorId)),
+    () => (maquinas ?? []).filter((m) => m.activo && (
+      sectorPasa(m.sectorId) || (esSectorBobinado(m.sectorId) && BOBINADO_SECTORES.some(sectorPasa))
+    )),
     [maquinas, sectorPasa],
   )
   const operariosVisibles = useMemo(

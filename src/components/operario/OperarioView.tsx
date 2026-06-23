@@ -4,7 +4,7 @@ import { db } from '../../db/dexie'
 import { useAuth } from '../../auth/AuthContext'
 import { isoWeek } from '../../lib/time'
 import type { EstadoTarea, Tarea } from '../../types'
-import { sectorById, TIPO_ESTACION_LABEL } from '../../types'
+import { sectorById, TIPO_ESTACION_LABEL, maquinaSirveSector, esSectorBobinado } from '../../types'
 import TareaCard from './TareaCard'
 import AndonView from '../dashboard/AndonView'
 
@@ -40,9 +40,10 @@ export default function OperarioView() {
   // los hooks (Reglas de Hooks), si no React crashea (pantalla en blanco).
   const [pantalla, setPantalla] = useState<'trabajo' | 'andon'>('trabajo')
 
-  // Estaciones disponibles para el operario (las de sus sectores asignados).
+  // Estaciones disponibles para el operario: las de sus sectores. Para bobinado,
+  // el pool de 30 bobinadoras sirve a cualquiera de sus sectores de bobinado.
   const maquinas = useLiveQuery(
-    () => db.maquinas.where('sectorId').anyOf(usuario?.sectores ?? []).and((m) => m.activo).toArray(),
+    () => db.maquinas.filter((m) => m.activo && (usuario?.sectores ?? []).some((s) => maquinaSirveSector(m, s))).toArray(),
     [usuario?.id],
   )
 
@@ -78,7 +79,7 @@ export default function OperarioView() {
           : maquinas.map((m) => (
               <button key={m.id} className="btn btn-bloque" style={{ justifyContent: 'space-between', marginBottom: 10 }} onClick={() => elegir(m.id)}>
                 <span>{m.nombre}</span>
-                <span className="rol-badge">{sectorById(m.sectorId).nombre}</span>
+                <span className="rol-badge">{esSectorBobinado(m.sectorId) ? 'Bobinado · cualquier formato' : sectorById(m.sectorId).nombre}</span>
               </button>
             ))}
       </div>
@@ -109,7 +110,7 @@ export default function OperarioView() {
           <div className="section-title" style={{ margin: 0 }}>
             {maquina ? maquina.nombre : 'Estación'} · semana {semana.split('-W')[1]}
           </div>
-          {maquina && <div className="meta">{TIPO_ESTACION_LABEL[maquina.tipo]} · {sectorById(maquina.sectorId).nombre}</div>}
+          {maquina && <div className="meta">{TIPO_ESTACION_LABEL[maquina.tipo]} · {esSectorBobinado(maquina.sectorId) ? 'Bobinado · cualquier formato' : sectorById(maquina.sectorId).nombre}</div>}
         </div>
         <button className="btn" onClick={cambiar}>Cambiar estación</button>
       </div>

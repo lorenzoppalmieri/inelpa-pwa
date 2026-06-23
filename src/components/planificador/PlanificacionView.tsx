@@ -4,7 +4,7 @@ import { db } from '../../db/dexie'
 import {
   SECTORES, sectorById,
   MATERIALES, lineaDesdeModelo, materialLabel, CATEGORIA_COMPONENTE_LABEL,
-  operariosParaSector, esSectorHerreria,
+  operariosParaSector, esSectorHerreria, maquinaSirveSector,
   type MaterialBobina, type SectorId, type OrdenProduccion, type Tarea,
   type Semielaborado, type EstadoSemielaborado, type TipoTarea,
 } from '../../types'
@@ -240,7 +240,7 @@ function PanelAsignar({ soloReparacion = false }: { soloReparacion?: boolean }) 
   }, [usuarios])
 
   // Estaciones elegibles: las del sector seleccionado (activas).
-  const maquinasDelSector = (maquinas ?? []).filter((m) => m.activo && m.sectorId === sectorId)
+  const maquinasDelSector = (maquinas ?? []).filter((m) => m.activo && maquinaSirveSector(m, sectorId))
   // Colaboradores elegibles: regla Herreria para las 4 sub-etapas, sector directo para el resto.
   const operariosDelSector = operariosParaSector(sectorId, usuarios ?? [])
 

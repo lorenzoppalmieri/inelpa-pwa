@@ -100,11 +100,22 @@ interface CapacidadSectorDef {
   nombres?: string[]       // nombres fijos (ej estaciones de corte y conformado)
 }
 
+// v1.14: BOBINADO = un solo POOL de 30 maquinas que sirven cualquier formato
+// (rural/distribucion, AT/BT). Se generan aparte (ver generarMaquinas).
+export const BOBINADO_SECTORES: SectorId[] = ['bob_dist_at', 'bob_dist_bt', 'bob_rural_at', 'bob_rural_bt']
+export const BOBINADO_POOL_SECTOR: SectorId = 'bob_dist_at' // sector "hogar" nominal del pool
+export const BOBINADO_POOL_CANTIDAD = 30
+
+export function esSectorBobinado(s: SectorId): boolean { return BOBINADO_SECTORES.includes(s) }
+
+// Una maquina sirve a un sector si es el suyo, o si AMBOS son de bobinado
+// (las 30 bobinadoras son intercambiables para cualquier formato).
+export function maquinaSirveSector(m: { sectorId: SectorId }, sectorId: SectorId): boolean {
+  return m.sectorId === sectorId || (esSectorBobinado(m.sectorId) && esSectorBobinado(sectorId))
+}
+
 export const CAPACIDAD_SECTOR: CapacidadSectorDef[] = [
-  { sectorId: 'bob_dist_at', tipo: 'maquina', cantidad: 20, prefijo: 'Maquina' },
-  { sectorId: 'bob_dist_bt', tipo: 'maquina', cantidad: 10, prefijo: 'Maquina' },
-  { sectorId: 'bob_rural_at', tipo: 'maquina', cantidad: 20, prefijo: 'Maquina' },
-  { sectorId: 'bob_rural_bt', tipo: 'maquina', cantidad: 10, prefijo: 'Maquina' },
+  // (bobinado ya no va aca: es un pool unico de 30, ver generarMaquinas)
   { sectorId: 'soldadura_dist', tipo: 'box', cantidad: 5, prefijo: 'Box' },
   { sectorId: 'soldadura_rural', tipo: 'box', cantidad: 1, prefijo: 'Box' },
   { sectorId: 'montaje_pa_dist', tipo: 'linea', cantidad: 1, prefijo: 'Linea Montaje PA' },
@@ -120,6 +131,12 @@ export const CAPACIDAD_SECTOR: CapacidadSectorDef[] = [
 // Genera el catalogo completo de estaciones de trabajo (para sembrar en IndexedDB).
 export function generarMaquinas(): Maquina[] {
   const out: Maquina[] = []
+  // Pool unico de bobinado: 30 bobinadoras intercambiables (cualquier formato).
+  for (let i = 1; i <= BOBINADO_POOL_CANTIDAD; i++) {
+    const nn = String(i).padStart(2, '0')
+    out.push({ id: `m_bob_${nn}`, nombre: `Bobinadora ${nn}`, sectorId: BOBINADO_POOL_SECTOR, tipo: 'maquina', activo: true })
+  }
+  // Resto de sectores (capacidad fija por sector).
   for (const c of CAPACIDAD_SECTOR) {
     for (let i = 0; i < c.cantidad; i++) {
       const usaNombre = c.nombres?.[i]

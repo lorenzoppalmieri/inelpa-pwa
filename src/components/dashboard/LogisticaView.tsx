@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
-import { SECTORES, materialLabel, type LineaProduccion, type SectorId, type Tarea } from '../../types'
+import { SECTORES, materialLabel, esSectorBobinado, BOBINADO_SECTORES, type LineaProduccion, type SectorId, type Tarea } from '../../types'
 import { exportarProgramacionCSV, hayDatosProgramacion } from '../../lib/export'
 import GanttOperativo from './GanttOperativo'
 import ColaMaterial from './ColaMaterial'
@@ -51,7 +51,9 @@ function LogisticaGantt() {
   }, [linea, sectorFiltro])
 
   const filtradas = useMemo(() => tareas.filter((t) => sectorPasa(t.sectorId)), [tareas, sectorPasa])
-  const maquinasVis = useMemo(() => maquinas.filter((m) => m.activo && sectorPasa(m.sectorId)), [maquinas, sectorPasa])
+  const maquinasVis = useMemo(() => maquinas.filter((m) => m.activo && (
+    sectorPasa(m.sectorId) || (esSectorBobinado(m.sectorId) && BOBINADO_SECTORES.some(sectorPasa))
+  )), [maquinas, sectorPasa])
   const operarios = useMemo(() => usuarios.filter((u) => u.rol === 'operario' && (u.sectores ?? []).some(sectorPasa)).map((u) => ({ id: u.id, nombre: u.nombre })), [usuarios, sectorPasa])
 
   const nombreMaquina = useMemo(() => { const m = new Map(maquinas.map((x) => [x.id, x.nombre])); return (id: string) => m.get(id) ?? id }, [maquinas])
