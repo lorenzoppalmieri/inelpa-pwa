@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { useAuth } from '../auth/AuthContext'
 import { ROL_LABEL } from '../auth/roles'
 import { onSync, type EstadoSync } from '../sync/syncEngine'
+import CambiarPassword from './CambiarPassword'
 
 // ============================================================
 // Semaforo de conexion (header). 4 estados pensados para planta (7.000 m2 con
@@ -28,6 +29,7 @@ function semaforoEstado(s: EstadoSync): { clase: string; label: string; detalle:
 export default function Layout({ children }: { children: ReactNode }) {
   const { usuario, logout } = useAuth()
   const [sync, setSync] = useState<EstadoSync | null>(null)
+  const [verCambioClave, setVerCambioClave] = useState(false)
 
   useEffect(() => onSync(setSync), [])
 
@@ -53,10 +55,12 @@ export default function Layout({ children }: { children: ReactNode }) {
             <div style={{ fontWeight: 700, fontSize: '.9rem' }}>{usuario?.nombre}</div>
             <span className="rol-badge">{usuario ? ROL_LABEL[usuario.rol] : ''}</span>
           </div>
+          <button className="btn" style={{ minHeight: 44, padding: '0 14px' }} onClick={() => setVerCambioClave(true)} title="Cambiar mi contraseña">🔑 Clave</button>
           <button className="btn" style={{ minHeight: 44, padding: '0 14px' }} onClick={logout}>Salir</button>
         </div>
       </header>
       <main className="content">{children}</main>
+      {verCambioClave && <CambiarPassword onClose={() => setVerCambioClave(false)} />}
     </div>
   )
 }

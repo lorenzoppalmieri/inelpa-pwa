@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chuletas por rol — App Producción INELPA</title>
+<style>
+  :root{ --tinta:#0f172a; --gris:#475569; --linea:#e2e8f0; --rayo:#f59e0b; --azul:#2563eb; --verde:#16a34a; --rojo:#dc2626; --violeta:#7c3aed; }
+  *{ box-sizing:border-box; }
+  body{ font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; color:var(--tinta); margin:0; background:#f8fafc; }
+  .hoja{ background:#fff; width:210mm; min-height:297mm; margin:0 auto 12mm; padding:16mm 16mm 14mm; box-shadow:0 1px 6px rgba(0,0,0,.12); }
+  .top{ display:flex; align-items:center; gap:10px; border-bottom:3px solid var(--rayo); padding-bottom:10px; margin-bottom:14px; }
+  .rayo{ width:34px; height:34px; flex:0 0 34px; }
+  .top h1{ font-size:22px; margin:0; }
+  .top .sub{ font-size:13px; color:var(--gris); margin-top:2px; }
+  .badge{ margin-left:auto; font-size:13px; font-weight:700; color:#fff; padding:6px 14px; border-radius:999px; }
+  h2{ font-size:16px; margin:18px 0 8px; }
+  ol{ margin:0 0 10px; padding-left:22px; }
+  li{ margin:6px 0; font-size:14px; line-height:1.45; }
+  .pasos li{ font-size:15px; }
+  .btn{ display:inline-block; font-weight:700; padding:2px 9px; border-radius:6px; font-size:13px; color:#fff; white-space:nowrap; }
+  .b-azul{ background:var(--azul);} .b-verde{ background:var(--verde);} .b-naranja{ background:var(--rayo);} .b-rojo{ background:var(--rojo);} .b-violeta{ background:var(--violeta);} .b-gris{ background:#64748b;}
+  .nota{ background:#fffbeb; border-left:4px solid var(--rayo); padding:9px 12px; font-size:13px; border-radius:0 6px 6px 0; margin:10px 0; }
+  .ojo{ background:#fef2f2; border-left:4px solid var(--rojo); padding:9px 12px; font-size:13px; border-radius:0 6px 6px 0; margin:10px 0; }
+  table{ border-collapse:collapse; width:100%; font-size:13px; margin:8px 0; }
+  th,td{ border:1px solid var(--linea); padding:6px 9px; text-align:left; }
+  th{ background:#f1f5f9; }
+  .sem{ font-weight:700; }
+  .pie{ margin-top:16px; padding-top:8px; border-top:1px solid var(--linea); font-size:12px; color:var(--gris); }
+  @media print{
+    body{ background:#fff; }
+    .hoja{ box-shadow:none; margin:0; width:auto; min-height:auto; padding:14mm; page-break-after:always; }
+    .hoja:last-child{ page-break-after:auto; }
+  }
+  @page{ size:A4; margin:0; }
+  svg.rayo path{ fill:var(--rayo); }
+</style>
+</head>
+<body>
+
+<!-- ===================== OPERARIO ===================== -->
+<section class="hoja">
+  <div class="top">
+    <svg class="rayo" viewBox="0 0 24 24"><path d="M13 2L4 14h6l-1 8 9-12h-6z"/></svg>
+    <div>
+      <h1>Chuleta — OPERARIO</h1>
+      <div class="sub">App de Producción INELPA · qué tocar y cuándo</div>
+    </div>
+    <span class="badge" style="background:var(--azul)">OPERARIO</span>
+  </div>
+
+  <h2>1 · Entrar</h2>
+  <ol class="pasos">
+    <li>Abrí la app en la tablet.</li>
+    <li><b>Usuario:</b> tu usuario (formato <code>apellido.nombre</code>). <b>Contraseña:</b> la que te dieron.</li>
+    <li>Tocá <b>Ingresar</b>.</li>
+  </ol>
+
+  <h2>2 · Elegí tu estación</h2>
+  <ol class="pasos">
+    <li>Aparecen las estaciones de tu sector. Tocá la <b>máquina donde vas a trabajar</b>.</li>
+    <li>(Bobinado: las 30 bobinadoras sirven para cualquier formato — elegí la que vas a usar.)</li>
+    <li>Ves tu <b>cola de tareas</b> de esa máquina. Para cambiar de máquina: <b>Cambiar estación</b>.</li>
+  </ol>
+
+  <h2>3 · Trabajar una tarea (botones grandes)</h2>
+  <ol class="pasos">
+    <li><span class="btn b-verde">▶ Empezar</span> cuando arrancás de verdad → pasa a <b>En proceso</b>.</li>
+    <li><span class="btn b-naranja">⏸ Pausar</span> si tenés que frenar → te pide el <b>motivo</b> (ver punto 4).</li>
+    <li><span class="btn b-azul">▶ Reanudar</span> cuando volvés de la pausa.</li>
+    <li><span class="btn b-verde">✓ Finalizar</span> cuando terminaste la pieza.</li>
+  </ol>
+  <div class="nota"><b>Tocá los botones en el momento real.</b> De ahí salen los tiempos y la eficiencia del equipo.</div>
+
+  <h2>4 · Registrar una parada / demora</h2>
+  <ol class="pasos">
+    <li>Al pausar, en el <b>buscador</b> escribí una palabra: <code>almuerzo</code>, <code>alambre</code>, <code>mantenimiento</code>, <code>herramienta</code>…</li>
+    <li>Tocá la causa correcta. (Opcional) escribí una observación corta y confirmá.</li>
+  </ol>
+  <div class="nota">El <b>almuerzo</b> es pausa normal y <b>no baja la eficiencia</b>. Registralo igual.</div>
+
+  <h2>5 · Semáforo de conexión (arriba a la derecha)</h2>
+  <table>
+    <tr><td>🟢 En línea</td><td>Todo al día</td></tr>
+    <tr><td>🟡 Sincronizando</td><td>Subiendo cambios</td></tr>
+    <tr><td>🟠 Sin conexión + número</td><td><b>Seguí trabajando.</b> Tus cambios están guardados; suben solos al volver el Wi-Fi.</td></tr>
+  </table>
+  <div class="ojo"><b>Regla de oro:</b> aunque veas 🟠 naranja, <b>nada se pierde</b>. Seguí normal.</div>
+
+  <div class="pie">¿Dudas? Avisá a tu encargado o al referente de la app.</div>
+</section>
+
+<!-- ===================== PLANIFICADOR ===================== -->
+<section class="hoja">
+  <div class="top">
+    <svg class="rayo" viewBox="0 0 24 24"><path d="M13 2L4 14h6l-1 8 9-12h-6z"/></svg>
+    <div>
+      <h1>Chuleta — PLANIFICADOR</h1>
+      <div class="sub">App de Producción INELPA · arma y mueve el plan</div>
+    </div>
+    <span class="badge" style="background:var(--violeta)">PLANIFICADOR</span>
+  </div>
+
+  <h2>1 · Planificación (crear y asignar)</h2>
+  <ol class="pasos">
+    <li>Pestaña <b>Planificación</b>.</li>
+    <li>Creás la <b>orden</b> y luego <b>Asignar tarea</b>: elegís orden → <b>sector</b> → <b>semielaborado</b> → colaborador → <b>máquina</b> → día y hora.</li>
+    <li>(Bobinado: el desplegable de estación muestra las <b>30 bobinadoras</b> en cualquier sector de bobinado.)</li>
+  </ol>
+
+  <h2>2 · Gantt operativo (mover el plan)</h2>
+  <ol class="pasos">
+    <li>Pestaña <b>Gantt operativo</b>. Arriba: <b>Agrupar por</b> Máquina o Colaborador (cada fila = un carril).</li>
+    <li>Botón <b>Semana / Día</b>; en Día elegís fecha y <b>zoom</b> (1h / 2h / 4h).</li>
+    <li>Solo las barras <span class="btn b-gris">grises (pendientes)</span> se mueven. Mantené apretado y arrastrá:
+      <b>a los costados</b> = cambia día/hora; <b>arriba/abajo</b> = cambia de máquina o persona.</li>
+    <li>Las demás tareas <b>se reacomodan solas</b> (auto-shift) respetando almuerzo y limpieza.</li>
+  </ol>
+  <div class="nota">Zonas rayadas = sin producción (almuerzo/limpieza/fuera de turno). Línea roja = <b>ahora</b>.</div>
+
+  <h2>3 · KPIs / OEE</h2>
+  <ol class="pasos">
+    <li>Pestaña <b>Eficiencia / KPIs</b>. Cambiá período: <b>Mes actual / anterior / Acumulado</b>.</li>
+    <li>Mirá Disponibilidad, Rendimiento, Calidad y <b>OEE</b>, y "Estimado vs Realizado".</li>
+    <li><b>Exportar</b> (Excel) e <b>Imprimir reporte</b> según necesites.</li>
+  </ol>
+
+  <h2>4 · ANDON (objetivos y premios)</h2>
+  <ol class="pasos">
+    <li>Pestaña <b>Andon</b>: cargás el <b>objetivo mensual</b> por área. La escala calcula sola el premio.</li>
+  </ol>
+  <table>
+    <tr><th>Cumplimiento</th><th>Resultado</th></tr>
+    <tr><td><span class="btn b-rojo">&lt;80%</span></td><td>Sin premio</td></tr>
+    <tr><td><span class="btn b-verde">81–90%</span></td><td>Premio parcial</td></tr>
+    <tr><td><span class="btn" style="background:#15803d">91–99%</span></td><td>Premio parcial</td></tr>
+    <tr><td><span class="btn b-violeta">100%</span></td><td>Premio completo de producción</td></tr>
+  </table>
+
+  <div class="pie">Tip: revisá el Gantt cada mañana y reacomodá pendientes antes del arranque del turno.</div>
+</section>
+
+<!-- ===================== ENCARGADO ===================== -->
+<section class="hoja">
+  <div class="top">
+    <svg class="rayo" viewBox="0 0 24 24"><path d="M13 2L4 14h6l-1 8 9-12h-6z"/></svg>
+    <div>
+      <h1>Chuleta — ENCARGADO</h1>
+      <div class="sub">App de Producción INELPA · supervisa y carga reparaciones</div>
+    </div>
+    <span class="badge" style="background:#0891b2">ENCARGADO</span>
+  </div>
+
+  <h2>Qué podés hacer</h2>
+  <ol class="pasos">
+    <li><b>Ver el Gantt</b> de tus sectores (solo lectura: no movés tareas de producción).</li>
+    <li><b>Ver KPIs / OEE</b> y el tablero <b>ANDON</b> de tu equipo.</li>
+    <li><b>Crear reparaciones</b> (único tipo de tarea que cargás).</li>
+  </ol>
+
+  <h2>Cargar una reparación</h2>
+  <ol class="pasos">
+    <li>Entrá a crear tarea y elegí tipo <span class="btn b-violeta">Reparación</span>.</li>
+    <li>Asignala a la máquina/colaborador y confirmá.</li>
+  </ol>
+  <div class="nota">Las <b>reparaciones no cuentan en el OEE</b> (son trabajo no productivo), pero quedan registradas y suman como <b>retrabajo</b> en el ANDON del área.</div>
+
+  <h2>Semáforo de conexión</h2>
+  <table>
+    <tr><td>🟢 En línea</td><td>🟡 Sincronizando</td><td>🟠 Sin conexión (guarda igual)</td></tr>
+  </table>
+
+  <div class="pie">Si una tarea de producción está mal, avisá al planificador: él la mueve.</div>
+</section>
+
+<!-- ===================== LOGÍSTICA ===================== -->
+<section class="hoja">
+  <div class="top">
+    <svg class="rayo" viewBox="0 0 24 24"><path d="M13 2L4 14h6l-1 8 9-12h-6z"/></svg>
+    <div>
+      <h1>Chuleta — LOGÍSTICA</h1>
+      <div class="sub">App de Producción INELPA · abastece la planta</div>
+    </div>
+    <span class="badge" style="background:#ea580c">LOGÍSTICA</span>
+  </div>
+
+  <h2>1 · Cola de pedidos de material</h2>
+  <ol class="pasos">
+    <li>Cuando un operario pide material, aparece un <b>pedido en la cola</b>.</li>
+    <li><b>Tomá</b> el pedido (te lo asignás) y movelo por estados:
+      <span class="btn b-naranja">Pendiente</span> → <span class="btn b-azul">En camino</span> → <span class="btn b-verde">Entregado</span>.</li>
+  </ol>
+  <div class="nota">Los tiempos de respuesta se miden en <b>horario laboral de logística (L–V 8 a 17 h)</b>. Marcá los estados en el momento real.</div>
+
+  <h2>2 · Tareas logísticas (organizador)</h2>
+  <ol class="pasos">
+    <li>Pestaña <b>Tareas logísticas</b>: ves las tareas que carga el organizador.</li>
+    <li>Tomás la tarea, la realizás y la <b>finalizás</b> cuando está lista.</li>
+  </ol>
+
+  <h2>3 · Gantt de planta (solo lectura)</h2>
+  <ol class="pasos">
+    <li>Pestaña <b>Gantt de planta</b>: filtrás por línea/sector para ver qué se está produciendo.</li>
+    <li>Podés <b>Exportar programación (Excel)</b>. No movés tareas (es solo consulta).</li>
+  </ol>
+
+  <div class="pie">Objetivo: que ninguna máquina pare por falta de material. Priorizá lo que frena producción.</div>
+</section>
+
+</body>
+</html>

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Checklist Día 1 — Salida a producción INELPA</title>
+<style>
+  :root{ --tinta:#0f172a; --gris:#475569; --linea:#e2e8f0; --rayo:#f59e0b; --rojo:#dc2626; --verde:#16a34a; }
+  *{ box-sizing:border-box; }
+  body{ font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; color:var(--tinta); margin:0; background:#f8fafc; }
+  .hoja{ background:#fff; width:210mm; min-height:297mm; margin:0 auto 12mm; padding:16mm; box-shadow:0 1px 6px rgba(0,0,0,.12); }
+  .top{ display:flex; align-items:center; gap:10px; border-bottom:3px solid var(--rayo); padding-bottom:10px; margin-bottom:6px; }
+  .rayo{ width:36px; height:36px; flex:0 0 36px; }
+  svg.rayo path{ fill:var(--rayo); }
+  h1{ font-size:23px; margin:0; }
+  .sub{ font-size:13px; color:var(--gris); margin:2px 0 0; }
+  .meta{ font-size:12px; color:var(--gris); margin:6px 0 16px; }
+  h2{ font-size:15px; margin:18px 0 6px; padding:6px 10px; background:#f1f5f9; border-left:4px solid var(--rayo); border-radius:0 6px 6px 0; }
+  .item{ display:flex; gap:10px; align-items:flex-start; padding:7px 4px; border-bottom:1px dashed var(--linea); font-size:14px; line-height:1.4; }
+  .chk{ width:18px; height:18px; flex:0 0 18px; border:2px solid var(--gris); border-radius:4px; margin-top:1px; }
+  .item b{ color:#000; }
+  .urg{ color:var(--rojo); font-weight:700; font-size:11px; border:1px solid var(--rojo); border-radius:4px; padding:1px 5px; margin-left:6px; }
+  .nota{ background:#fffbeb; border-left:4px solid var(--rayo); padding:10px 12px; font-size:13px; border-radius:0 6px 6px 0; margin:12px 0; }
+  .firma{ margin-top:22px; display:flex; gap:30px; font-size:13px; }
+  .firma div{ flex:1; border-top:1px solid var(--tinta); padding-top:6px; }
+  @media print{ body{ background:#fff; } .hoja{ box-shadow:none; margin:0; width:auto; padding:13mm; } }
+  @page{ size:A4; margin:0; }
+</style>
+</head>
+<body>
+<section class="hoja">
+  <div class="top">
+    <svg class="rayo" viewBox="0 0 24 24"><path d="M13 2L4 14h6l-1 8 9-12h-6z"/></svg>
+    <div>
+      <h1>Checklist Día 1 — Salida a producción</h1>
+      <p class="sub">App de Producción INELPA · para el referente del lanzamiento</p>
+    </div>
+  </div>
+  <p class="meta">Fecha: ____ / ____ / 2026 &nbsp;·&nbsp; Referente: ___________________________ &nbsp;·&nbsp; Turno: __________</p>
+
+  <h2>A · La noche anterior / temprano</h2>
+  <div class="item"><span class="chk"></span><div>Todos los <b>SQL pendientes corridos</b> en Supabase: v1.12, v1.13, v1.14 (bobinado), v1.15 (RLS catálogo). <span class="urg">CRÍTICO</span></div></div>
+  <div class="item"><span class="chk"></span><div><b>Backups de Supabase</b> activados (Database → Backups). <span class="urg">CRÍTICO</span></div></div>
+  <div class="item"><span class="chk"></span><div>Último <b>deploy en Vercel "Ready"</b> sobre el proyecto <b>inelpa-pwa</b> (con el git push más reciente).</div></div>
+  <div class="item"><span class="chk"></span><div><b>Spend cap</b> de Vercel configurado (aviso $20 + On-Demand Budget bajo).</div></div>
+  <div class="item"><span class="chk"></span><div><b>Smoke test</b>: login con cada rol (operario / planificador / encargado / logística) y un flujo completo de punta a punta.</div></div>
+  <div class="item"><span class="chk"></span><div>Claves <b>123456 cambiadas</b> al menos en cuentas de gestión y admin.</div></div>
+
+  <h2>B · Preparar los dispositivos de planta</h2>
+  <div class="item"><span class="chk"></span><div>App <b>instalada como PWA</b> ("Agregar a pantalla de inicio") en cada tablet/PC.</div></div>
+  <div class="item"><span class="chk"></span><div><b>Reloj y zona horaria correctos</b> en cada dispositivo (afecta tiempos, almuerzo y KPIs). <span class="urg">CRÍTICO</span></div></div>
+  <div class="item"><span class="chk"></span><div>Prueba <b>offline en la red real</b>: cortar Wi-Fi, trabajar, y verificar que sincroniza al volver (semáforo 🟠→🟢).</div></div>
+  <div class="item"><span class="chk"></span><div>Cada usuario sabe su <b>usuario y contraseña</b> y entra sin problemas.</div></div>
+
+  <h2>C · Capacitación</h2>
+  <div class="item"><span class="chk"></span><div>Repartir <b>chuletas por rol</b> (1 página cada uno).</div></div>
+  <div class="item"><span class="chk"></span><div>Mostrar en vivo: elegir estación → Empezar/Pausar/Finalizar → registrar parada.</div></div>
+  <div class="item"><span class="chk"></span><div>Explicar el <b>semáforo</b> y la regla de oro: con 🟠 naranja, <b>seguí trabajando, nada se pierde</b>.</div></div>
+  <div class="item"><span class="chk"></span><div>Planificador practica <b>asignar + mover en el Gantt</b>; logística practica la <b>cola de material</b>.</div></div>
+  <div class="item"><span class="chk"></span><div>Mostrar <b>ANDON</b> y la nueva escala de premios (rojo &lt;80 / verde 81–90 / verde fuerte 91–99 / violeta 100%).</div></div>
+
+  <h2>D · Durante el primer turno</h2>
+  <div class="item"><span class="chk"></span><div>Definir <b>UN referente</b> de contacto y un solo canal para dudas/errores (WhatsApp o correo).</div></div>
+  <div class="item"><span class="chk"></span><div>Recorrer la planta y verificar que <b>cada operario marcó al menos una tarea</b> bien.</div></div>
+  <div class="item"><span class="chk"></span><div>Vigilar <b>zonas con mala señal</b> (dónde se pone 🟠/🔴) y anotarlas.</div></div>
+  <div class="item"><span class="chk"></span><div>Al cierre: confirmar que los <b>pendientes de sincronización llegaron a 0</b> en todos los equipos.</div></div>
+
+  <div class="nota"><b>Si algo se rompe:</b> en Vercel → Deployments → "..." → <b>Promote to Production</b> sobre el último deploy estable, y volvés a la versión anterior en segundos. No es perfección el día 1: anotá, ajustamos y mejoramos.</div>
+
+  <div class="firma">
+    <div>Firma referente</div>
+    <div>Observaciones del día</div>
+  </div>
+</section>
+</body>
+</html>

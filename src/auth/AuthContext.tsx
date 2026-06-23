@@ -9,6 +9,7 @@ interface AuthState {
   permisos: Permisos | null
   cargando: boolean
   login: (usuario: string, password: string) => Promise<{ ok: boolean; error?: string }>
+  cambiarPassword: (nueva: string) => Promise<{ ok: boolean; error?: string }>
   logout: () => void
 }
 
@@ -177,6 +178,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  // El usuario logueado cambia SU PROPIA contrasena (Supabase Auth, online).
+  // No requiere intervencion del admin. Min. 6 caracteres (regla de Supabase).
+  async function cambiarPassword(nueva: string) {
+    if (!supabase) return { ok: false, error: 'Supabase no esta configurado (.env)' }
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      return { ok: false, error: 'Necesitas conexion a internet para cambiar la contrasena.' }
+    }
+    if (nueva.length < 6) return { ok: false, error: 'La contrasena debe tener al menos 6 caracteres.' }
+    try {
+      const { error } = await supabase.auth.updateUser({ password: nueva })
+      if (error) {
+        if (esErrorDeRed(error)) return { ok: false, error: 'No se pudo conectar. Verifica tu conexion a internet.' }
+        if (/should be|at least|6 char|weak|short/i.test(error.message)) {
+          return { ok: false, error: 'La contrasena es demasiado corta o debil (minimo 6 caracteres).' }
+        }
+        return { ok: false, error: 'No se pudo cambiar la contrasena. Intenta de nuevo.' }
+      }
+      return { ok: true }
+    } catch (e) {
+      if (esErrorDeRed(e)) return { ok: false, error: 'No se pudo conectar. Verifica tu conexion a internet.' }
+      return { ok: false, error: 'Error inesperado al cambiar la contrasena.' }
+    }
+  }
+
   async function logout() {
     borrarCache()
     await detenerSync()
@@ -185,7 +210,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const permisos = usuario ? PERMISOS[usuario.rol] : null
-  return <Ctx.Provider value={{ usuario, permisos, cargando, login, logout }}>{children}</Ctx.Provider>
+  return <Ctx.Provider value={{ usuario, permisos, cargando, login, cambiarPassword, logout }}>{children}</Ctx.Provider>
 }
 
 export function useAuth() {
