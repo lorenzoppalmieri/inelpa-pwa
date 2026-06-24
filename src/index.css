@@ -367,6 +367,55 @@ button { font-family: inherit; cursor: pointer; border: none; }
 .legend i.andon-verde3  { background: #15803d; }
 .legend i.andon-violeta { background: #a855f7; }
 
+/* ---------- DIRECCION (tablero ejecutivo, solo lorenzo) ---------- */
+.dir-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+.dir-controls { display: flex; gap: 10px; align-items: center; }
+
+.dir-heroes { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.dir-hero { background: var(--panel); border: 1px solid var(--borde); border-left: 7px solid var(--hc, var(--azul-claro)); border-radius: var(--radio); padding: 14px 16px; }
+.dir-hero.dir-azul { --hc: #1e6fb8; } .dir-hero.dir-violeta { --hc: #a855f7; }
+.dir-hero.dir-rojo { --hc: #ef4444; } .dir-hero.dir-naranja { --hc: #f59e0b; }
+.dir-hero-lbl { font-size: .82rem; color: var(--texto-tenue); font-weight: 700; }
+.dir-hero-val { font-size: 2.1rem; font-weight: 900; color: var(--hc); line-height: 1.1; margin-top: 2px; }
+.dir-hero-sub { font-size: .82rem; color: var(--texto-tenue); }
+.dir-hero-trend { font-size: .82rem; font-weight: 800; margin-top: 4px; }
+.dir-hero-trend.bien { color: #22c55e; } .dir-hero-trend.mal { color: #ef4444; } .dir-hero-trend.flat { color: var(--texto-tenue); }
+
+.dir-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+.dir-card { padding: 14px 16px; }
+.dir-card-wide { grid-column: 1 / -1; }
+.dir-card-tit { font-weight: 800; font-size: .95rem; margin-bottom: 10px; }
+
+.dir-linea { margin-bottom: 12px; }
+.dir-linea-top { display: flex; justify-content: space-between; font-size: .9rem; margin-bottom: 4px; }
+.dir-bar { height: 14px; border-radius: 999px; background: var(--panel-2); overflow: hidden; }
+.dir-bar > span { display: block; height: 100%; border-radius: 999px; background: var(--estado-fin); transition: width .4s; }
+
+.dir-andon-resumen { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.dir-pill { font-size: .78rem; font-weight: 800; color: #fff; padding: 4px 10px; border-radius: 999px; background: var(--tier, #64748b); }
+
+.dir-mini-list { display: flex; flex-direction: column; gap: 6px; }
+.dir-mini-row { display: flex; align-items: center; gap: 8px; font-size: .85rem; }
+.dir-dot { width: 11px; height: 11px; border-radius: 50%; flex: 0 0 11px; background: var(--tier, #64748b); }
+.dir-mini-area { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dir-mini-num { color: var(--texto-tenue); font-variant-numeric: tabular-nums; }
+.dir-mini-pct { font-weight: 800; min-width: 44px; text-align: right; font-variant-numeric: tabular-nums; }
+.dir-bar-mini { flex: 1.2; height: 9px; border-radius: 999px; background: var(--panel-2); overflow: hidden; }
+.dir-bar-mini > span { display: block; height: 100%; background: var(--azul-claro); }
+.dir-bar-mini.perdida > span { background: #f59e0b; }
+
+.dir-logi { display: flex; gap: 18px; flex-wrap: wrap; }
+.dir-logi-n { font-size: 1.8rem; font-weight: 900; color: var(--azul-claro); }
+
+.dir-trend { display: flex; align-items: flex-end; gap: 10px; height: 140px; padding-top: 8px; }
+.dir-trend-col { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; }
+.dir-trend-bars { flex: 1; display: flex; align-items: flex-end; gap: 4px; width: 100%; justify-content: center; }
+.dir-trend-bars > span { width: 26%; border-radius: 4px 4px 0 0; min-height: 2px; }
+.dir-trend-oee { background: #1e6fb8; } .dir-trend-und { background: #a855f7; }
+.dir-trend-lbl { font-size: .76rem; color: var(--texto-tenue); margin-top: 4px; text-transform: capitalize; }
+.dir-trend-leg { display: flex; gap: 16px; font-size: .78rem; color: var(--texto-tenue); margin-top: 8px; }
+.dir-trend-leg i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: middle; margin-right: 4px; }
+
 /* ---------- Modal ---------- */
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.7); display: grid; place-items: center; z-index: 100; padding: 16px; }
 .modal { width: 100%; max-width: 520px; background: var(--panel); border: 1px solid var(--borde); border-radius: 18px; padding: 20px; }

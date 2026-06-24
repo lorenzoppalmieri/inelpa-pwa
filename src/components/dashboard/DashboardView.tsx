@@ -12,6 +12,7 @@ import GanttOperativo from './GanttOperativo'
 import KpiPanel from './KpiPanel'
 import AndonView from './AndonView'
 import AlertaMaterial from './AlertaMaterial'
+import DireccionView from './DireccionView'
 import PlanificacionView from '../planificador/PlanificacionView'
 
 // Periodo de analisis del Dashboard de KPIs (v1.4). No borra datos: solo acota
@@ -33,7 +34,9 @@ function rangoPeriodo(periodo: Periodo, now: Date): { desde: string; hasta: stri
 
 export default function DashboardView() {
   const { usuario, permisos } = useAuth()
-  const [vista, setVista] = useState<'gantt' | 'kpis' | 'planificacion' | 'andon'>('gantt')
+  const [vista, setVista] = useState<'gantt' | 'kpis' | 'planificacion' | 'andon' | 'direccion'>('gantt')
+  // v1.16: la vista ejecutiva "Direccion" es exclusiva del usuario lorenzo.
+  const esDireccion = usuario?.usuario === 'lorenzo'
   const [linea, setLinea] = useState<'todas' | LineaProduccion>('todas')
   const [sectorFiltro, setSectorFiltro] = useState<'todos' | SectorId>('todos')
   const [agrupar, setAgrupar] = useState<'sector' | 'operario' | 'maquina'>('sector')
@@ -133,9 +136,14 @@ export default function DashboardView() {
         {(permisos?.cargarProgramacion || permisos?.crearReparacion) && (
           <button className={'tab' + (vista === 'planificacion' ? ' active' : '')} onClick={() => setVista('planificacion')}>Planificacion</button>
         )}
+        {esDireccion && (
+          <button className={'tab' + (vista === 'direccion' ? ' active' : '')} onClick={() => setVista('direccion')}>📊 Dirección</button>
+        )}
       </div>
 
-      {vista === 'andon'
+      {vista === 'direccion' && esDireccion
+        ? <DireccionView />
+        : vista === 'andon'
         ? <AndonView />
         : vista === 'planificacion' && (permisos?.cargarProgramacion || permisos?.crearReparacion)
         ? <PlanificacionView />
