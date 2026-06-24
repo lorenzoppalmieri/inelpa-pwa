@@ -1,7 +1,10 @@
 import { useMemo, useState } from 'react'
+import { useLiveQuery } from 'dexie-react-hooks'
+import { db } from '../../db/dexie'
 import type { Tarea } from '../../types'
 import { sectorById, maquinaSirveSector, operariosParaSector } from '../../types'
 import type { Maquina, Usuario } from '../../types'
+import { modeloPorNombre, componentesDeModelo } from '../../data/catalogo'
 import { guardarTarea } from '../../sync/syncEngine'
 import { isoWeek } from '../../lib/time'
 
@@ -27,8 +30,28 @@ export default function EditarTarea({ tarea, maquinas, usuarios, onClose }: {
   const [operarioId, setOperarioId] = useState(tarea.operarioId ?? '')
   const [fecha, setFecha] = useState(d0.toLocaleDateString('en-CA'))
   const [hora, setHora] = useState(d0.toTimeString().slice(0, 5))
+  const [componenteCodigo, setComponenteCodigo] = useState(tarea.componenteCodigo ?? '')
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState('')
+
+  // v1.16: semielaborados elegibles (solo fabricacion). Se aplica el cupo de la OF
+  // descontando lo ya planificado, pero SIEMPRE se incluye el valor actual de la
+  // tarea para no perderlo. Si el sector tiene semielaborados, elegir uno es obligatorio.
+  const esFabricacion = tarea.tipo === 'fabricacion'
+  const ordenes = useLiveQuery(() => db.ordenes.toArray(), []) ?? []
+  const todas = useLiveQuery(() => db.tareas.toArray(), []) ?? []
+  const ordenSel = ordenes.find((o) => o.id === tarea.ordenId)
+  const modeloSel = modeloPorNombre(ordenSel?.modelo)
+  const cantidadOrden = ordenSel?.cantidad ?? 1
+  const componentesSector = useMemo(
+    () => componentesDeModelo(modeloSel).filter((c) => c.sectorId === tarea.sectorId),
+    [modeloSel, tarea.sectorId],
+  )
+  const opcionesSemi = useMemo(() => componentesSector.map((c) => {
+    const planificado = todas.filter((t) => t.ordenId === tarea.ordenId && t.componenteCodigo === c.codigo && t.id !== tarea.id).length
+    return { c, restante: cantidadOrden - planificado }
+  }).filter((x) => x.restante > 0 || x.c.codigo === tarea.componenteCodigo), [componentesSector, todas, cantidadOrden, tarea])
+  const sectorTieneSemi = esFabricacion && componentesSector.length > 0
 
   const maquinasOpc = useMemo(
     () => maquinas.filter((m) => m.activo && maquinaSirveSector(m, tarea.sectorId)),
@@ -45,6 +68,7 @@ export default function EditarTarea({ tarea, maquinas, usuarios, onClose }: {
     setError('')
     const est = Math.max(1, Number(estandar) || 0)
     if (!est) { setError('El tiempo estándar debe ser mayor a 0.'); return }
+    if (sectorTieneSemi && !componenteCodigo) { setError('Elegí el semielaborado.'); return }
     if (!maquinaId) { setError('Elegí una estación.'); return }
     if (!fecha || !hora) { setError('Indicá día y hora de arranque.'); return }
     const inicioPlanificado = new Date(`${fecha}T${hora}`).toISOString()
@@ -54,6 +78,7 @@ export default function EditarTarea({ tarea, maquinas, usuarios, onClose }: {
       tiempoEstandarMin: est,
       prioridad: Math.max(1, Number(prioridad) || 1),
       nroTransformador: nro.trim() || undefined,
+      componenteCodigo: esFabricacion ? (componenteCodigo || undefined) : tarea.componenteCodigo,
       activaHoraRecuperacion: horaRecup,
       maquinaId,
       operarioId: operarioId || undefined,
@@ -82,6 +107,18 @@ export default function EditarTarea({ tarea, maquinas, usuarios, onClose }: {
 
         <label className="meta">Tiempo estándar (min)</label>
         <input className="input" type="number" min={1} value={estandar} onChange={(e) => setEstandar(e.target.value)} style={{ width: '100%', marginBottom: 10 }} />
+
+        {esFabricacion && (
+          <>
+            <label className="meta">Semielaborado{sectorTieneSemi ? ' *' : ''}</label>
+            <select className="select" value={componenteCodigo} onChange={(e) => setComponenteCodigo(e.target.value)} disabled={!sectorTieneSemi} style={{ width: '100%', marginBottom: 10 }}>
+              <option value="">— {sectorTieneSemi ? 'Selecciona' : 'Sin semielaborado para este sector'} —</option>
+              {opcionesSemi.map(({ c, restante }) => (
+                <option key={c.codigo} value={c.codigo}>{c.descripcion}{cantidadOrden > 1 ? ` (faltan ${restante})` : ''}</option>
+              ))}
+            </select>
+          </>
+        )}
 
         <label className="meta">N° de transformador</label>
         <input className="input" value={nro} onChange={(e) => setNro(e.target.value)} placeholder="Opcional" style={{ width: '100%', marginBottom: 10 }} />
