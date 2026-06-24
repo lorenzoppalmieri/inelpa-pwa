@@ -88,6 +88,7 @@ const NOMINA: [string, GrupoNomina][] = [
   ['García Maximiliano Ezequiel', 'montaje_rural'],
   ['Moreira Nestor Brian', 'montaje_rural'],
   ['Tamagna Patricio Ruben', 'montaje_rural'],
+  ['Juan Alejandro Rodriguez', 'bobinado_dist'],
 ]
 
 // usuario (login) + id deterministicos a partir del nombre: "apellido.nombre"
