@@ -12,6 +12,7 @@ import { MODELOS_CATALOGO, modeloPorNombre, componentesDeModelo, componentePorCo
 import { guardarOrden, guardarTarea, guardarSemielaborado, eliminarTarea, eliminarOrden } from '../../sync/syncEngine'
 import { useAuth } from '../../auth/AuthContext'
 import { isoWeek, fechaCorta, hhmm } from '../../lib/time'
+import EditarTarea from './EditarTarea'
 
 // ============================================================
 // Vista Planificacion (solo planificador / gerencia).
@@ -227,6 +228,7 @@ function PanelAsignar({ soloReparacion = false }: { soloReparacion?: boolean }) 
   // v1.8/v1.9: tipo de tarea. Los encargados solo cargan reparaciones.
   const [tipo, setTipo] = useState<TipoTarea>(soloReparacion ? 'reparacion' : 'fabricacion')
   const [descripcion, setDescripcion] = useState('') // texto libre para reparaciones
+  const [editar, setEditar] = useState<Tarea | null>(null) // v1.16: tarea en edicion
   const [msg, setMsg] = useState('')
 
   const nombreMaquina = useMemo(() => {
@@ -469,6 +471,10 @@ function PanelAsignar({ soloReparacion = false }: { soloReparacion?: boolean }) 
                   {t.activaHoraRecuperacion ? '⏱ Quitar hora recup.' : '⏱ Habilitar hora recup.'}
                 </button>
               )}
+              {/* v1.16: editar la tarea antes o durante la produccion (no finalizada). */}
+              {t.estado !== 'finalizada' && (
+                <button className="btn" style={{ flex: 1 }} onClick={() => setEditar(t)}>✏️ Editar</button>
+              )}
               {/* v1.16: revertir una finalizacion por error (no pierde la tarea). */}
               {t.estado === 'finalizada' && (
                 <button className="btn" style={{ flex: 1 }} onClick={() => reabrir(t)}>↩ Reabrir</button>
@@ -480,6 +486,15 @@ function PanelAsignar({ soloReparacion = false }: { soloReparacion?: boolean }) 
         </div>
       ))}
       {tareasOrdenadas.length === 0 && <div className="empty">Aun no hay tareas asignadas esta semana.</div>}
+
+      {editar && (
+        <EditarTarea
+          tarea={editar}
+          maquinas={maquinas ?? []}
+          usuarios={usuarios ?? []}
+          onClose={() => setEditar(null)}
+        />
+      )}
     </>
   )
 }
