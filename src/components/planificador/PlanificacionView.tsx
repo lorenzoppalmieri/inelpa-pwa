@@ -314,11 +314,26 @@ function PanelAsignar({ soloReparacion = false }: { soloReparacion?: boolean }) 
     setMsg(`Hora de recuperación ${!t.activaHoraRecuperacion ? 'activada' : 'desactivada'} para ${t.modelo}.`)
   }
 
+  // v1.16: el planificador puede eliminar en CUALQUIER estado (la RLS ya lo
+  // permite). Para tareas ya arrancadas/finalizadas se pide doble confirmacion,
+  // porque borra el registro de produccion y afecta el historial y los KPIs.
   async function borrar(t: Tarea) {
-    if (t.estado !== 'pendiente') { setMsg('Solo se pueden eliminar tareas que aun no arrancaron.'); return }
-    if (!window.confirm(`Eliminar la tarea de ${t.modelo}${t.nroTransformador ? ` · ${t.nroTransformador}` : ''}? Esta accion no se puede deshacer.`)) return
+    const ref = `${t.modelo}${t.nroTransformador ? ` · ${t.nroTransformador}` : ''}`
+    const aviso = t.estado === 'pendiente'
+      ? `Eliminar la tarea de ${ref}? Esta accion no se puede deshacer.`
+      : `⚠ La tarea de ${ref} esta en estado "${t.estado}" (ya tiene produccion registrada).\n\nEliminarla la borra del historial y de los KPIs, y NO se puede deshacer.\n\nSi solo fue una finalizacion por error, conviene usar "↩ Reabrir" en vez de borrar.\n\n¿Eliminar de todos modos?`
+    if (!window.confirm(aviso)) return
     await eliminarTarea(t)
     setMsg('Tarea eliminada.')
+  }
+
+  // v1.16: revertir una finalizacion por error. Vuelve la tarea a "en proceso"
+  // y limpia el cierre (fin/calidad/duracion) para que NO cuente en los KPIs.
+  // El operario puede volver a finalizarla correctamente despues.
+  async function reabrir(t: Tarea) {
+    if (!window.confirm(`¿Reabrir la tarea de ${t.modelo}? Vuelve a "en proceso" y se quita del calculo de KPIs hasta que se finalice de nuevo.`)) return
+    await guardarTarea({ ...t, estado: 'en_proceso', finReal: undefined, calidadOk: undefined, defecto: undefined, duracionEfectivaMin: undefined })
+    setMsg('Tarea reabierta: volvio a "en proceso".')
   }
 
   const tareasOrdenadas = useMemo(
@@ -454,10 +469,12 @@ function PanelAsignar({ soloReparacion = false }: { soloReparacion?: boolean }) 
                   {t.activaHoraRecuperacion ? '⏱ Quitar hora recup.' : '⏱ Habilitar hora recup.'}
                 </button>
               )}
-              {/* v1.4: solo se puede borrar una tarea que AUN no arranco. */}
-              {t.estado === 'pendiente' && (
-                <button className="btn btn-rojo" style={{ flex: 1 }} onClick={() => borrar(t)}>🗑 Eliminar tarea</button>
+              {/* v1.16: revertir una finalizacion por error (no pierde la tarea). */}
+              {t.estado === 'finalizada' && (
+                <button className="btn" style={{ flex: 1 }} onClick={() => reabrir(t)}>↩ Reabrir</button>
               )}
+              {/* v1.16: el planificador puede eliminar en cualquier estado. */}
+              <button className="btn btn-rojo" style={{ flex: 1 }} onClick={() => borrar(t)}>🗑 Eliminar</button>
             </div>
           )}
         </div>
