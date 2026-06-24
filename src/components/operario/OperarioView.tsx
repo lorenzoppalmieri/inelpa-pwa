@@ -125,7 +125,7 @@ export default function OperarioView() {
 
       {vis.length === 0
         ? <div className="empty">No hay tareas en esta vista.</div>
-        : vis.map((t) => <TareaCard key={t.id} tarea={t} />)}
+        : vis.map((t) => <TareaCard key={t.id} tarea={t} onIniciar={() => setFiltro('activas')} />)}
     </div>
   )
 }

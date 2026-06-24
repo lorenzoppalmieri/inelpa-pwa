@@ -18,7 +18,7 @@ const ESTADO_TXT: Record<string, string> = {
   pendiente: 'Pendiente', en_proceso: 'En proceso', pausada: 'Pausada', finalizada: 'Finalizada',
 }
 
-export default function TareaCard({ tarea }: { tarea: Tarea }) {
+export default function TareaCard({ tarea, onIniciar }: { tarea: Tarea; onIniciar?: () => void }) {
   const { usuario } = useAuth()
   const [modal, setModal] = useState(false)
   const [ahora, setAhora] = useState(Date.now())
@@ -52,6 +52,9 @@ export default function TareaCard({ tarea }: { tarea: Tarea }) {
       inicioReal: tarea.inicioReal ?? new Date().toISOString(),
       operarioId: tarea.operarioId ?? usuario?.id,
     })
+    // v1.16: al iniciar, la vista salta al filtro "En curso" para que el operario
+    // vea la tarea que arranco y no inicie otra por error.
+    onIniciar?.()
   }
   async function confirmarParada(causa: CausaParada, obs: string) {
     setModal(false)
