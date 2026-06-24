@@ -270,6 +270,16 @@ function PanelAsignar({ soloReparacion = false }: { soloReparacion?: boolean }) 
     })
     .filter((x) => x.restante > 0)
 
+  // v1.16: ¿el modelo de la orden tiene semielaborados para este sector? Si los
+  // tiene, elegir uno es OBLIGATORIO (no se puede planificar fabricacion "suelta").
+  const sectorTieneSemi = !!modeloSel && componentesDeModelo(modeloSel).some((c) => c.sectorId === sectorId)
+
+  // v1.16: ¿faltan campos para poder asignar? (deshabilita el boton).
+  const faltanCampos = (soloReparacion || tipo === 'reparacion')
+    ? (!descripcion.trim() || !maquinaId || !fechaPlan || !horaPlan)
+    : (!ordenId || !maquinaId || (operariosDelSector.length > 0 && !operarioId)
+        || (sectorTieneSemi && !componenteCodigo) || !fechaPlan || !horaPlan)
+
   // Al cambiar de sector se reinician estacion, colaborador y semielaborado.
   function cambiarSector(s: SectorId) { setSectorId(s); setMaquinaId(''); setOperarioId(''); setComponenteCodigo('') }
   function cambiarOrden(id: string) { setOrdenId(id); setComponenteCodigo('') }
@@ -280,6 +290,13 @@ function PanelAsignar({ soloReparacion = false }: { soloReparacion?: boolean }) 
     const orden = (ordenes ?? []).find((o) => o.id === ordenId)
     if (!esRep && !orden) { setMsg('Selecciona una orden.'); return }
     if (esRep && !descripcion.trim()) { setMsg('Describe la reparacion (que se corrige).'); return }
+    // v1.16: el semielaborado es obligatorio si el sector del modelo lo tiene.
+    if (!esRep && sectorTieneSemi && !componenteCodigo) {
+      setMsg(componentesDelSector.length === 0
+        ? 'Todos los semielaborados de este sector ya estan planificados para esta orden.'
+        : 'Selecciona el semielaborado (segun sector).')
+      return
+    }
     if (!maquinaId) { setMsg('Selecciona una estacion (maquina/box/linea) para el sector.'); return }
     if (operariosDelSector.length > 0 && !operarioId) { setMsg('Selecciona un colaborador.'); return }
     if (!fechaPlan || !horaPlan) { setMsg('Indica dia y hora de arranque.'); return }
@@ -384,7 +401,7 @@ function PanelAsignar({ soloReparacion = false }: { soloReparacion?: boolean }) 
           </div>
           {tipo === 'fabricacion' && (
             <div className="field">
-              <label>Semielaborado (segun sector)</label>
+              <label>Semielaborado (segun sector){sectorTieneSemi ? ' *' : ''}</label>
               <select className="input" value={componenteCodigo} onChange={(e) => setComponenteCodigo(e.target.value)} disabled={!ordenSel || componentesDelSector.length === 0}>
                 <option value="">— {!ordenSel ? 'Elegi una orden primero' : componentesDelSector.length === 0 ? 'Todos los semielaborados ya planificados' : 'Selecciona'} —</option>
                 {componentesDelSector.map(({ c, restante }) => (
@@ -440,7 +457,8 @@ function PanelAsignar({ soloReparacion = false }: { soloReparacion?: boolean }) 
             </label>
           </div>
         </div>
-        <button className="btn btn-primary btn-bloque" onClick={asignar}>＋ Asignar {tipo === 'reparacion' ? 'reparación' : 'tarea'}</button>
+        <button className="btn btn-primary btn-bloque" onClick={asignar} disabled={faltanCampos}>＋ Asignar {tipo === 'reparacion' ? 'reparación' : 'tarea'}</button>
+        {faltanCampos && <div className="meta" style={{ marginTop: 8 }}>Completá todos los campos obligatorios para poder asignar{sectorTieneSemi && !componenteCodigo ? ' (falta el semielaborado)' : ''}.</div>}
         {msg && <div className="meta" style={{ marginTop: 10 }}>{msg}</div>}
       </div>
 
