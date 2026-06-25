@@ -29,18 +29,19 @@ export function tiempoRealBruto(t: Tarea): number {
   return minutosEntre(t.inicioReal, t.finReal)
 }
 
-// Tiempo PRODUCTIVO NETO disponible (v1.6): descuenta noches, fines de semana y
-// almuerzo via el calendario. Usa la duracion efectiva guardada al finalizar; si
-// no esta (tareas viejas), la recalcula. Ya excluye el almuerzo, asi que NO se
-// vuelve a restar minutosNoProductivos.
+// TIEMPO REAL (v1.16): tiempo laborable entre inicio y fin (descuenta noches,
+// fines de semana, limpieza), SIN la franja fija de almuerzo; el almuerzo se
+// descuenta por la PARADA real que marca el operario (minutosNoProductivos).
+// Asi una parada de almuerzo NO suma ni a Real ni a Neto, y se respeta el
+// horario real de cada operario. Se recalcula siempre desde los timestamps
+// (no usa duracionEfectivaMin guardado, que seguia el criterio viejo).
 export function tiempoDisponible(t: Tarea): number {
-  if (t.duracionEfectivaMin != null) return Math.max(0, t.duracionEfectivaMin)
-  if (t.inicioReal && t.finReal) {
-    return calcularTiempoNetoProductivo(new Date(t.inicioReal), new Date(t.finReal), {
-      horaRecuperacion: t.activaHoraRecuperacion,
-    })
-  }
-  return 0
+  if (!t.inicioReal || !t.finReal) return 0
+  const wall = calcularTiempoNetoProductivo(new Date(t.inicioReal), new Date(t.finReal), {
+    horaRecuperacion: t.activaHoraRecuperacion,
+    sinAlmuerzo: true,
+  })
+  return Math.max(0, wall - minutosNoProductivos(t))
 }
 
 // Tiempo real neto (descontando paradas productivas) = trabajo efectivo.

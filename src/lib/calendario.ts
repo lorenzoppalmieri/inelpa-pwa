@@ -69,19 +69,28 @@ function conMinutos(base: Date, min: number): Date {
 // (Vie) como tiempo productivo. En false, el dia cierra estricto en la hora
 // normal (16:00 / 15:00) — usado por el calculo de tiempo neto cuando la tarea
 // NO tiene habilitada la hora de recuperacion.
+// `sinAlmuerzo` (default false): si es true, NO se descuenta la franja fija de
+// almuerzo (12-13 cuenta como productivo). Se usa para el calculo de Tiempo Real,
+// donde el almuerzo se descuenta por la PARADA que marca el operario, no por una
+// franja teorica (evita doble conteo y refleja el horario real de cada uno).
 export function tramosLaborables(
   fecha: Date,
   grupo: GrupoAlmuerzo = GRUPO_ALMUERZO_DEFAULT,
   conRecuperacion = true,
+  sinAlmuerzo = false,
 ): Tramo[] {
   const normal = cierreNormalMin(fecha.getDay())
   const recup = cierreRecupMin(fecha.getDay())
   if (normal == null || recup == null) return []
-  const alm = tramoAlmuerzo(grupo)
   const iniLimpieza = normal - LIMPIEZA_MIN
   const tramos: Tramo[] = []
-  if (APERTURA_MIN < alm.iniMin) tramos.push({ iniMin: APERTURA_MIN, finMin: alm.iniMin })
-  if (alm.finMin < iniLimpieza) tramos.push({ iniMin: alm.finMin, finMin: iniLimpieza })
+  if (sinAlmuerzo) {
+    if (APERTURA_MIN < iniLimpieza) tramos.push({ iniMin: APERTURA_MIN, finMin: iniLimpieza })
+  } else {
+    const alm = tramoAlmuerzo(grupo)
+    if (APERTURA_MIN < alm.iniMin) tramos.push({ iniMin: APERTURA_MIN, finMin: alm.iniMin })
+    if (alm.finMin < iniLimpieza) tramos.push({ iniMin: alm.finMin, finMin: iniLimpieza })
+  }
   if (conRecuperacion && normal < recup) tramos.push({ iniMin: normal, finMin: recup })
   return tramos.filter((t) => t.finMin > t.iniMin)
 }
@@ -156,6 +165,7 @@ export function minutosLaborablesEntre(
   bIso?: string,
   grupo: GrupoAlmuerzo = GRUPO_ALMUERZO_DEFAULT,
   conRecuperacion = true,
+  sinAlmuerzo = false,
 ): number {
   if (!aIso || !bIso) return 0
   const a = new Date(aIso)
@@ -166,7 +176,7 @@ export function minutosLaborablesEntre(
   let guard = 0
   while (cursor < b && guard++ < 8000) {
     const curMin = minDelDia(cursor)
-    const tramos = tramosLaborables(cursor, grupo, conRecuperacion)
+    const tramos = tramosLaborables(cursor, grupo, conRecuperacion, sinAlmuerzo)
     const tr = tramos.find((t) => curMin < t.finMin)
     if (!tr) { cursor = siguienteApertura(cursor, grupo, conRecuperacion); continue }
     const inicioTramo = curMin < tr.iniMin ? conMinutos(cursor, tr.iniMin) : new Date(cursor)
@@ -188,6 +198,7 @@ export function minutosLaborablesEntre(
 export interface ConfigTiempoNeto {
   grupo?: GrupoAlmuerzo          // turno de almuerzo del sector (default A)
   horaRecuperacion?: boolean     // tarea habilitada para trabajar 16-17 / 15-16
+  sinAlmuerzo?: boolean          // no descontar franja fija de almuerzo (se resta por parada real)
 }
 
 // ============================================================
@@ -229,5 +240,5 @@ export function calcularTiempoNetoProductivo(
 ): number {
   const grupo = config.grupo ?? GRUPO_ALMUERZO_DEFAULT
   const conRecup = config.horaRecuperacion ?? false // por defecto, cierre estricto
-  return minutosLaborablesEntre(inicio.toISOString(), fin.toISOString(), grupo, conRecup)
+  return minutosLaborablesEntre(inicio.toISOString(), fin.toISOString(), grupo, conRecup, config.sinAlmuerzo ?? false)
 }

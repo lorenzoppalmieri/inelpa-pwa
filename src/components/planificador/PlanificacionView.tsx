@@ -12,6 +12,7 @@ import { MODELOS_CATALOGO, modeloPorNombre, componentesDeModelo, componentePorCo
 import { guardarOrden, guardarTarea, guardarSemielaborado, eliminarTarea, eliminarOrden } from '../../sync/syncEngine'
 import { useAuth } from '../../auth/AuthContext'
 import { isoWeek, fechaCorta, hhmm } from '../../lib/time'
+import { tiempoNetoMin } from '../../lib/kpi'
 import EditarTarea from './EditarTarea'
 
 // ============================================================
@@ -475,7 +476,7 @@ function PanelAsignar({ soloReparacion = false }: { soloReparacion?: boolean }) 
                   : t.inicioPlanificado ? <> · Arranque plan. <strong>{fechaCorta(t.inicioPlanificado)} {hhmm(t.inicioPlanificado)}</strong></> : null}
                 {t.componenteCodigo ? <> · Semielaborado <strong>{componentePorCodigo(t.componenteCodigo)?.descripcion ?? t.componenteCodigo}</strong></> : null}
                 {t.activaHoraRecuperacion ? <> · <strong style={{ color: 'var(--naranja)' }}>Hora recup. ON</strong></> : null}
-                {t.duracionEfectivaMin != null ? <> · Neto <strong>{t.duracionEfectivaMin}m</strong></> : null}
+                {t.estado === 'finalizada' ? <> · Neto <strong>{tiempoNetoMin(t)}m</strong></> : null}
               </div>
             </div>
             <span className={'estado-chip e-' + (t.estado === 'en_proceso' ? 'proceso' : t.estado === 'pausada' ? 'pausa' : t.estado === 'finalizada' ? 'finalizado' : 'pendiente')}>
