@@ -203,6 +203,13 @@ button { font-family: inherit; cursor: pointer; border: none; }
   background: repeating-linear-gradient(45deg, var(--rojo), var(--rojo) 4px, rgba(239,68,68,.45) 4px, rgba(239,68,68,.45) 8px);
   box-shadow: inset 0 0 0 1px rgba(239,68,68,.85);
 }
+/* Sub-bloque de DEMORA SIN JUSTIFICAR: cola negra sobre la barra (excede el
+   estandar sin parada reportada). Borde claro para contraste en dark mode. */
+.gantt-demora-sj {
+  position: absolute; top: 11px; height: 28px; border-radius: 4px; z-index: 5; pointer-events: none;
+  background: repeating-linear-gradient(45deg, #000, #000 5px, #1f2937 5px, #1f2937 10px);
+  box-shadow: inset 0 0 0 1px #f1f5f9;
+}
 .gantt-recup-tag {
   flex: none; margin-right: 6px; padding: 1px 5px; border-radius: 5px;
   background: var(--naranja); color: #1a1206; font-size: .62rem; font-weight: 800; line-height: 1.3;
@@ -366,6 +373,14 @@ button { font-family: inherit; cursor: pointer; border: none; }
 .legend i.andon-verde2  { background: #22c55e; }
 .legend i.andon-verde3  { background: #15803d; }
 .legend i.andon-violeta { background: #a855f7; }
+
+/* ---------- Tabla de detalle por tarea (metricas exactas) ---------- */
+.tabla-detalle { width: 100%; border-collapse: collapse; font-size: .82rem; }
+.tabla-detalle th, .tabla-detalle td { padding: 7px 10px; border-bottom: 1px solid var(--borde); text-align: left; white-space: nowrap; }
+.tabla-detalle th { color: var(--texto-tenue); font-weight: 700; position: sticky; top: 0; background: var(--panel); }
+.tabla-detalle th.num, .tabla-detalle td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.tabla-detalle tr:hover, .tabla-detalle tbody tr:hover { background: var(--panel-2); }
+.tabla-detalle tr.fila-demora td { background: rgba(239,68,68,.08); }
 
 /* ---------- DIRECCION (tablero ejecutivo, solo lorenzo) ---------- */
 .dir-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }

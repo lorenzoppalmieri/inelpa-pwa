@@ -48,6 +48,21 @@ export function tiempoRealNeto(t: Tarea): number {
   return Math.max(0, tiempoDisponible(t) - minutosParada(t))
 }
 
+// ============================================================
+// METRICAS CANONICAS (v1.16) — definiciones EXACTAS acordadas con direccion.
+// Son la unica fuente de verdad para Gantt, graficos y la tabla de detalle.
+//   Tiempo Estimado     = matriz Maquina+Modelo+Material (hoy: tiempoEstandarMin).
+//   Tiempo Real         = (Fin - Inicio) sin horarios de planta cerrada (ni almuerzo).
+//   Total Demorado      = suma de paradas justificadas (productivas).
+//   Tiempo Neto         = Tiempo Real - Total Demorado.
+//   Demora Sin Justificar = Tiempo Real - Tiempo Estimado  (0 si es <= 0).
+// ============================================================
+export function tiempoEstimadoMin(t: Tarea): number { return Math.max(0, t.tiempoEstandarMin) }
+export function tiempoRealMin(t: Tarea): number { return tiempoDisponible(t) }
+export function totalDemoradoMin(t: Tarea): number { return minutosParada(t) }
+export function tiempoNetoMin(t: Tarea): number { return Math.max(0, tiempoRealMin(t) - totalDemoradoMin(t)) }
+export function demoraSinJustificarMin(t: Tarea): number { return Math.max(0, tiempoRealMin(t) - tiempoEstimadoMin(t)) }
+
 // Filtra tareas cuyo trabajo cae dentro de [desdeISO, hastaISO) segun su
 // inicio real (o planificado). Base del filtro de periodo del Dashboard (v1.4).
 export function filtrarPorRango(tareas: Tarea[], desdeISO: string, hastaISO: string): Tarea[] {
@@ -106,7 +121,7 @@ export function desviosPorModelo(tareas: Tarea[]): DesvioModelo[] {
     const k = t.modelo
     const cur = map.get(k) ?? { est: 0, real: 0, n: 0 }
     cur.est += t.tiempoEstandarMin
-    cur.real += tiempoRealNeto(t)
+    cur.real += tiempoRealMin(t) // v1.16: Tiempo Real (no Neto), segun definicion de direccion
     cur.n++
     map.set(k, cur)
   }

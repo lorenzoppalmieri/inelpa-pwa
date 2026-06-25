@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { Tarea } from '../../types'
 import { esReparacion } from '../../types'
-import { tiempoDisponible } from '../../lib/kpi'
+import { tiempoRealMin } from '../../lib/kpi'
 
 // ============================================================
 // KPI Tiempo Estimado vs Realizado (sin librerias de graficos: divs + CSS).
@@ -36,7 +36,7 @@ export default function EstimadoVsRealizado({ tareas, nombreMaquina }: {
       const clave = agrupar === 'maquina' ? nombreMaquina(t.maquinaId) : t.modelo
       const cur = map.get(clave) ?? { clave, estimado: 0, realizado: 0, n: 0 }
       cur.estimado += t.tiempoEstandarMin
-      cur.realizado += tiempoDisponible(t)
+      cur.realizado += tiempoRealMin(t)
       cur.n++
       map.set(clave, cur)
     }

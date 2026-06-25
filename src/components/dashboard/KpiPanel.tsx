@@ -3,6 +3,7 @@ import { calcularOEE, desviosPorModelo, eficienciaPorOperario, pct } from '../..
 import { fmtDur } from '../../lib/time'
 import ParetoDemoras from './ParetoDemoras'
 import EstimadoVsRealizado from './EstimadoVsRealizado'
+import DetalleTareas from './DetalleTareas'
 
 function barColor(v: number): string {
   if (v >= 0.85) return 'var(--estado-fin)'
@@ -69,6 +70,10 @@ export default function KpiPanel({ tareas, nombreOperario, nombreMaquina }: {
           </div>
         ))}
       </div>
+
+      {/* v1.16: detalle por tarea con las 5 metricas canonicas (filtrable). */}
+      <div className="section-title">Detalle por tarea (Estimado · Real · Demorado · Neto · Demora sin justificar)</div>
+      <DetalleTareas tareas={tareas} nombreOperario={nombreOperario} nombreMaquina={nombreMaquina} />
 
       {/* Pareto de demoras */}
       <div className="section-title">Pareto de demoras</div>

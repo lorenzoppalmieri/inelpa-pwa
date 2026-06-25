@@ -3,7 +3,7 @@ import type { Tarea, EstadoTarea, Maquina } from '../../types'
 import { sectorById, causaLabel, esParadaNoProductiva } from '../../types'
 import { componentePorCodigo } from '../../data/catalogo'
 import { hhmm, fmtDur, isoWeek } from '../../lib/time'
-import { proximoInstanteLaborable, tramosLaborables, type GrupoAlmuerzo } from '../../lib/calendario'
+import { proximoInstanteLaborable, tramosLaborables, calcularTiempoNetoProductivo, type GrupoAlmuerzo } from '../../lib/calendario'
 import { programar, type Plan } from '../../lib/programacion'
 import { guardarTarea } from '../../sync/syncEngine'
 
@@ -232,6 +232,20 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
     return ((idx + (cm - H_INI * 60) / DAY_MIN) / N) * 100
   })()
 
+  // v1.16: DEMORA SIN JUSTIFICAR = Tiempo Real - Tiempo Estimado (definicion
+  // exacta de direccion; el Tiempo Real ya descuenta planta cerrada/almuerzo
+  // pero NO las paradas). Se evalua en tareas finalizadas y en curso.
+  function demoraSinJustificarMin(t: Tarea): number {
+    if (t.tipo === 'reparacion' || !t.inicioReal) return 0
+    let endRef: string | undefined
+    if (t.estado === 'finalizada') endRef = t.finReal
+    else if (t.estado === 'en_proceso') endRef = ahoraISO
+    else return 0 // pendiente / pausada: no se evalua
+    if (!endRef) return 0
+    const real = calcularTiempoNetoProductivo(new Date(t.inicioReal), new Date(endRef), { horaRecuperacion: t.activaHoraRecuperacion })
+    return Math.max(0, Math.round(real - t.tiempoEstandarMin))
+  }
+
   const horas = Array.from({ length: H_FIN - H_INI }, (_, i) => H_INI + i)
   const innerStyle = escala === 'dia' ? { width: 200 + (H_FIN - H_INI) * PX_HORA[bloque] } : undefined
   const lblCol = agrupar === 'sector' ? 'Sector' : agrupar === 'maquina' ? 'Estación' : 'Colaborador'
@@ -355,6 +369,31 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
                         }),
                       ),
                   )}
+                  {/* v1.16: DEMORA SIN JUSTIFICAR (negra) en la cola de la barra:
+                      tiempo productivo por encima del estandar sin parada reportada. */}
+                  {(() => {
+                    const planDe = new Map(segs.map((s) => [s.tarea.id, s.plan]))
+                    const tareasU = [...new Map(segs.map((s) => [s.tarea.id, s.tarea])).values()]
+                    return tareasU.flatMap((t) => {
+                      const p = planDe.get(t.id)
+                      const dMin = demoraSinJustificarMin(t)
+                      if (!p || dMin <= 0) return []
+                      const blackEnd = new Date(p.endISO)
+                      const blackStart = new Date(blackEnd.getTime() - dMin * 60000)
+                      return segmentosPorDia(blackStart.toISOString(), p.endISO, dias).map((sg, j) => {
+                        const left = ((sg.idx + (sg.ini - H_INI * 60) / DAY_MIN) / N) * 100
+                        const width = Math.max(0.4, ((sg.fin - sg.ini) / DAY_MIN / N) * 100)
+                        return (
+                          <div
+                            key={`dsj-${t.id}-${j}`}
+                            className="gantt-demora-sj"
+                            style={{ left: `${left}%`, width: `${width}%` }}
+                            title={`Demora sin justificar · ${fmtDur(dMin)} por encima del estándar (sin parada reportada)`}
+                          />
+                        )
+                      })
+                    })
+                  })()}
                 </div>
               </div>
             )
@@ -375,7 +414,8 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
         <span><i style={{ background: 'var(--rojo)', width: 3 }} /> Ahora</span>
         <span><i style={{ background: 'repeating-linear-gradient(45deg,#64748b,#64748b 4px,transparent 4px,transparent 8px)' }} /> Sin producción</span>
         <span><i style={{ background: 'var(--estado-proceso)', boxShadow: 'inset 4px 0 0 0 var(--naranja)' }} /> Con hora de recuperación (+1h)</span>
-        <span><i style={{ background: 'repeating-linear-gradient(45deg,var(--rojo),var(--rojo) 3px,rgba(239,68,68,.35) 3px,rgba(239,68,68,.35) 6px)' }} /> Parada (no productivo)</span>
+        <span><i style={{ background: 'repeating-linear-gradient(45deg,var(--rojo),var(--rojo) 3px,rgba(239,68,68,.35) 3px,rgba(239,68,68,.35) 6px)' }} /> Parada / demora justificada</span>
+        <span><i style={{ background: '#000', boxShadow: 'inset 0 0 0 1px #f1f5f9' }} /> Demora SIN justificar (excede estándar)</span>
         <span><i style={{ background: 'var(--reparacion)' }} /> Reparación (no productivo)</span>
       </div>
     </div>
