@@ -470,7 +470,9 @@ function PanelAsignar({ soloReparacion = false }: { soloReparacion?: boolean }) 
               <h3>{t.tipo === 'reparacion' ? '🔧 ' : ''}{t.modelo}{t.nroTransformador ? ` · ${t.nroTransformador}` : ''}{t.tipo === 'reparacion' && <span className="estado-chip" style={{ background: 'var(--reparacion)', color: '#fff', marginLeft: 8 }}>Reparación</span>}</h3>
               <div className="meta">
                 {sectorById(t.sectorId).nombre} · {nombreOperario(t.operarioId)} · {nombreMaquina(t.maquinaId)} · Prioridad <strong>{t.prioridad}</strong> · Estandar <strong>{t.tiempoEstandarMin}m</strong>
-                {t.inicioPlanificado ? <> · Arranque <strong>{fechaCorta(t.inicioPlanificado)} {hhmm(t.inicioPlanificado)}</strong></> : null}
+                {t.inicioReal
+                  ? <> · Arranque real <strong>{fechaCorta(t.inicioReal)} {hhmm(t.inicioReal)}</strong></>
+                  : t.inicioPlanificado ? <> · Arranque plan. <strong>{fechaCorta(t.inicioPlanificado)} {hhmm(t.inicioPlanificado)}</strong></> : null}
                 {t.componenteCodigo ? <> · Semielaborado <strong>{componentePorCodigo(t.componenteCodigo)?.descripcion ?? t.componenteCodigo}</strong></> : null}
                 {t.activaHoraRecuperacion ? <> · <strong style={{ color: 'var(--naranja)' }}>Hora recup. ON</strong></> : null}
                 {t.duracionEfectivaMin != null ? <> · Neto <strong>{t.duracionEfectivaMin}m</strong></> : null}
