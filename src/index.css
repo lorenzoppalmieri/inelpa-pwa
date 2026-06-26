@@ -376,6 +376,16 @@ button { font-family: inherit; cursor: pointer; border: none; }
 .legend i.andon-verde3  { background: #15803d; }
 .legend i.andon-violeta { background: #a855f7; }
 
+/* ---------- Panel de Carga actual (Asignar tareas) ---------- */
+.carga-panel { margin-top: 14px; padding: 12px 14px; background: var(--panel-2);
+  border: 1px solid var(--borde); border-left: 5px solid var(--azul-claro); border-radius: 0 10px 10px 0; }
+.carga-tit { font-weight: 800; font-size: .95rem; margin-bottom: 10px; }
+.carga-cols { display: flex; flex-wrap: wrap; gap: 18px; }
+.carga-col { flex: 1; min-width: 220px; }
+.carga-sub { font-weight: 700; font-size: .9rem; margin-bottom: 6px; padding-bottom: 5px; border-bottom: 1px solid var(--borde); }
+.carga-row { font-size: .86rem; padding: 3px 0; display: flex; gap: 8px; align-items: baseline; }
+.carga-n { font-weight: 900; color: var(--azul-claro); min-width: 28px; }
+
 /* ---------- Títulos de grupo (listado de tareas agrupado) ---------- */
 .grupo-tit { font-weight: 800; font-size: .95rem; margin: 4px 0 8px; padding: 7px 12px;
   background: var(--panel-2); border-left: 5px solid var(--azul-claro); border-radius: 0 8px 8px 0; }

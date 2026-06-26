@@ -130,15 +130,23 @@ export default function OperarioView() {
         <button className="btn" onClick={cambiar}>Cambiar estación</button>
       </div>
 
-      {/* v1.16: el operario marca si HOY se queda a recuperar (16-17 / 15-16). */}
-      <button
-        className={'btn btn-bloque' + (recupHoy ? ' btn-primary' : '')}
-        style={{ justifyContent: 'space-between', marginBottom: 12 }}
-        onClick={toggleRecupHoy}
-      >
-        <span>⏱ Hoy me quedo a recuperar (hasta las 17:00)</span>
-        <span className="rol-badge">{recupHoy ? 'SÍ' : 'NO'}</span>
-      </button>
+      {/* v1.16: el operario marca si HOY se queda a recuperar. La franja depende
+          del dia: Lun-Jue 16:00-17:00, Vie 15:00-16:00 (lo resuelve el calendario). */}
+      {(() => {
+        const esViernes = new Date().getDay() === 5
+        const finRecup = esViernes ? '16:00' : '17:00'
+        const banda = esViernes ? '15:00–16:00' : '16:00–17:00'
+        return (
+          <button
+            className={'btn btn-bloque' + (recupHoy ? ' btn-primary' : '')}
+            style={{ justifyContent: 'space-between', marginBottom: 12 }}
+            onClick={toggleRecupHoy}
+          >
+            <span>⏱ Hoy me quedo a recuperar (hasta las {finRecup} · {banda})</span>
+            <span className="rol-badge">{recupHoy ? 'SÍ' : 'NO'}</span>
+          </button>
+        )
+      })()}
 
       <div className="tabs">
         {FILTROS.map((f) => (

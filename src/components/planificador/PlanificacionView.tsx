@@ -15,6 +15,26 @@ import { isoWeek, fechaCorta, hhmm } from '../../lib/time'
 import { tiempoNetoMin } from '../../lib/kpi'
 import EditarTarea from './EditarTarea'
 
+// v1.16: resumen de "Carga actual" (tareas asignadas + pendientes, SIN finalizar)
+// de un colaborador o maquina, agrupado por modelo + fase (F1/F2/F3 del
+// semielaborado). Ayuda al planificador a ver el "juego de fases" ya cargado.
+function faseDeTarea(t: Tarea): string {
+  const d = componentePorCodigo(t.componenteCodigo)?.descripcion ?? ''
+  const m = d.match(/\bF\d\b/)
+  return m ? m[0] : ''
+}
+function resumenCarga(tareas: Tarea[], pred: (t: Tarea) => boolean): { total: number; grupos: { label: string; n: number }[] } {
+  const fil = tareas.filter((t) => pred(t) && t.estado !== 'finalizada')
+  const m = new Map<string, number>()
+  for (const t of fil) {
+    const fase = faseDeTarea(t)
+    const key = `${t.modelo}${fase ? ' ' + fase : ''}`
+    m.set(key, (m.get(key) ?? 0) + 1)
+  }
+  const grupos = [...m.entries()].map(([label, n]) => ({ label, n })).sort((a, b) => b.n - a.n || a.label.localeCompare(b.label))
+  return { total: fil.length, grupos }
+}
+
 // ============================================================
 // Vista Planificacion (solo planificador / gerencia).
 // 1. Crear Ordenes de Fabricacion.
@@ -285,6 +305,10 @@ function PanelAsignar({ soloReparacion = false }: { soloReparacion?: boolean }) 
     : (!ordenId || !maquinaId || (operariosDelSector.length > 0 && !operarioId)
         || (sectorTieneSemi && !componenteCodigo) || !fechaPlan || !horaPlan)
 
+  // v1.16: carga actual (en vivo) del colaborador y la maquina seleccionados.
+  const cargaOperario = useMemo(() => operarioId ? resumenCarga(todasTareas, (t) => t.operarioId === operarioId) : null, [todasTareas, operarioId])
+  const cargaMaquina = useMemo(() => maquinaId ? resumenCarga(todasTareas, (t) => t.maquinaId === maquinaId) : null, [todasTareas, maquinaId])
+
   // Al cambiar de sector se reinician estacion, colaborador y semielaborado.
   function cambiarSector(s: SectorId) { setSectorId(s); setMaquinaId(''); setOperarioId(''); setComponenteCodigo('') }
   function cambiarOrden(id: string) { setOrdenId(id); setComponenteCodigo('') }
@@ -528,6 +552,31 @@ function PanelAsignar({ soloReparacion = false }: { soloReparacion?: boolean }) 
         <button className="btn btn-primary btn-bloque" onClick={asignar} disabled={faltanCampos}>＋ Asignar {tipo === 'reparacion' ? 'reparación' : 'tarea'}</button>
         {faltanCampos && <div className="meta" style={{ marginTop: 8 }}>Completá todos los campos obligatorios para poder asignar{sectorTieneSemi && !componenteCodigo ? ' (falta el semielaborado)' : ''}.</div>}
         {msg && <div className="meta" style={{ marginTop: 10 }}>{msg}</div>}
+
+        {/* v1.16: panel de carga actual (reacciona al colaborador/maquina elegidos). */}
+        {(cargaOperario || cargaMaquina) && (
+          <div className="carga-panel">
+            <div className="carga-tit">📊 Carga actual <span className="meta">(asignado + pendiente, sin finalizar)</span></div>
+            <div className="carga-cols">
+              {cargaOperario && (
+                <div className="carga-col">
+                  <div className="carga-sub">👤 {nombreOperario(operarioId)} · <strong>{cargaOperario.total}</strong> tarea(s)</div>
+                  {cargaOperario.grupos.length === 0
+                    ? <div className="meta">Sin tareas pendientes.</div>
+                    : cargaOperario.grupos.map((g) => <div key={g.label} className="carga-row"><span className="carga-n">{g.n}×</span> {g.label}</div>)}
+                </div>
+              )}
+              {cargaMaquina && (
+                <div className="carga-col">
+                  <div className="carga-sub">🛠 {nombreMaquina(maquinaId)} · <strong>{cargaMaquina.total}</strong> tarea(s)</div>
+                  {cargaMaquina.grupos.length === 0
+                    ? <div className="meta">Sin tareas pendientes.</div>
+                    : cargaMaquina.grupos.map((g) => <div key={g.label} className="carga-row"><span className="carga-n">{g.n}×</span> {g.label}</div>)}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="section-title">Tareas de la semana ({visibles.length}{visibles.length !== tareasOrdenadas.length ? ` de ${tareasOrdenadas.length}` : ''})</div>
