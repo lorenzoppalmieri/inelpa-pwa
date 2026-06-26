@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
 import type { Tarea, Parada } from '../../types'
 import { sectorById, causaLabel, esCausaLogistica } from '../../types'
+import { componentePorCodigo } from '../../data/catalogo'
 import { fmtDur, minutosEntre } from '../../lib/time'
 
 // ============================================================
@@ -39,14 +40,23 @@ export default function AlertaMaterial({ compacto = false }: { compacto?: boolea
     <div className="logi-alert" style={compacto ? { marginBottom: 14 } : undefined}>
       <div className="logi-alert-head">⚠ {alertas.length} sector(es) esperando material — avisar a logística</div>
       <div className="logi-alert-list">
-        {alertas.map(({ t, p }) => (
-          <div className="logi-alert-item" key={t.id}>
-            <div className="logi-alert-maq">{nombreMaquina(t.maquinaId)}</div>
-            <div className="logi-alert-sec">{sectorById(t.sectorId).nombre}</div>
-            <div className="logi-alert-causa">{causaLabel(p.causa)}</div>
-            <div className="logi-alert-time">hace {fmtDur(minutosEntre(p.inicio, ahoraISO))}</div>
-          </div>
-        ))}
+        {alertas.map(({ t, p }) => {
+          const comp = componentePorCodigo(t.componenteCodigo)
+          const queMaterial = comp ? comp.descripcion : (t.componenteCodigo || null)
+          const transf = t.nroTransformador ? `TR ${t.nroTransformador}` : t.modelo
+          return (
+            <div className="logi-alert-item" key={t.id}>
+              <div className="logi-alert-maq">{nombreMaquina(t.maquinaId)}</div>
+              <div className="logi-alert-sec">{sectorById(t.sectorId).nombre}</div>
+              <div className="logi-alert-causa">{causaLabel(p.causa)}</div>
+              <div className="logi-alert-time">hace {fmtDur(minutosEntre(p.inicio, ahoraISO))}</div>
+              <div className="logi-alert-det">
+                📦 <strong>{queMaterial ?? 'Material sin especificar'}</strong>
+                {transf ? <> · {transf}</> : null}
+              </div>
+            </div>
+          )
+        })}
       </div>
     </div>
   )

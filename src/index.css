@@ -287,6 +287,8 @@ button { font-family: inherit; cursor: pointer; border: none; }
 .logi-alert-sec { color: var(--texto-tenue); min-width: 180px; }
 .logi-alert-causa { flex: 1; min-width: 180px; color: #fca5a5; font-weight: 700; }
 .logi-alert-time { font-variant-numeric: tabular-nums; font-weight: 800; color: #fecaca; }
+.logi-alert-det { flex-basis: 100%; font-size: .9rem; color: #fde68a; padding-left: 2px; }
+.logi-alert-det strong { color: #fff; }
 
 /* ---------- Logistica: cola interactiva de pedidos de material ---------- */
 .cola-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
