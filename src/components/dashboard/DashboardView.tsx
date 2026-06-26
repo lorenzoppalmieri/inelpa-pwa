@@ -17,14 +17,21 @@ import PlanificacionView from '../planificador/PlanificacionView'
 
 // Periodo de analisis del Dashboard de KPIs (v1.4). No borra datos: solo acota
 // el rango de fechas que se procesa.
-export type Periodo = 'mes_actual' | 'mes_anterior' | 'anual'
+export type Periodo = 'dia' | 'mes_actual' | 'mes_anterior' | 'anual'
 const PERIODOS: { id: Periodo; label: string }[] = [
+  { id: 'dia', label: 'Día específico' },
   { id: 'mes_actual', label: 'Mes actual' },
   { id: 'mes_anterior', label: 'Mes anterior' },
   { id: 'anual', label: 'Acumulado anual' },
 ]
-function rangoPeriodo(periodo: Periodo, now: Date): { desde: string; hasta: string } {
+// Rango de fechas del periodo. Para 'dia' usa la fecha elegida (yyyy-mm-dd local).
+function rangoPeriodo(periodo: Periodo, now: Date, diaISO?: string): { desde: string; hasta: string } {
   const y = now.getFullYear(), m = now.getMonth()
+  if (periodo === 'dia' && diaISO) {
+    const d = new Date(`${diaISO}T00:00:00`)
+    const fin = new Date(d); fin.setDate(fin.getDate() + 1)
+    return { desde: d.toISOString(), hasta: fin.toISOString() }
+  }
   if (periodo === 'anual') {
     return { desde: new Date(y, 0, 1).toISOString(), hasta: new Date(y + 1, 0, 1).toISOString() }
   }
@@ -41,6 +48,10 @@ export default function DashboardView() {
   const [sectorFiltro, setSectorFiltro] = useState<'todos' | SectorId>('todos')
   const [agrupar, setAgrupar] = useState<'sector' | 'operario' | 'maquina'>('sector')
   const [periodo, setPeriodo] = useState<Periodo>('mes_actual')
+  // v1.16: filtros extra de la pestaña KPIs (maquina, colaborador, dia puntual).
+  const [kpiMaquina, setKpiMaquina] = useState<'todas' | string>('todas')
+  const [kpiOperario, setKpiOperario] = useState<'todos' | string>('todos')
+  const [kpiFecha, setKpiFecha] = useState<string>(() => new Date().toLocaleDateString('en-CA'))
   const semana = isoWeek(new Date())
 
   // Alcance por rol: planificador ve todo; encargado solo sus sectores.
@@ -108,11 +119,15 @@ export default function DashboardView() {
   // (anterior o posterior a la semana activa).
   const filtradas = useMemo(() => (todasTareas ?? []).filter(pasaFiltros), [todasTareas, pasaFiltros])
 
-  // KPIs: tareas del periodo elegido (mes actual / anterior / acumulado anual).
+  // KPIs: tareas del periodo elegido (dia / mes actual / anterior / anual) +
+  // filtros extra por maquina y colaborador (para analisis y toma de decisiones).
   const kpiFiltradas = useMemo(() => {
-    const { desde, hasta } = rangoPeriodo(periodo, new Date())
-    return filtrarPorRango((todasTareas ?? []).filter(pasaFiltros), desde, hasta)
-  }, [todasTareas, pasaFiltros, periodo])
+    let base = (todasTareas ?? []).filter(pasaFiltros)
+    if (kpiMaquina !== 'todas') base = base.filter((t) => t.maquinaId === kpiMaquina)
+    if (kpiOperario !== 'todos') base = base.filter((t) => t.operarioId === kpiOperario)
+    const { desde, hasta } = rangoPeriodo(periodo, new Date(), kpiFecha)
+    return filtrarPorRango(base, desde, hasta)
+  }, [todasTareas, pasaFiltros, periodo, kpiMaquina, kpiOperario, kpiFecha])
 
   if (!tareas || !usuarios) return <div className="meta">Cargando dashboard...</div>
 
@@ -153,6 +168,9 @@ export default function DashboardView() {
             sectorFiltro={sectorFiltro} setSectorFiltro={setSectorFiltro}
             agrupar={agrupar} setAgrupar={setAgrupar}
             periodo={periodo} setPeriodo={setPeriodo}
+            kpiMaquina={kpiMaquina} setKpiMaquina={setKpiMaquina}
+            kpiOperario={kpiOperario} setKpiOperario={setKpiOperario}
+            kpiFecha={kpiFecha} setKpiFecha={setKpiFecha}
             sectoresVisibles={sectoresVisibles}
             filtradas={filtradas} kpiFiltradas={kpiFiltradas}
             maquinasVisibles={maquinasVisibles} operariosVisibles={operariosVisibles}
@@ -174,6 +192,12 @@ function DashboardCuerpo(props: {
   setAgrupar: (v: 'sector' | 'operario' | 'maquina') => void
   periodo: Periodo
   setPeriodo: (v: Periodo) => void
+  kpiMaquina: 'todas' | string
+  setKpiMaquina: (v: 'todas' | string) => void
+  kpiOperario: 'todos' | string
+  setKpiOperario: (v: 'todos' | string) => void
+  kpiFecha: string
+  setKpiFecha: (v: string) => void
   sectoresVisibles: typeof SECTORES
   filtradas: Tarea[]
   kpiFiltradas: Tarea[]
@@ -184,7 +208,7 @@ function DashboardCuerpo(props: {
   materialTarea: (t: Tarea) => string
   puedeMoverProduccion: boolean
 }) {
-  const { vista, linea, setLinea, sectorFiltro, setSectorFiltro, agrupar, setAgrupar, periodo, setPeriodo, sectoresVisibles, filtradas, kpiFiltradas, maquinasVisibles, operariosVisibles, nombreOperario, nombreMaquina, materialTarea, puedeMoverProduccion } = props
+  const { vista, linea, setLinea, sectorFiltro, setSectorFiltro, agrupar, setAgrupar, periodo, setPeriodo, kpiMaquina, setKpiMaquina, kpiOperario, setKpiOperario, kpiFecha, setKpiFecha, sectoresVisibles, filtradas, kpiFiltradas, maquinasVisibles, operariosVisibles, nombreOperario, nombreMaquina, materialTarea, puedeMoverProduccion } = props
 
   const periodoLabel = PERIODOS.find((p) => p.id === periodo)?.label ?? ''
   const puedeKpi = hayDatosKpi(kpiFiltradas)
@@ -210,9 +234,22 @@ function DashboardCuerpo(props: {
           </select>
         )}
         {vista === 'kpis' && (
-          <select className="select" value={periodo} onChange={(e) => setPeriodo(e.target.value as Periodo)}>
-            {PERIODOS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
-          </select>
+          <>
+            <select className="select" value={kpiMaquina} onChange={(e) => setKpiMaquina(e.target.value)}>
+              <option value="todas">Todas las estaciones</option>
+              {maquinasVisibles.map((m) => <option key={m.id} value={m.id}>{m.nombre}</option>)}
+            </select>
+            <select className="select" value={kpiOperario} onChange={(e) => setKpiOperario(e.target.value)}>
+              <option value="todos">Todos los colaboradores</option>
+              {operariosVisibles.map((o) => <option key={o.id} value={o.id}>{o.nombre}</option>)}
+            </select>
+            <select className="select" value={periodo} onChange={(e) => setPeriodo(e.target.value as Periodo)}>
+              {PERIODOS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+            </select>
+            {periodo === 'dia' && (
+              <input type="date" className="select" value={kpiFecha} onChange={(e) => e.target.value && setKpiFecha(e.target.value)} title="Día a analizar" />
+            )}
+          </>
         )}
       </div>
 

@@ -1,6 +1,8 @@
 import type { Tarea, EstadoTarea } from '../types'
-import { sectorById } from '../types'
-import { calcularOEE } from './kpi'
+import { sectorById, esReparacion } from '../types'
+import {
+  calcularOEE, tiempoEstimadoMin, tiempoRealMin, totalDemoradoMin, tiempoNetoMin, demoraSinJustificarMin,
+} from './kpi'
 import { programar } from './programacion'
 import { componentePorCodigo } from '../data/catalogo'
 import { fmtDur } from './time'
@@ -100,6 +102,46 @@ export function exportarKpisCSV(
   filas.push(['TOTAL PLANTA', p1(g.disponibilidad), p1(g.rendimiento), p1(g.calidad), p1(g.oee), fin.length])
 
   descargarCSV(`OEE_${slug(periodoLabel)}_${sello()}.csv`, filas)
+  return true
+}
+
+// ---------- 1b) Detalle por tarea (metricas exactas de eficiencia) ----------
+// Exporta las tareas finalizadas (no reparacion) con las 5 metricas canonicas
+// en minutos (numero) para que el planificador pueda sumar/analizar en Excel.
+export function exportarDetalleTareasCSV(
+  tareas: Tarea[],
+  nombreOperario: (id: string) => string,
+  nombreMaquina: (id: string) => string,
+  etiqueta = 'detalle',
+): boolean {
+  const fin = tareas.filter((t) => t.estado === 'finalizada' && !esReparacion(t))
+  if (fin.length === 0) return false
+
+  const filas: Celda[][] = []
+  filas.push(['Detalle por tarea (eficiencia) - INELPA'])
+  filas.push(['Filtro', etiqueta])
+  filas.push(['Generado', new Date().toLocaleString('es-AR')])
+  filas.push(['Tareas finalizadas', fin.length])
+  filas.push([])
+  filas.push(['Tarea (semielaborado)', 'Modelo', 'N transformador', 'Colaborador', 'Estacion', 'Sector',
+    'Estimado (min)', 'Real (min)', 'Demorado (min)', 'Neto (min)', 'Demora sin justificar (min)'])
+  for (const t of fin) {
+    const comp = componentePorCodigo(t.componenteCodigo)
+    filas.push([
+      comp ? comp.descripcion : t.modelo,
+      t.modelo,
+      t.nroTransformador ?? '',
+      t.operarioId ? nombreOperario(t.operarioId) : '-',
+      nombreMaquina(t.maquinaId),
+      sectorById(t.sectorId).nombre,
+      Math.round(tiempoEstimadoMin(t)),
+      Math.round(tiempoRealMin(t)),
+      Math.round(totalDemoradoMin(t)),
+      Math.round(tiempoNetoMin(t)),
+      Math.round(demoraSinJustificarMin(t)),
+    ])
+  }
+  descargarCSV(`Detalle_tareas_${slug(etiqueta)}_${sello()}.csv`, filas)
   return true
 }
 

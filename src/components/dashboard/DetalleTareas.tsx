@@ -6,6 +6,7 @@ import { fmtDur } from '../../lib/time'
 import {
   tiempoEstimadoMin, tiempoRealMin, totalDemoradoMin, tiempoNetoMin, demoraSinJustificarMin,
 } from '../../lib/kpi'
+import { exportarDetalleTareasCSV } from '../../lib/export'
 
 // ============================================================
 // DETALLE POR TAREA (v1.16) — tabla filtrable de tareas finalizadas con las
@@ -27,6 +28,7 @@ export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina }:
       const comp = componentePorCodigo(t.componenteCodigo)
       const nombre = comp ? comp.descripcion : t.modelo
       return {
+        t,
         id: t.id,
         nombre,
         nro: t.nroTransformador ?? '',
@@ -52,6 +54,12 @@ export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina }:
           <input type="checkbox" checked={soloDemora} onChange={(e) => setSoloDemora(e.target.checked)} />
           Solo con demora sin justificar
         </label>
+        <button
+          className="btn btn-primary"
+          disabled={filas.length === 0}
+          title={filas.length === 0 ? 'No hay tareas para exportar' : 'Descargar la tabla filtrada en Excel (CSV)'}
+          onClick={() => exportarDetalleTareasCSV(filas.map((r) => r.t), nombreOperario, nombreMaquina, 'detalle')}
+        >⬇ Exportar (Excel)</button>
       </div>
 
       {filas.length === 0 ? <div className="empty">Sin tareas finalizadas en la selección.</div> : (
