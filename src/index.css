@@ -374,6 +374,11 @@ button { font-family: inherit; cursor: pointer; border: none; }
 .legend i.andon-verde3  { background: #15803d; }
 .legend i.andon-violeta { background: #a855f7; }
 
+/* ---------- Títulos de grupo (listado de tareas agrupado) ---------- */
+.grupo-tit { font-weight: 800; font-size: .95rem; margin: 4px 0 8px; padding: 7px 12px;
+  background: var(--panel-2); border-left: 5px solid var(--azul-claro); border-radius: 0 8px 8px 0; }
+.grupo-n { font-weight: 600; color: var(--texto-tenue); font-size: .82rem; margin-left: 6px; }
+
 /* ---------- Tabla de detalle por tarea (metricas exactas) ---------- */
 .tabla-detalle { width: 100%; border-collapse: collapse; font-size: .82rem; }
 .tabla-detalle th, .tabla-detalle td { padding: 7px 10px; border-bottom: 1px solid var(--borde); text-align: left; white-space: nowrap; }

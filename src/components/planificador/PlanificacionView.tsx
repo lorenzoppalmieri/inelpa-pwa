@@ -230,6 +230,10 @@ function PanelAsignar({ soloReparacion = false }: { soloReparacion?: boolean }) 
   const [tipo, setTipo] = useState<TipoTarea>(soloReparacion ? 'reparacion' : 'fabricacion')
   const [descripcion, setDescripcion] = useState('') // texto libre para reparaciones
   const [editar, setEditar] = useState<Tarea | null>(null) // v1.16: tarea en edicion
+  // v1.16: toolbar del listado de tareas (filtros + agrupacion para legibilidad).
+  const [filtroSector, setFiltroSector] = useState<'todos' | SectorId>('todos')
+  const [agruparPor, setAgruparPor] = useState<'sector' | 'maquina' | 'operario'>('sector')
+  const [filtroFecha, setFiltroFecha] = useState('')
   const [msg, setMsg] = useState('')
 
   const nombreMaquina = useMemo(() => {
@@ -361,6 +365,69 @@ function PanelAsignar({ soloReparacion = false }: { soloReparacion?: boolean }) 
     [tareas],
   )
 
+  // v1.16: tareas visibles segun filtro de sector + fecha de arranque.
+  const visibles = useMemo(() => tareasOrdenadas.filter((t) => {
+    if (filtroSector !== 'todos' && t.sectorId !== filtroSector) return false
+    if (filtroFecha) {
+      const ref = t.inicioPlanificado
+      if (!ref || new Date(ref).toLocaleDateString('en-CA') !== filtroFecha) return false
+    }
+    return true
+  }), [tareasOrdenadas, filtroSector, filtroFecha])
+
+  // v1.16: agrupacion dinamica (sector / estacion / colaborador) para legibilidad.
+  const grupos = useMemo(() => {
+    const m = new Map<string, { label: string; items: Tarea[] }>()
+    for (const t of visibles) {
+      let key: string, label: string
+      if (agruparPor === 'maquina') { key = t.maquinaId; label = nombreMaquina(t.maquinaId) }
+      else if (agruparPor === 'operario') { key = t.operarioId ?? '__sin__'; label = t.operarioId ? nombreOperario(t.operarioId) : 'Sin asignar' }
+      else { key = t.sectorId; label = sectorById(t.sectorId).nombre }
+      const g = m.get(key) ?? { label, items: [] }
+      g.items.push(t); m.set(key, g)
+    }
+    return [...m.values()].sort((a, b) => a.label.localeCompare(b.label))
+  }, [visibles, agruparPor, nombreMaquina, nombreOperario])
+
+  // Tarjeta de una tarea (extraida para reusar dentro de los grupos).
+  const renderTarea = (t: Tarea) => (
+    <div className="card" key={t.id}>
+      <div className="card-header">
+        <div>
+          <h3>{t.tipo === 'reparacion' ? '🔧 ' : ''}{t.modelo}{t.nroTransformador ? ` · ${t.nroTransformador}` : ''}{t.tipo === 'reparacion' && <span className="estado-chip" style={{ background: 'var(--reparacion)', color: '#fff', marginLeft: 8 }}>Reparación</span>}</h3>
+          <div className="meta">
+            {sectorById(t.sectorId).nombre} · {nombreOperario(t.operarioId)} · {nombreMaquina(t.maquinaId)} · Prioridad <strong>{t.prioridad}</strong> · Estandar <strong>{t.tiempoEstandarMin}m</strong>
+            {t.inicioReal
+              ? <> · Arranque real <strong>{fechaCorta(t.inicioReal)} {hhmm(t.inicioReal)}</strong></>
+              : t.inicioPlanificado ? <> · Arranque plan. <strong>{fechaCorta(t.inicioPlanificado)} {hhmm(t.inicioPlanificado)}</strong></> : null}
+            {t.componenteCodigo ? <> · Semielaborado <strong>{componentePorCodigo(t.componenteCodigo)?.descripcion ?? t.componenteCodigo}</strong></> : null}
+            {t.activaHoraRecuperacion ? <> · <strong style={{ color: 'var(--naranja)' }}>Hora recup. ON</strong></> : null}
+            {t.estado === 'finalizada' ? <> · Neto <strong>{tiempoNetoMin(t)}m</strong></> : null}
+          </div>
+        </div>
+        <span className={'estado-chip e-' + (t.estado === 'en_proceso' ? 'proceso' : t.estado === 'pausada' ? 'pausa' : t.estado === 'finalizada' ? 'finalizado' : 'pendiente')}>
+          {t.estado}
+        </span>
+      </div>
+      {(!soloReparacion || t.tipo === 'reparacion') && (
+        <div className="row-actions">
+          {t.estado !== 'finalizada' && (
+            <button className="btn" style={{ flex: 1 }} onClick={() => toggleRecup(t)}>
+              {t.activaHoraRecuperacion ? '⏱ Quitar hora recup.' : '⏱ Habilitar hora recup.'}
+            </button>
+          )}
+          {t.estado !== 'finalizada' && (
+            <button className="btn" style={{ flex: 1 }} onClick={() => setEditar(t)}>✏️ Editar</button>
+          )}
+          {t.estado === 'finalizada' && (
+            <button className="btn" style={{ flex: 1 }} onClick={() => reabrir(t)}>↩ Reabrir</button>
+          )}
+          <button className="btn btn-rojo" style={{ flex: 1 }} onClick={() => borrar(t)}>🗑 Eliminar</button>
+        </div>
+      )}
+    </div>
+  )
+
   return (
     <>
       <div className="card">
@@ -463,50 +530,31 @@ function PanelAsignar({ soloReparacion = false }: { soloReparacion?: boolean }) 
         {msg && <div className="meta" style={{ marginTop: 10 }}>{msg}</div>}
       </div>
 
-      <div className="section-title">Tareas de la semana ({tareasOrdenadas.length})</div>
-      {tareasOrdenadas.map((t) => (
-        <div className="card" key={t.id}>
-          <div className="card-header">
-            <div>
-              <h3>{t.tipo === 'reparacion' ? '🔧 ' : ''}{t.modelo}{t.nroTransformador ? ` · ${t.nroTransformador}` : ''}{t.tipo === 'reparacion' && <span className="estado-chip" style={{ background: 'var(--reparacion)', color: '#fff', marginLeft: 8 }}>Reparación</span>}</h3>
-              <div className="meta">
-                {sectorById(t.sectorId).nombre} · {nombreOperario(t.operarioId)} · {nombreMaquina(t.maquinaId)} · Prioridad <strong>{t.prioridad}</strong> · Estandar <strong>{t.tiempoEstandarMin}m</strong>
-                {t.inicioReal
-                  ? <> · Arranque real <strong>{fechaCorta(t.inicioReal)} {hhmm(t.inicioReal)}</strong></>
-                  : t.inicioPlanificado ? <> · Arranque plan. <strong>{fechaCorta(t.inicioPlanificado)} {hhmm(t.inicioPlanificado)}</strong></> : null}
-                {t.componenteCodigo ? <> · Semielaborado <strong>{componentePorCodigo(t.componenteCodigo)?.descripcion ?? t.componenteCodigo}</strong></> : null}
-                {t.activaHoraRecuperacion ? <> · <strong style={{ color: 'var(--naranja)' }}>Hora recup. ON</strong></> : null}
-                {t.estado === 'finalizada' ? <> · Neto <strong>{tiempoNetoMin(t)}m</strong></> : null}
-              </div>
+      <div className="section-title">Tareas de la semana ({visibles.length}{visibles.length !== tareasOrdenadas.length ? ` de ${tareasOrdenadas.length}` : ''})</div>
+
+      {/* v1.16: toolbar de filtrado/agrupacion del listado. */}
+      <div className="filtros" style={{ marginBottom: 12 }}>
+        <select className="select" value={filtroSector} onChange={(e) => setFiltroSector(e.target.value as 'todos' | SectorId)}>
+          <option value="todos">Todos los sectores</option>
+          {SECTORES.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+        </select>
+        <select className="select" value={agruparPor} onChange={(e) => setAgruparPor(e.target.value as 'sector' | 'maquina' | 'operario')}>
+          <option value="sector">Agrupar por sector</option>
+          <option value="maquina">Agrupar por estación</option>
+          <option value="operario">Agrupar por colaborador</option>
+        </select>
+        <input type="date" className="select" value={filtroFecha} onChange={(e) => setFiltroFecha(e.target.value)} title="Filtrar por día de arranque" />
+        {filtroFecha && <button className="btn" onClick={() => setFiltroFecha('')}>✕ Todas las de la semana</button>}
+      </div>
+
+      {visibles.length === 0
+        ? <div className="empty">{tareasOrdenadas.length === 0 ? 'Aun no hay tareas asignadas esta semana.' : 'No hay tareas para el filtro seleccionado.'}</div>
+        : grupos.map((g) => (
+            <div key={g.label} style={{ marginBottom: 14 }}>
+              <div className="grupo-tit">{g.label} <span className="grupo-n">{g.items.length} tarea(s)</span></div>
+              {g.items.map((t) => renderTarea(t))}
             </div>
-            <span className={'estado-chip e-' + (t.estado === 'en_proceso' ? 'proceso' : t.estado === 'pausada' ? 'pausa' : t.estado === 'finalizada' ? 'finalizado' : 'pendiente')}>
-              {t.estado}
-            </span>
-          </div>
-          {/* v1.9: el encargado solo edita/borra sus reparaciones, no produccion. */}
-          {(!soloReparacion || t.tipo === 'reparacion') && (
-            <div className="row-actions">
-              {/* v1.6: boton rapido para alternar la hora de recuperacion (mientras no este finalizada). */}
-              {t.estado !== 'finalizada' && (
-                <button className="btn" style={{ flex: 1 }} onClick={() => toggleRecup(t)}>
-                  {t.activaHoraRecuperacion ? '⏱ Quitar hora recup.' : '⏱ Habilitar hora recup.'}
-                </button>
-              )}
-              {/* v1.16: editar la tarea antes o durante la produccion (no finalizada). */}
-              {t.estado !== 'finalizada' && (
-                <button className="btn" style={{ flex: 1 }} onClick={() => setEditar(t)}>✏️ Editar</button>
-              )}
-              {/* v1.16: revertir una finalizacion por error (no pierde la tarea). */}
-              {t.estado === 'finalizada' && (
-                <button className="btn" style={{ flex: 1 }} onClick={() => reabrir(t)}>↩ Reabrir</button>
-              )}
-              {/* v1.16: el planificador puede eliminar en cualquier estado. */}
-              <button className="btn btn-rojo" style={{ flex: 1 }} onClick={() => borrar(t)}>🗑 Eliminar</button>
-            </div>
-          )}
-        </div>
-      ))}
-      {tareasOrdenadas.length === 0 && <div className="empty">Aun no hay tareas asignadas esta semana.</div>}
+          ))}
 
       {editar && (
         <EditarTarea
