@@ -25,6 +25,20 @@ export const GRUPO_ALMUERZO_DEFAULT: GrupoAlmuerzo = 'A'
 const APERTURA_MIN = 7 * 60       // 07:00
 const LIMPIEZA_MIN = 15           // ultimos 15 min sin produccion
 
+// ============================================================
+// FERIADOS / dias no laborables (v1.17). Set de fechas 'YYYY-MM-DD' que el
+// planificador carga; el calendario las trata como dia cerrado (planta sin
+// produccion, igual que un domingo). Se carga al iniciar y se actualiza cuando
+// cambian (ver syncEngine / Dexie). Es un set en memoria para no plumar el
+// parametro por todas las funciones del calendario.
+// ============================================================
+let FERIADOS: Set<string> = new Set()
+export function setFeriados(fechas: string[]): void { FERIADOS = new Set(fechas) }
+function fechaLocalISO(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+export function esFeriado(d: Date): boolean { return FERIADOS.has(fechaLocalISO(d)) }
+
 // Franja de 30 min de almuerzo segun el grupo (dentro de 12:00-13:00).
 export function tramoAlmuerzo(grupo: GrupoAlmuerzo): Tramo {
   return grupo === 'B'
@@ -79,6 +93,7 @@ export function tramosLaborables(
   conRecuperacion = true,
   sinAlmuerzo = false,
 ): Tramo[] {
+  if (esFeriado(fecha)) return [] // v1.17: feriado -> planta cerrada todo el dia
   const normal = cierreNormalMin(fecha.getDay())
   const recup = cierreRecupMin(fecha.getDay())
   if (normal == null || recup == null) return []

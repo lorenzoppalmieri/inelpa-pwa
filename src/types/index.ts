@@ -404,10 +404,19 @@ export interface SolicitudLogistica {
   actualizado: string
 }
 
+// v1.17: feriado / dia no laborable de planta (lo carga el planificador).
+// El motor de calendario trata estas fechas como dia cerrado (igual que domingo).
+export interface Feriado {
+  id: string            // = fecha 'YYYY-MM-DD' (un feriado por dia)
+  fecha: string         // 'YYYY-MM-DD' (dia completo, toda la planta)
+  descripcion?: string  // ej. "Dia del Trabajador"
+  actualizado: string
+}
+
 // Cola de sincronizacion: cada cambio offline se encola y se empuja al backend.
 export interface SyncOp {
   id: string
-  entidad: 'tarea' | 'parada' | 'orden' | 'semielaborado' | 'objetivo' | 'tarea_logistica' | 'solicitud_logistica'
+  entidad: 'tarea' | 'parada' | 'orden' | 'semielaborado' | 'objetivo' | 'tarea_logistica' | 'solicitud_logistica' | 'feriado'
   entidadId: string
   tipo: 'upsert' | 'delete'
   payload: unknown

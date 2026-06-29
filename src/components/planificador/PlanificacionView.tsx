@@ -6,10 +6,10 @@ import {
   MATERIALES, lineaDesdeModelo, materialLabel, CATEGORIA_COMPONENTE_LABEL,
   operariosParaSector, esSectorHerreria, maquinaSirveSector,
   type MaterialBobina, type SectorId, type OrdenProduccion, type Tarea,
-  type Semielaborado, type EstadoSemielaborado, type TipoTarea,
+  type Semielaborado, type EstadoSemielaborado, type TipoTarea, type Feriado,
 } from '../../types'
 import { MODELOS_CATALOGO, modeloPorNombre, componentesDeModelo, componentePorCodigo } from '../../data/catalogo'
-import { guardarOrden, guardarTarea, guardarSemielaborado, eliminarTarea, eliminarOrden } from '../../sync/syncEngine'
+import { guardarOrden, guardarTarea, guardarSemielaborado, eliminarTarea, eliminarOrden, guardarFeriado, eliminarFeriado } from '../../sync/syncEngine'
 import { useAuth } from '../../auth/AuthContext'
 import { isoWeek, fechaCorta, hhmm } from '../../lib/time'
 import { tiempoNetoMin } from '../../lib/kpi'
@@ -43,7 +43,7 @@ function resumenCarga(tareas: Tarea[], pred: (t: Tarea) => boolean): { total: nu
 // Todo se persiste offline-first (IndexedDB + cola de sync).
 // ============================================================
 
-type SubVista = 'ordenes' | 'asignar' | 'semi'
+type SubVista = 'ordenes' | 'asignar' | 'semi' | 'feriados'
 
 export default function PlanificacionView() {
   const { permisos } = useAuth()
@@ -57,12 +57,79 @@ export default function PlanificacionView() {
         {!soloReparacion && <button className={'tab' + (sub === 'ordenes' ? ' active' : '')} onClick={() => setSub('ordenes')}>Ordenes de fabricacion</button>}
         <button className={'tab' + (sub === 'asignar' ? ' active' : '')} onClick={() => setSub('asignar')}>{soloReparacion ? 'Cargar reparación' : 'Asignar tareas'}</button>
         {!soloReparacion && <button className={'tab' + (sub === 'semi' ? ' active' : '')} onClick={() => setSub('semi')}>Semielaborados</button>}
+        {!soloReparacion && <button className={'tab' + (sub === 'feriados' ? ' active' : '')} onClick={() => setSub('feriados')}>📅 Feriados</button>}
       </div>
 
       {sub === 'ordenes' && !soloReparacion && <PanelOrdenes />}
       {sub === 'asignar' && <PanelAsignar soloReparacion={soloReparacion} />}
       {sub === 'semi' && !soloReparacion && <PanelSemielaborados />}
+      {sub === 'feriados' && !soloReparacion && <PanelFeriados />}
     </div>
+  )
+}
+
+// ------------------------------------------------------------
+// 0) Feriados / dias no laborables (v1.17) — los carga el planificador.
+//    El motor de calendario los trata como dia cerrado en TODA la app.
+// ------------------------------------------------------------
+function PanelFeriados() {
+  const feriados = useLiveQuery(() => db.feriados.orderBy('fecha').toArray(), []) ?? []
+  const [fecha, setFecha] = useState('')
+  const [descripcion, setDescripcion] = useState('')
+  const [msg, setMsg] = useState('')
+
+  async function agregar() {
+    if (!fecha) { setMsg('Elegí una fecha.'); return }
+    const f: Feriado = { id: fecha, fecha, descripcion: descripcion.trim() || undefined, actualizado: new Date().toISOString() }
+    await guardarFeriado(f)
+    setDescripcion(''); setFecha('')
+    setMsg(`Feriado ${fecha} guardado. Ese día queda como NO laborable en toda la planta.`)
+  }
+  async function borrar(f: Feriado) {
+    if (!window.confirm(`¿Quitar el feriado del ${f.fecha}? Ese día volverá a ser laborable.`)) return
+    await eliminarFeriado(f.id)
+  }
+
+  const hoyISO = new Date().toLocaleDateString('en-CA')
+  return (
+    <>
+      <div className="card">
+        <div className="section-title">Feriados / días no laborables</div>
+        <div className="meta" style={{ marginBottom: 12 }}>
+          Marcá los días que la planta NO trabaja. El sistema deja de agendar tareas, no dibuja esos días en el Gantt y no los cuenta para los KPIs.
+        </div>
+        <div className="form-grid">
+          <div className="field">
+            <label>Fecha *</label>
+            <input className="input" type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />
+          </div>
+          <div className="field">
+            <label>Descripción (opcional)</label>
+            <input className="input" value={descripcion} onChange={(e) => setDescripcion(e.target.value)} placeholder="ej. Día del Trabajador" />
+          </div>
+        </div>
+        <button className="btn btn-primary btn-bloque" onClick={agregar} disabled={!fecha}>＋ Agregar feriado</button>
+        {msg && <div className="meta" style={{ marginTop: 10 }}>{msg}</div>}
+      </div>
+
+      <div className="section-title">Feriados cargados ({feriados.length})</div>
+      {feriados.length === 0
+        ? <div className="empty">No hay feriados cargados.</div>
+        : feriados.map((f) => {
+            const pasado = f.fecha < hoyISO
+            return (
+              <div className="card" key={f.id} style={{ opacity: pasado ? 0.55 : 1 }}>
+                <div className="card-header">
+                  <div>
+                    <h3>📅 {f.fecha}{pasado ? ' · (pasado)' : ''}</h3>
+                    {f.descripcion && <div className="meta">{f.descripcion}</div>}
+                  </div>
+                  <button className="btn btn-rojo" onClick={() => borrar(f)}>🗑 Quitar</button>
+                </div>
+              </div>
+            )
+          })}
+    </>
   )
 }
 

@@ -1,7 +1,7 @@
 import Dexie, { type Table } from 'dexie'
 import type {
   Usuario, Tarea, OrdenProduccion, SyncOp, Semielaborado, Maquina,
-  ModeloTransformador, ComponenteSemielaborado, Objetivo, TareaLogistica, SolicitudLogistica,
+  ModeloTransformador, ComponenteSemielaborado, Objetivo, TareaLogistica, SolicitudLogistica, Feriado,
 } from '../types'
 
 // ============================================================
@@ -21,6 +21,7 @@ export class InelpaDB extends Dexie {
   objetivos!: Table<Objetivo, string>
   tareasLogistica!: Table<TareaLogistica, string>
   solicitudesLogistica!: Table<SolicitudLogistica, string>
+  feriados!: Table<Feriado, string>
 
   constructor() {
     super('inelpa_pwa')
@@ -59,6 +60,10 @@ export class InelpaDB extends Dexie {
     // v1.13: solicitudes logisticas (cola de pedidos de material). id = parada.id
     this.version(7).stores({
       solicitudesLogistica: 'id, paradaId, tareaId, estado, asignado',
+    })
+    // v1.17: feriados / dias no laborables de planta. id = fecha 'YYYY-MM-DD'.
+    this.version(8).stores({
+      feriados: 'id, fecha',
     })
   }
 }

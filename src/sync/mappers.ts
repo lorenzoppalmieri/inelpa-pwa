@@ -11,7 +11,7 @@ import type {
   SectorId, Rol, EstadoTarea, MaterialBobina, LineaProduccion,
   EstadoSemielaborado, TipoEstacion, GrupoNomina, DatosBobinado, TipoTarea,
   Objetivo, AndonAreaId, TareaLogistica, PrioridadLog,
-  SolicitudLogistica, EstadoSolicitudLog,
+  SolicitudLogistica, EstadoSolicitudLog, Feriado,
 } from '../types'
 
 // null -> undefined (Supabase devuelve null; la app usa undefined en opcionales).
@@ -217,6 +217,30 @@ export function objetivoToRow(o: Objetivo): ObjetivoRow {
     area: o.area,
     cantidad: o.cantidad,
     actualizado_en: o.actualizado,
+  }
+}
+
+// ---------- Feriados (v1.17) ----------
+export interface FeriadoRow {
+  id: string
+  fecha: string
+  descripcion: string | null
+  actualizado_en: string | null
+}
+export function feriadoFromRow(r: FeriadoRow): Feriado {
+  return {
+    id: r.id,
+    fecha: r.fecha,
+    descripcion: u(r.descripcion),
+    actualizado: r.actualizado_en ?? new Date().toISOString(),
+  }
+}
+export function feriadoToRow(f: Feriado): FeriadoRow {
+  return {
+    id: f.id,
+    fecha: f.fecha,
+    descripcion: f.descripcion ?? null,
+    actualizado_en: f.actualizado,
   }
 }
 

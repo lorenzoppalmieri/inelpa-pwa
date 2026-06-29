@@ -1,11 +1,12 @@
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import { db } from '../db/dexie'
 import { supabase, SUPABASE_HABILITADO } from '../lib/supabaseClient'
-import type { SyncOp, Tarea, OrdenProduccion, Semielaborado, SectorId, Objetivo, TareaLogistica, SolicitudLogistica } from '../types'
+import type { SyncOp, Tarea, OrdenProduccion, Semielaborado, SectorId, Objetivo, TareaLogistica, SolicitudLogistica, Feriado } from '../types'
+import { setFeriados } from '../lib/calendario'
 import {
-  tareaFromRow, paradaFromRow, ordenFromRow, semiFromRow, maquinaFromRow, usuarioFromRow, objetivoFromRow, tareaLogFromRow, solicitudLogFromRow,
-  tareaToRow, paradaToRow, ordenToRow, semiToRow, objetivoToRow, tareaLogToRow, solicitudLogToRow,
-  type TareaRow, type ParadaRow, type OrdenRow, type SemiRow, type MaquinaRow, type UsuarioRow, type ObjetivoRow, type TareaLogisticaRow, type SolicitudLogisticaRow,
+  tareaFromRow, paradaFromRow, ordenFromRow, semiFromRow, maquinaFromRow, usuarioFromRow, objetivoFromRow, tareaLogFromRow, solicitudLogFromRow, feriadoFromRow,
+  tareaToRow, paradaToRow, ordenToRow, semiToRow, objetivoToRow, tareaLogToRow, solicitudLogToRow, feriadoToRow,
+  type TareaRow, type ParadaRow, type OrdenRow, type SemiRow, type MaquinaRow, type UsuarioRow, type ObjetivoRow, type TareaLogisticaRow, type SolicitudLogisticaRow, type FeriadoRow,
 } from './mappers'
 
 // ============================================================
@@ -53,6 +54,13 @@ async function refreshPendientes() {
   emit()
 }
 
+// v1.17: vuelca los feriados de Dexie al motor de calendario (afecta Gantt,
+// auto-shift, tiempo neto y KPIs en toda la app). Se llama al cargar y al cambiar.
+export async function recargarFeriadosCalendario(): Promise<void> {
+  const fs = await db.feriados.toArray()
+  setFeriados(fs.map((f) => f.fecha))
+}
+
 // ============================================================
 // LECTURA: fetch inicial (nube -> Dexie)
 // ============================================================
@@ -65,10 +73,10 @@ export async function fetchInicial(): Promise<void> {
     await Promise.all([
       db.maquinas.clear(), db.usuarios.clear(), db.ordenes.clear(),
       db.semielaborados.clear(), db.tareas.clear(), db.objetivos.clear(),
-      db.tareasLogistica.clear(), db.solicitudesLogistica.clear(),
+      db.tareasLogistica.clear(), db.solicitudesLogistica.clear(), db.feriados.clear(),
     ])
 
-    const [maqs, usrs, uss, ords, semis, tars, pars, objs, tlog, slog] = await Promise.all([
+    const [maqs, usrs, uss, ords, semis, tars, pars, objs, tlog, slog, fers] = await Promise.all([
       supabase.from('maquinas').select('*'),
       supabase.from('usuarios').select('id, nombre, usuario, rol, grupo_nomina, activo'),
       supabase.from('usuario_sectores').select('usuario_id, sector_id'),
@@ -79,6 +87,7 @@ export async function fetchInicial(): Promise<void> {
       supabase.from('objetivos').select('*'),
       supabase.from('tareas_logistica').select('*'),
       supabase.from('solicitudes_logistica').select('*'),
+      supabase.from('feriados').select('*'),
     ])
 
     // Maquinas
@@ -111,6 +120,10 @@ export async function fetchInicial(): Promise<void> {
 
     // Solicitudes logisticas (cola de material)
     if (slog.data) await db.solicitudesLogistica.bulkPut((slog.data as SolicitudLogisticaRow[]).map(solicitudLogFromRow))
+
+    // Feriados (dias no laborables) -> Dexie + motor de calendario
+    if (fers.data) await db.feriados.bulkPut((fers.data as FeriadoRow[]).map(feriadoFromRow))
+    await recargarFeriadosCalendario()
 
     // Tareas (+ paradas anidadas)
     if (tars.data) {
@@ -196,6 +209,12 @@ async function onSolicitudLogChange(payload: Payload) {
   await db.solicitudesLogistica.put(solicitudLogFromRow(payload.new as unknown as SolicitudLogisticaRow))
 }
 
+async function onFeriadoChange(payload: Payload) {
+  if (payload.eventType === 'DELETE') await db.feriados.delete((payload.old as { id: string }).id)
+  else await db.feriados.put(feriadoFromRow(payload.new as unknown as FeriadoRow))
+  await recargarFeriadosCalendario() // refresca el calendario en vivo
+}
+
 function suscribirRealtime() {
   if (!supabase || canal) return
   canal = supabase
@@ -208,6 +227,7 @@ function suscribirRealtime() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'objetivos' }, onObjetivoChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'tareas_logistica' }, onTareaLogChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'solicitudes_logistica' }, onSolicitudLogChange)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'feriados' }, onFeriadoChange)
     .subscribe()
 }
 
@@ -270,6 +290,7 @@ async function empujar(op: SyncOp): Promise<boolean> {
         : op.entidad === 'objetivo' ? 'objetivos'
         : op.entidad === 'tarea_logistica' ? 'tareas_logistica'
         : op.entidad === 'solicitud_logistica' ? 'solicitudes_logistica'
+        : op.entidad === 'feriado' ? 'feriados'
         : 'paradas'
       const { error } = await supabase.from(tabla).delete().eq('id', op.entidadId)
       if (error) { console.warn(`[sync] delete ${op.entidad}:`, error.message); return false }
@@ -331,6 +352,13 @@ async function empujar(op: SyncOp): Promise<boolean> {
         if (error) { console.warn('[sync] upsert tarea_logistica:', error.message); return false }
         return true
       }
+      case 'feriado': {
+        const { error } = await supabase
+          .from('feriados')
+          .upsert(feriadoToRow(op.payload as Feriado), { onConflict: 'id' })
+        if (error) { console.warn('[sync] upsert feriado:', error.message); return false }
+        return true
+      }
       default:
         return true
     }
@@ -375,6 +403,18 @@ export async function guardarSemielaborado(s: Semielaborado): Promise<void> {
 export async function guardarObjetivo(o: Objetivo): Promise<void> {
   await db.objetivos.put(o)
   await encolar({ entidad: 'objetivo', entidadId: o.id, tipo: 'upsert', payload: o })
+}
+
+// v1.17: feriados / dias no laborables (los carga el planificador).
+export async function guardarFeriado(f: Feriado): Promise<void> {
+  await db.feriados.put(f)
+  await recargarFeriadosCalendario()
+  await encolar({ entidad: 'feriado', entidadId: f.id, tipo: 'upsert', payload: f })
+}
+export async function eliminarFeriado(id: string): Promise<void> {
+  await db.feriados.delete(id)
+  await recargarFeriadosCalendario()
+  await encolar({ entidad: 'feriado', entidadId: id, tipo: 'delete', payload: { id } })
 }
 
 // v1.12: tareas logisticas (organizador de abastecimiento).
