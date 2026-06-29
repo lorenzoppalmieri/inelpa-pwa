@@ -204,15 +204,27 @@ const semielaborados: Semielaborado[] = [
   { id: 's3', codigo: 'BBT-500-002', descripcion: 'Bobina BT 500 kVA trifasica', sectorOrigen: 'bob_dist_bt', modelo: 'TTD 500/13', fase: 'trifasico', estado: 'en_proceso', tiempoEstimadoMin: 180, sapItemCode: 'SEMI-BBT-500', actualizado: new Date().toISOString() },
 ]
 
+// DESACTIVADO (hotfix lunes): el seed demo inyectaba usuarios/ordenes/tareas de
+// prueba en IndexedDB y, cuando la PWA corria sin .env (o con una build cacheada
+// sin variables), esas tareas aparecian como "fantasma" en la tablet del operario.
+// El sistema debe mostrar SOLO los datos reales de Supabase (insert manual del
+// planificador). Se deja la funcion como no-op para no romper imports.
 export async function ensureSeed(): Promise<void> {
-  const n = await db.usuarios.count()
-  if (n > 0) return
-  await db.transaction('rw', [db.usuarios, db.ordenes, db.tareas, db.semielaborados, db.maquinas], async () => {
-    await db.usuarios.bulkAdd(usuarios)
-    await db.ordenes.bulkAdd(ordenes)
-    await db.maquinas.bulkAdd(maquinas)
-    await db.tareas.bulkAdd(mkTareas())
-    await db.semielaborados.bulkAdd(semielaborados)
+  // Intencionalmente vacio: NO se siembran datos demo. Ver purgarDemo().
+  void usuarios; void ordenes; void maquinas; void semielaborados; void mkTareas
+  return
+}
+
+// HOTFIX: limpia de IndexedDB cualquier dato DEMO sembrado por versiones previas.
+// Los demo usan ids con patron fijo (t1.., o1.., op_/u_, s1..); los reales de
+// Supabase son UUID, asi que este borrado nunca toca datos de produccion.
+// Se ejecuta en el arranque para que las tablets se auto-reparen sin "borrar datos".
+export async function purgarDemo(): Promise<void> {
+  await db.transaction('rw', [db.usuarios, db.ordenes, db.tareas, db.semielaborados], async () => {
+    await db.tareas.filter((t) => /^t\d+$/.test(t.id)).delete()
+    await db.ordenes.filter((o) => /^o\d+$/.test(o.id)).delete()
+    await db.semielaborados.filter((s) => /^s\d+$/.test(s.id)).delete()
+    await db.usuarios.filter((u) => /^(op_|u_)/.test(u.id)).delete()
   })
 }
 

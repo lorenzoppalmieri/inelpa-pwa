@@ -51,10 +51,14 @@ export default function OperarioView() {
     [usuario?.id],
   )
 
-  // Cola de tareas de la estacion elegida, semana corriente (offline-first).
+  // Cola de tareas de la estacion elegida (offline-first).
+  // HOTFIX cambio de semana: las tareas SIN finalizar (pendiente / en_proceso /
+  // pausada) siguen visibles SIN IMPORTAR la semana de origen, para que el trabajo
+  // arrastrado de la semana anterior no desaparezca el lunes. Solo se ocultan las
+  // FINALIZADAS de semanas pasadas (se muestran las finalizadas de la semana actual).
   const tareas = useLiveQuery(
     () => maquinaId
-      ? db.tareas.where('maquinaId').equals(maquinaId).and((t) => t.semana === semana).toArray()
+      ? db.tareas.where('maquinaId').equals(maquinaId).and((t) => t.estado !== 'finalizada' || t.semana === semana).toArray()
       : Promise.resolve([] as Tarea[]),
     [maquinaId, semana],
   )
