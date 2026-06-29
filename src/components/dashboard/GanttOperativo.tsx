@@ -64,7 +64,11 @@ function segmentosPorDia(startISO: string, endISO: string, dias: Date[]) {
   return segs
 }
 
-interface Segmento { tarea: Tarea; idx: number; left: number; width: number; estimada: boolean; esInicio: boolean; plan: Plan }
+interface Segmento { tarea: Tarea; idx: number; left: number; width: number; estimada: boolean; esInicio: boolean; plan: Plan; row: number }
+// Apilado vertical de sub-filas dentro de un carril.
+const FILA_TOP = 11   // offset de la 1ra fila (px)
+const FILA_ALTO = 34  // alto de barra (28) + separacion (6)
+const topDeFila = (row: number) => FILA_TOP + row * FILA_ALTO
 interface Lane { id: string; label: string; sub?: string }
 type Escala = 'semana' | 'dia'
 
@@ -122,27 +126,48 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
     return ids.map((id) => ({ id, label: sectorById(id).nombre })).sort((a, b) => a.label.localeCompare(b.label))
   }, [agrupar, maquinas, operarios, tareas])
 
-  // Segmentos por carril (con auto-shift por maquina).
-  const segsPorLane = useMemo(() => {
+  // Segmentos por carril (con auto-shift por maquina). v1.16: dentro de cada
+  // carril, las tareas que se SOLAPAN en el tiempo se reparten en sub-filas
+  // (packing por intervalos) para que no se pisen visualmente. Esto es clave en
+  // Montaje Parte Activa / Post Horno, donde varias tareas corren en paralelo.
+  const { segsPorLane, filasPorLane } = useMemo(() => {
     const plan = programar(tareas, ahoraISO, almuerzo)
     const map = new Map<string, Segmento[]>()
-    for (const t of tareas) {
-      const p = plan.get(t.id)
-      if (!p) continue
-      const segs = segmentosPorDia(p.startISO, p.endISO, dias)
-      if (segs.length === 0) continue
-      const startD = new Date(p.startISO)
-      const laneId = laneDeTarea(t)
-      const arr = map.get(laneId) ?? []
-      for (const sg of segs) {
-        const left = ((sg.idx + (sg.ini - H_INI * 60) / DAY_MIN) / N) * 100
-        const width = Math.max(0.6, ((sg.fin - sg.ini) / DAY_MIN / N) * 100)
-        const esInicio = mismaFecha(dias[sg.idx], startD) && sg.ini === minClock(startD)
-        arr.push({ tarea: t, idx: sg.idx, left, width, estimada: p.estimada, esInicio, plan: p })
+    const filas = new Map<string, number>()
+    // Agrupar tareas por carril.
+    const porLane = new Map<string, Tarea[]>()
+    for (const t of tareas) { const id = laneDeTarea(t); const a = porLane.get(id) ?? []; a.push(t); porLane.set(id, a) }
+
+    for (const [laneId, ts] of porLane) {
+      const conPlan = ts.map((t) => ({ t, p: plan.get(t.id) }))
+        .filter((x): x is { t: Tarea; p: Plan } => !!x.p)
+        .sort((a, b) => (a.p.startISO < b.p.startISO ? -1 : a.p.startISO > b.p.startISO ? 1 : 0))
+      // Packing greedy: cada tarea va a la 1ra sub-fila libre (cuyo fin <= su inicio).
+      const finDeFila: string[] = []
+      const rowDe = new Map<string, number>()
+      for (const { t, p } of conPlan) {
+        let r = finDeFila.findIndex((fin) => fin <= p.startISO)
+        if (r === -1) { r = finDeFila.length; finDeFila.push(p.endISO) } else finDeFila[r] = p.endISO
+        rowDe.set(t.id, r)
+      }
+      filas.set(laneId, Math.max(1, finDeFila.length))
+
+      const arr: Segmento[] = []
+      for (const { t, p } of conPlan) {
+        const segs = segmentosPorDia(p.startISO, p.endISO, dias)
+        if (segs.length === 0) continue
+        const startD = new Date(p.startISO)
+        const row = rowDe.get(t.id) ?? 0
+        for (const sg of segs) {
+          const left = ((sg.idx + (sg.ini - H_INI * 60) / DAY_MIN) / N) * 100
+          const width = Math.max(0.6, ((sg.fin - sg.ini) / DAY_MIN / N) * 100)
+          const esInicio = mismaFecha(dias[sg.idx], startD) && sg.ini === minClock(startD)
+          arr.push({ tarea: t, idx: sg.idx, left, width, estimada: p.estimada, esInicio, plan: p, row })
+        }
       }
       map.set(laneId, arr)
     }
-    return map
+    return { segsPorLane: map, filasPorLane: filas }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tareas, agrupar, ahoraISO, dias, N, almuerzo])
 
@@ -296,13 +321,17 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
           {lanes.map((lane) => {
             const segs = segsPorLane.get(lane.id) ?? []
             const nTareas = new Set(segs.map((s) => s.tarea.id)).size
+            // v1.16: altura del carril segun cuantas sub-filas necesito (tareas en paralelo).
+            const filas = filasPorLane.get(lane.id) ?? 1
+            const altoCarril = Math.max(50, topDeFila(filas - 1) + 28 + 8)
+            const rowDe = new Map(segs.map((s) => [s.tarea.id, s.row]))
             return (
-              <div className="gantt-row" key={lane.id}>
+              <div className="gantt-row" key={lane.id} style={{ minHeight: altoCarril }}>
                 <div className="gantt-rowlbl">
                   <div>{lane.label}</div>
                   <div className="sub">{lane.sub ? `${lane.sub} · ` : ''}{nTareas} tarea(s)</div>
                 </div>
-                <div className="gantt-track" data-lane-id={lane.id}>
+                <div className="gantt-track" data-lane-id={lane.id} style={{ height: altoCarril }}>
                   {dias.flatMap((day, idx) => bandasMuertasDia(day, almuerzo).map((bd, j) => {
                     const left = ((idx + (bd.ini - H_INI * 60) / DAY_MIN) / N) * 100
                     const width = ((bd.fin - bd.ini) / DAY_MIN / N) * 100
@@ -336,7 +365,7 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
                         className={'gantt-bar' + (arrastrable ? ' arrastrable' : '') + (recup ? ' recup' : '') + (reparacion ? ' reparacion' : '')}
                         onPointerDown={arrastrable ? (e) => iniciarArrastre(e, b) : undefined}
                         style={{
-                          left: `${b.left}%`, width: `${b.width}%`,
+                          left: `${b.left}%`, width: `${b.width}%`, top: topDeFila(b.row),
                           backgroundColor: reparacion ? 'var(--reparacion)' : COLOR[b.tarea.estado],
                           opacity: dragging ? 0.3 : b.estimada ? 0.55 : 1,
                           border: b.estimada ? '1px dashed rgba(255,255,255,.5)' : 'none',
@@ -363,7 +392,7 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
                             <div
                               key={`par-${t.id}-${k}-${j}`}
                               className="gantt-parada-sub"
-                              style={{ left: `${left}%`, width: `${width}%` }}
+                              style={{ left: `${left}%`, width: `${width}%`, top: topDeFila(rowDe.get(t.id) ?? 0) }}
                               title={`Parada · ${causaLabel(p.causa)} · ${hhmm(p.inicio)}–${hhmm(p.fin as string)}`}
                             />
                           )
@@ -388,7 +417,7 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
                           <div
                             key={`dsj-${t.id}-${j}`}
                             className="gantt-demora-sj"
-                            style={{ left: `${left}%`, width: `${width}%` }}
+                            style={{ left: `${left}%`, width: `${width}%`, top: topDeFila(rowDe.get(t.id) ?? 0) }}
                             title={`Demora sin justificar · ${fmtDur(dMin)} por encima del estándar (sin parada reportada)`}
                           />
                         )
