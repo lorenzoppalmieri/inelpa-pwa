@@ -17,10 +17,6 @@ const FILTROS: { id: 'activas' | 'pendientes' | 'finalizadas'; label: string }[]
 
 // Clave de persistencia de la estacion elegida (por usuario), para que sobreviva al reload.
 function lsKey(uid: string) { return `inelpa_maquina_${uid}` }
-// v1.16: el operario decide si HOY se queda a recuperar (16-17 / 15-16). Se guarda
-// por usuario + dia, asi vale para toda la jornada y se resetea al dia siguiente.
-function hoyStr() { return new Date().toLocaleDateString('en-CA') }
-function recupKey(uid: string) { return `inelpa_recup_${uid}_${hoyStr()}` }
 
 export default function OperarioView() {
   const { usuario } = useAuth()
@@ -64,17 +60,6 @@ export default function OperarioView() {
   )
 
   const [filtro, setFiltro] = useState<'activas' | 'pendientes' | 'finalizadas'>('activas')
-
-  // v1.16: ¿el operario se queda HOY a recuperar (16-17 / 15-16)? Persistido por dia.
-  const [recupHoy, setRecupHoy] = useState<boolean>(() =>
-    usuario ? localStorage.getItem(recupKey(usuario.id)) === '1' : false)
-  function toggleRecupHoy() {
-    setRecupHoy((v) => {
-      const nv = !v
-      if (usuario) localStorage.setItem(recupKey(usuario.id), nv ? '1' : '0')
-      return nv
-    })
-  }
 
   // Barra de pestañas Mi trabajo / Andon (ya pasaron todos los hooks).
   const tabsTop = (
@@ -134,24 +119,6 @@ export default function OperarioView() {
         <button className="btn" onClick={cambiar}>Cambiar estación</button>
       </div>
 
-      {/* v1.16: el operario marca si HOY se queda a recuperar. La franja depende
-          del dia: Lun-Jue 16:00-17:00, Vie 15:00-16:00 (lo resuelve el calendario). */}
-      {(() => {
-        const esViernes = new Date().getDay() === 5
-        const finRecup = esViernes ? '16:00' : '17:00'
-        const banda = esViernes ? '15:00–16:00' : '16:00–17:00'
-        return (
-          <button
-            className={'btn btn-bloque' + (recupHoy ? ' btn-primary' : '')}
-            style={{ justifyContent: 'space-between', marginBottom: 12 }}
-            onClick={toggleRecupHoy}
-          >
-            <span>⏱ Hoy me quedo a recuperar (hasta las {finRecup} · {banda})</span>
-            <span className="rol-badge">{recupHoy ? 'SÍ' : 'NO'}</span>
-          </button>
-        )
-      })()}
-
       <div className="tabs">
         {FILTROS.map((f) => (
           <button key={f.id} className={'tab' + (filtro === f.id ? ' active' : '')} onClick={() => setFiltro(f.id)}>
@@ -162,7 +129,7 @@ export default function OperarioView() {
 
       {vis.length === 0
         ? <div className="empty">No hay tareas en esta vista.</div>
-        : vis.map((t) => <TareaCard key={t.id} tarea={t} recuperacionHoy={recupHoy} onIniciar={() => setFiltro('activas')} />)}
+        : vis.map((t) => <TareaCard key={t.id} tarea={t} onIniciar={() => setFiltro('activas')} />)}
     </div>
   )
 }

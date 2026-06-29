@@ -18,7 +18,7 @@ const ESTADO_TXT: Record<string, string> = {
   pendiente: 'Pendiente', en_proceso: 'En proceso', pausada: 'Pausada', finalizada: 'Finalizada',
 }
 
-export default function TareaCard({ tarea, onIniciar, recuperacionHoy = false }: { tarea: Tarea; onIniciar?: () => void; recuperacionHoy?: boolean }) {
+export default function TareaCard({ tarea, onIniciar }: { tarea: Tarea; onIniciar?: () => void }) {
   const { usuario } = useAuth()
   const [modal, setModal] = useState(false)
   const [ahora, setAhora] = useState(Date.now())
@@ -47,16 +47,21 @@ export default function TareaCard({ tarea, onIniciar, recuperacionHoy = false }:
 
   async function iniciar() {
     // Se estampa el operario que ejecuta (trazabilidad y KPIs); la asignacion es por maquina.
-    // v1.16: la hora de recuperacion la decide el operario (su interruptor del dia).
     await guardarTarea({
       ...tarea, estado: 'en_proceso',
       inicioReal: tarea.inicioReal ?? new Date().toISOString(),
       operarioId: tarea.operarioId ?? usuario?.id,
-      activaHoraRecuperacion: recuperacionHoy,
     })
     // v1.16: al iniciar, la vista salta al filtro "En curso" para que el operario
     // vea la tarea que arranco y no inicie otra por error.
     onIniciar?.()
+  }
+
+  // HOTFIX: la hora de recuperacion es POR TAREA (vinculada a este tarea_id), no
+  // un estado global del operario. Asi, con varias tareas abiertas a la vez, marcar
+  // recuperacion en una NO afecta a las demas.
+  async function toggleRecup() {
+    await guardarTarea({ ...tarea, activaHoraRecuperacion: !tarea.activaHoraRecuperacion })
   }
   async function confirmarParada(causa: CausaParada, obs: string) {
     setModal(false)
@@ -96,17 +101,14 @@ export default function TareaCard({ tarea, onIniciar, recuperacionHoy = false }:
     if (!ok) defecto = window.prompt('Describir el defecto / rechazo:') || 'Defecto no especificado'
     const finReal = new Date().toISOString()
     const paradas = tarea.paradas.map((p) => (p.fin ? p : { ...p, fin: finReal }))
-    // v1.16: la hora de recuperacion la decide el operario (interruptor del dia).
-    const activaHoraRecuperacion = recuperacionHoy
-    // tiempo PRODUCTIVO NETO real (descuenta noches, finde y almuerzo).
+    // La hora de recuperacion es la de ESTA tarea (toggle por tarjeta).
     const duracionEfectivaMin = tarea.inicioReal
       ? calcularTiempoNetoProductivo(new Date(tarea.inicioReal), new Date(finReal), {
-          horaRecuperacion: activaHoraRecuperacion,
+          horaRecuperacion: tarea.activaHoraRecuperacion,
         })
       : 0
     await guardarTarea({
       ...tarea, estado: 'finalizada', finReal, calidadOk: ok, defecto, paradas,
-      activaHoraRecuperacion,
       duracionEfectivaMin,
       datosBobinado: datosBobinado ?? tarea.datosBobinado,
     })
@@ -203,6 +205,23 @@ export default function TareaCard({ tarea, onIniciar, recuperacionHoy = false }:
           {tarea.datosBobinado.codigoBobina && <> Cod. <strong>{tarea.datosBobinado.codigoBobina}</strong></>}
         </div>
       )}
+
+      {/* HOTFIX: hora de recuperacion POR TAREA (no global). Solo mientras la tarea
+          esta abierta. La franja depende del dia (Vie 15-16, resto 16-17). */}
+      {(tarea.estado === 'en_proceso' || tarea.estado === 'pausada') && (() => {
+        const esViernes = new Date().getDay() === 5
+        const banda = esViernes ? '15:00–16:00' : '16:00–17:00'
+        return (
+          <button
+            className={'btn btn-bloque' + (tarea.activaHoraRecuperacion ? ' btn-primary' : '')}
+            style={{ justifyContent: 'space-between', marginBottom: 10 }}
+            onClick={toggleRecup}
+          >
+            <span>⏱ Me quedo a recuperar en ESTA tarea ({banda})</span>
+            <span className="rol-badge">{tarea.activaHoraRecuperacion ? 'SÍ' : 'NO'}</span>
+          </button>
+        )
+      })()}
 
       {/* Acciones segun estado */}
       <div className="row-actions">
