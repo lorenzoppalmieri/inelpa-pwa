@@ -48,16 +48,21 @@ export default function OperarioView() {
   )
 
   // Cola de tareas de la estacion elegida (offline-first).
-  // HOTFIX cambio de semana: las tareas SIN finalizar (pendiente / en_proceso /
-  // pausada) siguen visibles SIN IMPORTAR la semana de origen, para que el trabajo
-  // arrastrado de la semana anterior no desaparezca el lunes. Solo se ocultan las
-  // FINALIZADAS de semanas pasadas (se muestran las finalizadas de la semana actual).
-  const tareas = useLiveQuery(
-    () => maquinaId
-      ? db.tareas.where('maquinaId').equals(maquinaId).and((t) => t.estado !== 'finalizada' || t.semana === semana).toArray()
-      : Promise.resolve([] as Tarea[]),
-    [maquinaId, semana],
-  )
+  // Las tareas SIN finalizar (pendiente / en_proceso / pausada) se ven SIEMPRE,
+  // sin importar la semana (el trabajo arrastrado no desaparece el lunes).
+  // v1.17: las FINALIZADAS se muestran las del MES en curso (por finReal), para que
+  // el operario vea todos los semielaborados que terminó en el mes, no solo la semana.
+  const tareas = useLiveQuery(() => {
+    if (!maquinaId) return Promise.resolve([] as Tarea[])
+    const hoy = new Date()
+    const mesIni = new Date(hoy.getFullYear(), hoy.getMonth(), 1).toISOString()
+    const mesFin = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 1).toISOString()
+    return db.tareas.where('maquinaId').equals(maquinaId).and((t) => {
+      if (t.estado !== 'finalizada') return true
+      const ref = t.finReal ?? t.inicioReal
+      return !!ref && ref >= mesIni && ref < mesFin
+    }).toArray()
+  }, [maquinaId])
 
   const [filtro, setFiltro] = useState<'activas' | 'pendientes' | 'finalizadas'>('activas')
 
