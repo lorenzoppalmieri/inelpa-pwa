@@ -15,12 +15,15 @@ export function minutosParada(t: Tarea): number {
     .reduce((acc, p) => acc + minutosEntre(p.inicio, p.fin), 0)
 }
 
-// Minutos de paradas NO productivas (almuerzo, pausas programadas). Se restan
-// del tiempo disponible: es como si esa franja no existiera para el KPI.
+// Minutos de paradas NO productivas (almuerzo, pausas programadas, lapso de
+// reapertura). Se restan del tiempo disponible: es como si esa franja no existiera.
+// v1.17: se miden en minutos LABORABLES (no crudos), para que un lapso que cruza
+// noches/fines de semana —ej. una reapertura al día siguiente— descuente solo las
+// horas de planta y no de más.
 export function minutosNoProductivos(t: Tarea): number {
   return t.paradas
-    .filter((p) => esParadaNoProductiva(p.causa))
-    .reduce((acc, p) => acc + minutosEntre(p.inicio, p.fin), 0)
+    .filter((p) => esParadaNoProductiva(p.causa) && p.fin)
+    .reduce((acc, p) => acc + calcularTiempoNetoProductivo(new Date(p.inicio), new Date(p.fin as string), { sinAlmuerzo: true }), 0)
 }
 
 // Tiempo real de ejecucion BRUTO (resta cruda de timestamps). Solo informativo

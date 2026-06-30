@@ -491,9 +491,18 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
   // y limpia el cierre (fin/calidad/duracion) para que NO cuente en los KPIs.
   // El operario puede volver a finalizarla correctamente despues.
   async function reabrir(t: Tarea) {
-    if (!window.confirm(`¿Reabrir la tarea de ${t.modelo}? Vuelve a "en proceso" y se quita del calculo de KPIs hasta que se finalice de nuevo.`)) return
-    await guardarTarea({ ...t, estado: 'en_proceso', finReal: undefined, calidadOk: undefined, defecto: undefined, duracionEfectivaMin: undefined })
-    setMsg('Tarea reabierta: volvio a "en proceso".')
+    if (!window.confirm(`¿Reabrir la tarea de ${t.modelo}? El tiempo entre la finalización y ahora NO se cuenta; el trabajo ya hecho se conserva.`)) return
+    // Se preservan inicioReal, paradas y duracionEfectivaMin (no se pierde lo hecho).
+    // v1.17: el lapso "finalizada -> reabierta" se registra como una parada NO
+    // productiva automatica (causa 'reapertura'), para que ese tiempo muerto (error
+    // de carga o retrabajo) NO cuente ni en Real ni en Neto al re-finalizar.
+    const ahora = new Date().toISOString()
+    const paradas = [...t.paradas]
+    if (t.finReal && t.finReal < ahora) {
+      paradas.push({ id: crypto.randomUUID(), tareaId: t.id, causa: 'reapertura', inicio: t.finReal, fin: ahora, observacion: 'Tiempo entre finalización y reapertura (no productivo)' })
+    }
+    await guardarTarea({ ...t, estado: 'en_proceso', finReal: undefined, calidadOk: undefined, defecto: undefined, paradas })
+    setMsg('Tarea reabierta: el tiempo entre la finalización y ahora no se cuenta.')
   }
 
   const tareasOrdenadas = useMemo(
