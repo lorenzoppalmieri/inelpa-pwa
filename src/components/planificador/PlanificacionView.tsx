@@ -6,7 +6,7 @@ import {
   MATERIALES, lineaDesdeModelo, materialLabel, CATEGORIA_COMPONENTE_LABEL,
   operariosParaSector, esSectorHerreria, maquinaSirveSector,
   type MaterialBobina, type SectorId, type OrdenProduccion, type Tarea,
-  type Semielaborado, type EstadoSemielaborado, type TipoTarea, type Feriado,
+  type Semielaborado, type EstadoSemielaborado, type TipoTarea, type Feriado, type EstadoTarea,
 } from '../../types'
 import { MODELOS_CATALOGO, modeloPorNombre, componentesDeModelo, componentePorCodigo } from '../../data/catalogo'
 import { guardarOrden, guardarTarea, guardarSemielaborado, eliminarTarea, eliminarOrden, guardarFeriado, eliminarFeriado } from '../../sync/syncEngine'
@@ -292,15 +292,42 @@ function PanelOrdenes() {
   )
 }
 
+// v1.17: período del LISTADO de tareas (reemplaza el filtro por semana ISO).
+type PeriodoLista = 'mes_actual' | 'mes_anterior' | 'anual' | 'todas'
+const PERIODOS_LISTA: { id: PeriodoLista; label: string }[] = [
+  { id: 'mes_actual', label: 'Mes actual' },
+  { id: 'mes_anterior', label: 'Mes anterior' },
+  { id: 'anual', label: 'Acumulado anual' },
+  { id: 'todas', label: 'Todas' },
+]
+// ¿La tarea cae en el período? Referencia: inicio real, o arranque planificado.
+function enPeriodoLista(t: Tarea, per: PeriodoLista, now: Date): boolean {
+  if (per === 'todas') return true
+  const ref = t.inicioReal ?? t.inicioPlanificado
+  if (!ref) return false
+  const d = new Date(ref)
+  if (per === 'anual') return d.getFullYear() === now.getFullYear()
+  const base = new Date(now.getFullYear(), per === 'mes_anterior' ? now.getMonth() - 1 : now.getMonth(), 1)
+  return d.getFullYear() === base.getFullYear() && d.getMonth() === base.getMonth()
+}
+const ESTADOS_TAREA: { id: 'todos' | EstadoTarea; label: string }[] = [
+  { id: 'todos', label: 'Todos los estados' },
+  { id: 'pendiente', label: 'Pendiente' },
+  { id: 'en_proceso', label: 'En proceso' },
+  { id: 'pausada', label: 'Pausada' },
+  { id: 'finalizada', label: 'Finalizada' },
+]
+
 // ------------------------------------------------------------
 // 2) Asignar tareas (operacion x sector) a colaboradores
 // ------------------------------------------------------------
 function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsumido }: { soloReparacion?: boolean; focoTareaId?: string | null; onFocoConsumido?: () => void }) {
-  const semana = isoWeek(new Date())
   const ordenes = useLiveQuery(() => db.ordenes.toArray(), [])
   const maquinas = useLiveQuery(() => db.maquinas.toArray(), [])
   const usuarios = useLiveQuery(() => db.usuarios.toArray(), [])
-  const tareas = useLiveQuery(() => db.tareas.where('semana').equals(semana).toArray(), [semana])
+  // v1.17: el listado ya NO filtra por semana ISO (causaba que tareas finalizadas
+  // o de otra semana "desaparecieran"). Se trae todo y se filtra por periodo/estado.
+  const tareas = useLiveQuery(() => db.tareas.toArray(), [])
   const todasTareas = useLiveQuery(() => db.tareas.toArray(), []) ?? []
 
   const [ordenId, setOrdenId] = useState('')
@@ -324,13 +351,16 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
   const [filtroSector, setFiltroSector] = useState<'todos' | SectorId>('todos')
   const [agruparPor, setAgruparPor] = useState<'sector' | 'maquina' | 'operario'>('sector')
   const [filtroFecha, setFiltroFecha] = useState('')
+  // v1.17: período (mes) + estado de la operación para el listado.
+  const [periodoLista, setPeriodoLista] = useState<PeriodoLista>('mes_actual')
+  const [filtroEstado, setFiltroEstado] = useState<'todos' | EstadoTarea>('todos')
   // v1.17: tarea resaltada al venir desde un click en el Gantt.
   const [resaltado, setResaltado] = useState<string | null>(null)
   useEffect(() => {
     if (!focoTareaId) return
     const id = focoTareaId
-    // Limpiar filtros para garantizar que la tarea aparezca en el listado.
-    setFiltroSector('todos'); setFiltroFecha(''); setResaltado(id)
+    // Limpiar filtros para garantizar que la tarea aparezca (sea de la semana/mes que sea).
+    setFiltroSector('todos'); setFiltroFecha(''); setFiltroEstado('todos'); setPeriodoLista('todas'); setResaltado(id)
     setTimeout(() => { document.getElementById('tarea-' + id)?.scrollIntoView({ behavior: 'smooth', block: 'center' }) }, 120)
     setTimeout(() => setResaltado(null), 3000)
     onFocoConsumido?.() // libera el foco del padre (permite volver a clickear la misma)
@@ -471,15 +501,20 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
     [tareas],
   )
 
-  // v1.16: tareas visibles segun filtro de sector + fecha de arranque.
-  const visibles = useMemo(() => tareasOrdenadas.filter((t) => {
-    if (filtroSector !== 'todos' && t.sectorId !== filtroSector) return false
-    if (filtroFecha) {
-      const ref = t.inicioPlanificado
-      if (!ref || new Date(ref).toLocaleDateString('en-CA') !== filtroFecha) return false
-    }
-    return true
-  }), [tareasOrdenadas, filtroSector, filtroFecha])
+  // v1.17: tareas visibles segun periodo (mes), estado, sector y dia de arranque.
+  const visibles = useMemo(() => {
+    const now = new Date()
+    return tareasOrdenadas.filter((t) => {
+      if (!enPeriodoLista(t, periodoLista, now)) return false
+      if (filtroEstado !== 'todos' && t.estado !== filtroEstado) return false
+      if (filtroSector !== 'todos' && t.sectorId !== filtroSector) return false
+      if (filtroFecha) {
+        const ref = t.inicioReal ?? t.inicioPlanificado
+        if (!ref || new Date(ref).toLocaleDateString('en-CA') !== filtroFecha) return false
+      }
+      return true
+    })
+  }, [tareasOrdenadas, periodoLista, filtroEstado, filtroSector, filtroFecha])
 
   // v1.16: agrupacion dinamica (sector / estacion / colaborador) para legibilidad.
   const grupos = useMemo(() => {
@@ -537,7 +572,7 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
   return (
     <>
       <div className="card">
-        <div className="section-title">Asignar {tipo === 'reparacion' ? 'reparación' : 'tarea'} · semana {semana.split('-W')[1]}</div>
+        <div className="section-title">Asignar {tipo === 'reparacion' ? 'reparación' : 'tarea'}</div>
 
         {/* v1.8: tipo de tarea. La reparacion no cuenta para el OEE.
             v1.9: los encargados quedan bloqueados en 'reparacion' (sin fabricacion). */}
@@ -661,10 +696,16 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
         )}
       </div>
 
-      <div className="section-title">Tareas de la semana ({visibles.length}{visibles.length !== tareasOrdenadas.length ? ` de ${tareasOrdenadas.length}` : ''})</div>
+      <div className="section-title">Tareas · {PERIODOS_LISTA.find((p) => p.id === periodoLista)?.label} ({visibles.length}{visibles.length !== tareasOrdenadas.length ? ` de ${tareasOrdenadas.length}` : ''})</div>
 
-      {/* v1.16: toolbar de filtrado/agrupacion del listado. */}
+      {/* v1.17: toolbar de filtrado/agrupacion del listado (periodo + estado + sector + dia). */}
       <div className="filtros" style={{ marginBottom: 12 }}>
+        <select className="select" value={periodoLista} onChange={(e) => setPeriodoLista(e.target.value as PeriodoLista)}>
+          {PERIODOS_LISTA.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+        </select>
+        <select className="select" value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value as 'todos' | EstadoTarea)}>
+          {ESTADOS_TAREA.map((e) => <option key={e.id} value={e.id}>{e.label}</option>)}
+        </select>
         <select className="select" value={filtroSector} onChange={(e) => setFiltroSector(e.target.value as 'todos' | SectorId)}>
           <option value="todos">Todos los sectores</option>
           {SECTORES.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
@@ -675,11 +716,11 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
           <option value="operario">Agrupar por colaborador</option>
         </select>
         <input type="date" className="select" value={filtroFecha} onChange={(e) => setFiltroFecha(e.target.value)} title="Filtrar por día de arranque" />
-        {filtroFecha && <button className="btn" onClick={() => setFiltroFecha('')}>✕ Todas las de la semana</button>}
+        {filtroFecha && <button className="btn" onClick={() => setFiltroFecha('')}>✕ Quitar día</button>}
       </div>
 
       {visibles.length === 0
-        ? <div className="empty">{tareasOrdenadas.length === 0 ? 'Aun no hay tareas asignadas esta semana.' : 'No hay tareas para el filtro seleccionado.'}</div>
+        ? <div className="empty">{tareasOrdenadas.length === 0 ? 'Aun no hay tareas asignadas.' : 'No hay tareas para el filtro seleccionado.'}</div>
         : grupos.map((g) => (
             <div key={g.label} style={{ marginBottom: 14 }}>
               <div className="grupo-tit">{g.label} <span className="grupo-n">{g.items.length} tarea(s)</span></div>
