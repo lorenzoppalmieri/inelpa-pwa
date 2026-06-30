@@ -5,7 +5,7 @@ import type { Tarea, CausaParada, DatosBobinado } from '../../types'
 import { sectorById, causaLabel, requiereDatosBobinado, esCausaLogistica } from '../../types'
 import { guardarTarea } from '../../sync/syncEngine'
 import { useAuth } from '../../auth/AuthContext'
-import { hhmm, cronometro, fmtDur, minutosEntre } from '../../lib/time'
+import { hhmm, cronometro, fmtDur, minutosEntre, fechaCorta } from '../../lib/time'
 import { calcularTiempoNetoProductivo } from '../../lib/calendario'
 import { componentePorCodigo } from '../../data/catalogo'
 import { minutosParada } from '../../lib/kpi'
@@ -137,8 +137,8 @@ export default function TareaCard({ tarea, onIniciar }: { tarea: Tarea; onInicia
         {/* v1.3: el "Tiempo estandar" NO se muestra al operario (evita que regule el ritmo
             para "cumplir" el tiempo exacto). Solo visible en dashboards de encargado/planificador. */}
         Prioridad <strong>{tarea.prioridad}</strong>
-        {tarea.inicioReal && <> · Inicio <strong>{hhmm(tarea.inicioReal)}</strong></>}
-        {tarea.finReal && <> · Fin <strong>{hhmm(tarea.finReal)}</strong></>}
+        {tarea.inicioReal && <> · Inicio <strong>{fechaCorta(tarea.inicioReal)} {hhmm(tarea.inicioReal)}</strong></>}
+        {tarea.finReal && <> · Fin <strong>{fechaCorta(tarea.finReal)} {hhmm(tarea.finReal)}</strong></>}
         {totalParada > 0 && <> · Paradas <strong>{fmtDur(totalParada)}</strong></>}
       </div>
 
