@@ -52,6 +52,9 @@ export default function DashboardView() {
   const [kpiMaquina, setKpiMaquina] = useState<'todas' | string>('todas')
   const [kpiOperario, setKpiOperario] = useState<'todos' | string>('todos')
   const [kpiFecha, setKpiFecha] = useState<string>(() => new Date().toLocaleDateString('en-CA'))
+  // v1.17: al clickear una barra del Gantt, saltamos a Planificacion enfocando esa tarea.
+  const [focoTareaId, setFocoTareaId] = useState<string | null>(null)
+  const irATarea = (t: Tarea) => { setFocoTareaId(t.id); setVista('planificacion') }
   const semana = isoWeek(new Date())
 
   // Alcance por rol: planificador ve todo; encargado solo sus sectores.
@@ -161,7 +164,7 @@ export default function DashboardView() {
         : vista === 'andon'
         ? <AndonView />
         : vista === 'planificacion' && (permisos?.cargarProgramacion || permisos?.crearReparacion)
-        ? <PlanificacionView />
+        ? <PlanificacionView focoTareaId={focoTareaId} onFocoConsumido={() => setFocoTareaId(null)} />
         : <DashboardCuerpo
             vista={vista === 'gantt' || vista === 'kpis' ? vista : 'gantt'}
             linea={linea} setLinea={setLinea}
@@ -177,6 +180,7 @@ export default function DashboardView() {
             nombreOperario={nombreOperario} nombreMaquina={nombreMaquina}
             materialTarea={materialTarea}
             puedeMoverProduccion={!!permisos?.gestionProduccion}
+            onTareaClick={permisos?.cargarProgramacion ? irATarea : undefined}
           />}
     </div>
   )
@@ -207,8 +211,9 @@ function DashboardCuerpo(props: {
   nombreMaquina: (id: string) => string
   materialTarea: (t: Tarea) => string
   puedeMoverProduccion: boolean
+  onTareaClick?: (t: Tarea) => void
 }) {
-  const { vista, linea, setLinea, sectorFiltro, setSectorFiltro, agrupar, setAgrupar, periodo, setPeriodo, kpiMaquina, setKpiMaquina, kpiOperario, setKpiOperario, kpiFecha, setKpiFecha, sectoresVisibles, filtradas, kpiFiltradas, maquinasVisibles, operariosVisibles, nombreOperario, nombreMaquina, materialTarea, puedeMoverProduccion } = props
+  const { vista, linea, setLinea, sectorFiltro, setSectorFiltro, agrupar, setAgrupar, periodo, setPeriodo, kpiMaquina, setKpiMaquina, kpiOperario, setKpiOperario, kpiFecha, setKpiFecha, sectoresVisibles, filtradas, kpiFiltradas, maquinasVisibles, operariosVisibles, nombreOperario, nombreMaquina, materialTarea, puedeMoverProduccion, onTareaClick } = props
 
   const periodoLabel = PERIODOS.find((p) => p.id === periodo)?.label ?? ''
   const puedeKpi = hayDatosKpi(kpiFiltradas)
@@ -283,7 +288,7 @@ function DashboardCuerpo(props: {
       </div>
 
       {vista === 'gantt'
-        ? <GanttOperativo tareas={filtradas} agrupar={agrupar} maquinas={maquinasVisibles} operarios={operariosVisibles} nombreOperario={nombreOperario} nombreMaquina={nombreMaquina} puedeMoverProduccion={puedeMoverProduccion} />
+        ? <GanttOperativo tareas={filtradas} agrupar={agrupar} maquinas={maquinasVisibles} operarios={operariosVisibles} nombreOperario={nombreOperario} nombreMaquina={nombreMaquina} puedeMoverProduccion={puedeMoverProduccion} onTareaClick={onTareaClick} />
         : <KpiPanel tareas={kpiFiltradas} nombreOperario={nombreOperario} nombreMaquina={nombreMaquina} />}
     </>
   )

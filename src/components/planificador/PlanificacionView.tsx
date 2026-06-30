@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
 import {
@@ -45,11 +45,14 @@ function resumenCarga(tareas: Tarea[], pred: (t: Tarea) => boolean): { total: nu
 
 type SubVista = 'ordenes' | 'asignar' | 'semi' | 'feriados'
 
-export default function PlanificacionView() {
+export default function PlanificacionView({ focoTareaId, onFocoConsumido }: { focoTareaId?: string | null; onFocoConsumido?: () => void } = {}) {
   const { permisos } = useAuth()
   // v1.9: encargados de planta solo pueden cargar REPARACIONES (sin produccion).
   const soloReparacion = !!(permisos?.crearReparacion && !permisos?.gestionProduccion)
   const [sub, setSub] = useState<SubVista>(soloReparacion ? 'asignar' : 'ordenes')
+
+  // v1.17: si llega un foco de tarea (click en el Gantt), saltar a "Asignar tareas".
+  useEffect(() => { if (focoTareaId) setSub('asignar') }, [focoTareaId])
 
   return (
     <div>
@@ -61,7 +64,7 @@ export default function PlanificacionView() {
       </div>
 
       {sub === 'ordenes' && !soloReparacion && <PanelOrdenes />}
-      {sub === 'asignar' && <PanelAsignar soloReparacion={soloReparacion} />}
+      {sub === 'asignar' && <PanelAsignar soloReparacion={soloReparacion} focoTareaId={sub === 'asignar' ? focoTareaId : null} onFocoConsumido={onFocoConsumido} />}
       {sub === 'semi' && !soloReparacion && <PanelSemielaborados />}
       {sub === 'feriados' && !soloReparacion && <PanelFeriados />}
     </div>
@@ -292,7 +295,7 @@ function PanelOrdenes() {
 // ------------------------------------------------------------
 // 2) Asignar tareas (operacion x sector) a colaboradores
 // ------------------------------------------------------------
-function PanelAsignar({ soloReparacion = false }: { soloReparacion?: boolean }) {
+function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsumido }: { soloReparacion?: boolean; focoTareaId?: string | null; onFocoConsumido?: () => void }) {
   const semana = isoWeek(new Date())
   const ordenes = useLiveQuery(() => db.ordenes.toArray(), [])
   const maquinas = useLiveQuery(() => db.maquinas.toArray(), [])
@@ -321,6 +324,18 @@ function PanelAsignar({ soloReparacion = false }: { soloReparacion?: boolean }) 
   const [filtroSector, setFiltroSector] = useState<'todos' | SectorId>('todos')
   const [agruparPor, setAgruparPor] = useState<'sector' | 'maquina' | 'operario'>('sector')
   const [filtroFecha, setFiltroFecha] = useState('')
+  // v1.17: tarea resaltada al venir desde un click en el Gantt.
+  const [resaltado, setResaltado] = useState<string | null>(null)
+  useEffect(() => {
+    if (!focoTareaId) return
+    const id = focoTareaId
+    // Limpiar filtros para garantizar que la tarea aparezca en el listado.
+    setFiltroSector('todos'); setFiltroFecha(''); setResaltado(id)
+    setTimeout(() => { document.getElementById('tarea-' + id)?.scrollIntoView({ behavior: 'smooth', block: 'center' }) }, 120)
+    setTimeout(() => setResaltado(null), 3000)
+    onFocoConsumido?.() // libera el foco del padre (permite volver a clickear la misma)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focoTareaId])
   const [msg, setMsg] = useState('')
 
   const nombreMaquina = useMemo(() => {
@@ -482,7 +497,7 @@ function PanelAsignar({ soloReparacion = false }: { soloReparacion?: boolean }) 
 
   // Tarjeta de una tarea (extraida para reusar dentro de los grupos).
   const renderTarea = (t: Tarea) => (
-    <div className="card" key={t.id}>
+    <div className={'card' + (resaltado === t.id ? ' card-foco' : '')} id={'tarea-' + t.id} key={t.id}>
       <div className="card-header">
         <div>
           <h3>{t.tipo === 'reparacion' ? '🔧 ' : ''}{t.modelo}{t.nroTransformador ? ` · ${t.nroTransformador}` : ''}{t.tipo === 'reparacion' && <span className="estado-chip" style={{ background: 'var(--reparacion)', color: '#fff', marginLeft: 8 }}>Reparación</span>}</h3>

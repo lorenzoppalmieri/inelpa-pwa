@@ -85,7 +85,7 @@ const topDeFila = (row: number) => FILA_TOP + row * FILA_ALTO
 interface Lane { id: string; label: string; sub?: string }
 type Escala = 'semana' | 'dia'
 
-export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, nombreOperario, nombreMaquina, puedeMoverProduccion = true, soloLectura = false }: {
+export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, nombreOperario, nombreMaquina, puedeMoverProduccion = true, soloLectura = false, onTareaClick }: {
   tareas: Tarea[]
   agrupar: 'sector' | 'operario' | 'maquina'
   maquinas: Maquina[]
@@ -96,6 +96,8 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
   puedeMoverProduccion?: boolean
   // v1.11: modo 100% lectura (logistica): sin drag de ninguna barra.
   soloLectura?: boolean
+  // v1.17: click en una barra -> abrir esa tarea en "Asignar tareas" (solo planificador).
+  onTareaClick?: (t: Tarea) => void
 }) {
   const ahora = new Date()
   const ahoraISO = ahora.toISOString()
@@ -192,6 +194,9 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
   // auto-shift reordena las tareas subsiguientes del carril en el proximo render.
   // ============================================================
   const dragRef = useRef<{ tarea: Tarea; grabPx: number } | null>(null)
+  // v1.17: marca si hubo arrastre real (movimiento), para NO disparar el click de
+  // navegacion cuando el usuario solo reprogramo una barra.
+  const dragMovedRef = useRef(false)
   const [ghost, setGhost] = useState<{ id: string; x: number; y: number; w: number; label: string } | null>(null)
 
   function instanteDesdeFraccion(frac: number): Date {
@@ -213,9 +218,10 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
     // offset del cursor respecto del borde izquierdo de la barra (precision en X)
     const grabPx = e.clientX - (rect.left + barLeftPx)
     dragRef.current = { tarea: b.tarea, grabPx }
+    dragMovedRef.current = false
     setGhost({ id: b.tarea.id, x: e.clientX, y: e.clientY, w: barWpx, label: b.tarea.modelo })
 
-    const onMove = (ev: PointerEvent) => setGhost((g) => (g ? { ...g, x: ev.clientX, y: ev.clientY } : g))
+    const onMove = (ev: PointerEvent) => { dragMovedRef.current = true; setGhost((g) => (g ? { ...g, x: ev.clientX, y: ev.clientY } : g)) }
     const onUp = async (ev: PointerEvent) => {
       window.removeEventListener('pointermove', onMove)
       const s = dragRef.current
@@ -375,8 +381,13 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
                     return (
                       <div
                         key={b.tarea.id + '-' + b.idx + '-' + i}
-                        className={'gantt-bar' + (arrastrable ? ' arrastrable' : '') + (recup ? ' recup' : '') + (reparacion ? ' reparacion' : '')}
+                        className={'gantt-bar' + (arrastrable ? ' arrastrable' : '') + (recup ? ' recup' : '') + (reparacion ? ' reparacion' : '') + (onTareaClick ? ' clickable' : '')}
                         onPointerDown={arrastrable ? (e) => iniciarArrastre(e, b) : undefined}
+                        onClick={onTareaClick ? () => {
+                          // Si vino de un arrastre real, no navegar (y resetear la marca).
+                          if (dragMovedRef.current) { dragMovedRef.current = false; return }
+                          onTareaClick(b.tarea)
+                        } : undefined}
                         style={{
                           left: `${b.left}%`, width: `${b.width}%`, top: topDeFila(b.row),
                           backgroundColor: reparacion ? 'var(--reparacion)' : COLOR[b.tarea.estado],
