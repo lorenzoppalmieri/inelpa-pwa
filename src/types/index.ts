@@ -592,9 +592,14 @@ export function esCausaLogistica(c: CausaParada): boolean {
 }
 
 // Causas visibles para un sector: las de su area + las globales (sin areas).
+// v1.17: en MONTAJE no se ofrece la causa generica "Otra" (decision de planta).
 export function causasDeSector(id: SectorId): CausaParadaDef[] {
   const area = areaDemora(id)
-  return CAUSAS_PARADA.filter((c) => !c.areas || c.areas.includes(area))
+  return CAUSAS_PARADA.filter((c) => {
+    if (c.areas && !c.areas.includes(area)) return false
+    if (area === 'montaje' && c.id === 'otra') return false
+    return true
+  })
 }
 
 export const CATEGORIA_LABEL: Record<CategoriaParada, string> = {

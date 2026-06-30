@@ -1,6 +1,6 @@
 import { type PointerEvent as ReactPointerEvent, useMemo, useRef, useState } from 'react'
 import type { Tarea, EstadoTarea, Maquina } from '../../types'
-import { sectorById, causaLabel, esParadaNoProductiva } from '../../types'
+import { sectorById, causaLabel, esParadaNoProductiva, esSectorBobinado } from '../../types'
 import { componentePorCodigo } from '../../data/catalogo'
 import { hhmm, fmtDur, isoWeek, minutosEntre } from '../../lib/time'
 import { proximoInstanteLaborable, tramosLaborables, calcularTiempoNetoProductivo, type GrupoAlmuerzo } from '../../lib/calendario'
@@ -157,15 +157,25 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
       const conPlan = ts.map((t) => ({ t, p: plan.get(t.id) }))
         .filter((x): x is { t: Tarea; p: Plan } => !!x.p)
         .sort((a, b) => (a.p.startISO < b.p.startISO ? -1 : a.p.startISO > b.p.startISO ? 1 : 0))
-      // Packing greedy: cada tarea va a la 1ra sub-fila libre (cuyo fin <= su inicio).
-      const finDeFila: string[] = []
+      // v1.17: BOBINADO produce 1 bobina por maquina -> NO hay paralelo: una sola
+      // fila secuencial (el auto-shift ya encola las tareas con igual hora de
+      // arranque). El apilado en sub-filas queda solo para sectores con paralelo
+      // real (Montaje Parte Activa / Post Horno).
+      const laneBobinado = ts.length > 0 && ts.every((t) => esSectorBobinado(t.sectorId))
       const rowDe = new Map<string, number>()
-      for (const { t, p } of conPlan) {
-        let r = finDeFila.findIndex((fin) => fin <= p.startISO)
-        if (r === -1) { r = finDeFila.length; finDeFila.push(p.endISO) } else finDeFila[r] = p.endISO
-        rowDe.set(t.id, r)
+      if (laneBobinado) {
+        for (const { t } of conPlan) rowDe.set(t.id, 0)
+        filas.set(laneId, 1)
+      } else {
+        // Packing greedy: cada tarea va a la 1ra sub-fila libre (cuyo fin <= su inicio).
+        const finDeFila: string[] = []
+        for (const { t, p } of conPlan) {
+          let r = finDeFila.findIndex((fin) => fin <= p.startISO)
+          if (r === -1) { r = finDeFila.length; finDeFila.push(p.endISO) } else finDeFila[r] = p.endISO
+          rowDe.set(t.id, r)
+        }
+        filas.set(laneId, Math.max(1, finDeFila.length))
       }
-      filas.set(laneId, Math.max(1, finDeFila.length))
 
       const arr: Segmento[] = []
       for (const { t, p } of conPlan) {
