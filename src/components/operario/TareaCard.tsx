@@ -8,7 +8,7 @@ import { useAuth } from '../../auth/AuthContext'
 import { hhmm, cronometro, fmtDur, minutosEntre, fechaCorta } from '../../lib/time'
 import { calcularTiempoNetoProductivo } from '../../lib/calendario'
 import { componentePorCodigo } from '../../data/catalogo'
-import { minutosParada } from '../../lib/kpi'
+import { minutosParada, tiempoRealMin } from '../../lib/kpi'
 import ModalParada from './ModalParada'
 
 const ESTADO_CHIP: Record<string, string> = {
@@ -115,7 +115,12 @@ export default function TareaCard({ tarea, onIniciar }: { tarea: Tarea; onInicia
   }
 
   const totalParada = minutosParada(tarea)
-  const ejecutado = tarea.inicioReal ? minutosEntre(tarea.inicioReal, tarea.finReal ?? new Date().toISOString()) : 0
+  // v1.17: "Ejecutado en" = Tiempo Real LABORABLE (excluye horas de planta cerrada,
+  // almuerzo y pausas no productivas), igual que el planificador. Antes usaba la
+  // resta cruda de timestamps e inflaba el tiempo cuando la tarea cruzaba la noche.
+  const ejecutado = tarea.estado === 'finalizada'
+    ? tiempoRealMin(tarea)
+    : (tarea.inicioReal ? minutosEntre(tarea.inicioReal, new Date().toISOString()) : 0)
 
   // Titulo principal = SEMIELABORADO completo (descripcion del maestro de articulos).
   // Fallback al modelo si la tarea no tiene semielaborado asignado.
