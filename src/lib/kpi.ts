@@ -9,10 +9,12 @@ import { causaLabel, esParadaNoProductiva, esReparacion } from '../types'
 
 // Minutos de parada PRODUCTIVA (demoras reales). Excluye pausas programadas
 // como el almuerzo, que no deben penalizar el OEE (v1.4).
+// v1.17: se miden en minutos LABORABLES (no crudos): una demora que cruza la noche
+// o el fin de semana NO suma esas horas de planta cerrada. Solo cuenta si tiene fin.
 export function minutosParada(t: Tarea): number {
   return t.paradas
-    .filter((p) => !esParadaNoProductiva(p.causa))
-    .reduce((acc, p) => acc + minutosEntre(p.inicio, p.fin), 0)
+    .filter((p) => !esParadaNoProductiva(p.causa) && p.fin)
+    .reduce((acc, p) => acc + calcularTiempoNetoProductivo(new Date(p.inicio), new Date(p.fin as string), { sinAlmuerzo: true }), 0)
 }
 
 // Minutos de paradas NO productivas (almuerzo, pausas programadas, lapso de
@@ -153,7 +155,8 @@ export function paretoDemoras(tareas: Tarea[]): ParetoItem[] {
   const map = new Map<CausaParada, { min: number; ev: number }>()
   for (const p of all) {
     if (esParadaNoProductiva(p.causa)) continue // el almuerzo no es una demora
-    const min = minutosEntre(p.inicio, p.fin)
+    // v1.17: minutos LABORABLES (no crudos): no cuenta noches/finde/planta cerrada.
+    const min = p.fin ? calcularTiempoNetoProductivo(new Date(p.inicio), new Date(p.fin), { sinAlmuerzo: true }) : 0
     if (min <= 0) continue // ignora paradas en curso sin cierre
     const cur = map.get(p.causa) ?? { min: 0, ev: 0 }
     cur.min += min
