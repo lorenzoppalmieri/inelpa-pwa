@@ -1,7 +1,7 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useAuth } from '../auth/AuthContext'
 import { ROL_LABEL } from '../auth/roles'
-import { onSync, type EstadoSync } from '../sync/syncEngine'
+import { onSync, purgarColaSync, reintentarErroresSync, type EstadoSync } from '../sync/syncEngine'
 import CambiarPassword from './CambiarPassword'
 
 // ============================================================
@@ -30,8 +30,30 @@ export default function Layout({ children }: { children: ReactNode }) {
   const { usuario, logout } = useAuth()
   const [sync, setSync] = useState<EstadoSync | null>(null)
   const [verCambioClave, setVerCambioClave] = useState(false)
+  // v1.18: escape hatch. 5 clics en el semaforo revelan el panel de emergencia.
+  const [verAdminSync, setVerAdminSync] = useState(false)
+  const clicksRef = useRef<{ n: number; t: number }>({ n: 0, t: 0 })
 
   useEffect(() => onSync(setSync), [])
+
+  function clickSemaforo() {
+    const ahora = Date.now()
+    const c = clicksRef.current
+    c.n = ahora - c.t < 1200 ? c.n + 1 : 1
+    c.t = ahora
+    if (c.n >= 5) { setVerAdminSync(true); c.n = 0 }
+  }
+
+  async function purgar() {
+    if (!window.confirm('EMERGENCIA: purgar la cola de sincronización trabada.\n\nSe descartan los cambios locales que no se pudieron subir. Usar solo si la sync quedó bloqueada. ¿Continuar?')) return
+    const n = await purgarColaSync()
+    window.alert(`Cola purgada: ${n} operación(es) descartada(s). La app vuelve a sincronizar normal.`)
+    setVerAdminSync(false)
+  }
+  async function reintentar() {
+    const n = await reintentarErroresSync()
+    window.alert(n > 0 ? `Reintentando ${n} operación(es) con error…` : 'No hay operaciones con error para reintentar.')
+  }
 
   return (
     <div className="app-shell">
@@ -43,11 +65,13 @@ export default function Layout({ children }: { children: ReactNode }) {
         <div className="user">
           {sync && (() => {
             const e = semaforoEstado(sync)
+            const det = e.detalle + (sync.errores ? ` · ${sync.errores} con error (descartadas)` : '') + (sync.sesionInvalida ? ' · sesión vencida, reingresá' : '')
             return (
-              <span className={'sync-pill ' + e.clase} title={e.detalle} aria-label={`Estado de conexion: ${e.label}. ${e.detalle}`}>
+              <span className={'sync-pill ' + e.clase} title={det + ' · (5 clics = panel de emergencia)'} onClick={clickSemaforo} style={{ cursor: 'pointer' }} aria-label={`Estado de conexion: ${e.label}. ${det}`}>
                 <span className="sem-dot" />
                 <span className="sem-label">{e.label}</span>
                 {sync.pendientes > 0 && <span className="sem-badge">{sync.pendientes}</span>}
+                {!!sync.errores && sync.errores > 0 && <span className="sem-badge" style={{ background: 'var(--rojo)' }}>⛔{sync.errores}</span>}
               </span>
             )
           })()}
@@ -61,6 +85,27 @@ export default function Layout({ children }: { children: ReactNode }) {
       </header>
       <main className="content">{children}</main>
       {verCambioClave && <CambiarPassword onClose={() => setVerCambioClave(false)} />}
+
+      {verAdminSync && (
+        <div className="modal-overlay" onClick={() => setVerAdminSync(false)}>
+          <div className="modal" onClick={(ev) => ev.stopPropagation()}>
+            <div className="section-title" style={{ marginTop: 0 }}>🛠 Sincronización — emergencia</div>
+            <div className="meta" style={{ marginBottom: 12 }}>
+              Pendientes: <strong>{sync?.pendientes ?? 0}</strong> · Con error: <strong>{sync?.errores ?? 0}</strong>
+              {sync?.sesionInvalida ? <> · <span style={{ color: 'var(--rojo)' }}>sesión vencida (reingresá)</span></> : null}
+            </div>
+            <p className="meta" style={{ marginBottom: 14 }}>
+              Usá esto solo si la sincronización quedó trabada en un número que no baja. "Reintentar" es seguro;
+              "Purgar" descarta los cambios locales que no se pudieron subir.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <button className="btn" onClick={reintentar}>↻ Reintentar operaciones con error</button>
+              <button className="btn btn-rojo" onClick={purgar}>🧹 Purgar cola de sincronización trabada</button>
+              <button className="btn" onClick={() => setVerAdminSync(false)}>Cerrar</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

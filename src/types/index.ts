@@ -422,6 +422,8 @@ export interface SyncOp {
   payload: unknown
   ts: string
   sincronizado: boolean
+  intentos?: number      // v1.18: reintentos acumulados (para no loopear infinito)
+  errorSync?: string     // v1.18: si esta seteado, la op quedo "descartada" por error definitivo
 }
 
 export const SECTORES: Sector[] = [

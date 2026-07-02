@@ -34,6 +34,8 @@ export interface EstadoSync {
   ultimaSync?: string
   backendActivo: boolean
   sincronizando: boolean
+  errores?: number         // v1.18: ops descartadas por error (no bloquean la cola)
+  sesionInvalida?: boolean // v1.18: sesion vencida sin poder renovar -> re-login
 }
 
 let listeners: Listener[] = []
@@ -49,9 +51,45 @@ export function onSync(l: Listener): () => void {
 }
 
 async function refreshPendientes() {
-  const pendientes = await db.syncQueue.filter((op) => !op.sincronizado).count()
-  estado = { ...estado, pendientes, online: navigator.onLine }
+  // Pendientes REALES = sin sincronizar y sin error definitivo (esas quedan parkeadas).
+  const ops = await db.syncQueue.toArray()
+  const pendientes = ops.filter((op) => !op.sincronizado && !op.errorSync).length
+  const errores = ops.filter((op) => !!op.errorSync).length
+  estado = { ...estado, pendientes, errores, online: navigator.onLine }
   emit()
+}
+
+// v1.18: clasifica un error de sync. 'retry' = transitorio (red, sesion, 5xx/429)
+// -> conviene reintentar mas tarde. 'fatal' = definitivo (400/403/RLS/constraint)
+// -> reintentar el MISMO payload nunca va a funcionar; se descarta para no trabar.
+function clasificarErrorSync(msg: string): 'retry' | 'fatal' {
+  return /jwt|token|expired|refresh|failed to fetch|networkerror|network request failed|load failed|fetch|timeout|temporarily|503|502|500|429/i.test(msg)
+    ? 'retry' : 'fatal'
+}
+
+// ¿El error es por falta de red (transitorio)?
+function esErrorDeRed(e: unknown): boolean {
+  if (typeof navigator !== 'undefined' && !navigator.onLine) return true
+  const msg = e instanceof Error ? e.message : String(e)
+  return /failed to fetch|networkerror|network request failed|load failed|fetch/i.test(msg)
+}
+
+// v1.18: asegura sesion de Supabase valida antes de vaciar la cola. Renueva el
+// token si esta por vencer. Devuelve false si no hay sesion o no se pudo renovar.
+async function asegurarSesion(): Promise<boolean> {
+  if (!supabase) return true // modo demo (sin backend)
+  try {
+    const { data } = await supabase.auth.getSession()
+    if (!data.session) return false
+    const expMs = (data.session.expires_at ?? 0) * 1000
+    if (expMs && expMs - Date.now() < 120000) { // vence en < 2 min -> renovar ya
+      const { error } = await supabase.auth.refreshSession()
+      if (error) return false
+    }
+    return true
+  } catch {
+    return false
+  }
 }
 
 // v1.17: vuelca los feriados de Dexie al motor de calendario (afecta Gantt,
@@ -259,16 +297,42 @@ export async function encolar(op: Omit<SyncOp, 'id' | 'ts' | 'sincronizado'>) {
   void procesarCola()
 }
 
+const MAX_INTENTOS = 5 // reintentos por op antes de descartarla (evita loop infinito)
+
 let procesando = false
 export async function procesarCola(): Promise<void> {
   if (procesando || !navigator.onLine) return
   procesando = true
   try {
-    const pend = await db.syncQueue.filter((op) => !op.sincronizado).toArray()
+    // v1.18: renovar/validar la sesion ANTES de vaciar la cola. Si esta vencida y
+    // no se puede renovar, se pausa (no se loopea) y se pide re-login via estado.
+    if (!(await asegurarSesion())) {
+      estado = { ...estado, sesionInvalida: true }; emit()
+      return
+    }
+    if (estado.sesionInvalida) { estado = { ...estado, sesionInvalida: false }; emit() }
+
+    // Solo ops sin sincronizar y sin error definitivo (las parkeadas se saltean).
+    const pend = await db.syncQueue.filter((op) => !op.sincronizado && !op.errorSync).toArray()
     for (const op of pend) {
-      const ok = await empujar(op)
-      if (ok) await db.syncQueue.update(op.id, { sincronizado: true })
-      else break // si falla, reintenta en el proximo ciclo
+      const r = await empujar(op)
+      if (r.estado === 'ok') { await db.syncQueue.update(op.id, { sincronizado: true }); continue }
+
+      const intentos = (op.intentos ?? 0) + 1
+      if (r.estado === 'fatal') {
+        // Error DEFINITIVO (400/403/RLS/constraint): descartar y SEGUIR con el resto.
+        console.error(`[sync] ⛔ DESCARTADA ${op.entidad}/${op.entidadId} (${op.tipo}) — error definitivo: ${r.msg}`, op.payload)
+        await db.syncQueue.update(op.id, { errorSync: r.msg ?? 'error definitivo', intentos })
+        continue
+      }
+      // Transitorio (red/sesion/5xx): reintentar. Si se agotan los intentos, descartar.
+      if (intentos >= MAX_INTENTOS) {
+        console.error(`[sync] ⛔ DESCARTADA ${op.entidad}/${op.entidadId} — ${intentos} reintentos fallidos: ${r.msg}`, op.payload)
+        await db.syncQueue.update(op.id, { errorSync: `reintentos agotados: ${r.msg ?? ''}`, intentos })
+        continue
+      }
+      await db.syncQueue.update(op.id, { intentos })
+      break // probablemente sin red; cortar el ciclo y reintentar en el proximo
     }
     estado = { ...estado, ultimaSync: new Date().toISOString() }
   } finally {
@@ -277,10 +341,19 @@ export async function procesarCola(): Promise<void> {
   }
 }
 
+type EmpujeResultado = { estado: 'ok' | 'retry' | 'fatal'; msg?: string }
+const OK_EMPUJE: EmpujeResultado = { estado: 'ok' }
+// Traduce un error de Supabase a resultado clasificado (retry vs fatal).
+function fallo(contexto: string, msg: string): EmpujeResultado {
+  return { estado: clasificarErrorSync(msg), msg: `${contexto}: ${msg}` }
+}
+
 // Empuja una operacion al backend (con mapeo camelCase -> snake_case).
+// v1.18: devuelve 'ok' | 'retry' (transitorio) | 'fatal' (definitivo). NUNCA
+// bloquea la cola: quien llama decide descartar la op fatal y seguir.
 // En modo demo (sin .env) confirma localmente.
-async function empujar(op: SyncOp): Promise<boolean> {
-  if (!BACKEND_ACTIVO || !supabase) return true // modo demo: nada que enviar
+async function empujar(op: SyncOp): Promise<EmpujeResultado> {
+  if (!BACKEND_ACTIVO || !supabase) return OK_EMPUJE // modo demo: nada que enviar
   try {
     // Borrado fisico (solo gestion, via RLS). La tabla de cada entidad.
     if (op.tipo === 'delete') {
@@ -293,8 +366,8 @@ async function empujar(op: SyncOp): Promise<boolean> {
         : op.entidad === 'feriado' ? 'feriados'
         : 'paradas'
       const { error } = await supabase.from(tabla).delete().eq('id', op.entidadId)
-      if (error) { console.warn(`[sync] delete ${op.entidad}:`, error.message); return false }
-      return true
+      if (error) return fallo(`delete ${op.entidad}`, error.message)
+      return OK_EMPUJE
     }
     switch (op.entidad) {
       case 'tarea': {
@@ -303,69 +376,72 @@ async function empujar(op: SyncOp): Promise<boolean> {
         // Por RLS, el operario solo puede UPDATE (no INSERT). Intentamos update
         // primero; si no existia la fila (gestion creando), recien ahi insert.
         const upd = await supabase.from('tareas').update(row).eq('id', t.id).select('id')
-        if (upd.error) { console.warn('[sync] update tarea:', upd.error.message); return false }
+        if (upd.error) return fallo('update tarea', upd.error.message)
         if (!upd.data || upd.data.length === 0) {
           const ins = await supabase.from('tareas').insert(row)
-          if (ins.error) { console.warn('[sync] insert tarea:', ins.error.message); return false }
+          if (ins.error) return fallo('insert tarea', ins.error.message)
         }
         // Las paradas de la tarea van a su propia tabla.
         if (t.paradas?.length) {
           const { error: ep } = await supabase
             .from('paradas')
             .upsert(t.paradas.map(paradaToRow), { onConflict: 'id' })
-          if (ep) { console.warn('[sync] upsert paradas:', ep.message); return false }
+          if (ep) return fallo('upsert paradas', ep.message)
         }
-        return true
+        return OK_EMPUJE
       }
       case 'orden': {
-        const { error } = await supabase
-          .from('ordenes')
-          .upsert(ordenToRow(op.payload as OrdenProduccion), { onConflict: 'id' })
-        if (error) { console.warn('[sync] upsert orden:', error.message); return false }
-        return true
+        const { error } = await supabase.from('ordenes').upsert(ordenToRow(op.payload as OrdenProduccion), { onConflict: 'id' })
+        return error ? fallo('upsert orden', error.message) : OK_EMPUJE
       }
       case 'semielaborado': {
-        const { error } = await supabase
-          .from('semielaborados')
-          .upsert(semiToRow(op.payload as Semielaborado), { onConflict: 'id' })
-        if (error) { console.warn('[sync] upsert semielaborado:', error.message); return false }
-        return true
+        const { error } = await supabase.from('semielaborados').upsert(semiToRow(op.payload as Semielaborado), { onConflict: 'id' })
+        return error ? fallo('upsert semielaborado', error.message) : OK_EMPUJE
       }
       case 'parada': {
-        const { error } = await supabase
-          .from('paradas')
-          .upsert(paradaToRow(op.payload as Parameters<typeof paradaToRow>[0]), { onConflict: 'id' })
-        if (error) { console.warn('[sync] upsert parada:', error.message); return false }
-        return true
+        const { error } = await supabase.from('paradas').upsert(paradaToRow(op.payload as Parameters<typeof paradaToRow>[0]), { onConflict: 'id' })
+        return error ? fallo('upsert parada', error.message) : OK_EMPUJE
       }
       case 'objetivo': {
-        const { error } = await supabase
-          .from('objetivos')
-          .upsert(objetivoToRow(op.payload as Objetivo), { onConflict: 'id' })
-        if (error) { console.warn('[sync] upsert objetivo:', error.message); return false }
-        return true
+        const { error } = await supabase.from('objetivos').upsert(objetivoToRow(op.payload as Objetivo), { onConflict: 'id' })
+        return error ? fallo('upsert objetivo', error.message) : OK_EMPUJE
       }
       case 'tarea_logistica': {
-        const { error } = await supabase
-          .from('tareas_logistica')
-          .upsert(tareaLogToRow(op.payload as TareaLogistica), { onConflict: 'id' })
-        if (error) { console.warn('[sync] upsert tarea_logistica:', error.message); return false }
-        return true
+        const { error } = await supabase.from('tareas_logistica').upsert(tareaLogToRow(op.payload as TareaLogistica), { onConflict: 'id' })
+        return error ? fallo('upsert tarea_logistica', error.message) : OK_EMPUJE
       }
       case 'feriado': {
-        const { error } = await supabase
-          .from('feriados')
-          .upsert(feriadoToRow(op.payload as Feriado), { onConflict: 'id' })
-        if (error) { console.warn('[sync] upsert feriado:', error.message); return false }
-        return true
+        const { error } = await supabase.from('feriados').upsert(feriadoToRow(op.payload as Feriado), { onConflict: 'id' })
+        return error ? fallo('upsert feriado', error.message) : OK_EMPUJE
       }
       default:
-        return true
+        return OK_EMPUJE
     }
   } catch (e) {
-    console.warn('[sync] empujar excepcion:', e)
-    return false // sin red: reintenta luego
+    // Excepcion (tipicamente red): transitorio -> reintentar luego.
+    const msg = e instanceof Error ? e.message : String(e)
+    return { estado: esErrorDeRed(e) ? 'retry' : 'fatal', msg: `excepcion: ${msg}` }
   }
+}
+
+// ============================================================
+// v1.18: ESCAPE HATCH — purgar / reintentar la cola de sync (para PC trabada).
+// ============================================================
+// Borra TODA la cola local pendiente (descarta cambios no subidos). Uso de
+// emergencia cuando la cola quedo trabada; devuelve cuantas ops se purgaron.
+export async function purgarColaSync(): Promise<number> {
+  const ops = await db.syncQueue.filter((op) => !op.sincronizado).toArray()
+  await db.syncQueue.clear()
+  await refreshPendientes()
+  return ops.length
+}
+// Reintenta las ops descartadas por error (limpia el flag para reprocesarlas).
+export async function reintentarErroresSync(): Promise<number> {
+  const errs = await db.syncQueue.filter((op) => !!op.errorSync).toArray()
+  for (const op of errs) await db.syncQueue.update(op.id, { errorSync: undefined, intentos: 0 })
+  await refreshPendientes()
+  void procesarCola()
+  return errs.length
 }
 
 // ============================================================
