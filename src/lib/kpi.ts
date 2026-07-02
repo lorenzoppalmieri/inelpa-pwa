@@ -61,13 +61,15 @@ export function tiempoRealNeto(t: Tarea): number {
 //   Tiempo Real         = (Fin - Inicio) sin horarios de planta cerrada (ni almuerzo).
 //   Total Demorado      = suma de paradas justificadas (productivas).
 //   Tiempo Neto         = Tiempo Real - Total Demorado.
-//   Demora Sin Justificar = Tiempo Real - Tiempo Estimado  (0 si es <= 0).
+//   Demora Sin Justificar = Tiempo NETO - Tiempo Estimado  (0 si es <= 0).
+//     (v1.18) Se usa Neto —trabajo efectivo, ya descontadas las demoras
+//     justificadas— para NO penalizar por paradas justificadas (material, maquina).
 // ============================================================
 export function tiempoEstimadoMin(t: Tarea): number { return Math.max(0, t.tiempoEstandarMin) }
 export function tiempoRealMin(t: Tarea): number { return tiempoDisponible(t) }
 export function totalDemoradoMin(t: Tarea): number { return minutosParada(t) }
 export function tiempoNetoMin(t: Tarea): number { return Math.max(0, tiempoRealMin(t) - totalDemoradoMin(t)) }
-export function demoraSinJustificarMin(t: Tarea): number { return Math.max(0, tiempoRealMin(t) - tiempoEstimadoMin(t)) }
+export function demoraSinJustificarMin(t: Tarea): number { return Math.max(0, tiempoNetoMin(t) - tiempoEstimadoMin(t)) }
 
 // Filtra tareas cuyo trabajo cae dentro de [desdeISO, hastaISO) segun su
 // inicio real (o planificado). Base del filtro de periodo del Dashboard (v1.4).

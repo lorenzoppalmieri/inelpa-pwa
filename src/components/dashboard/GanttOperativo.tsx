@@ -5,7 +5,7 @@ import { componentePorCodigo } from '../../data/catalogo'
 import { hhmm, fmtDur, isoWeek, minutosEntre } from '../../lib/time'
 import { proximoInstanteLaborable, tramosLaborables, calcularTiempoNetoProductivo, type GrupoAlmuerzo } from '../../lib/calendario'
 import { programar, type Plan } from '../../lib/programacion'
-import { minutosNoProductivos } from '../../lib/kpi'
+import { minutosNoProductivos, minutosParada } from '../../lib/kpi'
 import { guardarTarea } from '../../sync/syncEngine'
 
 // Ventana horaria visible de cada dia (turno de planta: 07:00 - 17:00 reloj
@@ -298,7 +298,8 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
     else return 0 // pendiente / pausada: no se evalua
     if (!endRef) return 0
     const real = calcularTiempoNetoProductivo(new Date(t.inicioReal), new Date(endRef), { horaRecuperacion: t.activaHoraRecuperacion, sinAlmuerzo: true }) - minutosNoProductivos(t)
-    return Math.max(0, Math.round(real - t.tiempoEstandarMin))
+    const neto = real - minutosParada(t) // v1.18: Neto = Real - demoras justificadas
+    return Math.max(0, Math.round(neto - t.tiempoEstandarMin))
   }
 
   const horas = Array.from({ length: H_FIN - H_INI }, (_, i) => H_INI + i)
