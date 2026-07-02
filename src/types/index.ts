@@ -552,6 +552,7 @@ export const CAUSAS_PARADA: CausaParadaDef[] = [
   { id: 'mon_solucionando_retrabajo', label: 'Solucionando retrabajo', categoria: 'calidad', areas: ['montaje'] },
   { id: 'mon_pintaron_prensayugo', label: 'Pintaron prensayugo en el sector', categoria: 'otra', areas: ['montaje'] },
   { id: 'mon_espera_conmutador', label: 'Espera / falta conmutador', categoria: 'logistica', areas: ['montaje'] },
+  { id: 'mon_espera_varillas_roscadas', label: 'Espera / falta varillas roscadas', categoria: 'logistica', areas: ['montaje'] },
 
   // ===== PINTURA (Lavado y Pintura) =====
   { id: 'pin_falta_cubas', label: 'Falta de cubas', categoria: 'material', areas: ['pintura'] },
