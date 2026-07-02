@@ -1,7 +1,7 @@
 import type { Tarea, EstadoTarea } from '../types'
 import { sectorById, esReparacion } from '../types'
 import {
-  calcularOEE, tiempoEstimadoMin, tiempoRealMin, totalDemoradoMin, tiempoNetoMin, demoraSinJustificarMin,
+  calcularOEE, tiempoEstimadoMin, tiempoRealMin, totalDemoradoMin, demoraSinJustificarMin,
 } from './kpi'
 import { programar } from './programacion'
 import { componentePorCodigo } from '../data/catalogo'
@@ -124,9 +124,10 @@ export function exportarDetalleTareasCSV(
   filas.push(['Tareas finalizadas', fin.length])
   filas.push([])
   filas.push(['Tarea (semielaborado)', 'Modelo', 'N transformador', 'Colaborador', 'Estacion', 'Sector',
-    'Estimado (min)', 'Real (min)', 'Demorado (min)', 'Neto (min)', 'Demora sin justificar (min)'])
+    'Estimado (min)', 'Real (min)', 'Demorado (min)', 'Demora justificada (min)', 'Demora sin justificar (min)'])
   for (const t of fin) {
     const comp = componentePorCodigo(t.componenteCodigo)
+    const demorado = Math.max(0, Math.round(tiempoRealMin(t) - tiempoEstimadoMin(t))) // exceso sobre estandar
     filas.push([
       comp ? comp.descripcion : t.modelo,
       t.modelo,
@@ -136,9 +137,9 @@ export function exportarDetalleTareasCSV(
       sectorById(t.sectorId).nombre,
       Math.round(tiempoEstimadoMin(t)),
       Math.round(tiempoRealMin(t)),
-      Math.round(totalDemoradoMin(t)),
-      Math.round(tiempoNetoMin(t)),
-      Math.round(demoraSinJustificarMin(t)),
+      demorado,
+      Math.round(totalDemoradoMin(t)),        // demora justificada = suma de paradas
+      Math.round(demoraSinJustificarMin(t)),  // = Demorado - justificada
     ])
   }
   descargarCSV(`Detalle_tareas_${slug(etiqueta)}_${sello()}.csv`, filas)

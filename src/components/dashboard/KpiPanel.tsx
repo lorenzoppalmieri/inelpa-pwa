@@ -72,7 +72,7 @@ export default function KpiPanel({ tareas, nombreOperario, nombreMaquina }: {
       </div>
 
       {/* v1.16: detalle por tarea con las 5 metricas canonicas (filtrable). */}
-      <div className="section-title">Detalle por tarea (Estimado · Real · Demorado · Neto · Demora sin justificar)</div>
+      <div className="section-title">Detalle por tarea (Estimado · Real · Demorado · Demora justificada · Demora sin justificar)</div>
       <DetalleTareas tareas={tareas} nombreOperario={nombreOperario} nombreMaquina={nombreMaquina} />
 
       {/* Pareto de demoras */}

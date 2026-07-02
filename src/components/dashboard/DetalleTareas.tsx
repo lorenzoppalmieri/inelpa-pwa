@@ -4,14 +4,15 @@ import { esReparacion } from '../../types'
 import { componentePorCodigo } from '../../data/catalogo'
 import { fmtDur } from '../../lib/time'
 import {
-  tiempoEstimadoMin, tiempoRealMin, totalDemoradoMin, tiempoNetoMin, demoraSinJustificarMin,
+  tiempoEstimadoMin, tiempoRealMin, totalDemoradoMin, demoraSinJustificarMin,
 } from '../../lib/kpi'
 import { exportarDetalleTareasCSV } from '../../lib/export'
 
 // ============================================================
-// DETALLE POR TAREA (v1.16) — tabla filtrable de tareas finalizadas con las
-// 5 metricas canonicas (definiciones exactas de direccion). Permite ver, por
-// cada tarea, Estimado / Real / Total Demorado / Neto / Demora Sin Justificar.
+// DETALLE POR TAREA — tabla filtrable de tareas finalizadas. Columnas (v1.18):
+//   Estimado | Real | Demorado (=Real-Estimado, exceso total sobre el estandar)
+//   | Demora justificada (=suma de paradas registradas) | Demora sin justificar
+//   (=Demorado - Demora justificada = tiempo perdido sin motivo reportado).
 // ============================================================
 export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina }: {
   tareas: Tarea[]
@@ -36,9 +37,9 @@ export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina }:
         maquina: nombreMaquina(t.maquinaId),
         estimado: tiempoEstimadoMin(t),
         real: tiempoRealMin(t),
-        demorado: totalDemoradoMin(t),
-        neto: tiempoNetoMin(t),
-        sinJust: demoraSinJustificarMin(t),
+        demorado: Math.max(0, tiempoRealMin(t) - tiempoEstimadoMin(t)), // exceso total sobre estandar
+        justificada: totalDemoradoMin(t),                               // suma de paradas registradas
+        sinJust: demoraSinJustificarMin(t),                             // = Demorado - justificada
       }
     })
       .filter((r) => !txt || `${r.nombre} ${r.nro} ${r.operario} ${r.maquina}`.toLowerCase().includes(txt))
@@ -68,7 +69,7 @@ export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina }:
             <tr>
               <th>Tarea</th><th>Colaborador</th><th>Estación</th>
               <th className="num">Estimado</th><th className="num">Real</th>
-              <th className="num">Demorado</th><th className="num">Neto</th>
+              <th className="num">Demorado</th><th className="num">Demora justif.</th>
               <th className="num">Demora s/just.</th>
             </tr>
           </thead>
@@ -81,7 +82,7 @@ export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina }:
                 <td className="num">{fmtDur(r.estimado)}</td>
                 <td className="num">{fmtDur(r.real)}</td>
                 <td className="num">{r.demorado > 0 ? fmtDur(r.demorado) : '—'}</td>
-                <td className="num">{fmtDur(r.neto)}</td>
+                <td className="num">{r.justificada > 0 ? fmtDur(r.justificada) : '—'}</td>
                 <td className="num" style={{ fontWeight: 800, color: r.sinJust > 0 ? 'var(--rojo)' : 'var(--texto-tenue)' }}>
                   {r.sinJust > 0 ? `+${fmtDur(r.sinJust)}` : '—'}
                 </td>
