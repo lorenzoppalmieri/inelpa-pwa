@@ -2,7 +2,7 @@ import { type PointerEvent as ReactPointerEvent, useMemo, useRef, useState } fro
 import type { Tarea, EstadoTarea, Maquina } from '../../types'
 import { sectorById, causaLabel, esParadaNoProductiva, esSectorBobinado } from '../../types'
 import { componentePorCodigo } from '../../data/catalogo'
-import { hhmm, fmtDur, isoWeek, minutosEntre } from '../../lib/time'
+import { hhmm, fmtDur, isoWeek, minutosEntre, fechaCorta } from '../../lib/time'
 import { proximoInstanteLaborable, tramosLaborables, calcularTiempoNetoProductivo, type GrupoAlmuerzo } from '../../lib/calendario'
 import { programar, type Plan } from '../../lib/programacion'
 import { minutosNoProductivos, minutosParada } from '../../lib/kpi'
@@ -26,6 +26,16 @@ const COLOR: Record<EstadoTarea, string> = {
 
 function minClock(d: Date): number { return d.getHours() * 60 + d.getMinutes() }
 function mismaFecha(a: Date, b: Date): boolean { return a.toDateString() === b.toDateString() }
+
+// v1.18: rango inicio–fin para el tooltip. Siempre muestra el DIA al inicio; si
+// la tarea CRUZA de un dia a otro, repite el dia tambien en el fin (evita que el
+// planificador confunda si el proceso quedo dentro de la misma jornada o la cruzo).
+function rangoFechaHora(aIso: string, bIso: string): string {
+  const a = new Date(aIso), b = new Date(bIso)
+  return mismaFecha(a, b)
+    ? `${fechaCorta(aIso)} ${hhmm(aIso)}–${hhmm(bIso)}`
+    : `${fechaCorta(aIso)} ${hhmm(aIso)}–${fechaCorta(bIso)} ${hhmm(bIso)}`
+}
 
 // v1.17: resumen de paradas de una tarea para el tooltip de la barra (causa +
 // horario inicio-fin + duracion). Marca el almuerzo/pausa como no productivo.
@@ -406,7 +416,7 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
                           border: b.estimada ? '1px dashed rgba(255,255,255,.5)' : 'none',
                           color: b.tarea.estado === 'pausada' && !reparacion ? '#1a1206' : '#fff',
                         }}
-                        title={`${reparacion ? '🔧 REPARACIÓN · ' : ''}Semielaborado: ${semiTxt}\nModelo: ${b.tarea.modelo}\n${b.tarea.estado} · ${nombreMaquina(b.tarea.maquinaId)} · ${b.tarea.operarioId ? nombreOperario(b.tarea.operarioId) : 'sin colaborador'} · ${hhmm(b.plan.startISO)}–${hhmm(b.plan.endISO)} · ${fmtDur(b.tarea.tiempoEstandarMin)}${reparacion ? ' · no productivo (excluido del OEE)' : ''}${recup ? ' · con hora de recuperación' : ''}${arrastrable ? ' · arrastrá para reprogramar' : ''}${resumenParadas(b.tarea)}`}
+                        title={`${reparacion ? '🔧 REPARACIÓN · ' : ''}Semielaborado: ${semiTxt}\nModelo: ${b.tarea.modelo}\n${b.tarea.estado} · ${nombreMaquina(b.tarea.maquinaId)} · ${b.tarea.operarioId ? nombreOperario(b.tarea.operarioId) : 'sin colaborador'} · ${rangoFechaHora(b.plan.startISO, b.plan.endISO)} · ${fmtDur(b.tarea.tiempoEstandarMin)}${reparacion ? ' · no productivo (excluido del OEE)' : ''}${recup ? ' · con hora de recuperación' : ''}${arrastrable ? ' · arrastrá para reprogramar' : ''}${resumenParadas(b.tarea)}`}
                       >
                         {reparacion && b.esInicio && <span className="gantt-rep-tag">🔧</span>}
                         {recup && b.esInicio && <span className="gantt-recup-tag">⏱+1h</span>}
