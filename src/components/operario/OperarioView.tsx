@@ -3,9 +3,11 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
 import { useAuth } from '../../auth/AuthContext'
 import { isoWeek } from '../../lib/time'
-import type { EstadoTarea, Tarea } from '../../types'
+import type { EstadoTarea, Tarea, CausaParada } from '../../types'
 import { sectorById, TIPO_ESTACION_LABEL, maquinaSirveSector, esSectorBobinado } from '../../types'
+import { guardarTarea } from '../../sync/syncEngine'
 import TareaCard from './TareaCard'
+import ModalParada from './ModalParada'
 import AndonView from '../dashboard/AndonView'
 
 const ORDEN: Record<EstadoTarea, number> = { pausada: 0, en_proceso: 1, pendiente: 2, finalizada: 3 }
@@ -65,6 +67,29 @@ export default function OperarioView() {
   }, [maquinaId])
 
   const [filtro, setFiltro] = useState<'activas' | 'pendientes' | 'finalizadas'>('activas')
+  // v1.18: pausa/reanudación GLOBAL de la estación (montaje PA/PO: el equipo para
+  // junto, ej. almuerzo). Aplica a TODAS las tareas de la estación de una vez.
+  const [modalGlobal, setModalGlobal] = useState(false)
+
+  // Pausa todas las tareas EN PROCESO de la estación con la causa elegida (misma hora).
+  async function pausarEstacion(causa: CausaParada, obs: string) {
+    setModalGlobal(false)
+    const ahoraISO = new Date().toISOString()
+    const enProceso = (tareas ?? []).filter((t) => t.estado === 'en_proceso')
+    for (const t of enProceso) {
+      const p = { id: crypto.randomUUID(), tareaId: t.id, causa, inicio: ahoraISO, observacion: obs || undefined }
+      await guardarTarea({ ...t, estado: 'pausada', paradas: [...t.paradas, p] })
+    }
+  }
+  // Reanuda todas las tareas pausadas: cierra sus paradas abiertas (misma hora).
+  async function reanudarEstacion() {
+    const ahoraISO = new Date().toISOString()
+    const pausadas = (tareas ?? []).filter((t) => t.estado === 'pausada' && t.paradas.some((p) => !p.fin))
+    for (const t of pausadas) {
+      const paradas = t.paradas.map((p) => (p.fin ? p : { ...p, fin: ahoraISO }))
+      await guardarTarea({ ...t, estado: 'en_proceso', paradas })
+    }
+  }
 
   // Barra de pestañas Mi trabajo / Andon (ya pasaron todos los hooks).
   const tabsTop = (
@@ -111,6 +136,11 @@ export default function OperarioView() {
     finalizadas: tareas.filter((t) => t.estado === 'finalizada').length,
   }
 
+  // v1.18: pausa/reanuda global solo en Montaje PA/PO (el equipo para/vuelve junto).
+  const esMontaje = !!maquina && maquina.sectorId.startsWith('montaje')
+  const nEnProceso = tareas.filter((t) => t.estado === 'en_proceso').length
+  const nPausadasAbiertas = tareas.filter((t) => t.estado === 'pausada' && t.paradas.some((p) => !p.fin)).length
+
   return (
     <div>
       {tabsTop}
@@ -124,6 +154,18 @@ export default function OperarioView() {
         <button className="btn" onClick={cambiar}>Cambiar estación</button>
       </div>
 
+      {/* v1.18: Montaje PA/PO -> pausar / reanudar TODA la estación de una vez. */}
+      {esMontaje && (
+        <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
+          <button className="btn btn-naranja btn-bloque" style={{ flex: 1 }} disabled={nEnProceso === 0} onClick={() => setModalGlobal(true)}>
+            ⏸ Pausar estación / almuerzo{nEnProceso > 0 ? ` (${nEnProceso})` : ''}
+          </button>
+          <button className="btn btn-verde btn-bloque" style={{ flex: 1 }} disabled={nPausadasAbiertas === 0} onClick={() => void reanudarEstacion()}>
+            ▶ Reanudar estación{nPausadasAbiertas > 0 ? ` (${nPausadasAbiertas})` : ''}
+          </button>
+        </div>
+      )}
+
       <div className="tabs">
         {FILTROS.map((f) => (
           <button key={f.id} className={'tab' + (filtro === f.id ? ' active' : '')} onClick={() => setFiltro(f.id)}>
@@ -135,6 +177,14 @@ export default function OperarioView() {
       {vis.length === 0
         ? <div className="empty">No hay tareas en esta vista.</div>
         : vis.map((t) => <TareaCard key={t.id} tarea={t} onIniciar={() => setFiltro('activas')} />)}
+
+      {modalGlobal && maquina && (
+        <ModalParada
+          sectorId={maquina.sectorId}
+          onConfirm={(c, o) => void pausarEstacion(c, o)}
+          onCancel={() => setModalGlobal(false)}
+        />
+      )}
     </div>
   )
 }
