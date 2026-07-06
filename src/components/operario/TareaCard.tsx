@@ -23,7 +23,11 @@ export default function TareaCard({ tarea, onIniciar }: { tarea: Tarea; onInicia
   const [modal, setModal] = useState(false)
   const [ahora, setAhora] = useState(Date.now())
   const sector = sectorById(tarea.sectorId)
-  const paradaAbierta = tarea.paradas.find((p) => !p.fin)
+  // v1.18: puede haber VARIAS paradas abiertas a la vez (ej. material + almuerzo).
+  // La "primaria" (la más reciente) es la que se muestra y la que cierra "Reanudar".
+  const paradasAbiertas = [...tarea.paradas.filter((p) => !p.fin)].sort((a, b) => (a.inicio < b.inicio ? 1 : -1))
+  const paradaAbierta = paradasAbiertas[0]
+  const otrasAbiertas = paradasAbiertas.length - 1
   // v1.13: estado de la solicitud de material (si la parada abierta es de logistica).
   const solicitud = useLiveQuery(
     async () => (paradaAbierta ? await db.solicitudesLogistica.get(paradaAbierta.id) : undefined),
@@ -68,9 +72,15 @@ export default function TareaCard({ tarea, onIniciar }: { tarea: Tarea; onInicia
     const p = { id: crypto.randomUUID(), tareaId: tarea.id, causa, inicio: new Date().toISOString(), observacion: obs || undefined }
     await guardarTarea({ ...tarea, estado: 'pausada', paradas: [...tarea.paradas, p] })
   }
+  // v1.18: cierra SOLO la parada primaria (la más reciente). Si quedan otras
+  // abiertas (ej. material), la tarea SIGUE pausada mostrando ese motivo; recién
+  // vuelve a "en proceso" cuando no queda ninguna parada abierta.
   async function reanudar() {
-    const paradas = tarea.paradas.map((p) => (p.fin ? p : { ...p, fin: new Date().toISOString() }))
-    await guardarTarea({ ...tarea, estado: 'en_proceso', paradas })
+    if (!paradaAbierta) return
+    const ahoraISO = new Date().toISOString()
+    const paradas = tarea.paradas.map((p) => (p.id === paradaAbierta.id ? { ...p, fin: ahoraISO } : p))
+    const siguenAbiertas = paradas.some((p) => !p.fin)
+    await guardarTarea({ ...tarea, paradas, estado: siguenAbiertas ? 'pausada' : 'en_proceso' })
   }
   // Valida y arma los datos de bobinado requeridos por el sector.
   function validarBobinado(): DatosBobinado | null | false {
@@ -147,12 +157,17 @@ export default function TareaCard({ tarea, onIniciar }: { tarea: Tarea; onInicia
         {totalParada > 0 && <> · Paradas <strong>{fmtDur(totalParada)}</strong></>}
       </div>
 
-      {/* Banner de parada en curso */}
+      {/* Banner de parada en curso (v1.18: puede haber varias abiertas a la vez). */}
       {paradaAbierta && (
         <div className="parada-activa">
           <div>
-            <div className="t">PAUSADO · {causaLabel(paradaAbierta.causa)}</div>
+            <div className="t">PAUSADO · {causaLabel(paradaAbierta.causa)}{otrasAbiertas > 0 ? ` · +${otrasAbiertas} parada(s) más` : ''}</div>
             <div className="meta">Desde {hhmm(paradaAbierta.inicio)} · <span className="timer">{cronometro(paradaAbierta.inicio, ahora)}</span></div>
+            {otrasAbiertas > 0 && (
+              <div className="meta" style={{ marginTop: 2 }}>
+                También abierta(s): {paradasAbiertas.slice(1).map((p) => causaLabel(p.causa)).join(', ')}
+              </div>
+            )}
             {/* v1.13: feedback de logistica si es una espera de material */}
             {esCausaLogistica(paradaAbierta.causa) && (
               solicitud?.estado === 'entregado'

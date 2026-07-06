@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
 import { useAuth } from '../../auth/AuthContext'
 import { isoWeek } from '../../lib/time'
 import type { EstadoTarea, Tarea, CausaParada } from '../../types'
-import { sectorById, TIPO_ESTACION_LABEL, maquinaSirveSector, esSectorBobinado } from '../../types'
+import { sectorById, TIPO_ESTACION_LABEL, maquinaSirveSector, esSectorBobinado, causaLabel } from '../../types'
 import { guardarTarea } from '../../sync/syncEngine'
 import TareaCard from './TareaCard'
 import ModalParada from './ModalParada'
@@ -68,27 +68,43 @@ export default function OperarioView() {
 
   const [filtro, setFiltro] = useState<'activas' | 'pendientes' | 'finalizadas'>('activas')
   // v1.18: pausa/reanudación GLOBAL de la estación (montaje PA/PO: el equipo para
-  // junto, ej. almuerzo). Aplica a TODAS las tareas de la estación de una vez.
+  // junto, ej. almuerzo). Soporta PARADAS CONCURRENTES: una tarea ya pausada por
+  // otro motivo recibe TAMBIÉN la parada global (dos paradas abiertas a la vez);
+  // al reanudar se cierra SOLO la parada global y se restaura el estado previo.
   const [modalGlobal, setModalGlobal] = useState(false)
+  // Causa de la pausa global activa en esta estación (persistida por si recargan).
+  const pgKey = maquinaId ? `inelpa_pausaglob_${maquinaId}` : ''
+  const [pausaGlobal, setPausaGlobal] = useState<CausaParada | null>(null)
+  useEffect(() => { setPausaGlobal(pgKey ? (localStorage.getItem(pgKey) as CausaParada | null) : null) }, [pgKey])
 
-  // Pausa todas las tareas EN PROCESO de la estación con la causa elegida (misma hora).
+  // Pausa TODAS las tareas activas (en_proceso o pausada) sumando una NUEVA parada
+  // con la causa elegida. Si una ya estaba pausada, queda con 2 paradas abiertas.
   async function pausarEstacion(causa: CausaParada, obs: string) {
     setModalGlobal(false)
     const ahoraISO = new Date().toISOString()
-    const enProceso = (tareas ?? []).filter((t) => t.estado === 'en_proceso')
-    for (const t of enProceso) {
+    const activas = (tareas ?? []).filter((t) => t.estado === 'en_proceso' || t.estado === 'pausada')
+    for (const t of activas) {
       const p = { id: crypto.randomUUID(), tareaId: t.id, causa, inicio: ahoraISO, observacion: obs || undefined }
       await guardarTarea({ ...t, estado: 'pausada', paradas: [...t.paradas, p] })
     }
+    if (pgKey) localStorage.setItem(pgKey, causa)
+    setPausaGlobal(causa)
   }
-  // Reanuda todas las tareas pausadas: cierra sus paradas abiertas (misma hora).
+  // Reanuda: cierra SOLO las paradas abiertas cuya causa == la pausa global, y
+  // resuelve el estado de cada tarea: si le quedan otras paradas abiertas sigue
+  // 'pausada' (con su motivo original); si no, vuelve a 'en_proceso'.
   async function reanudarEstacion() {
+    const causa = pausaGlobal
+    if (!causa) return
     const ahoraISO = new Date().toISOString()
-    const pausadas = (tareas ?? []).filter((t) => t.estado === 'pausada' && t.paradas.some((p) => !p.fin))
-    for (const t of pausadas) {
-      const paradas = t.paradas.map((p) => (p.fin ? p : { ...p, fin: ahoraISO }))
-      await guardarTarea({ ...t, estado: 'en_proceso', paradas })
+    const afectadas = (tareas ?? []).filter((t) => t.paradas.some((p) => !p.fin && p.causa === causa))
+    for (const t of afectadas) {
+      const paradas = t.paradas.map((p) => (!p.fin && p.causa === causa ? { ...p, fin: ahoraISO } : p))
+      const siguenAbiertas = paradas.some((p) => !p.fin)
+      await guardarTarea({ ...t, paradas, estado: siguenAbiertas ? 'pausada' : 'en_proceso' })
     }
+    if (pgKey) localStorage.removeItem(pgKey)
+    setPausaGlobal(null)
   }
 
   // Barra de pestañas Mi trabajo / Andon (ya pasaron todos los hooks).
@@ -138,8 +154,8 @@ export default function OperarioView() {
 
   // v1.18: pausa/reanuda global solo en Montaje PA/PO (el equipo para/vuelve junto).
   const esMontaje = !!maquina && maquina.sectorId.startsWith('montaje')
-  const nEnProceso = tareas.filter((t) => t.estado === 'en_proceso').length
-  const nPausadasAbiertas = tareas.filter((t) => t.estado === 'pausada' && t.paradas.some((p) => !p.fin)).length
+  const nActivas = tareas.filter((t) => t.estado === 'en_proceso' || t.estado === 'pausada').length
+  const nConPausaGlobal = pausaGlobal ? tareas.filter((t) => t.paradas.some((p) => !p.fin && p.causa === pausaGlobal)).length : 0
 
   return (
     <div>
@@ -154,15 +170,19 @@ export default function OperarioView() {
         <button className="btn" onClick={cambiar}>Cambiar estación</button>
       </div>
 
-      {/* v1.18: Montaje PA/PO -> pausar / reanudar TODA la estación de una vez. */}
+      {/* v1.18: Montaje PA/PO -> pausar / reanudar TODA la estación de una vez.
+          Los botones alternan según haya una pausa global activa. */}
       {esMontaje && (
-        <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
-          <button className="btn btn-naranja btn-bloque" style={{ flex: 1 }} disabled={nEnProceso === 0} onClick={() => setModalGlobal(true)}>
-            ⏸ Pausar estación / almuerzo{nEnProceso > 0 ? ` (${nEnProceso})` : ''}
-          </button>
-          <button className="btn btn-verde btn-bloque" style={{ flex: 1 }} disabled={nPausadasAbiertas === 0} onClick={() => void reanudarEstacion()}>
-            ▶ Reanudar estación{nPausadasAbiertas > 0 ? ` (${nPausadasAbiertas})` : ''}
-          </button>
+        <div style={{ marginBottom: 12 }}>
+          {!pausaGlobal ? (
+            <button className="btn btn-naranja btn-bloque" disabled={nActivas === 0} onClick={() => setModalGlobal(true)}>
+              ⏸ Pausar estación / almuerzo{nActivas > 0 ? ` (${nActivas} tarea/s)` : ''}
+            </button>
+          ) : (
+            <button className="btn btn-verde btn-bloque" onClick={() => void reanudarEstacion()}>
+              ▶ Reanudar estación — {causaLabel(pausaGlobal)}{nConPausaGlobal > 0 ? ` (${nConPausaGlobal})` : ''}
+            </button>
+          )}
         </div>
       )}
 
