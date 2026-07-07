@@ -12,6 +12,7 @@ import type {
   EstadoSemielaborado, TipoEstacion, GrupoNomina, DatosBobinado, TipoTarea,
   Objetivo, AndonAreaId, TareaLogistica, PrioridadLog,
   SolicitudLogistica, EstadoSolicitudLog, Feriado,
+  Mensaje, MensajeDestinoTipo, MensajeLectura,
 } from '../types'
 
 // null -> undefined (Supabase devuelve null; la app usa undefined en opcionales).
@@ -242,6 +243,52 @@ export function feriadoToRow(f: Feriado): FeriadoRow {
     descripcion: f.descripcion ?? null,
     actualizado_en: f.actualizado,
   }
+}
+
+// ---------- Mensajes (v1.18) ----------
+export interface MensajeRow {
+  id: string
+  autor_id: string
+  autor_nombre: string
+  texto: string
+  destino_tipo: string
+  destino_id: string | null
+  creado_en: string | null
+}
+export function mensajeFromRow(r: MensajeRow): Mensaje {
+  return {
+    id: r.id,
+    autorId: r.autor_id,
+    autorNombre: r.autor_nombre,
+    texto: r.texto,
+    destinoTipo: r.destino_tipo as MensajeDestinoTipo,
+    destinoId: u(r.destino_id),
+    creado: r.creado_en ?? new Date().toISOString(),
+  }
+}
+export function mensajeToRow(m: Mensaje): MensajeRow {
+  return {
+    id: m.id,
+    autor_id: m.autorId,
+    autor_nombre: m.autorNombre,
+    texto: m.texto,
+    destino_tipo: m.destinoTipo,
+    destino_id: m.destinoId ?? null,
+    creado_en: m.creado,
+  }
+}
+
+export interface MensajeLecturaRow {
+  id: string
+  mensaje_id: string
+  usuario_id: string
+  leido_en: string | null
+}
+export function lecturaFromRow(r: MensajeLecturaRow): MensajeLectura {
+  return { id: r.id, mensajeId: r.mensaje_id, usuarioId: r.usuario_id, leidoEn: r.leido_en ?? new Date().toISOString() }
+}
+export function lecturaToRow(l: MensajeLectura): MensajeLecturaRow {
+  return { id: l.id, mensaje_id: l.mensajeId, usuario_id: l.usuarioId, leido_en: l.leidoEn }
 }
 
 export function tareaLogFromRow(r: TareaLogisticaRow): TareaLogistica {

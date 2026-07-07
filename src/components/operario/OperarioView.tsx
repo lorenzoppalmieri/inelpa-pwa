@@ -9,6 +9,7 @@ import { guardarTarea } from '../../sync/syncEngine'
 import TareaCard from './TareaCard'
 import ModalParada from './ModalParada'
 import AndonView from '../dashboard/AndonView'
+import MensajesInbox, { useMensajesNoLeidos } from '../mensajes/MensajesInbox'
 
 const ORDEN: Record<EstadoTarea, number> = { pausada: 0, en_proceso: 1, pendiente: 2, finalizada: 3 }
 const FILTROS: { id: 'activas' | 'pendientes' | 'finalizadas'; label: string }[] = [
@@ -40,7 +41,8 @@ export default function OperarioView() {
   // v1.10: el operario alterna entre su trabajo y el tablero ANDON (premios).
   // OJO: el estado va aca, pero el "return" condicional debe ir DESPUES de todos
   // los hooks (Reglas de Hooks), si no React crashea (pantalla en blanco).
-  const [pantalla, setPantalla] = useState<'trabajo' | 'andon'>('trabajo')
+  const [pantalla, setPantalla] = useState<'trabajo' | 'andon' | 'mensajes'>('trabajo')
+  const noLeidos = useMensajesNoLeidos()
 
   // Estaciones disponibles para el operario: las de sus sectores. Para bobinado,
   // el pool de 30 bobinadoras sirve a cualquiera de sus sectores de bobinado.
@@ -112,9 +114,13 @@ export default function OperarioView() {
     <div className="tabs">
       <button className={'tab' + (pantalla === 'trabajo' ? ' active' : '')} onClick={() => setPantalla('trabajo')}>Mi trabajo</button>
       <button className={'tab' + (pantalla === 'andon' ? ' active' : '')} onClick={() => setPantalla('andon')}>🏆 Andon</button>
+      <button className={'tab' + (pantalla === 'mensajes' ? ' active' : '')} onClick={() => setPantalla('mensajes')}>
+        💬 Mensajes{noLeidos > 0 ? ` (${noLeidos})` : ''}
+      </button>
     </div>
   )
   if (pantalla === 'andon') return <div>{tabsTop}<AndonView /></div>
+  if (pantalla === 'mensajes') return <div>{tabsTop}<MensajesInbox /></div>
 
   if (!maquinas) return <div className="meta">Cargando estaciones...</div>
 

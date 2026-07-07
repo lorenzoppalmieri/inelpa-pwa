@@ -413,10 +413,41 @@ export interface Feriado {
   actualizado: string
 }
 
+// ============================================================
+// MENSAJES (v1.18) — comunicacion de IDA: el planificador redacta y el
+// colaborador/encargado recibe. Con acuse de lectura (MensajeLectura).
+// ============================================================
+export type MensajeDestinoTipo = 'usuario' | 'sector' | 'rol' | 'todos'
+export interface Mensaje {
+  id: string
+  autorId: string
+  autorNombre: string
+  texto: string
+  destinoTipo: MensajeDestinoTipo
+  destinoId?: string    // usuarioId | sectorId | rol; vacio si 'todos'
+  creado: string
+}
+export interface MensajeLectura {
+  id: string            // `${mensajeId}_${usuarioId}`
+  mensajeId: string
+  usuarioId: string
+  leidoEn: string
+}
+// ¿El mensaje va dirigido a este usuario? (para la bandeja del destinatario)
+export function mensajeEsPara(m: Mensaje, u: { id: string; rol: Rol; sectores: SectorId[] }): boolean {
+  switch (m.destinoTipo) {
+    case 'todos': return true
+    case 'usuario': return m.destinoId === u.id
+    case 'rol': return m.destinoId === u.rol
+    case 'sector': return !!m.destinoId && u.sectores.includes(m.destinoId as SectorId)
+    default: return false
+  }
+}
+
 // Cola de sincronizacion: cada cambio offline se encola y se empuja al backend.
 export interface SyncOp {
   id: string
-  entidad: 'tarea' | 'parada' | 'orden' | 'semielaborado' | 'objetivo' | 'tarea_logistica' | 'solicitud_logistica' | 'feriado'
+  entidad: 'tarea' | 'parada' | 'orden' | 'semielaborado' | 'objetivo' | 'tarea_logistica' | 'solicitud_logistica' | 'feriado' | 'mensaje' | 'mensaje_lectura'
   entidadId: string
   tipo: 'upsert' | 'delete'
   payload: unknown

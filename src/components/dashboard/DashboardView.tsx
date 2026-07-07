@@ -14,6 +14,8 @@ import AndonView from './AndonView'
 import AlertaMaterial from './AlertaMaterial'
 import DireccionView from './DireccionView'
 import PlanificacionView from '../planificador/PlanificacionView'
+import MensajesPlanificador from '../mensajes/MensajesPlanificador'
+import MensajesInbox, { useMensajesNoLeidos } from '../mensajes/MensajesInbox'
 
 // Periodo de analisis del Dashboard de KPIs (v1.4). No borra datos: solo acota
 // el rango de fechas que se procesa.
@@ -41,9 +43,12 @@ function rangoPeriodo(periodo: Periodo, now: Date, diaISO?: string): { desde: st
 
 export default function DashboardView() {
   const { usuario, permisos } = useAuth()
-  const [vista, setVista] = useState<'gantt' | 'kpis' | 'planificacion' | 'andon' | 'direccion'>('gantt')
+  const [vista, setVista] = useState<'gantt' | 'kpis' | 'planificacion' | 'andon' | 'direccion' | 'mensajes'>('gantt')
   // v1.16: la vista ejecutiva "Direccion" es exclusiva del usuario lorenzo.
   const esDireccion = usuario?.usuario === 'lorenzo'
+  // v1.18: mensajes. El planificador redacta; el encargado recibe (bandeja).
+  const esCompositor = !!permisos?.cargarProgramacion
+  const noLeidos = useMensajesNoLeidos()
   const [linea, setLinea] = useState<'todas' | LineaProduccion>('todas')
   const [sectorFiltro, setSectorFiltro] = useState<'todos' | SectorId>('todos')
   const [agrupar, setAgrupar] = useState<'sector' | 'operario' | 'maquina'>('sector')
@@ -157,9 +162,14 @@ export default function DashboardView() {
         {esDireccion && (
           <button className={'tab' + (vista === 'direccion' ? ' active' : '')} onClick={() => setVista('direccion')}>📊 Dirección</button>
         )}
+        <button className={'tab' + (vista === 'mensajes' ? ' active' : '')} onClick={() => setVista('mensajes')}>
+          💬 Mensajes{!esCompositor && noLeidos > 0 ? ` (${noLeidos})` : ''}
+        </button>
       </div>
 
-      {vista === 'direccion' && esDireccion
+      {vista === 'mensajes'
+        ? (esCompositor ? <MensajesPlanificador /> : <MensajesInbox />)
+        : vista === 'direccion' && esDireccion
         ? <DireccionView />
         : vista === 'andon'
         ? <AndonView />

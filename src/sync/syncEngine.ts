@@ -1,12 +1,12 @@
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import { db } from '../db/dexie'
 import { supabase, SUPABASE_HABILITADO } from '../lib/supabaseClient'
-import type { SyncOp, Tarea, OrdenProduccion, Semielaborado, SectorId, Objetivo, TareaLogistica, SolicitudLogistica, Feriado } from '../types'
+import type { SyncOp, Tarea, OrdenProduccion, Semielaborado, SectorId, Objetivo, TareaLogistica, SolicitudLogistica, Feriado, Mensaje, MensajeLectura } from '../types'
 import { setFeriados } from '../lib/calendario'
 import {
-  tareaFromRow, paradaFromRow, ordenFromRow, semiFromRow, maquinaFromRow, usuarioFromRow, objetivoFromRow, tareaLogFromRow, solicitudLogFromRow, feriadoFromRow,
-  tareaToRow, paradaToRow, ordenToRow, semiToRow, objetivoToRow, tareaLogToRow, solicitudLogToRow, feriadoToRow,
-  type TareaRow, type ParadaRow, type OrdenRow, type SemiRow, type MaquinaRow, type UsuarioRow, type ObjetivoRow, type TareaLogisticaRow, type SolicitudLogisticaRow, type FeriadoRow,
+  tareaFromRow, paradaFromRow, ordenFromRow, semiFromRow, maquinaFromRow, usuarioFromRow, objetivoFromRow, tareaLogFromRow, solicitudLogFromRow, feriadoFromRow, mensajeFromRow, lecturaFromRow,
+  tareaToRow, paradaToRow, ordenToRow, semiToRow, objetivoToRow, tareaLogToRow, solicitudLogToRow, feriadoToRow, mensajeToRow, lecturaToRow,
+  type TareaRow, type ParadaRow, type OrdenRow, type SemiRow, type MaquinaRow, type UsuarioRow, type ObjetivoRow, type TareaLogisticaRow, type SolicitudLogisticaRow, type FeriadoRow, type MensajeRow, type MensajeLecturaRow,
 } from './mappers'
 
 // ============================================================
@@ -112,9 +112,10 @@ export async function fetchInicial(): Promise<void> {
       db.maquinas.clear(), db.usuarios.clear(), db.ordenes.clear(),
       db.semielaborados.clear(), db.tareas.clear(), db.objetivos.clear(),
       db.tareasLogistica.clear(), db.solicitudesLogistica.clear(), db.feriados.clear(),
+      db.mensajes.clear(), db.mensajesLectura.clear(),
     ])
 
-    const [maqs, usrs, uss, ords, semis, tars, pars, objs, tlog, slog, fers] = await Promise.all([
+    const [maqs, usrs, uss, ords, semis, tars, pars, objs, tlog, slog, fers, msgs, lects] = await Promise.all([
       supabase.from('maquinas').select('*'),
       supabase.from('usuarios').select('id, nombre, usuario, rol, grupo_nomina, activo'),
       supabase.from('usuario_sectores').select('usuario_id, sector_id'),
@@ -126,6 +127,8 @@ export async function fetchInicial(): Promise<void> {
       supabase.from('tareas_logistica').select('*'),
       supabase.from('solicitudes_logistica').select('*'),
       supabase.from('feriados').select('*'),
+      supabase.from('mensajes').select('*'),
+      supabase.from('mensajes_lectura').select('*'),
     ])
 
     // Maquinas
@@ -162,6 +165,10 @@ export async function fetchInicial(): Promise<void> {
     // Feriados (dias no laborables) -> Dexie + motor de calendario
     if (fers.data) await db.feriados.bulkPut((fers.data as FeriadoRow[]).map(feriadoFromRow))
     await recargarFeriadosCalendario()
+
+    // Mensajes + acuses de lectura
+    if (msgs.data) await db.mensajes.bulkPut((msgs.data as MensajeRow[]).map(mensajeFromRow))
+    if (lects.data) await db.mensajesLectura.bulkPut((lects.data as MensajeLecturaRow[]).map(lecturaFromRow))
 
     // Tareas (+ paradas anidadas)
     if (tars.data) {
@@ -253,6 +260,15 @@ async function onFeriadoChange(payload: Payload) {
   await recargarFeriadosCalendario() // refresca el calendario en vivo
 }
 
+async function onMensajeChange(payload: Payload) {
+  if (payload.eventType === 'DELETE') { await db.mensajes.delete((payload.old as { id: string }).id); return }
+  await db.mensajes.put(mensajeFromRow(payload.new as unknown as MensajeRow))
+}
+async function onLecturaChange(payload: Payload) {
+  if (payload.eventType === 'DELETE') { await db.mensajesLectura.delete((payload.old as { id: string }).id); return }
+  await db.mensajesLectura.put(lecturaFromRow(payload.new as unknown as MensajeLecturaRow))
+}
+
 function suscribirRealtime() {
   if (!supabase || canal) return
   canal = supabase
@@ -266,6 +282,8 @@ function suscribirRealtime() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'tareas_logistica' }, onTareaLogChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'solicitudes_logistica' }, onSolicitudLogChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'feriados' }, onFeriadoChange)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'mensajes' }, onMensajeChange)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'mensajes_lectura' }, onLecturaChange)
     .subscribe()
 }
 
@@ -364,6 +382,8 @@ async function empujar(op: SyncOp): Promise<EmpujeResultado> {
         : op.entidad === 'tarea_logistica' ? 'tareas_logistica'
         : op.entidad === 'solicitud_logistica' ? 'solicitudes_logistica'
         : op.entidad === 'feriado' ? 'feriados'
+        : op.entidad === 'mensaje' ? 'mensajes'
+        : op.entidad === 'mensaje_lectura' ? 'mensajes_lectura'
         : 'paradas'
       const { error } = await supabase.from(tabla).delete().eq('id', op.entidadId)
       if (error) return fallo(`delete ${op.entidad}`, error.message)
@@ -413,6 +433,14 @@ async function empujar(op: SyncOp): Promise<EmpujeResultado> {
       case 'feriado': {
         const { error } = await supabase.from('feriados').upsert(feriadoToRow(op.payload as Feriado), { onConflict: 'id' })
         return error ? fallo('upsert feriado', error.message) : OK_EMPUJE
+      }
+      case 'mensaje': {
+        const { error } = await supabase.from('mensajes').upsert(mensajeToRow(op.payload as Mensaje), { onConflict: 'id' })
+        return error ? fallo('upsert mensaje', error.message) : OK_EMPUJE
+      }
+      case 'mensaje_lectura': {
+        const { error } = await supabase.from('mensajes_lectura').upsert(lecturaToRow(op.payload as MensajeLectura), { onConflict: 'id' })
+        return error ? fallo('upsert mensaje_lectura', error.message) : OK_EMPUJE
       }
       default:
         return OK_EMPUJE
@@ -507,6 +535,24 @@ export async function eliminarTareaLogistica(t: TareaLogistica): Promise<void> {
 export async function guardarSolicitudLogistica(s: SolicitudLogistica): Promise<void> {
   await db.solicitudesLogistica.put(s)
   await encolar({ entidad: 'solicitud_logistica', entidadId: s.id, tipo: 'upsert', payload: s })
+}
+
+// v1.18: mensajes (planificador -> colaborador) + acuse de lectura.
+export async function guardarMensaje(m: Mensaje): Promise<void> {
+  await db.mensajes.put(m)
+  await encolar({ entidad: 'mensaje', entidadId: m.id, tipo: 'upsert', payload: m })
+}
+export async function eliminarMensaje(id: string): Promise<void> {
+  await db.mensajes.delete(id)
+  await encolar({ entidad: 'mensaje', entidadId: id, tipo: 'delete', payload: { id } })
+}
+// Marca un mensaje como leido por un usuario (idempotente por id = mensaje_usuario).
+export async function marcarMensajeLeido(mensajeId: string, usuarioId: string): Promise<void> {
+  const id = `${mensajeId}_${usuarioId}`
+  if (await db.mensajesLectura.get(id)) return // ya estaba leido
+  const l: MensajeLectura = { id, mensajeId, usuarioId, leidoEn: new Date().toISOString() }
+  await db.mensajesLectura.put(l)
+  await encolar({ entidad: 'mensaje_lectura', entidadId: id, tipo: 'upsert', payload: l })
 }
 
 // Auto-disparo al recuperar conexion.
