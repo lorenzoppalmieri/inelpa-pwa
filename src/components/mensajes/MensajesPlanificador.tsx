@@ -38,7 +38,7 @@ export default function MensajesPlanificador() {
   // Lecturas de un mensaje.
   const lectPorMensaje = useMemo(() => {
     const map = new Map<string, Set<string>>()
-    for (const l of lecturas) { const s = map.get(l.mensajeId) ?? new Set(); s.add(l.usuarioId); map.set(l.mensajeId, s) }
+    for (const l of lecturas) { const s = map.get(l.mensajeId) ?? new Set<string>(); s.add(l.usuarioId); map.set(l.mensajeId, s) }
     return map
   }, [lecturas])
 
@@ -122,7 +122,7 @@ export default function MensajesPlanificador() {
         ? <div className="empty">Todavía no enviaste mensajes.</div>
         : enviados.map((m) => {
             const esp = esperados(m)
-            const leidos = lectPorMensaje.get(m.id) ?? new Set()
+            const leidos = lectPorMensaje.get(m.id) ?? new Set<string>()
             const nLeidos = esp.filter((u) => leidos.has(u.id)).length
             const destTxt = m.destinoTipo === 'todos' ? 'Toda la planta'
               : m.destinoTipo === 'rol' ? (m.destinoId === 'encargado' ? 'Todos los encargados' : 'Todos los operarios')
