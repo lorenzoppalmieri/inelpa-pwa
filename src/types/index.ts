@@ -501,6 +501,7 @@ export const CAUSAS_PARADA: CausaParadaDef[] = [
   { id: 'retrabajo', label: 'Retrabajo', categoria: 'calidad', codigo: 10, areas: ['bobinado', 'general'] },
   { id: 'calidad_alambre', label: 'Problemas calidad del alambre o planchuela', categoria: 'calidad', codigo: 18, areas: ['bobinado', 'general'] },
   { id: 'bobina_bt_defectuosa', label: 'Bobina de BT defectuosa', categoria: 'calidad', codigo: 40, areas: ['bobinado', 'general'] },
+  { id: 'espera_peso_kg', label: 'Espera peso kg', categoria: 'material', codigo: 40, areas: ['bobinado', 'general'] },
 
   // ===== HERRERIA (Corte y conformado + Soldaduras) =====
   { id: 'her_espera_cuba', label: 'Espera cuba', categoria: 'material', areas: ['herreria'] },
