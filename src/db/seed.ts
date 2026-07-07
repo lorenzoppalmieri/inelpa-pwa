@@ -60,7 +60,7 @@ const NOMINA: [string, GrupoNomina][] = [
   ['Lescano Aldana Ayelen', 'bobinado_dist'],
   ['Toledo Rosario', 'bobinado_dist'],
   ['Verrelli Maria Florencia', 'bobinado_dist'],
-  ['Belis Bianca Nair', 'bobinado_rural'],
+  ['Belis Bianca Nair', 'bobinado_dist'],
   ['Lozano Sofía', 'bobinado_rural'],
   ['Mansilla Tomás', 'bobinado_rural'],
   ['Sanchez Nahir Florencia', 'bobinado_rural'],
