@@ -51,7 +51,7 @@ export default function EditarTarea({ tarea, maquinas, usuarios, onClose }: {
     const planificado = todas.filter((t) => t.ordenId === tarea.ordenId && t.componenteCodigo === c.codigo && t.id !== tarea.id).length
     return { c, restante: cantidadOrden - planificado }
   }).filter((x) => x.restante > 0 || x.c.codigo === tarea.componenteCodigo), [componentesSector, todas, cantidadOrden, tarea])
-  const sectorTieneSemi = esFabricacion && componentesSector.length > 0
+  const sectorTieneSemi = esFabricacion && !tarea.esPrototipo && componentesSector.length > 0
 
   const maquinasOpc = useMemo(
     () => maquinas.filter((m) => m.activo && maquinaSirveSector(m, tarea.sectorId)),

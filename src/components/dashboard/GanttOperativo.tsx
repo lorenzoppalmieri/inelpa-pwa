@@ -1,6 +1,6 @@
 import { type PointerEvent as ReactPointerEvent, useMemo, useRef, useState } from 'react'
 import type { Tarea, EstadoTarea, Maquina } from '../../types'
-import { sectorById, causaLabel, esParadaNoProductiva, esSectorBobinado } from '../../types'
+import { sectorById, causaLabel, esParadaNoProductiva, esSectorBobinado, nombreSemielaborado } from '../../types'
 import { componentePorCodigo } from '../../data/catalogo'
 import { hhmm, fmtDur, isoWeek, minutosEntre, fechaCorta } from '../../lib/time'
 import { proximoInstanteLaborable, tramosLaborables, calcularTiempoNetoProductivo, type GrupoAlmuerzo } from '../../lib/calendario'
@@ -397,8 +397,8 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
                     // de articulos: incluye potencia/tension, fase y material).
                     // Fallback al modelo si la tarea no tiene semielaborado asignado.
                     const comp = componentePorCodigo(b.tarea.componenteCodigo)
-                    const etiqueta = comp ? comp.descripcion : (b.tarea.modelo || '—')
-                    const semiTxt = comp ? comp.descripcion : (b.tarea.componenteCodigo ? b.tarea.componenteCodigo : 'sin semielaborado')
+                    const etiqueta = nombreSemielaborado(b.tarea, comp?.descripcion)
+                    const semiTxt = etiqueta
                     return (
                       <div
                         key={b.tarea.id + '-' + b.idx + '-' + i}

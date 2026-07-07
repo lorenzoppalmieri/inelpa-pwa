@@ -47,6 +47,7 @@ export interface TareaRow {
   bob_diametro_externo_mm: number | null
   bob_codigo: string | null
   notas: string | null
+  es_prototipo: boolean | null
 }
 
 export interface ParadaRow {
@@ -169,6 +170,7 @@ export function tareaFromRow(r: TareaRow, paradas: Parada[] = []): Tarea {
     paradas,
     datosBobinado: tieneDatos ? datos : undefined,
     notas: u(r.notas),
+    esPrototipo: r.es_prototipo ?? false,
   }
 }
 
@@ -412,6 +414,7 @@ export function tareaToRow(t: Tarea): TareaRow {
     bob_diametro_externo_mm: t.datosBobinado?.diametroExternoMm ?? null,
     bob_codigo: t.datosBobinado?.codigoBobina ?? null,
     notas: t.notas ?? null,
+    es_prototipo: t.esPrototipo ?? false,
   }
 }
 

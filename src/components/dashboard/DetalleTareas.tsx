@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { Tarea } from '../../types'
-import { esReparacion } from '../../types'
+import { esReparacion, nombreSemielaborado } from '../../types'
 import { componentePorCodigo } from '../../data/catalogo'
 import { fmtDur } from '../../lib/time'
 import {
@@ -27,7 +27,7 @@ export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina }:
     const txt = q.trim().toLowerCase()
     return fin.map((t) => {
       const comp = componentePorCodigo(t.componenteCodigo)
-      const nombre = comp ? comp.descripcion : t.modelo
+      const nombre = nombreSemielaborado(t, comp?.descripcion)
       return {
         t,
         id: t.id,

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
 import type { Tarea, CausaParada, DatosBobinado } from '../../types'
-import { sectorById, causaLabel, requiereDatosBobinado, esCausaLogistica } from '../../types'
+import { sectorById, causaLabel, requiereDatosBobinado, esCausaLogistica, nombreSemielaborado } from '../../types'
 import { guardarTarea } from '../../sync/syncEngine'
 import { useAuth } from '../../auth/AuthContext'
 import { hhmm, cronometro, fmtDur, minutosEntre, fechaCorta } from '../../lib/time'
@@ -132,10 +132,9 @@ export default function TareaCard({ tarea, onIniciar }: { tarea: Tarea; onInicia
     ? tiempoRealMin(tarea)
     : (tarea.inicioReal ? minutosEntre(tarea.inicioReal, new Date().toISOString()) : 0)
 
-  // Titulo principal = SEMIELABORADO completo (descripcion del maestro de articulos).
-  // Fallback al modelo si la tarea no tiene semielaborado asignado.
+  // Titulo principal = SEMIELABORADO completo (o "PROTOTIPO · nota" si es prueba).
   const comp = componentePorCodigo(tarea.componenteCodigo)
-  const titulo = comp ? comp.descripcion : tarea.modelo
+  const titulo = nombreSemielaborado(tarea, comp?.descripcion)
 
   return (
     <div className="card">

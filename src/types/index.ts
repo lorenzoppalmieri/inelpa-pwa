@@ -246,6 +246,17 @@ export interface Tarea {
   paradas: Parada[]
   datosBobinado?: DatosBobinado // solo sectores de bobinado
   notas?: string
+  // v1.18: PROTOTIPO de prueba (sin semielaborado definido). El detalle del
+  // prototipo va en `notas`. Se puede planificar para cualquier colaborador/sector.
+  esPrototipo?: boolean
+}
+
+// Etiqueta a mostrar para el semielaborado de una tarea (Gantt, tarjetas, KPIs).
+// Para prototipos muestra "PROTOTIPO · <nota>"; si no, la descripcion del
+// componente (compDescripcion, resuelta por el que llama) o el modelo como fallback.
+export function nombreSemielaborado(t: Tarea, compDescripcion?: string): string {
+  if (t.esPrototipo) return `🧪 PROTOTIPO${t.notas ? ` · ${t.notas}` : ''}`
+  return compDescripcion ?? (t.componenteCodigo || t.modelo || '—')
 }
 
 export interface OrdenProduccion {

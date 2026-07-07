@@ -1,5 +1,5 @@
 import type { Tarea, EstadoTarea } from '../types'
-import { sectorById, esReparacion } from '../types'
+import { sectorById, esReparacion, nombreSemielaborado } from '../types'
 import {
   calcularOEE, tiempoEstimadoMin, tiempoRealMin, totalDemoradoMin, demoraSinJustificarMin,
 } from './kpi'
@@ -129,7 +129,7 @@ export function exportarDetalleTareasCSV(
     const comp = componentePorCodigo(t.componenteCodigo)
     const demorado = Math.max(0, Math.round(tiempoRealMin(t) - tiempoEstimadoMin(t))) // exceso sobre estandar
     filas.push([
-      comp ? comp.descripcion : t.modelo,
+      nombreSemielaborado(t, comp?.descripcion),
       t.modelo,
       t.nroTransformador ?? '',
       t.operarioId ? nombreOperario(t.operarioId) : '-',

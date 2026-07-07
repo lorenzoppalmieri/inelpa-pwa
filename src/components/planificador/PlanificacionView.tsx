@@ -346,6 +346,9 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
   // v1.8/v1.9: tipo de tarea. Los encargados solo cargan reparaciones.
   const [tipo, setTipo] = useState<TipoTarea>(soloReparacion ? 'reparacion' : 'fabricacion')
   const [descripcion, setDescripcion] = useState('') // texto libre para reparaciones
+  // v1.18: prototipo de prueba (sin semielaborado). notaProto = tipo de prototipo.
+  const [esProto, setEsProto] = useState(false)
+  const [notaProto, setNotaProto] = useState('')
   const [editar, setEditar] = useState<Tarea | null>(null) // v1.16: tarea en edicion
   // v1.16: toolbar del listado de tareas (filtros + agrupacion para legibilidad).
   const [filtroSector, setFiltroSector] = useState<'todos' | SectorId>('todos')
@@ -414,8 +417,10 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
   // v1.16: ¿faltan campos para poder asignar? (deshabilita el boton).
   const faltanCampos = (soloReparacion || tipo === 'reparacion')
     ? (!descripcion.trim() || !maquinaId || !fechaPlan || !horaPlan)
-    : (!ordenId || !maquinaId || (operariosDelSector.length > 0 && !operarioId)
-        || (sectorTieneSemi && !componenteCodigo) || !fechaPlan || !horaPlan)
+    : esProto // v1.18: prototipo no requiere orden ni semielaborado, pero sí la nota
+      ? (!notaProto.trim() || !maquinaId || (operariosDelSector.length > 0 && !operarioId) || !fechaPlan || !horaPlan)
+      : (!ordenId || !maquinaId || (operariosDelSector.length > 0 && !operarioId)
+          || (sectorTieneSemi && !componenteCodigo) || !fechaPlan || !horaPlan)
 
   // v1.16: carga actual (en vivo) del colaborador y la maquina seleccionados.
   const cargaOperario = useMemo(() => operarioId ? resumenCarga(todasTareas, (t) => t.operarioId === operarioId) : null, [todasTareas, operarioId])
@@ -427,12 +432,14 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
 
   async function asignar() {
     const esRep = soloReparacion || tipo === 'reparacion' // v1.9: encargado siempre reparacion
+    const proto = !esRep && esProto // v1.18: prototipo de prueba (sin semielaborado)
     // Fabricacion necesita orden; reparacion necesita descripcion (no lleva orden).
     const orden = (ordenes ?? []).find((o) => o.id === ordenId)
-    if (!esRep && !orden) { setMsg('Selecciona una orden.'); return }
+    if (!esRep && !proto && !orden) { setMsg('Selecciona una orden.'); return }
     if (esRep && !descripcion.trim()) { setMsg('Describe la reparacion (que se corrige).'); return }
-    // v1.16: el semielaborado es obligatorio si el sector del modelo lo tiene.
-    if (!esRep && sectorTieneSemi && !componenteCodigo) {
+    if (proto && !notaProto.trim()) { setMsg('Escribí qué tipo de prototipo es (la nota).'); return }
+    // v1.16: el semielaborado es obligatorio si el sector del modelo lo tiene (salvo prototipo).
+    if (!esRep && !proto && sectorTieneSemi && !componenteCodigo) {
       setMsg(componentesDelSector.length === 0
         ? 'Todos los semielaborados de este sector ya estan planificados para esta orden.'
         : 'Selecciona el semielaborado (segun sector).')
@@ -446,13 +453,13 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
     const t: Tarea = {
       id: crypto.randomUUID(),
       tipo: esRep ? 'reparacion' : 'fabricacion',
-      ordenId: esRep ? undefined : orden!.id,
+      ordenId: esRep ? undefined : orden?.id,
       sectorId,
       maquinaId,
       // v1.3: el planificador asigna colaborador + estacion simultaneamente.
       operarioId: operarioId || undefined,
-      modelo: esRep ? descripcion.trim() : orden!.modelo,
-      componenteCodigo: esRep ? undefined : (componenteCodigo || undefined),
+      modelo: esRep ? descripcion.trim() : (orden?.modelo ?? 'Prototipo'),
+      componenteCodigo: (esRep || proto) ? undefined : (componenteCodigo || undefined),
       nroTransformador: nroTransformador.trim() || undefined,
       semana: isoWeek(new Date(inicioPlanificado)),
       prioridad: Math.max(1, Number(prioridad) || 1),
@@ -461,11 +468,13 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
       activaHoraRecuperacion: horaRecup,
       inicioPlanificado,
       paradas: [],
+      esPrototipo: proto || undefined,
+      notas: proto ? notaProto.trim() : undefined,
     }
     await guardarTarea(t)
-    setNroTransformador(''); setComponenteCodigo(''); setHoraRecup(false); setDescripcion('')
-    const queTipo = esRep ? 'Reparacion' : 'Tarea'
-    setMsg(`${queTipo} asignada a ${nombreOperario(operarioId)} · ${nombreMaquina(maquinaId)} en ${sectorById(sectorId).nombre}.`)
+    setNroTransformador(''); setComponenteCodigo(''); setHoraRecup(false); setDescripcion(''); setEsProto(false); setNotaProto('')
+    const queTipo = esRep ? 'Reparacion' : proto ? 'Prototipo' : 'Tarea'
+    setMsg(`${queTipo} asignad${queTipo === 'Tarea' ? 'a' : queTipo === 'Prototipo' ? 'o' : 'a'} a ${nombreOperario(operarioId)} · ${nombreMaquina(maquinaId)} en ${sectorById(sectorId).nombre}.`)
   }
 
   // v1.6: activar/desactivar la hora de recuperacion de una tarea ya cargada.
@@ -550,7 +559,8 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
             {t.inicioReal
               ? <> · Arranque real <strong>{fechaCorta(t.inicioReal)} {hhmm(t.inicioReal)}</strong></>
               : t.inicioPlanificado ? <> · Arranque plan. <strong>{fechaCorta(t.inicioPlanificado)} {hhmm(t.inicioPlanificado)}</strong></> : null}
-            {t.componenteCodigo ? <> · Semielaborado <strong>{componentePorCodigo(t.componenteCodigo)?.descripcion ?? t.componenteCodigo}</strong></> : null}
+            {t.esPrototipo ? <> · <strong style={{ color: 'var(--naranja)' }}>🧪 PROTOTIPO{t.notas ? ` · ${t.notas}` : ''}</strong></>
+              : t.componenteCodigo ? <> · Semielaborado <strong>{componentePorCodigo(t.componenteCodigo)?.descripcion ?? t.componenteCodigo}</strong></> : null}
             {t.activaHoraRecuperacion ? <> · <strong style={{ color: 'var(--naranja)' }}>Hora recup. ON</strong></> : null}
             {t.estado === 'finalizada' ? <> · Neto <strong>{tiempoNetoMin(t)}m</strong></> : null}
           </div>
@@ -596,12 +606,20 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
           </div>
         )}
 
+        {/* v1.18: prototipo de prueba (sin semielaborado definido). */}
+        {tipo === 'fabricacion' && !soloReparacion && (
+          <label className="check-inline" style={{ marginBottom: 12 }}>
+            <input type="checkbox" checked={esProto} onChange={(e) => setEsProto(e.target.checked)} />
+            <span>🧪 Es un PROTOTIPO de prueba (sin semielaborado definido)</span>
+          </label>
+        )}
+
         <div className="form-grid">
           {tipo === 'fabricacion' ? (
             <div className="field">
-              <label>Orden de fabricacion</label>
+              <label>Orden de fabricacion{esProto ? ' (opcional)' : ''}</label>
               <select className="input" value={ordenId} onChange={(e) => cambiarOrden(e.target.value)}>
-                <option value="">— Selecciona —</option>
+                <option value="">— {esProto ? 'Sin orden' : 'Selecciona'} —</option>
                 {ordenesActivas.map((o) => <option key={o.id} value={o.id}>{o.nroOrden} · {o.modelo}</option>)}
               </select>
             </div>
@@ -617,7 +635,7 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
               {SECTORES.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
             </select>
           </div>
-          {tipo === 'fabricacion' && (
+          {tipo === 'fabricacion' && !esProto && (
             <div className="field">
               <label>Semielaborado (segun sector){sectorTieneSemi ? ' *' : ''}</label>
               <select className="input" value={componenteCodigo} onChange={(e) => setComponenteCodigo(e.target.value)} disabled={!ordenSel || componentesDelSector.length === 0}>
@@ -627,6 +645,12 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
                 ))}
               </select>
               {ordenSel && !modeloSel && <div className="meta" style={{ marginTop: 6 }}>El modelo de la orden no esta en el catalogo maestro.</div>}
+            </div>
+          )}
+          {tipo === 'fabricacion' && esProto && (
+            <div className="field">
+              <label>Tipo de prototipo (nota) *</label>
+              <input className="input" value={notaProto} onChange={(e) => setNotaProto(e.target.value)} placeholder="ej. Bobina AT de prueba con nuevo aislante" />
             </div>
           )}
           <div className="field">
