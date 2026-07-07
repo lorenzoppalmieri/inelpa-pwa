@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
 import { useAuth } from '../../auth/AuthContext'
-import { mensajeEsPara, sectorById, type Mensaje } from '../../types'
+import { mensajeEsPara, sectorById, type Mensaje, type MensajeLectura } from '../../types'
 import { marcarMensajeLeido } from '../../sync/syncEngine'
 import { fechaCorta, hhmm } from '../../lib/time'
 
@@ -10,7 +10,7 @@ import { fechaCorta, hhmm } from '../../lib/time'
 export function useMensajesNoLeidos(): number {
   const { usuario } = useAuth()
   const mensajes = useLiveQuery(() => db.mensajes.toArray(), []) ?? []
-  const lecturas = useLiveQuery(() => usuario ? db.mensajesLectura.where('usuarioId').equals(usuario.id).toArray() : Promise.resolve([]), [usuario?.id]) ?? []
+  const lecturas = useLiveQuery(() => usuario ? db.mensajesLectura.where('usuarioId').equals(usuario.id).toArray() : Promise.resolve([] as MensajeLectura[]), [usuario?.id]) ?? []
   if (!usuario) return 0
   const leidos = new Set(lecturas.map((l) => l.mensajeId))
   return mensajes.filter((m) => mensajeEsPara(m, usuario) && !leidos.has(m.id)).length
@@ -33,7 +33,7 @@ function destinoTxt(m: Mensaje): string {
 export default function MensajesInbox() {
   const { usuario } = useAuth()
   const mensajes = useLiveQuery(() => db.mensajes.toArray(), []) ?? []
-  const lecturas = useLiveQuery(() => usuario ? db.mensajesLectura.where('usuarioId').equals(usuario.id).toArray() : Promise.resolve([]), [usuario?.id]) ?? []
+  const lecturas = useLiveQuery(() => usuario ? db.mensajesLectura.where('usuarioId').equals(usuario.id).toArray() : Promise.resolve([] as MensajeLectura[]), [usuario?.id]) ?? []
 
   const leidos = useMemo(() => new Set(lecturas.map((l) => l.mensajeId)), [lecturas])
   const mios = useMemo(
