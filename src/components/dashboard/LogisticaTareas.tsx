@@ -26,6 +26,33 @@ export default function LogisticaTareas() {
   const [prioridad, setPrioridad] = useState<PrioridadLog>('media')
   const [msg, setMsg] = useState('')
 
+  // Edición de una tarea ya creada (solo Giuliano).
+  const [editando, setEditando] = useState<TareaLogistica | null>(null)
+  const [eTitulo, setETitulo] = useState('')
+  const [eDetalle, setEDetalle] = useState('')
+  const [eResponsable, setEResponsable] = useState('')
+  const [ePrioridad, setEPrioridad] = useState<PrioridadLog>('media')
+
+  function abrirEdicion(t: TareaLogistica) {
+    setEditando(t)
+    setETitulo(t.titulo)
+    setEDetalle(t.detalle ?? '')
+    setEResponsable(t.responsable)
+    setEPrioridad(t.prioridad)
+  }
+  async function guardarEdicion() {
+    if (!editando) return
+    if (!eTitulo.trim() || !eResponsable) return
+    await guardarTareaLogistica({
+      ...editando,
+      titulo: eTitulo.trim(),
+      detalle: eDetalle.trim() || undefined,
+      responsable: eResponsable,
+      prioridad: ePrioridad,
+    })
+    setEditando(null)
+  }
+
   async function crear() {
     if (!titulo.trim() || !responsable) { setMsg('Completá el título y el responsable.'); return }
     const t: TareaLogistica = {
@@ -135,6 +162,7 @@ export default function LogisticaTareas() {
           </div>
           <div className="row-actions">
             <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => iniciar(t)}>▶ Iniciar tarea</button>
+            {esGiuliano && <button className="btn" onClick={() => abrirEdicion(t)}>✎ Editar</button>}
             {esGiuliano && <button className="btn btn-rojo" onClick={() => borrar(t)}>🗑</button>}
           </div>
         </div>
@@ -156,6 +184,7 @@ export default function LogisticaTareas() {
           </div>
           <div className="row-actions">
             <button className="btn btn-verde" style={{ flex: 1 }} onClick={() => finalizar(t)}>✓ Marcar finalizada</button>
+            {esGiuliano && <button className="btn" onClick={() => abrirEdicion(t)}>✎ Editar</button>}
             {esGiuliano && <button className="btn btn-rojo" onClick={() => borrar(t)}>🗑</button>}
           </div>
         </div>
@@ -180,6 +209,42 @@ export default function LogisticaTareas() {
           </div>
         </div>
       ))}
+
+      {/* Modal de edición (solo Giuliano) */}
+      {editando && (
+        <div className="modal-overlay" onClick={() => setEditando(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="section-title" style={{ marginTop: 0 }}>Editar tarea logística</div>
+            <div className="field" style={{ marginBottom: 10 }}>
+              <label>Título / pedido</label>
+              <input className="input" value={eTitulo} onChange={(e) => setETitulo(e.target.value)} style={{ width: '100%' }} />
+            </div>
+            <div className="field" style={{ marginBottom: 10 }}>
+              <label>Detalle (opcional)</label>
+              <input className="input" value={eDetalle} onChange={(e) => setEDetalle(e.target.value)} style={{ width: '100%' }} />
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
+              <div className="field" style={{ flex: 1 }}>
+                <label>Responsable</label>
+                <select className="input" value={eResponsable} onChange={(e) => setEResponsable(e.target.value)} style={{ width: '100%' }}>
+                  <option value="">— Selecciona —</option>
+                  {RESPONSABLES_LOGISTICA.map((r) => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </div>
+              <div className="field" style={{ flex: 1 }}>
+                <label>Prioridad</label>
+                <select className="input" value={ePrioridad} onChange={(e) => setEPrioridad(e.target.value as PrioridadLog)} style={{ width: '100%' }}>
+                  {PRIORIDADES_LOG.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+                </select>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button className="btn" onClick={() => setEditando(null)}>Cancelar</button>
+              <button className="btn btn-primary" disabled={!eTitulo.trim() || !eResponsable} onClick={() => void guardarEdicion()}>Guardar cambios</button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }
