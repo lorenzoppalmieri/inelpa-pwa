@@ -102,6 +102,8 @@ export interface TareaLogisticaRow {
   estado: string
   creada_en: string
   creada_por: string | null
+  iniciada_en: string | null
+  iniciada_por: string | null
   finalizada_en: string | null
   finalizada_por: string | null
 }
@@ -303,6 +305,8 @@ export function tareaLogFromRow(r: TareaLogisticaRow): TareaLogistica {
     estado: r.estado as TareaLogistica['estado'],
     creada: r.creada_en,
     creadaPor: u(r.creada_por),
+    iniciada: u(r.iniciada_en),
+    iniciadaPor: u(r.iniciada_por),
     finalizada: u(r.finalizada_en),
     finalizadaPor: u(r.finalizada_por),
   }
@@ -317,6 +321,8 @@ export function tareaLogToRow(t: TareaLogistica): TareaLogisticaRow {
     estado: t.estado,
     creada_en: t.creada,
     creada_por: t.creadaPor ?? null,
+    iniciada_en: t.iniciada ?? null,
+    iniciada_por: t.iniciadaPor ?? null,
     finalizada_en: t.finalizada ?? null,
     finalizada_por: t.finalizadaPor ?? null,
   }

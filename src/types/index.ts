@@ -384,9 +384,11 @@ export interface TareaLogistica {
   detalle?: string
   responsable: string            // nombre del equipo de logistica
   prioridad: PrioridadLog
-  estado: 'pendiente' | 'finalizada'
+  estado: 'pendiente' | 'en_curso' | 'finalizada'
   creada: string                 // ISO: cuando Giuliano dio la orden
   creadaPor?: string             // usuario que la creo
+  iniciada?: string              // ISO: cuando el colaborador la arranco
+  iniciadaPor?: string           // usuario que la inicio
   finalizada?: string            // ISO al completar
   finalizadaPor?: string         // usuario que la completo
 }

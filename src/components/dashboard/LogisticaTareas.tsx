@@ -43,11 +43,15 @@ export default function LogisticaTareas() {
     setMsg(`Tarea creada y asignada a ${t.responsable}.`)
   }
 
+  async function iniciar(t: TareaLogistica) {
+    await guardarTareaLogistica({ ...t, estado: 'en_curso', iniciada: new Date().toISOString(), iniciadaPor: usuario?.usuario })
+  }
   async function finalizar(t: TareaLogistica) {
     await guardarTareaLogistica({ ...t, estado: 'finalizada', finalizada: new Date().toISOString(), finalizadaPor: usuario?.usuario })
   }
   async function reabrir(t: TareaLogistica) {
-    await guardarTareaLogistica({ ...t, estado: 'pendiente', finalizada: undefined, finalizadaPor: undefined })
+    // Reabre a "en curso" si ya se habia iniciado, o a "pendiente" si nunca arranco.
+    await guardarTareaLogistica({ ...t, estado: t.iniciada ? 'en_curso' : 'pendiente', finalizada: undefined, finalizadaPor: undefined })
   }
   async function borrar(t: TareaLogistica) {
     if (!window.confirm(`¿Eliminar la tarea "${t.titulo}"?`)) return
@@ -56,22 +60,27 @@ export default function LogisticaTareas() {
 
   const pendientes = useMemo(() => tareas.filter((t) => t.estado === 'pendiente')
     .sort((a, b) => (ORDEN_PRIO[a.prioridad] - ORDEN_PRIO[b.prioridad]) || (a.creada < b.creada ? -1 : 1)), [tareas])
+  const enCurso = useMemo(() => tareas.filter((t) => t.estado === 'en_curso')
+    .sort((a, b) => (ORDEN_PRIO[a.prioridad] - ORDEN_PRIO[b.prioridad]) || ((a.iniciada ?? '') < (b.iniciada ?? '') ? -1 : 1)), [tareas])
   const finalizadas = useMemo(() => tareas.filter((t) => t.estado === 'finalizada')
     .sort((a, b) => ((b.finalizada ?? '') < (a.finalizada ?? '') ? -1 : 1)), [tareas])
 
-  // Indicadores.
+  // Indicadores. Las prioridades cuentan tareas abiertas (pendientes + en curso).
+  // El tiempo de resolucion se mide desde que se inicio (o desde la creacion si no hay inicio).
   const ind = useMemo(() => {
-    const porPrio = (p: PrioridadLog) => pendientes.filter((t) => t.prioridad === p).length
-    const tiempos = finalizadas.map((t) => minutosEntre(t.creada, t.finalizada)).filter((m) => m > 0)
+    const abiertas = [...pendientes, ...enCurso]
+    const porPrio = (p: PrioridadLog) => abiertas.filter((t) => t.prioridad === p).length
+    const tiempos = finalizadas.map((t) => minutosEntre(t.iniciada ?? t.creada, t.finalizada)).filter((m) => m > 0)
     const prom = tiempos.length ? Math.round(tiempos.reduce((a, b) => a + b, 0) / tiempos.length) : 0
-    return { pend: pendientes.length, alta: porPrio('alta'), media: porPrio('media'), baja: porPrio('baja'), fin: finalizadas.length, prom }
-  }, [pendientes, finalizadas])
+    return { pend: pendientes.length, curso: enCurso.length, alta: porPrio('alta'), media: porPrio('media'), baja: porPrio('baja'), fin: finalizadas.length, prom }
+  }, [pendientes, enCurso, finalizadas])
 
   return (
     <>
       {/* Indicadores */}
       <div className="logi-kpis">
         <div className="logi-kpi"><div className="n">{ind.pend}</div><div className="l">Pendientes</div></div>
+        <div className="logi-kpi"><div className="n" style={{ color: 'var(--naranja)' }}>{ind.curso}</div><div className="l">En curso</div></div>
         <div className="logi-kpi prio-alta"><div className="n">{ind.alta}</div><div className="l">Alta</div></div>
         <div className="logi-kpi prio-media"><div className="n">{ind.media}</div><div className="l">Media</div></div>
         <div className="logi-kpi prio-baja"><div className="n">{ind.baja}</div><div className="l">Baja</div></div>
@@ -111,7 +120,7 @@ export default function LogisticaTareas() {
         </div>
       )}
 
-      {/* Pendientes */}
+      {/* Pendientes — el colaborador todavia no la arranco */}
       <div className="section-title">Pendientes ({pendientes.length})</div>
       {pendientes.length === 0 ? <div className="empty">Sin tareas pendientes.</div> : pendientes.map((t) => (
         <div className={'card logi-tarea ' + ('prio-' + t.prioridad)} key={t.id}>
@@ -123,6 +132,27 @@ export default function LogisticaTareas() {
                 {t.detalle ? <> · {t.detalle}</> : null}
               </div>
             </div>
+          </div>
+          <div className="row-actions">
+            <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => iniciar(t)}>▶ Iniciar tarea</button>
+            {esGiuliano && <button className="btn btn-rojo" onClick={() => borrar(t)}>🗑</button>}
+          </div>
+        </div>
+      ))}
+
+      {/* En curso — iniciada, pendiente de finalizar. Pueden convivir varias en simultaneo */}
+      <div className="section-title">En curso ({enCurso.length})</div>
+      {enCurso.length === 0 ? <div className="empty">Sin tareas en curso.</div> : enCurso.map((t) => (
+        <div className={'card logi-tarea ' + ('prio-' + t.prioridad)} key={t.id}>
+          <div className="card-header">
+            <div>
+              <h3><span className={'prio-chip prio-' + t.prioridad}>{PRIO_LABEL[t.prioridad]}</span> {t.titulo}</h3>
+              <div className="meta">
+                Responsable <strong>{t.responsable}</strong> · Iniciada {t.iniciada ? `${fechaCorta(t.iniciada)} ${hhmm(t.iniciada)}` : '—'} · <strong style={{ color: 'var(--naranja)' }}>hace {fmtDur(minutosEntre(t.iniciada ?? t.creada, ahoraISO))}</strong>
+                {t.detalle ? <> · {t.detalle}</> : null}
+              </div>
+            </div>
+            <span className="estado-chip e-proceso">En curso</span>
           </div>
           <div className="row-actions">
             <button className="btn btn-verde" style={{ flex: 1 }} onClick={() => finalizar(t)}>✓ Marcar finalizada</button>
@@ -139,13 +169,13 @@ export default function LogisticaTareas() {
             <div>
               <h3><span className={'prio-chip prio-' + t.prioridad}>{PRIO_LABEL[t.prioridad]}</span> {t.titulo}</h3>
               <div className="meta">
-                Responsable <strong>{t.responsable}</strong> · Pedida {fechaCorta(t.creada)} {hhmm(t.creada)} · Finalizada {t.finalizada ? `${fechaCorta(t.finalizada)} ${hhmm(t.finalizada)}` : '—'} · <strong style={{ color: 'var(--estado-fin)' }}>resuelta en {fmtDur(minutosEntre(t.creada, t.finalizada))}</strong>
+                Responsable <strong>{t.responsable}</strong> · Pedida {fechaCorta(t.creada)} {hhmm(t.creada)} · Finalizada {t.finalizada ? `${fechaCorta(t.finalizada)} ${hhmm(t.finalizada)}` : '—'} · <strong style={{ color: 'var(--estado-fin)' }}>resuelta en {fmtDur(minutosEntre(t.iniciada ?? t.creada, t.finalizada))}</strong>
               </div>
             </div>
             <span className="estado-chip e-finalizado">Finalizada</span>
           </div>
           <div className="row-actions">
-            <button className="btn" onClick={() => reabrir(t)}>↩ Reabrir</button>
+            {esGiuliano && <button className="btn" onClick={() => reabrir(t)}>↩ Reabrir</button>}
             {esGiuliano && <button className="btn btn-rojo" onClick={() => borrar(t)}>🗑</button>}
           </div>
         </div>
