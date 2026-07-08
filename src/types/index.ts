@@ -375,7 +375,7 @@ export const PRIORIDADES_LOG: { id: PrioridadLog; label: string }[] = [
 ]
 // Equipo de logistica (responsables asignables). No son cuentas de login.
 export const RESPONSABLES_LOGISTICA: string[] = [
-  'Guillermo', 'Maximiliano', 'Santiago', 'Lucas', 'Enzo', 'Orlando',
+  'Guillermo', 'Maximiliano', 'Juan', 'Lucas', 'Enzo', 'Orlando',
 ]
 
 export interface TareaLogistica {
