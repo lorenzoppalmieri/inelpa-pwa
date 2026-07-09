@@ -382,7 +382,8 @@ export interface TareaLogistica {
   id: string
   titulo: string
   detalle?: string
-  responsable: string            // nombre del equipo de logistica
+  responsable: string            // legacy / fallback de visualizacion (join de responsables)
+  responsables?: string[]        // lista de colaboradores asignados (uno o varios)
   prioridad: PrioridadLog
   estado: 'pendiente' | 'en_curso' | 'finalizada'
   creada: string                 // ISO: cuando Giuliano dio la orden
@@ -391,6 +392,13 @@ export interface TareaLogistica {
   iniciadaPor?: string           // usuario que la inicio
   finalizada?: string            // ISO al completar
   finalizadaPor?: string         // usuario que la completo
+}
+
+// Lista de colaboradores asignados a una tarea logistica. Usa el array nuevo
+// (responsables) y cae al campo legacy (responsable) para tareas viejas.
+export function responsablesDe(t: TareaLogistica): string[] {
+  if (t.responsables && t.responsables.length) return t.responsables
+  return t.responsable ? [t.responsable] : []
 }
 
 // ============================================================

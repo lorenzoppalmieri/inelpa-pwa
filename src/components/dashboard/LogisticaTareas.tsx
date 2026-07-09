@@ -3,12 +3,35 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
 import { useAuth } from '../../auth/AuthContext'
 import type { TareaLogistica, PrioridadLog } from '../../types'
-import { PRIORIDADES_LOG, RESPONSABLES_LOGISTICA } from '../../types'
+import { PRIORIDADES_LOG, RESPONSABLES_LOGISTICA, responsablesDe } from '../../types'
 import { guardarTareaLogistica, eliminarTareaLogistica } from '../../sync/syncEngine'
 import { fmtDur, minutosEntre, fechaCorta, hhmm } from '../../lib/time'
 
 const ORDEN_PRIO: Record<PrioridadLog, number> = { alta: 0, media: 1, baja: 2 }
 const PRIO_LABEL: Record<PrioridadLog, string> = { alta: 'ALTA', media: 'MEDIA', baja: 'BAJA' }
+
+// Selector de uno o varios colaboradores (chips que se marcan/desmarcan).
+function SelectorResponsables({ seleccion, onChange }: { seleccion: string[]; onChange: (v: string[]) => void }) {
+  const toggle = (r: string) => onChange(seleccion.includes(r) ? seleccion.filter((x) => x !== r) : [...seleccion, r])
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+      {RESPONSABLES_LOGISTICA.map((r) => {
+        const on = seleccion.includes(r)
+        return (
+          <button
+            type="button" key={r} onClick={() => toggle(r)}
+            style={{
+              padding: '6px 14px', borderRadius: 999, cursor: 'pointer', fontSize: '.85rem',
+              border: '1px solid ' + (on ? 'var(--azul-claro)' : 'var(--borde)'),
+              background: on ? 'var(--azul-claro)' : 'transparent',
+              color: on ? '#fff' : 'var(--texto)', fontWeight: on ? 700 : 500,
+            }}
+          >{on ? '✓ ' : ''}{r}</button>
+        )
+      })}
+    </div>
+  )
+}
 
 export default function LogisticaTareas() {
   const { usuario } = useAuth()
@@ -22,7 +45,7 @@ export default function LogisticaTareas() {
   // Formulario de alta (solo Giuliano).
   const [titulo, setTitulo] = useState('')
   const [detalle, setDetalle] = useState('')
-  const [responsable, setResponsable] = useState('')
+  const [responsables, setResponsables] = useState<string[]>([])
   const [prioridad, setPrioridad] = useState<PrioridadLog>('media')
   const [msg, setMsg] = useState('')
 
@@ -30,43 +53,45 @@ export default function LogisticaTareas() {
   const [editando, setEditando] = useState<TareaLogistica | null>(null)
   const [eTitulo, setETitulo] = useState('')
   const [eDetalle, setEDetalle] = useState('')
-  const [eResponsable, setEResponsable] = useState('')
+  const [eResponsables, setEResponsables] = useState<string[]>([])
   const [ePrioridad, setEPrioridad] = useState<PrioridadLog>('media')
 
   function abrirEdicion(t: TareaLogistica) {
     setEditando(t)
     setETitulo(t.titulo)
     setEDetalle(t.detalle ?? '')
-    setEResponsable(t.responsable)
+    setEResponsables(responsablesDe(t))
     setEPrioridad(t.prioridad)
   }
   async function guardarEdicion() {
     if (!editando) return
-    if (!eTitulo.trim() || !eResponsable) return
+    if (!eTitulo.trim() || eResponsables.length === 0) return
     await guardarTareaLogistica({
       ...editando,
       titulo: eTitulo.trim(),
       detalle: eDetalle.trim() || undefined,
-      responsable: eResponsable,
+      responsable: eResponsables.join(', '),
+      responsables: eResponsables,
       prioridad: ePrioridad,
     })
     setEditando(null)
   }
 
   async function crear() {
-    if (!titulo.trim() || !responsable) { setMsg('Completá el título y el responsable.'); return }
+    if (!titulo.trim() || responsables.length === 0) { setMsg('Completá el título y al menos un responsable.'); return }
     const t: TareaLogistica = {
       id: crypto.randomUUID(),
       titulo: titulo.trim(),
       detalle: detalle.trim() || undefined,
-      responsable,
+      responsable: responsables.join(', '),
+      responsables,
       prioridad,
       estado: 'pendiente',
       creada: new Date().toISOString(),
       creadaPor: usuario?.usuario,
     }
     await guardarTareaLogistica(t)
-    setTitulo(''); setDetalle(''); setResponsable(''); setPrioridad('media')
+    setTitulo(''); setDetalle(''); setResponsables([]); setPrioridad('media')
     setMsg(`Tarea creada y asignada a ${t.responsable}.`)
   }
 
@@ -128,12 +153,9 @@ export default function LogisticaTareas() {
               <label>Detalle (opcional)</label>
               <input className="input" value={detalle} onChange={(e) => setDetalle(e.target.value)} placeholder="cantidad, sector, observaciones…" />
             </div>
-            <div className="field">
-              <label>Responsable</label>
-              <select className="input" value={responsable} onChange={(e) => setResponsable(e.target.value)}>
-                <option value="">— Selecciona —</option>
-                {RESPONSABLES_LOGISTICA.map((r) => <option key={r} value={r}>{r}</option>)}
-              </select>
+            <div className="field" style={{ gridColumn: '1 / -1' }}>
+              <label>Responsable(s) — podés elegir varios</label>
+              <SelectorResponsables seleccion={responsables} onChange={setResponsables} />
             </div>
             <div className="field">
               <label>Prioridad</label>
@@ -155,7 +177,7 @@ export default function LogisticaTareas() {
             <div>
               <h3><span className={'prio-chip prio-' + t.prioridad}>{PRIO_LABEL[t.prioridad]}</span> {t.titulo}</h3>
               <div className="meta">
-                Responsable <strong>{t.responsable}</strong> · Pedida {fechaCorta(t.creada)} {hhmm(t.creada)} · <strong style={{ color: 'var(--naranja)' }}>hace {fmtDur(minutosEntre(t.creada, ahoraISO))}</strong>
+                {responsablesDe(t).length > 1 ? 'Responsables' : 'Responsable'} <strong>{responsablesDe(t).join(', ')}</strong> · Pedida {fechaCorta(t.creada)} {hhmm(t.creada)} · <strong style={{ color: 'var(--naranja)' }}>hace {fmtDur(minutosEntre(t.creada, ahoraISO))}</strong>
                 {t.detalle ? <> · {t.detalle}</> : null}
               </div>
             </div>
@@ -176,7 +198,7 @@ export default function LogisticaTareas() {
             <div>
               <h3><span className={'prio-chip prio-' + t.prioridad}>{PRIO_LABEL[t.prioridad]}</span> {t.titulo}</h3>
               <div className="meta">
-                Responsable <strong>{t.responsable}</strong> · Iniciada {t.iniciada ? `${fechaCorta(t.iniciada)} ${hhmm(t.iniciada)}` : '—'} · <strong style={{ color: 'var(--naranja)' }}>hace {fmtDur(minutosEntre(t.iniciada ?? t.creada, ahoraISO))}</strong>
+                {responsablesDe(t).length > 1 ? 'Responsables' : 'Responsable'} <strong>{responsablesDe(t).join(', ')}</strong> · Iniciada {t.iniciada ? `${fechaCorta(t.iniciada)} ${hhmm(t.iniciada)}` : '—'} · <strong style={{ color: 'var(--naranja)' }}>hace {fmtDur(minutosEntre(t.iniciada ?? t.creada, ahoraISO))}</strong>
                 {t.detalle ? <> · {t.detalle}</> : null}
               </div>
             </div>
@@ -198,7 +220,7 @@ export default function LogisticaTareas() {
             <div>
               <h3><span className={'prio-chip prio-' + t.prioridad}>{PRIO_LABEL[t.prioridad]}</span> {t.titulo}</h3>
               <div className="meta">
-                Responsable <strong>{t.responsable}</strong> · Pedida {fechaCorta(t.creada)} {hhmm(t.creada)} · Finalizada {t.finalizada ? `${fechaCorta(t.finalizada)} ${hhmm(t.finalizada)}` : '—'} · <strong style={{ color: 'var(--estado-fin)' }}>resuelta en {fmtDur(minutosEntre(t.iniciada ?? t.creada, t.finalizada))}</strong>
+                {responsablesDe(t).length > 1 ? 'Responsables' : 'Responsable'} <strong>{responsablesDe(t).join(', ')}</strong> · Pedida {fechaCorta(t.creada)} {hhmm(t.creada)} · Finalizada {t.finalizada ? `${fechaCorta(t.finalizada)} ${hhmm(t.finalizada)}` : '—'} · <strong style={{ color: 'var(--estado-fin)' }}>resuelta en {fmtDur(minutosEntre(t.iniciada ?? t.creada, t.finalizada))}</strong>
               </div>
             </div>
             <span className="estado-chip e-finalizado">Finalizada</span>
@@ -223,24 +245,19 @@ export default function LogisticaTareas() {
               <label>Detalle (opcional)</label>
               <input className="input" value={eDetalle} onChange={(e) => setEDetalle(e.target.value)} style={{ width: '100%' }} />
             </div>
-            <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
-              <div className="field" style={{ flex: 1 }}>
-                <label>Responsable</label>
-                <select className="input" value={eResponsable} onChange={(e) => setEResponsable(e.target.value)} style={{ width: '100%' }}>
-                  <option value="">— Selecciona —</option>
-                  {RESPONSABLES_LOGISTICA.map((r) => <option key={r} value={r}>{r}</option>)}
-                </select>
-              </div>
-              <div className="field" style={{ flex: 1 }}>
-                <label>Prioridad</label>
-                <select className="input" value={ePrioridad} onChange={(e) => setEPrioridad(e.target.value as PrioridadLog)} style={{ width: '100%' }}>
-                  {PRIORIDADES_LOG.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
-                </select>
-              </div>
+            <div className="field" style={{ marginBottom: 12 }}>
+              <label>Responsable(s) — podés elegir varios</label>
+              <SelectorResponsables seleccion={eResponsables} onChange={setEResponsables} />
+            </div>
+            <div className="field" style={{ marginBottom: 12, maxWidth: 200 }}>
+              <label>Prioridad</label>
+              <select className="input" value={ePrioridad} onChange={(e) => setEPrioridad(e.target.value as PrioridadLog)} style={{ width: '100%' }}>
+                {PRIORIDADES_LOG.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+              </select>
             </div>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button className="btn" onClick={() => setEditando(null)}>Cancelar</button>
-              <button className="btn btn-primary" disabled={!eTitulo.trim() || !eResponsable} onClick={() => void guardarEdicion()}>Guardar cambios</button>
+              <button className="btn btn-primary" disabled={!eTitulo.trim() || eResponsables.length === 0} onClick={() => void guardarEdicion()}>Guardar cambios</button>
             </div>
           </div>
         </div>
