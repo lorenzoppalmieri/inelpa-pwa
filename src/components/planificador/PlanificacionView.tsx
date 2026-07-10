@@ -177,6 +177,7 @@ function PanelOrdenes() {
       linea: lineaDesdeModelo(modelo),
       cantidad: Math.max(1, Number(cantidad) || 1),
       fechaEntrega,
+      creada: new Date().toISOString(),
     }
     await guardarOrden(o)
     setNroOrden(''); setNroContrato(''); setModelo(''); setMaterial(''); setCantidad('1'); setFechaEntrega('')
@@ -331,6 +332,7 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
   const todasTareas = useLiveQuery(() => db.tareas.toArray(), []) ?? []
 
   const [ordenId, setOrdenId] = useState('')
+  const [buscarOrden, setBuscarOrden] = useState('')
   const [sectorId, setSectorId] = useState<SectorId>('bob_dist_at')
   const [operarioId, setOperarioId] = useState('')
   const [maquinaId, setMaquinaId] = useState('')
@@ -397,6 +399,14 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
     const ts = todasTareas.filter((t) => t.ordenId === o.id)
     return ts.length === 0 || ts.some((t) => t.estado !== 'finalizada') || o.id === ordenId
   })
+  // Se ordenan de la MÁS RECIENTE a la más antigua (por fecha de alta). Las órdenes
+  // viejas sin fecha de alta quedan al final. Además se filtran por el buscador.
+  const ordenesFiltradas = useMemo(() => {
+    const q = buscarOrden.trim().toLowerCase()
+    return [...ordenesActivas]
+      .sort((a, b) => (b.creada ?? '').localeCompare(a.creada ?? ''))
+      .filter((o) => !q || `${o.nroOrden} ${o.modelo} ${o.nroContrato ?? ''}`.toLowerCase().includes(q))
+  }, [ordenesActivas, buscarOrden])
   // Semielaborados del sector con CUPO segun la cantidad de la OF. Aplica a TODOS
   // los semielaborados del transformador: cada tarea ya planificada (cualquier
   // estado) de ese componente en esta orden consume 1 unidad. Se ocultan los que
@@ -618,10 +628,15 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
           {tipo === 'fabricacion' ? (
             <div className="field">
               <label>Orden de fabricacion{esProto ? ' (opcional)' : ''}</label>
+              <input
+                className="input" value={buscarOrden} onChange={(e) => setBuscarOrden(e.target.value)}
+                placeholder="🔍 Buscar por N° de orden o modelo…" style={{ marginBottom: 6 }}
+              />
               <select className="input" value={ordenId} onChange={(e) => cambiarOrden(e.target.value)}>
                 <option value="">— {esProto ? 'Sin orden' : 'Selecciona'} —</option>
-                {ordenesActivas.map((o) => <option key={o.id} value={o.id}>{o.nroOrden} · {o.modelo}</option>)}
+                {ordenesFiltradas.map((o) => <option key={o.id} value={o.id}>{o.nroOrden} · {o.modelo}</option>)}
               </select>
+              {buscarOrden && ordenesFiltradas.length === 0 && <div className="meta" style={{ marginTop: 6 }}>Sin órdenes que coincidan con "{buscarOrden}".</div>}
             </div>
           ) : (
             <div className="field">

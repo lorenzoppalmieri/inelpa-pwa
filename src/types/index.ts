@@ -268,6 +268,7 @@ export interface OrdenProduccion {
   linea: LineaProduccion
   cantidad: number
   fechaEntrega: string
+  creada?: string          // ISO: alta de la OF (para ordenar de más reciente a más antigua)
 }
 
 // Producto semielaborado (ej. bobina terminada antes del montaje).

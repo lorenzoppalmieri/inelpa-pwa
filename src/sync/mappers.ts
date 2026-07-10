@@ -68,6 +68,7 @@ export interface OrdenRow {
   linea: string
   cantidad: number
   fecha_entrega: string | null
+  creada_en: string | null
 }
 
 export interface SemiRow {
@@ -189,6 +190,7 @@ export function ordenFromRow(r: OrdenRow): OrdenProduccion {
     linea: r.linea as LineaProduccion,
     cantidad: r.cantidad,
     fechaEntrega: r.fecha_entrega ?? '',
+    creada: u(r.creada_en),
   }
 }
 
@@ -454,6 +456,7 @@ export function ordenToRow(o: OrdenProduccion): OrdenRow {
     linea: o.linea,
     cantidad: o.cantidad,
     fecha_entrega: o.fechaEntrega || null,
+    creada_en: o.creada ?? null,
   }
 }
 
