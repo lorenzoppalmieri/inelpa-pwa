@@ -85,7 +85,7 @@ export default function LogisticaTareas() {
   }
   async function guardarEdicion() {
     if (!editando) return
-    if (!eTitulo.trim() || eResponsables.length === 0) return
+    if (!eTitulo.trim()) return
     await guardarTareaLogistica({
       ...editando,
       titulo: eTitulo.trim(),
@@ -115,8 +115,26 @@ export default function LogisticaTareas() {
     setMsg(responsables.length ? `Tarea creada y asignada a ${t.responsable}.` : 'Tarea creada sin asignar — la puede tomar cualquiera.')
   }
 
+  // Tomar una tarea SIN asignar: se pide el nombre de quien la toma.
+  const [tomando, setTomando] = useState<TareaLogistica | null>(null)
+  const [quienToma, setQuienToma] = useState<string[]>([])
+
   async function iniciar(t: TareaLogistica) {
+    // Si no tiene responsable, primero pedimos quién la toma.
+    if (responsablesDe(t).length === 0) { setTomando(t); setQuienToma([]); return }
     await guardarTareaLogistica({ ...t, estado: 'en_curso', iniciada: new Date().toISOString(), iniciadaPor: usuario?.usuario })
+  }
+  async function confirmarTomar() {
+    if (!tomando || quienToma.length === 0) return
+    await guardarTareaLogistica({
+      ...tomando,
+      responsable: quienToma.join(', '),
+      responsables: quienToma,
+      estado: 'en_curso',
+      iniciada: new Date().toISOString(),
+      iniciadaPor: usuario?.usuario,
+    })
+    setTomando(null); setQuienToma([])
   }
   async function pausar(t: TareaLogistica) {
     await guardarTareaLogistica({ ...t, estado: 'pausada', pausadaEn: new Date().toISOString() })
@@ -286,6 +304,24 @@ export default function LogisticaTareas() {
         </div>
       ))}
 
+      {/* Modal "¿Quién toma esta tarea?" — al tomar una tarea sin asignar */}
+      {tomando && (
+        <div className="modal-overlay" onClick={() => setTomando(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="section-title" style={{ marginTop: 0 }}>¿Quién toma esta tarea?</div>
+            <div className="meta" style={{ marginBottom: 10 }}>{tomando.titulo}</div>
+            <div className="field" style={{ marginBottom: 12 }}>
+              <label>Colaborador(es)</label>
+              <SelectorResponsables seleccion={quienToma} onChange={setQuienToma} />
+            </div>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button className="btn" onClick={() => setTomando(null)}>Cancelar</button>
+              <button className="btn btn-primary" disabled={quienToma.length === 0} onClick={() => void confirmarTomar()}>▶ Tomar e iniciar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal de edición (solo Giuliano) */}
       {editando && (
         <div className="modal-overlay" onClick={() => setEditando(null)}>
@@ -311,7 +347,7 @@ export default function LogisticaTareas() {
             </div>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button className="btn" onClick={() => setEditando(null)}>Cancelar</button>
-              <button className="btn btn-primary" disabled={!eTitulo.trim() || eResponsables.length === 0} onClick={() => void guardarEdicion()}>Guardar cambios</button>
+              <button className="btn btn-primary" disabled={!eTitulo.trim()} onClick={() => void guardarEdicion()}>Guardar cambios</button>
             </div>
           </div>
         </div>
