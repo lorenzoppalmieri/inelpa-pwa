@@ -382,14 +382,16 @@ export interface TareaLogistica {
   id: string
   titulo: string
   detalle?: string
-  responsable: string            // legacy / fallback de visualizacion (join de responsables)
-  responsables?: string[]        // lista de colaboradores asignados (uno o varios)
+  responsable: string            // legacy / fallback de visualizacion (join de responsables); '' = sin asignar
+  responsables?: string[]        // lista de colaboradores asignados (0 = sin asignar, la toma cualquiera)
   prioridad: PrioridadLog
-  estado: 'pendiente' | 'en_curso' | 'finalizada'
+  estado: 'pendiente' | 'en_curso' | 'pausada' | 'finalizada'
   creada: string                 // ISO: cuando Giuliano dio la orden
   creadaPor?: string             // usuario que la creo
   iniciada?: string              // ISO: cuando el colaborador la arranco
   iniciadaPor?: string           // usuario que la inicio
+  pausadaEn?: string             // ISO: inicio de la pausa vigente (solo si estado === 'pausada')
+  minutosPausada?: number        // minutos de pausa acumulados (cerrados)
   finalizada?: string            // ISO al completar
   finalizadaPor?: string         // usuario que la completo
 }
