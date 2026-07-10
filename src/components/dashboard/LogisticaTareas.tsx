@@ -292,7 +292,7 @@ export default function LogisticaTareas() {
             <div>
               <h3><span className={'prio-chip prio-' + t.prioridad}>{PRIO_LABEL[t.prioridad]}</span> {t.titulo}</h3>
               <div className="meta">
-                {respTxt(t)} · Pedida {fechaCorta(t.creada)} {hhmm(t.creada)} · Finalizada {t.finalizada ? `${fechaCorta(t.finalizada)} ${hhmm(t.finalizada)}` : '—'} · <strong style={{ color: 'var(--estado-fin)' }}>resuelta en {fmtDur(minsActivos(t))}</strong>{t.minutosPausada ? <> · pausas: {fmtDur(t.minutosPausada)}</> : null}
+                {respTxt(t)} · Pedida {fechaCorta(t.creada)} {hhmm(t.creada)} · Finalizada {t.finalizada ? `${fechaCorta(t.finalizada)} ${hhmm(t.finalizada)}` : '—'} · <strong style={{ color: 'var(--estado-fin)' }}>resuelta en {fmtDur(minsActivos(t))}</strong>{t.minutosPausada ? <> · pausas: {fmtDur(t.minutosPausada)}</> : null}{t.detalle ? <> · {t.detalle}</> : null}
               </div>
             </div>
             <span className="estado-chip e-finalizado">Finalizada</span>
