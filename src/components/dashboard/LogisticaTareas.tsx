@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
 import { useAuth } from '../../auth/AuthContext'
@@ -9,6 +9,26 @@ import { fmtDur, minutosEntre, fechaCorta, hhmm } from '../../lib/time'
 
 const ORDEN_PRIO: Record<PrioridadLog, number> = { alta: 0, media: 1, baja: 2 }
 const PRIO_LABEL: Record<PrioridadLog, string> = { alta: 'ALTA', media: 'MEDIA', baja: 'BAJA' }
+
+// Textarea que crece hacia abajo a medida que se escribe (para ver todo el texto).
+function AutoTextarea({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder?: string }) {
+  const ref = useRef<HTMLTextAreaElement>(null)
+  useEffect(() => {
+    const el = ref.current
+    if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px` }
+  }, [value])
+  return (
+    <textarea
+      ref={ref}
+      className="input"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      rows={2}
+      style={{ width: '100%', resize: 'none', overflow: 'hidden', minHeight: 46, fontFamily: 'inherit', lineHeight: 1.4 }}
+    />
+  )
+}
 
 // Selector de uno o varios colaboradores (chips que se marcan/desmarcan).
 function SelectorResponsables({ seleccion, onChange }: { seleccion: string[]; onChange: (v: string[]) => void }) {
@@ -178,7 +198,7 @@ export default function LogisticaTareas() {
             </div>
             <div className="field" style={{ gridColumn: '1 / -1' }}>
               <label>Detalle (opcional)</label>
-              <input className="input" value={detalle} onChange={(e) => setDetalle(e.target.value)} placeholder="cantidad, sector, observaciones…" />
+              <AutoTextarea value={detalle} onChange={setDetalle} placeholder="cantidad, sector, observaciones…" />
             </div>
             <div className="field" style={{ gridColumn: '1 / -1' }}>
               <label>Responsable(s) — podés elegir varios</label>
@@ -277,7 +297,7 @@ export default function LogisticaTareas() {
             </div>
             <div className="field" style={{ marginBottom: 10 }}>
               <label>Detalle (opcional)</label>
-              <input className="input" value={eDetalle} onChange={(e) => setEDetalle(e.target.value)} style={{ width: '100%' }} />
+              <AutoTextarea value={eDetalle} onChange={setEDetalle} />
             </div>
             <div className="field" style={{ marginBottom: 12 }}>
               <label>Responsable(s) — podés elegir varios</label>
