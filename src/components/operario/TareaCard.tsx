@@ -8,7 +8,7 @@ import { useAuth } from '../../auth/AuthContext'
 import { hhmm, cronometro, fmtDur, minutosEntre, fechaCorta } from '../../lib/time'
 import { calcularTiempoNetoProductivo } from '../../lib/calendario'
 import { componentePorCodigo } from '../../data/catalogo'
-import { minutosParada, tiempoRealMin } from '../../lib/kpi'
+import { minutosParada, minutosNoProductivos, tiempoRealMin } from '../../lib/kpi'
 import ModalParada from './ModalParada'
 
 const ESTADO_CHIP: Record<string, string> = {
@@ -124,7 +124,11 @@ export default function TareaCard({ tarea, onIniciar }: { tarea: Tarea; onInicia
     })
   }
 
-  const totalParada = minutosParada(tarea)
+  // "Paradas" en la tarjeta = SUMA de TODAS las paradas registradas (productivas
+  // + no productivas como almuerzo/pausa), igual que la sumatoria del Gantt.
+  // Ojo: minutosParada solo (productivas) sigue alimentando los KPI de eficiencia;
+  // acá mostramos el total para el operario.
+  const totalParada = minutosParada(tarea) + minutosNoProductivos(tarea)
   // v1.17: "Ejecutado en" = Tiempo Real LABORABLE (excluye horas de planta cerrada,
   // almuerzo y pausas no productivas), igual que el planificador. Antes usaba la
   // resta cruda de timestamps e inflaba el tiempo cuando la tarea cruzaba la noche.
