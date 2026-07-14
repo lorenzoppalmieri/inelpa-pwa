@@ -8,7 +8,7 @@ import { useAuth } from '../../auth/AuthContext'
 import { hhmm, cronometro, fmtDur, minutosEntre, fechaCorta } from '../../lib/time'
 import { calcularTiempoNetoProductivo } from '../../lib/calendario'
 import { componentePorCodigo } from '../../data/catalogo'
-import { tiempoRealMin } from '../../lib/kpi'
+import { tiempoNetoMin } from '../../lib/kpi'
 import ModalParada from './ModalParada'
 
 const ESTADO_CHIP: Record<string, string> = {
@@ -138,11 +138,12 @@ export default function TareaCard({ tarea, onIniciar }: { tarea: Tarea; onInicia
     const finAcotado = fin < finDiaInicio ? fin : finDiaInicio
     return acc + calcularTiempoNetoProductivo(ini, finAcotado, { horaRecuperacion: tarea.activaHoraRecuperacion, sinAlmuerzo: true })
   }, 0)
-  // v1.17: "Ejecutado en" = Tiempo Real LABORABLE (excluye horas de planta cerrada,
-  // almuerzo y pausas no productivas), igual que el planificador. Antes usaba la
-  // resta cruda de timestamps e inflaba el tiempo cuando la tarea cruzaba la noche.
+  // "Ejecutado en" = Tiempo NETO de trabajo del operario = Tiempo Real laborable
+  // (ya sin horas de planta cerrada ni almuerzo) MENOS las paradas operativas
+  // (demoras justificadas: corte de luz, replanificación, espera de material, etc.).
+  // Usa la función canónica del backend (tiempoNetoMin); no se toca nada global.
   const ejecutado = tarea.estado === 'finalizada'
-    ? tiempoRealMin(tarea)
+    ? tiempoNetoMin(tarea)
     : (tarea.inicioReal ? minutosEntre(tarea.inicioReal, new Date().toISOString()) : 0)
 
   // Titulo principal = SEMIELABORADO completo (o "PROTOTIPO · nota" si es prueba).
