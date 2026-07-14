@@ -8,7 +8,7 @@ import { useAuth } from '../../auth/AuthContext'
 import { hhmm, cronometro, fmtDur, minutosEntre, fechaCorta } from '../../lib/time'
 import { calcularTiempoNetoProductivo } from '../../lib/calendario'
 import { componentePorCodigo } from '../../data/catalogo'
-import { minutosParada, minutosNoProductivos, tiempoRealMin } from '../../lib/kpi'
+import { tiempoRealMin } from '../../lib/kpi'
 import ModalParada from './ModalParada'
 
 const ESTADO_CHIP: Record<string, string> = {
@@ -124,11 +124,20 @@ export default function TareaCard({ tarea, onIniciar }: { tarea: Tarea; onInicia
     })
   }
 
-  // "Paradas" en la tarjeta = SUMA de TODAS las paradas registradas (productivas
-  // + no productivas como almuerzo/pausa), igual que la sumatoria del Gantt.
-  // Ojo: minutosParada solo (productivas) sigue alimentando los KPI de eficiencia;
-  // acá mostramos el total para el operario.
-  const totalParada = minutosParada(tarea) + minutosNoProductivos(tarea)
+  // "Paradas" en la tarjeta = SUMA de TODAS las paradas registradas (productivas y
+  // no productivas), midiendo cada una en minutos LABORABLES y ACOTADA a su día de
+  // inicio. El acote evita que una parada dejada abierta que cruza la noche (su fin
+  // queda en la mañana siguiente) acumule las horas de dos días e infle el total
+  // (ej. una parada real de ~1h figuraba como 5h). Solo afecta lo que ve el operario;
+  // los KPI de eficiencia siguen usando minutosParada canónico.
+  const totalParada = tarea.paradas.reduce((acc, p) => {
+    if (!p.fin) return acc
+    const ini = new Date(p.inicio)
+    const finDiaInicio = new Date(ini); finDiaInicio.setHours(24, 0, 0, 0) // 00:00 del día siguiente
+    const fin = new Date(p.fin)
+    const finAcotado = fin < finDiaInicio ? fin : finDiaInicio
+    return acc + calcularTiempoNetoProductivo(ini, finAcotado, { horaRecuperacion: tarea.activaHoraRecuperacion, sinAlmuerzo: true })
+  }, 0)
   // v1.17: "Ejecutado en" = Tiempo Real LABORABLE (excluye horas de planta cerrada,
   // almuerzo y pausas no productivas), igual que el planificador. Antes usaba la
   // resta cruda de timestamps e inflaba el tiempo cuando la tarea cruzaba la noche.
