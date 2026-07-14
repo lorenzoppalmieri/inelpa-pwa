@@ -19,20 +19,31 @@ import MensajesInbox, { useMensajesNoLeidos } from '../mensajes/MensajesInbox'
 
 // Periodo de analisis del Dashboard de KPIs (v1.4). No borra datos: solo acota
 // el rango de fechas que se procesa.
-export type Periodo = 'dia' | 'mes_actual' | 'mes_anterior' | 'anual'
+export type Periodo = 'dia' | 'mes_actual' | 'mes_anterior' | 'anual' | 'rango'
 const PERIODOS: { id: Periodo; label: string }[] = [
   { id: 'dia', label: 'Día específico' },
   { id: 'mes_actual', label: 'Mes actual' },
   { id: 'mes_anterior', label: 'Mes anterior' },
   { id: 'anual', label: 'Acumulado anual' },
+  { id: 'rango', label: 'Rango personalizado' },
 ]
 // Rango de fechas del periodo. Para 'dia' usa la fecha elegida (yyyy-mm-dd local).
-function rangoPeriodo(periodo: Periodo, now: Date, diaISO?: string): { desde: string; hasta: string } {
+// Para 'rango' usa [desdeISO, hastaISO] inclusivos: hasta se lleva al día siguiente
+// (00:00) para incluir todo el día final.
+function rangoPeriodo(periodo: Periodo, now: Date, diaISO?: string, desdeISO?: string, hastaISO?: string): { desde: string; hasta: string } {
   const y = now.getFullYear(), m = now.getMonth()
   if (periodo === 'dia' && diaISO) {
     const d = new Date(`${diaISO}T00:00:00`)
     const fin = new Date(d); fin.setDate(fin.getDate() + 1)
     return { desde: d.toISOString(), hasta: fin.toISOString() }
+  }
+  if (periodo === 'rango') {
+    // Si falta algún extremo, se cae a un rango vacío en el pasado para no traer nada.
+    if (!desdeISO || !hastaISO) return { desde: new Date(2000, 0, 1).toISOString(), hasta: new Date(2000, 0, 1).toISOString() }
+    const d = new Date(`${desdeISO}T00:00:00`)
+    const h = new Date(`${hastaISO}T00:00:00`); h.setDate(h.getDate() + 1) // fin inclusivo
+    // Si el usuario invierte las fechas, las normalizamos.
+    return d <= h ? { desde: d.toISOString(), hasta: h.toISOString() } : { desde: h.toISOString(), hasta: d.toISOString() }
   }
   if (periodo === 'anual') {
     return { desde: new Date(y, 0, 1).toISOString(), hasta: new Date(y + 1, 0, 1).toISOString() }
@@ -57,6 +68,9 @@ export default function DashboardView() {
   const [kpiMaquina, setKpiMaquina] = useState<'todas' | string>('todas')
   const [kpiOperario, setKpiOperario] = useState<'todos' | string>('todos')
   const [kpiFecha, setKpiFecha] = useState<string>(() => new Date().toLocaleDateString('en-CA'))
+  // v1.22: rango personalizado de fechas para KPIs. Por defecto: del 1° del mes a hoy.
+  const [kpiDesde, setKpiDesde] = useState<string>(() => { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), 1).toLocaleDateString('en-CA') })
+  const [kpiHasta, setKpiHasta] = useState<string>(() => new Date().toLocaleDateString('en-CA'))
   // v1.17: al clickear una barra del Gantt, saltamos a Planificacion enfocando esa tarea.
   const [focoTareaId, setFocoTareaId] = useState<string | null>(null)
   const irATarea = (t: Tarea) => { setFocoTareaId(t.id); setVista('planificacion') }
@@ -133,9 +147,9 @@ export default function DashboardView() {
     let base = (todasTareas ?? []).filter(pasaFiltros)
     if (kpiMaquina !== 'todas') base = base.filter((t) => t.maquinaId === kpiMaquina)
     if (kpiOperario !== 'todos') base = base.filter((t) => t.operarioId === kpiOperario)
-    const { desde, hasta } = rangoPeriodo(periodo, new Date(), kpiFecha)
+    const { desde, hasta } = rangoPeriodo(periodo, new Date(), kpiFecha, kpiDesde, kpiHasta)
     return filtrarPorRango(base, desde, hasta)
-  }, [todasTareas, pasaFiltros, periodo, kpiMaquina, kpiOperario, kpiFecha])
+  }, [todasTareas, pasaFiltros, periodo, kpiMaquina, kpiOperario, kpiFecha, kpiDesde, kpiHasta])
 
   if (!tareas || !usuarios) return <div className="meta">Cargando dashboard...</div>
 
@@ -184,6 +198,8 @@ export default function DashboardView() {
             kpiMaquina={kpiMaquina} setKpiMaquina={setKpiMaquina}
             kpiOperario={kpiOperario} setKpiOperario={setKpiOperario}
             kpiFecha={kpiFecha} setKpiFecha={setKpiFecha}
+            kpiDesde={kpiDesde} setKpiDesde={setKpiDesde}
+            kpiHasta={kpiHasta} setKpiHasta={setKpiHasta}
             sectoresVisibles={sectoresVisibles}
             filtradas={filtradas} kpiFiltradas={kpiFiltradas}
             maquinasVisibles={maquinasVisibles} operariosVisibles={operariosVisibles}
@@ -212,6 +228,10 @@ function DashboardCuerpo(props: {
   setKpiOperario: (v: 'todos' | string) => void
   kpiFecha: string
   setKpiFecha: (v: string) => void
+  kpiDesde: string
+  setKpiDesde: (v: string) => void
+  kpiHasta: string
+  setKpiHasta: (v: string) => void
   sectoresVisibles: typeof SECTORES
   filtradas: Tarea[]
   kpiFiltradas: Tarea[]
@@ -223,9 +243,11 @@ function DashboardCuerpo(props: {
   puedeMoverProduccion: boolean
   onTareaClick?: (t: Tarea) => void
 }) {
-  const { vista, linea, setLinea, sectorFiltro, setSectorFiltro, agrupar, setAgrupar, periodo, setPeriodo, kpiMaquina, setKpiMaquina, kpiOperario, setKpiOperario, kpiFecha, setKpiFecha, sectoresVisibles, filtradas, kpiFiltradas, maquinasVisibles, operariosVisibles, nombreOperario, nombreMaquina, materialTarea, puedeMoverProduccion, onTareaClick } = props
+  const { vista, linea, setLinea, sectorFiltro, setSectorFiltro, agrupar, setAgrupar, periodo, setPeriodo, kpiMaquina, setKpiMaquina, kpiOperario, setKpiOperario, kpiFecha, setKpiFecha, kpiDesde, setKpiDesde, kpiHasta, setKpiHasta, sectoresVisibles, filtradas, kpiFiltradas, maquinasVisibles, operariosVisibles, nombreOperario, nombreMaquina, materialTarea, puedeMoverProduccion, onTareaClick } = props
 
-  const periodoLabel = PERIODOS.find((p) => p.id === periodo)?.label ?? ''
+  const periodoLabel = periodo === 'rango'
+    ? `Rango ${kpiDesde} a ${kpiHasta}`
+    : PERIODOS.find((p) => p.id === periodo)?.label ?? ''
   const puedeKpi = hayDatosKpi(kpiFiltradas)
   const puedeProg = hayDatosProgramacion(filtradas)
 
@@ -263,6 +285,13 @@ function DashboardCuerpo(props: {
             </select>
             {periodo === 'dia' && (
               <input type="date" className="select" value={kpiFecha} onChange={(e) => e.target.value && setKpiFecha(e.target.value)} title="Día a analizar" />
+            )}
+            {periodo === 'rango' && (
+              <>
+                <input type="date" className="select" value={kpiDesde} max={kpiHasta || undefined} onChange={(e) => e.target.value && setKpiDesde(e.target.value)} title="Fecha inicio" />
+                <span className="meta" style={{ alignSelf: 'center' }}>&rarr;</span>
+                <input type="date" className="select" value={kpiHasta} min={kpiDesde || undefined} onChange={(e) => e.target.value && setKpiHasta(e.target.value)} title="Fecha fin" />
+              </>
             )}
           </>
         )}
