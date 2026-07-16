@@ -112,6 +112,7 @@ export interface TareaLogisticaRow {
   responsables: string[] | null
   prioridad: string
   fecha_programada: string | null
+  estimado_min: number | null
   estado: string
   creada_en: string
   creada_por: string | null
@@ -119,8 +120,10 @@ export interface TareaLogisticaRow {
   iniciada_por: string | null
   pausada_en: string | null
   minutos_pausada: number | null
+  bloqueo_motivo: string | null
   finalizada_en: string | null
   finalizada_por: string | null
+  nota_cierre: string | null
 }
 
 export interface MaquinaRow {
@@ -341,6 +344,7 @@ export function tareaLogFromRow(r: TareaLogisticaRow): TareaLogistica {
     responsables: r.responsables ?? undefined,
     prioridad: r.prioridad as PrioridadLog,
     fechaProgramada: u(r.fecha_programada),
+    estimadoMin: r.estimado_min ?? undefined,
     estado: r.estado as TareaLogistica['estado'],
     creada: r.creada_en,
     creadaPor: u(r.creada_por),
@@ -348,8 +352,10 @@ export function tareaLogFromRow(r: TareaLogisticaRow): TareaLogistica {
     iniciadaPor: u(r.iniciada_por),
     pausadaEn: u(r.pausada_en),
     minutosPausada: r.minutos_pausada ?? undefined,
+    bloqueoMotivo: u(r.bloqueo_motivo),
     finalizada: u(r.finalizada_en),
     finalizadaPor: u(r.finalizada_por),
+    notaCierre: u(r.nota_cierre),
   }
 }
 export function tareaLogToRow(t: TareaLogistica): TareaLogisticaRow {
@@ -361,6 +367,7 @@ export function tareaLogToRow(t: TareaLogistica): TareaLogisticaRow {
     responsables: t.responsables ?? null,
     prioridad: t.prioridad,
     fecha_programada: t.fechaProgramada ?? null,
+    estimado_min: t.estimadoMin ?? null,
     estado: t.estado,
     creada_en: t.creada,
     creada_por: t.creadaPor ?? null,
@@ -368,8 +375,10 @@ export function tareaLogToRow(t: TareaLogistica): TareaLogisticaRow {
     iniciada_por: t.iniciadaPor ?? null,
     pausada_en: t.pausadaEn ?? null,
     minutos_pausada: t.minutosPausada ?? null,
+    bloqueo_motivo: t.bloqueoMotivo ?? null,
     finalizada_en: t.finalizada ?? null,
     finalizada_por: t.finalizadaPor ?? null,
+    nota_cierre: t.notaCierre ?? null,
   }
 }
 

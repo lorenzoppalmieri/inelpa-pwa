@@ -413,16 +413,25 @@ export interface TareaLogistica {
   responsables?: string[]        // lista de colaboradores asignados (0 = sin asignar, la toma cualquiera)
   prioridad: PrioridadLog
   fechaProgramada?: string       // 'YYYY-MM-DD': día en que se puede empezar (default hoy)
-  estado: 'pendiente' | 'en_curso' | 'pausada' | 'finalizada'
+  estimadoMin?: number           // tiempo estimado por el encargado (min); alimenta real vs estimado
+  estado: 'pendiente' | 'en_curso' | 'pausada' | 'bloqueada' | 'finalizada'
   creada: string                 // ISO: cuando Giuliano dio la orden
   creadaPor?: string             // usuario que la creo
   iniciada?: string              // ISO: cuando el colaborador la arranco
   iniciadaPor?: string           // usuario que la inicio
-  pausadaEn?: string             // ISO: inicio de la pausa vigente (solo si estado === 'pausada')
-  minutosPausada?: number        // minutos de pausa acumulados (cerrados)
+  pausadaEn?: string             // ISO: inicio de la pausa/bloqueo vigente (pausada o bloqueada)
+  minutosPausada?: number        // minutos de pausa/bloqueo acumulados (cerrados)
+  bloqueoMotivo?: string         // causa del bloqueo (solo si estado === 'bloqueada')
   finalizada?: string            // ISO al completar
   finalizadaPor?: string         // usuario que la completo
+  notaCierre?: string            // nota del operario al confirmar el cierre (real vs estimado)
 }
+
+// Causas típicas de bloqueo de una tarea logística (el operario elige una).
+export const MOTIVOS_BLOQUEO_LOG: string[] = [
+  'Falta de material', 'Máquina/equipo averiado', 'Falta de herramienta',
+  'Esperando indicación', 'Acceso/lugar ocupado', 'Otro',
+]
 
 // Lista de colaboradores asignados a una tarea logistica. Usa el array nuevo
 // (responsables) y cae al campo legacy (responsable) para tareas viejas.

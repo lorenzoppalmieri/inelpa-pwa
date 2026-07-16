@@ -3,7 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
 import { useAuth } from '../../auth/AuthContext'
 import type { TareaLogistica, PrioridadLog } from '../../types'
-import { PRIORIDADES_LOG, RESPONSABLES_LOGISTICA, responsablesDe } from '../../types'
+import { PRIORIDADES_LOG, RESPONSABLES_LOGISTICA, MOTIVOS_BLOQUEO_LOG, responsablesDe } from '../../types'
 import { guardarTareaLogistica, eliminarTareaLogistica } from '../../sync/syncEngine'
 import { fmtDur, minutosEntre, fechaCorta, hhmm } from '../../lib/time'
 
@@ -77,6 +77,7 @@ export default function LogisticaTareas() {
   const [responsables, setResponsables] = useState<string[]>([])
   const [prioridad, setPrioridad] = useState<PrioridadLog>('media')
   const [fechaProg, setFechaProg] = useState<string>(hoyLocal)
+  const [estimado, setEstimado] = useState<string>('')
   const [msg, setMsg] = useState('')
 
   // Edición de una tarea ya creada (solo Giuliano).
@@ -86,6 +87,15 @@ export default function LogisticaTareas() {
   const [eResponsables, setEResponsables] = useState<string[]>([])
   const [ePrioridad, setEPrioridad] = useState<PrioridadLog>('media')
   const [eFechaProg, setEFechaProg] = useState<string>('')
+  const [eEstimado, setEEstimado] = useState<string>('')
+
+  // Fase 2: bloqueo, reasignación rápida y confirmación de cierre.
+  const [bloqueando, setBloqueando] = useState<TareaLogistica | null>(null)
+  const [motivoBloq, setMotivoBloq] = useState<string>(MOTIVOS_BLOQUEO_LOG[0])
+  const [reasignando, setReasignando] = useState<TareaLogistica | null>(null)
+  const [reasignaResp, setReasignaResp] = useState<string[]>([])
+  const [cerrando, setCerrando] = useState<TareaLogistica | null>(null)
+  const [notaCierre, setNotaCierre] = useState<string>('')
 
   function abrirEdicion(t: TareaLogistica) {
     setEditando(t)
@@ -94,6 +104,7 @@ export default function LogisticaTareas() {
     setEResponsables(responsablesDe(t))
     setEPrioridad(t.prioridad)
     setEFechaProg(t.fechaProgramada ?? hoyLocal())
+    setEEstimado(t.estimadoMin ? String(t.estimadoMin) : '')
   }
   async function guardarEdicion() {
     if (!editando) return
@@ -106,6 +117,7 @@ export default function LogisticaTareas() {
       responsables: eResponsables,
       prioridad: ePrioridad,
       fechaProgramada: eFechaProg || hoyLocal(),
+      estimadoMin: Number(eEstimado) > 0 ? Number(eEstimado) : undefined,
     })
     setEditando(null)
   }
@@ -120,12 +132,13 @@ export default function LogisticaTareas() {
       responsables,
       prioridad,
       fechaProgramada: fechaProg || hoyLocal(),
+      estimadoMin: Number(estimado) > 0 ? Number(estimado) : undefined,
       estado: 'pendiente',
       creada: new Date().toISOString(),
       creadaPor: usuario?.usuario,
     }
     await guardarTareaLogistica(t)
-    setTitulo(''); setDetalle(''); setResponsables([]); setPrioridad('media'); setFechaProg(hoyLocal())
+    setTitulo(''); setDetalle(''); setResponsables([]); setPrioridad('media'); setFechaProg(hoyLocal()); setEstimado('')
     setMsg(responsables.length ? `Tarea creada y asignada a ${t.responsable}.` : 'Tarea creada sin asignar — la puede tomar cualquiera.')
   }
 
@@ -160,18 +173,39 @@ export default function LogisticaTareas() {
     await guardarTareaLogistica({ ...t, estado: 'pausada', pausadaEn: new Date().toISOString() })
   }
   async function reanudar(t: TareaLogistica) {
-    // Cierra la pausa vigente y la acumula.
+    // Cierra la pausa/bloqueo vigente y lo acumula. Limpia el motivo de bloqueo.
     const acum = (t.minutosPausada ?? 0) + (t.pausadaEn ? minutosEntre(t.pausadaEn, new Date().toISOString()) : 0)
-    await guardarTareaLogistica({ ...t, estado: 'en_curso', pausadaEn: undefined, minutosPausada: acum })
+    await guardarTareaLogistica({ ...t, estado: 'en_curso', pausadaEn: undefined, minutosPausada: acum, bloqueoMotivo: undefined })
   }
-  async function finalizar(t: TareaLogistica) {
-    // Si estaba en pausa, cerramos la pausa antes de finalizar.
-    const acum = (t.minutosPausada ?? 0) + (t.pausadaEn ? minutosEntre(t.pausadaEn, new Date().toISOString()) : 0)
-    await guardarTareaLogistica({ ...t, estado: 'finalizada', pausadaEn: undefined, minutosPausada: acum, finalizada: new Date().toISOString(), finalizadaPor: usuario?.usuario })
+  // BLOQUEAR: el operario marca la tarea como trabada por una causa externa.
+  function bloquear(t: TareaLogistica) { setBloqueando(t); setMotivoBloq(MOTIVOS_BLOQUEO_LOG[0]) }
+  async function confirmarBloqueo() {
+    if (!bloqueando) return
+    await guardarTareaLogistica({ ...bloqueando, estado: 'bloqueada', pausadaEn: new Date().toISOString(), bloqueoMotivo: motivoBloq })
+    setBloqueando(null)
+  }
+  // FINALIZAR: abre el modal de confirmación (real vs estimado).
+  function finalizar(t: TareaLogistica) { setCerrando(t); setNotaCierre('') }
+  async function ejecutarCierre() {
+    if (!cerrando) return
+    const acum = (cerrando.minutosPausada ?? 0) + (cerrando.pausadaEn ? minutosEntre(cerrando.pausadaEn, new Date().toISOString()) : 0)
+    await guardarTareaLogistica({
+      ...cerrando, estado: 'finalizada', pausadaEn: undefined, minutosPausada: acum, bloqueoMotivo: undefined,
+      finalizada: new Date().toISOString(), finalizadaPor: usuario?.usuario,
+      notaCierre: notaCierre.trim() || undefined,
+    })
+    setCerrando(null); setNotaCierre('')
+  }
+  // REASIGNAR rápido (Giuliano): cambia el/los responsables sin abrir la edición completa.
+  function reasignar(t: TareaLogistica) { setReasignando(t); setReasignaResp(responsablesDe(t)) }
+  async function confirmarReasignar() {
+    if (!reasignando || reasignaResp.length === 0) return
+    await guardarTareaLogistica({ ...reasignando, responsable: reasignaResp.join(', '), responsables: reasignaResp })
+    setReasignando(null); setReasignaResp([])
   }
   async function reabrir(t: TareaLogistica) {
     // Reabre a "en curso" si ya se habia iniciado, o a "pendiente" si nunca arranco.
-    await guardarTareaLogistica({ ...t, estado: t.iniciada ? 'en_curso' : 'pendiente', pausadaEn: undefined, finalizada: undefined, finalizadaPor: undefined })
+    await guardarTareaLogistica({ ...t, estado: t.iniciada ? 'en_curso' : 'pendiente', pausadaEn: undefined, bloqueoMotivo: undefined, finalizada: undefined, finalizadaPor: undefined })
   }
 
   // Minutos de pausa acumulados (incluye la pausa vigente si está pausada ahora).
@@ -196,8 +230,8 @@ export default function LogisticaTareas() {
 
   const pendientes = useMemo(() => tareas.filter((t) => t.estado === 'pendiente')
     .sort((a, b) => (ORDEN_PRIO[a.prioridad] - ORDEN_PRIO[b.prioridad]) || (a.creada < b.creada ? -1 : 1)), [tareas])
-  // "En curso" incluye las pausadas (siguen abiertas, sólo detenidas temporalmente).
-  const enCurso = useMemo(() => tareas.filter((t) => t.estado === 'en_curso' || t.estado === 'pausada')
+  // "En curso" incluye pausadas y bloqueadas (siguen abiertas, sólo detenidas).
+  const enCurso = useMemo(() => tareas.filter((t) => t.estado === 'en_curso' || t.estado === 'pausada' || t.estado === 'bloqueada')
     .sort((a, b) => (ORDEN_PRIO[a.prioridad] - ORDEN_PRIO[b.prioridad]) || ((a.iniciada ?? '') < (b.iniciada ?? '') ? -1 : 1)), [tareas])
   const finalizadas = useMemo(() => tareas.filter((t) => t.estado === 'finalizada')
     .sort((a, b) => ((b.finalizada ?? '') < (a.finalizada ?? '') ? -1 : 1)), [tareas])
@@ -252,6 +286,10 @@ export default function LogisticaTareas() {
               <label>Fecha de inicio programada</label>
               <input type="date" className="input" value={fechaProg} min={hoyLocal()} onChange={(e) => setFechaProg(e.target.value)} />
             </div>
+            <div className="field">
+              <label>Tiempo estimado (min, opcional)</label>
+              <input type="number" min={1} className="input" value={estimado} onChange={(e) => setEstimado(e.target.value)} placeholder="ej. 45" />
+            </div>
           </div>
           <button className="btn btn-primary btn-bloque" style={{ marginTop: 10 }} onClick={crear}>＋ Crear tarea</button>
           {msg && <div className="meta" style={{ marginTop: 8 }}>{msg}</div>}
@@ -283,6 +321,7 @@ export default function LogisticaTareas() {
             <button className="btn btn-primary" style={{ flex: 1 }} disabled={!disponible} onClick={() => iniciar(t)}>
               {!disponible ? `🔒 Disponible el ${fmtFechaProg(t.fechaProgramada)}` : (responsablesDe(t).length ? '▶ Iniciar tarea' : '▶ Tomar tarea')}
             </button>
+            {esGiuliano && <button className="btn" onClick={() => reasignar(t)}>⇄ Reasignar</button>}
             {esGiuliano && <button className="btn" onClick={() => abrirEdicion(t)}>✎ Editar</button>}
             {esGiuliano && <button className="btn btn-rojo" onClick={() => borrar(t)}>🗑</button>}
           </div>
@@ -293,6 +332,8 @@ export default function LogisticaTareas() {
       <div className="section-title">En curso ({enCurso.length})</div>
       {enCurso.length === 0 ? <div className="empty">Sin tareas en curso.</div> : enCurso.map((t) => {
         const pausada = t.estado === 'pausada'
+        const bloqueada = t.estado === 'bloqueada'
+        const detenida = pausada || bloqueada
         return (
         <div className={'card logi-tarea ' + ('prio-' + t.prioridad)} key={t.id}>
           <div className="card-header">
@@ -300,18 +341,25 @@ export default function LogisticaTareas() {
               <h3><span className={'prio-chip prio-' + t.prioridad}>{PRIO_LABEL[t.prioridad]}</span> {t.titulo}</h3>
               <div className="meta">
                 {respTxt(t)} · Iniciada {t.iniciada ? `${fechaCorta(t.iniciada)} ${hhmm(t.iniciada)}` : '—'} · <strong style={{ color: 'var(--naranja)' }}>activa {fmtDur(minsActivos(t))}</strong>
-                {pausada ? <> · <strong style={{ color: 'var(--rojo)' }}>en pausa hace {fmtDur(minutosEntre(t.pausadaEn ?? ahoraISO, ahoraISO))}</strong></>
+                {detenida ? <> · <strong style={{ color: 'var(--rojo)' }}>{bloqueada ? 'bloqueada' : 'en pausa'} hace {fmtDur(minutosEntre(t.pausadaEn ?? ahoraISO, ahoraISO))}</strong></>
                   : (t.minutosPausada ? <> · pausas: {fmtDur(t.minutosPausada)}</> : null)}
                 {t.detalle ? <> · {t.detalle}</> : null}
               </div>
+              {bloqueada && t.bloqueoMotivo && (
+                <div className="meta" style={{ marginTop: 4, color: 'var(--rojo)' }}>⛔ Bloqueada: <strong>{t.bloqueoMotivo}</strong></div>
+              )}
             </div>
-            <span className="estado-chip" style={{ background: pausada ? 'var(--rojo)' : 'var(--estado-proceso)' }}>{pausada ? 'Pausada' : 'En curso'}</span>
+            <span className="estado-chip" style={{ background: detenida ? 'var(--rojo)' : 'var(--estado-proceso)' }}>{bloqueada ? 'Bloqueada' : pausada ? 'Pausada' : 'En curso'}</span>
           </div>
           <div className="row-actions">
             <button className="btn btn-verde" style={{ flex: 1 }} onClick={() => finalizar(t)}>✓ Marcar finalizada</button>
-            {pausada
+            {detenida
               ? <button className="btn btn-primary" onClick={() => reanudar(t)}>▶ Reanudar</button>
-              : <button className="btn" onClick={() => pausar(t)}>⏸ Pausar</button>}
+              : <>
+                  <button className="btn" onClick={() => pausar(t)}>⏸ Pausar</button>
+                  <button className="btn btn-rojo" onClick={() => bloquear(t)}>⛔ Bloquear</button>
+                </>}
+            {esGiuliano && <button className="btn" onClick={() => reasignar(t)}>⇄ Reasignar</button>}
             {esGiuliano && <button className="btn" onClick={() => abrirEdicion(t)}>✎ Editar</button>}
             {esGiuliano && <button className="btn btn-rojo" onClick={() => borrar(t)}>🗑</button>}
           </div>
@@ -326,8 +374,9 @@ export default function LogisticaTareas() {
             <div>
               <h3><span className={'prio-chip prio-' + t.prioridad}>{PRIO_LABEL[t.prioridad]}</span> {t.titulo}</h3>
               <div className="meta">
-                {respTxt(t)} · Pedida {fechaCorta(t.creada)} {hhmm(t.creada)} · Finalizada {t.finalizada ? `${fechaCorta(t.finalizada)} ${hhmm(t.finalizada)}` : '—'} · <strong style={{ color: 'var(--estado-fin)' }}>resuelta en {fmtDur(minsActivos(t))}</strong>{t.minutosPausada ? <> · pausas: {fmtDur(t.minutosPausada)}</> : null}{t.detalle ? <> · {t.detalle}</> : null}
+                {respTxt(t)} · Pedida {fechaCorta(t.creada)} {hhmm(t.creada)} · Finalizada {t.finalizada ? `${fechaCorta(t.finalizada)} ${hhmm(t.finalizada)}` : '—'} · <strong style={{ color: 'var(--estado-fin)' }}>resuelta en {fmtDur(minsActivos(t))}</strong>{t.estimadoMin ? <> · estimado {fmtDur(t.estimadoMin)}</> : null}{t.minutosPausada ? <> · pausas: {fmtDur(t.minutosPausada)}</> : null}{t.detalle ? <> · {t.detalle}</> : null}
               </div>
+              {t.notaCierre && <div className="meta" style={{ marginTop: 4, fontStyle: 'italic' }}>📝 {t.notaCierre}</div>}
             </div>
             <span className="estado-chip e-finalizado">Finalizada</span>
           </div>
@@ -384,6 +433,10 @@ export default function LogisticaTareas() {
                 <label>Fecha de inicio programada</label>
                 <input type="date" className="input" value={eFechaProg} onChange={(e) => setEFechaProg(e.target.value)} style={{ width: '100%' }} />
               </div>
+              <div className="field" style={{ flex: 1 }}>
+                <label>Tiempo estimado (min)</label>
+                <input type="number" min={1} className="input" value={eEstimado} onChange={(e) => setEEstimado(e.target.value)} placeholder="opcional" style={{ width: '100%' }} />
+              </div>
             </div>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button className="btn" onClick={() => setEditando(null)}>Cancelar</button>
@@ -392,6 +445,72 @@ export default function LogisticaTareas() {
           </div>
         </div>
       )}
+
+      {/* Modal BLOQUEAR — el operario marca la causa de la traba */}
+      {bloqueando && (
+        <div className="modal-overlay" onClick={() => setBloqueando(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="section-title" style={{ marginTop: 0 }}>⛔ Bloquear tarea</div>
+            <div className="meta" style={{ marginBottom: 10 }}>{bloqueando.titulo}</div>
+            <div className="field" style={{ marginBottom: 12 }}>
+              <label>¿Por qué se traba? (causa)</label>
+              <select className="input" value={motivoBloq} onChange={(e) => setMotivoBloq(e.target.value)} style={{ width: '100%' }}>
+                {MOTIVOS_BLOQUEO_LOG.map((m) => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </div>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button className="btn" onClick={() => setBloqueando(null)}>Cancelar</button>
+              <button className="btn btn-rojo" onClick={() => void confirmarBloqueo()}>⛔ Marcar bloqueada</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal REASIGNAR rápido (Giuliano) */}
+      {reasignando && (
+        <div className="modal-overlay" onClick={() => setReasignando(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="section-title" style={{ marginTop: 0 }}>⇄ Reasignar tarea</div>
+            <div className="meta" style={{ marginBottom: 10 }}>{reasignando.titulo}</div>
+            <div className="field" style={{ marginBottom: 12 }}>
+              <label>Nuevo(s) responsable(s)</label>
+              <SelectorResponsables seleccion={reasignaResp} onChange={setReasignaResp} />
+            </div>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button className="btn" onClick={() => setReasignando(null)}>Cancelar</button>
+              <button className="btn btn-primary" disabled={reasignaResp.length === 0} onClick={() => void confirmarReasignar()}>Reasignar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal CIERRE — confirmación de tiempo real vs estimado */}
+      {cerrando && (() => {
+        const real = minsActivos(cerrando)
+        const est = cerrando.estimadoMin ?? 0
+        const desvio = est > 0 ? real - est : 0
+        return (
+          <div className="modal-overlay" onClick={() => setCerrando(null)}>
+            <div className="modal" onClick={(e) => e.stopPropagation()}>
+              <div className="section-title" style={{ marginTop: 0 }}>✓ Confirmar cierre</div>
+              <div className="meta" style={{ marginBottom: 10 }}>{cerrando.titulo}</div>
+              <div className="card" style={{ display: 'flex', gap: 20, marginBottom: 12 }}>
+                <div><div className="meta">Estimado</div><strong>{est > 0 ? fmtDur(est) : '—'}</strong></div>
+                <div><div className="meta">Real (activo)</div><strong style={{ color: 'var(--naranja)' }}>{fmtDur(real)}</strong></div>
+                {est > 0 && <div><div className="meta">Desvío</div><strong style={{ color: desvio > 0 ? 'var(--rojo)' : 'var(--estado-fin)' }}>{desvio > 0 ? '+' : ''}{fmtDur(Math.abs(desvio))}</strong></div>}
+              </div>
+              <div className="field" style={{ marginBottom: 12 }}>
+                <label>Nota (opcional) — ¿tomó lo previsto? ¿por qué se desvió?</label>
+                <AutoTextarea value={notaCierre} onChange={setNotaCierre} placeholder="ej. tardó más por espera de autoelevador" />
+              </div>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                <button className="btn" onClick={() => setCerrando(null)}>Cancelar</button>
+                <button className="btn btn-verde" onClick={() => void ejecutarCierre()}>✓ Confirmar y finalizar</button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </>
   )
 }
