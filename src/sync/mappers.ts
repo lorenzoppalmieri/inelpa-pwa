@@ -121,6 +121,7 @@ export interface TareaLogisticaRow {
   pausada_en: string | null
   minutos_pausada: number | null
   bloqueo_motivo: string | null
+  bloqueos: BloqueoLog[] | null
   finalizada_en: string | null
   finalizada_por: string | null
   nota_cierre: string | null
