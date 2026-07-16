@@ -13,7 +13,7 @@ import type {
   Objetivo, AndonAreaId, TareaLogistica, PrioridadLog,
   SolicitudLogistica, EstadoSolicitudLog, Feriado,
   Mensaje, MensajeDestinoTipo, MensajeLectura,
-  TiempoEstandar, AreaDemora,
+  TiempoEstandar, AreaDemora, BloqueoLog,
 } from '../types'
 
 // null -> undefined (Supabase devuelve null; la app usa undefined en opcionales).
@@ -354,6 +354,7 @@ export function tareaLogFromRow(r: TareaLogisticaRow): TareaLogistica {
     pausadaEn: u(r.pausada_en),
     minutosPausada: r.minutos_pausada ?? undefined,
     bloqueoMotivo: u(r.bloqueo_motivo),
+    bloqueos: r.bloqueos ?? undefined,
     finalizada: u(r.finalizada_en),
     finalizadaPor: u(r.finalizada_por),
     notaCierre: u(r.nota_cierre),
@@ -377,6 +378,7 @@ export function tareaLogToRow(t: TareaLogistica): TareaLogisticaRow {
     pausada_en: t.pausadaEn ?? null,
     minutos_pausada: t.minutosPausada ?? null,
     bloqueo_motivo: t.bloqueoMotivo ?? null,
+    bloqueos: t.bloqueos ?? null,
     finalizada_en: t.finalizada ?? null,
     finalizada_por: t.finalizadaPor ?? null,
     nota_cierre: t.notaCierre ?? null,

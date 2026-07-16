@@ -90,7 +90,18 @@ export default function LogisticaReportes() {
     const idx = [1, 2, 3, 4, 5, 6, 0]
     const conteoDia = idx.map((d, i) => ({ dia: dias[i], n: tareas.filter((t) => new Date(t.creada).getDay() === d).length }))
 
-    return { finalizadas, abiertas, pendientesSinTomar, promGeneral, porVolumen, porVelocidad, cargaArr, sinAsignar, totalAbiertas, shareMax, porPrioridad, espera, conteoDia }
+    // 7) Pareto de tiempo perdido por CAUSA de bloqueo (los abiertos cuentan hasta ahora).
+    const bloq = new Map<string, { min: number; n: number }>()
+    for (const t of tareas) for (const b of t.bloqueos ?? []) {
+      const min = minutosEntre(b.inicio, b.fin ?? ahoraISO)
+      if (min <= 0) continue
+      const cur = bloq.get(b.motivo) ?? { min: 0, n: 0 }
+      cur.min += min; cur.n++; bloq.set(b.motivo, cur)
+    }
+    const bloqueos = [...bloq.entries()].map(([motivo, v]) => ({ motivo, min: v.min, n: v.n })).sort((a, b) => b.min - a.min)
+    const bloqueoTotal = bloqueos.reduce((a, b) => a + b.min, 0)
+
+    return { finalizadas, abiertas, pendientesSinTomar, promGeneral, porVolumen, porVelocidad, cargaArr, sinAsignar, totalAbiertas, shareMax, porPrioridad, espera, conteoDia, bloqueos, bloqueoTotal }
   }, [tareas, ahoraISO])
 
   if (tareas.length === 0) return <div className="empty">Aún no hay tareas logísticas para analizar.</div>
@@ -101,6 +112,7 @@ export default function LogisticaReportes() {
   const maxPrio = Math.max(1, ...rep.porPrioridad.map((x) => x.prom))
   const maxEspera = Math.max(1, ...rep.espera.map((x) => x.min))
   const maxDia = Math.max(1, ...rep.conteoDia.map((x) => x.n))
+  const maxBloq = Math.max(1, ...rep.bloqueos.map((x) => x.min))
 
   // Semáforo de carga.
   const sem = rep.totalAbiertas === 0
@@ -166,6 +178,17 @@ export default function LogisticaReportes() {
               valor={fmtDur(min)} ratio={min / maxEspera}
               color={min > 240 ? 'var(--rojo)' : min > 120 ? 'var(--naranja)' : 'var(--azul-claro)'} />
           ))}
+      </div>
+
+      {/* 7) Pareto de bloqueos por causa */}
+      <div className="section-title">Cuellos de botella: tiempo perdido por bloqueos {rep.bloqueoTotal > 0 ? `(total ${fmtDur(rep.bloqueoTotal)})` : ''}</div>
+      <div className="card">
+        {rep.bloqueos.length === 0 ? <div className="empty">Sin bloqueos registrados. 👌</div>
+          : rep.bloqueos.map(({ motivo, min, n }) => (
+            <Barra key={motivo} label={motivo} sub={`${n} evento(s)`}
+              valor={`${fmtDur(min)} · ${Math.round((min / rep.bloqueoTotal) * 100)}%`} ratio={min / maxBloq} color="var(--rojo)" />
+          ))}
+        <div className="meta" style={{ marginTop: 6 }}>Dónde se pierde más tiempo por trabas externas: prioridad para reforzar procesos o material.</div>
       </div>
 
       {/* 3) Carga abierta por operario */}

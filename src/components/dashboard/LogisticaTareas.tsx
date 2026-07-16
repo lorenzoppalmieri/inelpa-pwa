@@ -172,26 +172,37 @@ export default function LogisticaTareas() {
   async function pausar(t: TareaLogistica) {
     await guardarTareaLogistica({ ...t, estado: 'pausada', pausadaEn: new Date().toISOString() })
   }
+  // Cierra el último bloqueo abierto del historial (le pone fin = ahora).
+  function cerrarBloqueoAbierto(bloqueos: TareaLogistica['bloqueos'], finISO: string): TareaLogistica['bloqueos'] {
+    if (!bloqueos?.length) return bloqueos
+    return bloqueos.map((b, i) => (i === bloqueos.length - 1 && !b.fin) ? { ...b, fin: finISO } : b)
+  }
+
   async function reanudar(t: TareaLogistica) {
-    // Cierra la pausa/bloqueo vigente y lo acumula. Limpia el motivo de bloqueo.
-    const acum = (t.minutosPausada ?? 0) + (t.pausadaEn ? minutosEntre(t.pausadaEn, new Date().toISOString()) : 0)
-    await guardarTareaLogistica({ ...t, estado: 'en_curso', pausadaEn: undefined, minutosPausada: acum, bloqueoMotivo: undefined })
+    // Cierra la pausa/bloqueo vigente y lo acumula. Cierra el bloqueo en el historial.
+    const ahoraStr = new Date().toISOString()
+    const acum = (t.minutosPausada ?? 0) + (t.pausadaEn ? minutosEntre(t.pausadaEn, ahoraStr) : 0)
+    await guardarTareaLogistica({ ...t, estado: 'en_curso', pausadaEn: undefined, minutosPausada: acum, bloqueoMotivo: undefined, bloqueos: cerrarBloqueoAbierto(t.bloqueos, ahoraStr) })
   }
   // BLOQUEAR: el operario marca la tarea como trabada por una causa externa.
   function bloquear(t: TareaLogistica) { setBloqueando(t); setMotivoBloq(MOTIVOS_BLOQUEO_LOG[0]) }
   async function confirmarBloqueo() {
     if (!bloqueando) return
-    await guardarTareaLogistica({ ...bloqueando, estado: 'bloqueada', pausadaEn: new Date().toISOString(), bloqueoMotivo: motivoBloq })
+    const ahoraStr = new Date().toISOString()
+    const bloqueos = [...(bloqueando.bloqueos ?? []), { motivo: motivoBloq, inicio: ahoraStr }]
+    await guardarTareaLogistica({ ...bloqueando, estado: 'bloqueada', pausadaEn: ahoraStr, bloqueoMotivo: motivoBloq, bloqueos })
     setBloqueando(null)
   }
   // FINALIZAR: abre el modal de confirmación (real vs estimado).
   function finalizar(t: TareaLogistica) { setCerrando(t); setNotaCierre('') }
   async function ejecutarCierre() {
     if (!cerrando) return
-    const acum = (cerrando.minutosPausada ?? 0) + (cerrando.pausadaEn ? minutosEntre(cerrando.pausadaEn, new Date().toISOString()) : 0)
+    const ahoraStr = new Date().toISOString()
+    const acum = (cerrando.minutosPausada ?? 0) + (cerrando.pausadaEn ? minutosEntre(cerrando.pausadaEn, ahoraStr) : 0)
     await guardarTareaLogistica({
       ...cerrando, estado: 'finalizada', pausadaEn: undefined, minutosPausada: acum, bloqueoMotivo: undefined,
-      finalizada: new Date().toISOString(), finalizadaPor: usuario?.usuario,
+      bloqueos: cerrarBloqueoAbierto(cerrando.bloqueos, ahoraStr),
+      finalizada: ahoraStr, finalizadaPor: usuario?.usuario,
       notaCierre: notaCierre.trim() || undefined,
     })
     setCerrando(null); setNotaCierre('')
