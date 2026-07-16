@@ -13,6 +13,7 @@ import type {
   Objetivo, AndonAreaId, TareaLogistica, PrioridadLog,
   SolicitudLogistica, EstadoSolicitudLog, Feriado,
   Mensaje, MensajeDestinoTipo, MensajeLectura,
+  TiempoEstandar, AreaDemora,
 } from '../types'
 
 // null -> undefined (Supabase devuelve null; la app usa undefined en opcionales).
@@ -91,6 +92,15 @@ export interface ObjetivoRow {
   periodo: string
   area: string
   cantidad: number
+  actualizado_en: string | null
+}
+
+export interface TiempoEstandarRow {
+  id: string
+  area: string
+  modelo: string
+  maquina_id: string | null
+  minutos: number
   actualizado_en: string | null
 }
 
@@ -228,6 +238,27 @@ export function objetivoToRow(o: Objetivo): ObjetivoRow {
     area: o.area,
     cantidad: o.cantidad,
     actualizado_en: o.actualizado,
+  }
+}
+
+export function estandarFromRow(r: TiempoEstandarRow): TiempoEstandar {
+  return {
+    id: r.id,
+    area: r.area as AreaDemora,
+    modelo: r.modelo,
+    maquinaId: u(r.maquina_id),
+    minutos: r.minutos,
+    actualizado: r.actualizado_en ?? new Date().toISOString(),
+  }
+}
+export function estandarToRow(e: TiempoEstandar): TiempoEstandarRow {
+  return {
+    id: e.id,
+    area: e.area,
+    modelo: e.modelo,
+    maquina_id: e.maquinaId ?? null,
+    minutos: e.minutos,
+    actualizado_en: e.actualizado,
   }
 }
 

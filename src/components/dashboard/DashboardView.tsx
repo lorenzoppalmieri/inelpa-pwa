@@ -13,6 +13,7 @@ import KpiPanel from './KpiPanel'
 import AndonView from './AndonView'
 import AlertaMaterial from './AlertaMaterial'
 import DireccionView from './DireccionView'
+import SugerenciasEstandar from './SugerenciasEstandar'
 import PlanificacionView from '../planificador/PlanificacionView'
 import MensajesPlanificador from '../mensajes/MensajesPlanificador'
 import MensajesInbox, { useMensajesNoLeidos } from '../mensajes/MensajesInbox'
@@ -250,6 +251,7 @@ function DashboardCuerpo(props: {
     : PERIODOS.find((p) => p.id === periodo)?.label ?? ''
   const puedeKpi = hayDatosKpi(kpiFiltradas)
   const puedeProg = hayDatosProgramacion(filtradas)
+  const [mostrarSugerencias, setMostrarSugerencias] = useState(false)
 
   return (
     <>
@@ -312,6 +314,12 @@ function DashboardCuerpo(props: {
               title={puedeKpi ? 'Imprimir / guardar como PDF (vista A4)' : 'No hay datos para imprimir'}
               onClick={() => window.print()}
             >🖨 Imprimir reporte</button>
+            <button
+              className="btn"
+              disabled={!puedeKpi}
+              title={puedeKpi ? 'Comparar tiempos reales vs estándar y sugerir ajustes' : 'No hay tareas finalizadas en el periodo'}
+              onClick={() => setMostrarSugerencias(true)}
+            >🎯 Sugerir Ajuste de Estándares</button>
           </>
         ) : (
           <button
@@ -329,6 +337,10 @@ function DashboardCuerpo(props: {
       {vista === 'gantt'
         ? <GanttOperativo tareas={filtradas} agrupar={agrupar} maquinas={maquinasVisibles} operarios={operariosVisibles} nombreOperario={nombreOperario} nombreMaquina={nombreMaquina} puedeMoverProduccion={puedeMoverProduccion} onTareaClick={onTareaClick} />
         : <KpiPanel tareas={kpiFiltradas} nombreOperario={nombreOperario} nombreMaquina={nombreMaquina} />}
+
+      {mostrarSugerencias && (
+        <SugerenciasEstandar tareas={kpiFiltradas} nombreMaquina={nombreMaquina} onClose={() => setMostrarSugerencias(false)} />
+      )}
     </>
   )
 }

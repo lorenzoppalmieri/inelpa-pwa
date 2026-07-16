@@ -363,6 +363,32 @@ export function periodoMensual(d: Date): string {
 }
 
 // ============================================================
+// TIEMPOS ESTANDAR DINAMICOS (v1.24) — repositorio de tiempos estimados que se
+// afina con la mediana de los tiempos reales (asistente de mejora continua).
+// Regla de negocio (agrupamiento):
+//   - Bobinado: el estandar depende de MODELO + MAQUINA (automatica vs manual).
+//   - Montaje (y demas sectores manuales): depende SOLO del MODELO (maquina NULL).
+// La clave (id) codifica esa regla para que sea deterministica.
+// ============================================================
+export interface TiempoEstandar {
+  id: string             // clave de agrupamiento: `${area}||${modelo}` (+ `||${maquinaId}` en bobinado)
+  area: AreaDemora       // 'bobinado' | 'montaje' | 'herreria' | ...
+  modelo: string         // modelo del transformador (o de la bobina)
+  maquinaId?: string     // SOLO bobinado; NULL/undefined en montaje y manuales
+  minutos: number        // tiempo estandar vigente (min)
+  actualizado: string    // ISO de la ultima actualizacion
+}
+
+// Clave deterministica de agrupamiento de estandares segun la regla bifurcada.
+// En bobinado la maquina forma parte de la clave; en el resto NO.
+export function claveEstandar(sectorId: SectorId, modelo: string, maquinaId?: string): string {
+  const area = areaDemora(sectorId)
+  return area === 'bobinado'
+    ? `bobinado||${modelo}||${maquinaId ?? ''}`
+    : `${area}||${modelo}`
+}
+
+// ============================================================
 // TAREAS LOGISTICAS (v1.12) — organizador de pedidos de abastecimiento.
 // Giuliano crea la tarea y asigna un responsable; el equipo la marca finalizada.
 // El tiempo de resolucion = finalizada - creada (cuando se dio la orden).
@@ -472,7 +498,7 @@ export function mensajeEsPara(m: Mensaje, u: { id: string; rol: Rol; sectores: S
 // Cola de sincronizacion: cada cambio offline se encola y se empuja al backend.
 export interface SyncOp {
   id: string
-  entidad: 'tarea' | 'parada' | 'orden' | 'semielaborado' | 'objetivo' | 'tarea_logistica' | 'solicitud_logistica' | 'feriado' | 'mensaje' | 'mensaje_lectura'
+  entidad: 'tarea' | 'parada' | 'orden' | 'semielaborado' | 'objetivo' | 'tarea_logistica' | 'solicitud_logistica' | 'feriado' | 'mensaje' | 'mensaje_lectura' | 'estandar'
   entidadId: string
   tipo: 'upsert' | 'delete'
   payload: unknown

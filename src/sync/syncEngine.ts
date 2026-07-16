@@ -1,12 +1,12 @@
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import { db } from '../db/dexie'
 import { supabase, SUPABASE_HABILITADO } from '../lib/supabaseClient'
-import type { SyncOp, Tarea, OrdenProduccion, Semielaborado, SectorId, Objetivo, TareaLogistica, SolicitudLogistica, Feriado, Mensaje, MensajeLectura } from '../types'
+import type { SyncOp, Tarea, OrdenProduccion, Semielaborado, SectorId, Objetivo, TareaLogistica, SolicitudLogistica, Feriado, Mensaje, MensajeLectura, TiempoEstandar } from '../types'
 import { setFeriados } from '../lib/calendario'
 import {
-  tareaFromRow, paradaFromRow, ordenFromRow, semiFromRow, maquinaFromRow, usuarioFromRow, objetivoFromRow, tareaLogFromRow, solicitudLogFromRow, feriadoFromRow, mensajeFromRow, lecturaFromRow,
-  tareaToRow, paradaToRow, ordenToRow, semiToRow, objetivoToRow, tareaLogToRow, solicitudLogToRow, feriadoToRow, mensajeToRow, lecturaToRow,
-  type TareaRow, type ParadaRow, type OrdenRow, type SemiRow, type MaquinaRow, type UsuarioRow, type ObjetivoRow, type TareaLogisticaRow, type SolicitudLogisticaRow, type FeriadoRow, type MensajeRow, type MensajeLecturaRow,
+  tareaFromRow, paradaFromRow, ordenFromRow, semiFromRow, maquinaFromRow, usuarioFromRow, objetivoFromRow, tareaLogFromRow, solicitudLogFromRow, feriadoFromRow, mensajeFromRow, lecturaFromRow, estandarFromRow,
+  tareaToRow, paradaToRow, ordenToRow, semiToRow, objetivoToRow, tareaLogToRow, solicitudLogToRow, feriadoToRow, mensajeToRow, lecturaToRow, estandarToRow,
+  type TareaRow, type ParadaRow, type OrdenRow, type SemiRow, type MaquinaRow, type UsuarioRow, type ObjetivoRow, type TareaLogisticaRow, type SolicitudLogisticaRow, type FeriadoRow, type MensajeRow, type MensajeLecturaRow, type TiempoEstandarRow,
 } from './mappers'
 
 // ============================================================
@@ -112,10 +112,10 @@ export async function fetchInicial(): Promise<void> {
       db.maquinas.clear(), db.usuarios.clear(), db.ordenes.clear(),
       db.semielaborados.clear(), db.tareas.clear(), db.objetivos.clear(),
       db.tareasLogistica.clear(), db.solicitudesLogistica.clear(), db.feriados.clear(),
-      db.mensajes.clear(), db.mensajesLectura.clear(),
+      db.mensajes.clear(), db.mensajesLectura.clear(), db.estandares.clear(),
     ])
 
-    const [maqs, usrs, uss, ords, semis, tars, pars, objs, tlog, slog, fers, msgs, lects] = await Promise.all([
+    const [maqs, usrs, uss, ords, semis, tars, pars, objs, tlog, slog, fers, msgs, lects, ests] = await Promise.all([
       supabase.from('maquinas').select('*'),
       supabase.from('usuarios').select('id, nombre, usuario, rol, grupo_nomina, activo'),
       supabase.from('usuario_sectores').select('usuario_id, sector_id'),
@@ -129,6 +129,7 @@ export async function fetchInicial(): Promise<void> {
       supabase.from('feriados').select('*'),
       supabase.from('mensajes').select('*'),
       supabase.from('mensajes_lectura').select('*'),
+      supabase.from('tiempos_estandar').select('*'),
     ])
 
     // Maquinas
@@ -155,6 +156,9 @@ export async function fetchInicial(): Promise<void> {
 
     // Objetivos mensuales (ANDON)
     if (objs.data) await db.objetivos.bulkPut((objs.data as ObjetivoRow[]).map(objetivoFromRow))
+
+    // Tiempos estandar dinamicos
+    if (ests.data) await db.estandares.bulkPut((ests.data as TiempoEstandarRow[]).map(estandarFromRow))
 
     // Tareas logisticas
     if (tlog.data) await db.tareasLogistica.bulkPut((tlog.data as TareaLogisticaRow[]).map(tareaLogFromRow))
@@ -268,6 +272,10 @@ async function onLecturaChange(payload: Payload) {
   if (payload.eventType === 'DELETE') { await db.mensajesLectura.delete((payload.old as { id: string }).id); return }
   await db.mensajesLectura.put(lecturaFromRow(payload.new as unknown as MensajeLecturaRow))
 }
+async function onEstandarChange(payload: Payload) {
+  if (payload.eventType === 'DELETE') { await db.estandares.delete((payload.old as { id: string }).id); return }
+  await db.estandares.put(estandarFromRow(payload.new as unknown as TiempoEstandarRow))
+}
 
 function suscribirRealtime() {
   if (!supabase || canal) return
@@ -284,6 +292,7 @@ function suscribirRealtime() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'feriados' }, onFeriadoChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'mensajes' }, onMensajeChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'mensajes_lectura' }, onLecturaChange)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'tiempos_estandar' }, onEstandarChange)
     .subscribe()
 }
 
@@ -384,6 +393,7 @@ async function empujar(op: SyncOp): Promise<EmpujeResultado> {
         : op.entidad === 'feriado' ? 'feriados'
         : op.entidad === 'mensaje' ? 'mensajes'
         : op.entidad === 'mensaje_lectura' ? 'mensajes_lectura'
+        : op.entidad === 'estandar' ? 'tiempos_estandar'
         : 'paradas'
       const { error } = await supabase.from(tabla).delete().eq('id', op.entidadId)
       if (error) return fallo(`delete ${op.entidad}`, error.message)
@@ -425,6 +435,10 @@ async function empujar(op: SyncOp): Promise<EmpujeResultado> {
       case 'objetivo': {
         const { error } = await supabase.from('objetivos').upsert(objetivoToRow(op.payload as Objetivo), { onConflict: 'id' })
         return error ? fallo('upsert objetivo', error.message) : OK_EMPUJE
+      }
+      case 'estandar': {
+        const { error } = await supabase.from('tiempos_estandar').upsert(estandarToRow(op.payload as TiempoEstandar), { onConflict: 'id' })
+        return error ? fallo('upsert estandar', error.message) : OK_EMPUJE
       }
       case 'tarea_logistica': {
         const { error } = await supabase.from('tareas_logistica').upsert(tareaLogToRow(op.payload as TareaLogistica), { onConflict: 'id' })
@@ -507,6 +521,12 @@ export async function guardarSemielaborado(s: Semielaborado): Promise<void> {
 export async function guardarObjetivo(o: Objetivo): Promise<void> {
   await db.objetivos.put(o)
   await encolar({ entidad: 'objetivo', entidadId: o.id, tipo: 'upsert', payload: o })
+}
+
+// v1.24: tiempo estandar dinamico (asistente de mejora continua).
+export async function guardarEstandar(e: TiempoEstandar): Promise<void> {
+  await db.estandares.put(e)
+  await encolar({ entidad: 'estandar', entidadId: e.id, tipo: 'upsert', payload: e })
 }
 
 // v1.17: feriados / dias no laborables (los carga el planificador).
