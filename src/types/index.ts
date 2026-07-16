@@ -421,10 +421,18 @@ export interface TareaLogistica {
   iniciadaPor?: string           // usuario que la inicio
   pausadaEn?: string             // ISO: inicio de la pausa/bloqueo vigente (pausada o bloqueada)
   minutosPausada?: number        // minutos de pausa/bloqueo acumulados (cerrados)
-  bloqueoMotivo?: string         // causa del bloqueo (solo si estado === 'bloqueada')
+  bloqueoMotivo?: string         // causa del bloqueo VIGENTE (solo si estado === 'bloqueada')
+  bloqueos?: BloqueoLog[]        // historial de bloqueos (causa + duración) para analítica
   finalizada?: string            // ISO al completar
   finalizadaPor?: string         // usuario que la completo
   notaCierre?: string            // nota del operario al confirmar el cierre (real vs estimado)
+}
+
+// Un evento de bloqueo registrado (para el Pareto de tiempo perdido por causa).
+export interface BloqueoLog {
+  motivo: string
+  inicio: string                 // ISO
+  fin?: string                   // ISO (undefined mientras sigue bloqueada)
 }
 
 // Causas típicas de bloqueo de una tarea logística (el operario elige una).
