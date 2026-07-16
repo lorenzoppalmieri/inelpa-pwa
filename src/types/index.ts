@@ -380,12 +380,13 @@ export interface TiempoEstandar {
 }
 
 // Clave deterministica de agrupamiento de estandares segun la regla bifurcada.
-// En bobinado la maquina forma parte de la clave; en el resto NO.
+//   - Bobinado: MODELO + MAQUINA (la maquina forma parte de la clave).
+//   - Montaje y demas manuales: SECTOR (operacion) + MODELO -> PA, PO, dist y
+//     rural quedan como estandares SEPARADOS (tienen tiempos distintos).
 export function claveEstandar(sectorId: SectorId, modelo: string, maquinaId?: string): string {
-  const area = areaDemora(sectorId)
-  return area === 'bobinado'
+  return areaDemora(sectorId) === 'bobinado'
     ? `bobinado||${modelo}||${maquinaId ?? ''}`
-    : `${area}||${modelo}`
+    : `${sectorId}||${modelo}`
 }
 
 // ============================================================

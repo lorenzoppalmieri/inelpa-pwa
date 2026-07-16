@@ -1,5 +1,5 @@
-import type { Tarea, TiempoEstandar, AreaDemora } from '../types'
-import { areaDemora, claveEstandar, esReparacion } from '../types'
+import type { Tarea, TiempoEstandar, AreaDemora, SectorId } from '../types'
+import { areaDemora, claveEstandar, esReparacion, sectorById } from '../types'
 import { tiempoNetoMin, tiempoEstimadoMin } from './kpi'
 
 // ============================================================
@@ -40,12 +40,9 @@ export function mediana(nums: number[]): number {
   return s.length % 2 !== 0 ? s[m] : (s[m - 1] + s[m]) / 2
 }
 
-const AREA_LABEL: Record<AreaDemora, string> = {
-  bobinado: 'Bobinado', montaje: 'Montaje', herreria: 'Herrería', pintura: 'Pintura', general: 'General',
-}
-
 interface Grupo {
   area: AreaDemora
+  sectorId: SectorId     // sector representativo (para etiquetar PA/PO/dist/rural)
   modelo: string
   maquinaId?: string
   netos: number[]        // tiempo neto real de cada tarea
@@ -79,7 +76,7 @@ export function sugerenciasEstandar(
     const usaMaquina = area === 'bobinado'
     const id = claveEstandar(t.sectorId, t.modelo, t.maquinaId)
     const g = grupos.get(id) ?? {
-      area, modelo: t.modelo, maquinaId: usaMaquina ? t.maquinaId : undefined, netos: [], estandares: [],
+      area, sectorId: t.sectorId, modelo: t.modelo, maquinaId: usaMaquina ? t.maquinaId : undefined, netos: [], estandares: [],
     }
     g.netos.push(neto)
     g.estandares.push(tiempoEstimadoMin(t))
@@ -98,9 +95,11 @@ export function sugerenciasEstandar(
     const desviacionPct = (sugeridoMin - actualMin) / actualMin
     if (Math.abs(desviacionPct) < umbral) continue
 
+    // Bobinado: nombre de la máquina. Manual (montaje/herrería): nombre del SECTOR
+    // (PA/PO · dist/rural), para que cada operación se vea como estándar separado.
     const maquinaLabel = g.area === 'bobinado' && g.maquinaId
       ? nombreMaquina(g.maquinaId)
-      : `N/A - Trabajo Manual (${AREA_LABEL[g.area]})`
+      : `${sectorById(g.sectorId).nombre} · manual`
 
     out.push({ id, area: g.area, modelo: g.modelo, maquinaId: g.maquinaId, maquinaLabel, actualMin, sugeridoMin, desviacionPct, muestras: g.netos.length })
   }
