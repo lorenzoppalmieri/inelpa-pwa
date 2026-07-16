@@ -101,6 +101,7 @@ export interface TareaLogisticaRow {
   responsable: string
   responsables: string[] | null
   prioridad: string
+  fecha_programada: string | null
   estado: string
   creada_en: string
   creada_por: string | null
@@ -308,6 +309,7 @@ export function tareaLogFromRow(r: TareaLogisticaRow): TareaLogistica {
     responsable: r.responsable,
     responsables: r.responsables ?? undefined,
     prioridad: r.prioridad as PrioridadLog,
+    fechaProgramada: u(r.fecha_programada),
     estado: r.estado as TareaLogistica['estado'],
     creada: r.creada_en,
     creadaPor: u(r.creada_por),
@@ -327,6 +329,7 @@ export function tareaLogToRow(t: TareaLogistica): TareaLogisticaRow {
     responsable: t.responsable,
     responsables: t.responsables ?? null,
     prioridad: t.prioridad,
+    fecha_programada: t.fechaProgramada ?? null,
     estado: t.estado,
     creada_en: t.creada,
     creada_por: t.creadaPor ?? null,

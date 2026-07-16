@@ -1,0 +1,13 @@
+-- ============================================================
+-- v1.23 — Tareas logísticas: fecha de inicio programada
+--
+-- El encargado puede programar el DÍA en que se puede empezar una tarea.
+-- El colaborador ve la tarea siempre, pero el botón "Iniciar/Tomar" queda
+-- bloqueado hasta que llega la fecha programada (control en el front).
+--
+-- Si no se elige fecha, la app guarda la de hoy (disponible de inmediato).
+-- Las tareas viejas sin fecha se consideran disponibles (fecha_programada null).
+--
+-- Idempotente.
+-- ============================================================
+alter table tareas_logistica add column if not exists fecha_programada date;

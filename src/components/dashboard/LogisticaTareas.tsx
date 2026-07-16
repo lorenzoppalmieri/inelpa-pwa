@@ -10,6 +10,15 @@ import { fmtDur, minutosEntre, fechaCorta, hhmm } from '../../lib/time'
 const ORDEN_PRIO: Record<PrioridadLog, number> = { alta: 0, media: 1, baja: 2 }
 const PRIO_LABEL: Record<PrioridadLog, string> = { alta: 'ALTA', media: 'MEDIA', baja: 'BAJA' }
 
+// Fecha de hoy en formato 'YYYY-MM-DD' (hora local de la tablet).
+function hoyLocal(): string { return new Date().toLocaleDateString('en-CA') }
+// 'YYYY-MM-DD' -> 'DD/MM/AAAA' para mostrar.
+function fmtFechaProg(iso?: string): string {
+  if (!iso) return ''
+  const [y, m, d] = iso.split('-')
+  return `${d}/${m}/${y}`
+}
+
 // Textarea que crece hacia abajo a medida que se escribe (para ver todo el texto).
 function AutoTextarea({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder?: string }) {
   const ref = useRef<HTMLTextAreaElement>(null)
@@ -67,6 +76,7 @@ export default function LogisticaTareas() {
   const [detalle, setDetalle] = useState('')
   const [responsables, setResponsables] = useState<string[]>([])
   const [prioridad, setPrioridad] = useState<PrioridadLog>('media')
+  const [fechaProg, setFechaProg] = useState<string>(hoyLocal)
   const [msg, setMsg] = useState('')
 
   // Edición de una tarea ya creada (solo Giuliano).
@@ -75,6 +85,7 @@ export default function LogisticaTareas() {
   const [eDetalle, setEDetalle] = useState('')
   const [eResponsables, setEResponsables] = useState<string[]>([])
   const [ePrioridad, setEPrioridad] = useState<PrioridadLog>('media')
+  const [eFechaProg, setEFechaProg] = useState<string>('')
 
   function abrirEdicion(t: TareaLogistica) {
     setEditando(t)
@@ -82,6 +93,7 @@ export default function LogisticaTareas() {
     setEDetalle(t.detalle ?? '')
     setEResponsables(responsablesDe(t))
     setEPrioridad(t.prioridad)
+    setEFechaProg(t.fechaProgramada ?? hoyLocal())
   }
   async function guardarEdicion() {
     if (!editando) return
@@ -93,6 +105,7 @@ export default function LogisticaTareas() {
       responsable: eResponsables.join(', '),
       responsables: eResponsables,
       prioridad: ePrioridad,
+      fechaProgramada: eFechaProg || hoyLocal(),
     })
     setEditando(null)
   }
@@ -106,12 +119,13 @@ export default function LogisticaTareas() {
       responsable: responsables.join(', '),   // '' si queda sin asignar
       responsables,
       prioridad,
+      fechaProgramada: fechaProg || hoyLocal(),
       estado: 'pendiente',
       creada: new Date().toISOString(),
       creadaPor: usuario?.usuario,
     }
     await guardarTareaLogistica(t)
-    setTitulo(''); setDetalle(''); setResponsables([]); setPrioridad('media')
+    setTitulo(''); setDetalle(''); setResponsables([]); setPrioridad('media'); setFechaProg(hoyLocal())
     setMsg(responsables.length ? `Tarea creada y asignada a ${t.responsable}.` : 'Tarea creada sin asignar — la puede tomar cualquiera.')
   }
 
@@ -119,7 +133,13 @@ export default function LogisticaTareas() {
   const [tomando, setTomando] = useState<TareaLogistica | null>(null)
   const [quienToma, setQuienToma] = useState<string[]>([])
 
+  // ¿La tarea ya se puede empezar hoy? (sin fecha = disponible siempre).
+  function disponibleHoy(t: TareaLogistica): boolean {
+    return !t.fechaProgramada || t.fechaProgramada <= hoyLocal()
+  }
+
   async function iniciar(t: TareaLogistica) {
+    if (!disponibleHoy(t)) return // bloqueo: aún no llegó el día programado
     // Si no tiene responsable, primero pedimos quién la toma.
     if (responsablesDe(t).length === 0) { setTomando(t); setQuienToma([]); return }
     await guardarTareaLogistica({ ...t, estado: 'en_curso', iniciada: new Date().toISOString(), iniciadaPor: usuario?.usuario })
@@ -228,6 +248,10 @@ export default function LogisticaTareas() {
                 {PRIORIDADES_LOG.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
               </select>
             </div>
+            <div className="field">
+              <label>Fecha de inicio programada</label>
+              <input type="date" className="input" value={fechaProg} min={hoyLocal()} onChange={(e) => setFechaProg(e.target.value)} />
+            </div>
           </div>
           <button className="btn btn-primary btn-bloque" style={{ marginTop: 10 }} onClick={crear}>＋ Crear tarea</button>
           {msg && <div className="meta" style={{ marginTop: 8 }}>{msg}</div>}
@@ -236,7 +260,9 @@ export default function LogisticaTareas() {
 
       {/* Pendientes — el colaborador todavia no la arranco */}
       <div className="section-title">Pendientes ({pendientes.length})</div>
-      {pendientes.length === 0 ? <div className="empty">Sin tareas pendientes.</div> : pendientes.map((t) => (
+      {pendientes.length === 0 ? <div className="empty">Sin tareas pendientes.</div> : pendientes.map((t) => {
+        const disponible = disponibleHoy(t)
+        return (
         <div className={'card logi-tarea ' + ('prio-' + t.prioridad)} key={t.id}>
           <div className="card-header">
             <div>
@@ -245,15 +271,23 @@ export default function LogisticaTareas() {
                 {respTxt(t)} · Pedida {fechaCorta(t.creada)} {hhmm(t.creada)} · <strong style={{ color: 'var(--naranja)' }}>hace {fmtDur(minutosEntre(t.creada, ahoraISO))}</strong>
                 {t.detalle ? <> · {t.detalle}</> : null}
               </div>
+              {t.fechaProgramada && (
+                <div className="meta" style={{ marginTop: 4 }}>
+                  🗓 Programada para: <strong style={{ color: disponible ? 'var(--estado-fin)' : 'var(--naranja)' }}>{fmtFechaProg(t.fechaProgramada)}</strong>
+                  {!disponible && <> · <em>disponible ese día</em></>}
+                </div>
+              )}
             </div>
           </div>
           <div className="row-actions">
-            <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => iniciar(t)}>{responsablesDe(t).length ? '▶ Iniciar tarea' : '▶ Tomar tarea'}</button>
+            <button className="btn btn-primary" style={{ flex: 1 }} disabled={!disponible} onClick={() => iniciar(t)}>
+              {!disponible ? `🔒 Disponible el ${fmtFechaProg(t.fechaProgramada)}` : (responsablesDe(t).length ? '▶ Iniciar tarea' : '▶ Tomar tarea')}
+            </button>
             {esGiuliano && <button className="btn" onClick={() => abrirEdicion(t)}>✎ Editar</button>}
             {esGiuliano && <button className="btn btn-rojo" onClick={() => borrar(t)}>🗑</button>}
           </div>
         </div>
-      ))}
+      )})}
 
       {/* En curso — iniciada, pendiente de finalizar. Pueden convivir varias en simultaneo */}
       <div className="section-title">En curso ({enCurso.length})</div>
@@ -339,11 +373,17 @@ export default function LogisticaTareas() {
               <label>Responsable(s) — podés elegir varios</label>
               <SelectorResponsables seleccion={eResponsables} onChange={setEResponsables} />
             </div>
-            <div className="field" style={{ marginBottom: 12, maxWidth: 200 }}>
-              <label>Prioridad</label>
-              <select className="input" value={ePrioridad} onChange={(e) => setEPrioridad(e.target.value as PrioridadLog)} style={{ width: '100%' }}>
-                {PRIORIDADES_LOG.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
-              </select>
+            <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
+              <div className="field" style={{ flex: 1 }}>
+                <label>Prioridad</label>
+                <select className="input" value={ePrioridad} onChange={(e) => setEPrioridad(e.target.value as PrioridadLog)} style={{ width: '100%' }}>
+                  {PRIORIDADES_LOG.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+                </select>
+              </div>
+              <div className="field" style={{ flex: 1 }}>
+                <label>Fecha de inicio programada</label>
+                <input type="date" className="input" value={eFechaProg} onChange={(e) => setEFechaProg(e.target.value)} style={{ width: '100%' }} />
+              </div>
             </div>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button className="btn" onClick={() => setEditando(null)}>Cancelar</button>

@@ -386,6 +386,7 @@ export interface TareaLogistica {
   responsable: string            // legacy / fallback de visualizacion (join de responsables); '' = sin asignar
   responsables?: string[]        // lista de colaboradores asignados (0 = sin asignar, la toma cualquiera)
   prioridad: PrioridadLog
+  fechaProgramada?: string       // 'YYYY-MM-DD': día en que se puede empezar (default hoy)
   estado: 'pendiente' | 'en_curso' | 'pausada' | 'finalizada'
   creada: string                 // ISO: cuando Giuliano dio la orden
   creadaPor?: string             // usuario que la creo
