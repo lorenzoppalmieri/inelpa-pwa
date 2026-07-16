@@ -4,7 +4,7 @@ import { db } from '../../db/dexie'
 import {
   SECTORES, sectorById,
   MATERIALES, lineaDesdeModelo, materialLabel, CATEGORIA_COMPONENTE_LABEL,
-  operariosParaSector, esSectorHerreria, maquinaSirveSector,
+  operariosParaSector, esSectorHerreria, maquinaSirveSector, claveEstandar,
   type MaterialBobina, type SectorId, type OrdenProduccion, type Tarea,
   type Semielaborado, type EstadoSemielaborado, type TipoTarea, type Feriado, type EstadoTarea,
 } from '../../types'
@@ -424,6 +424,22 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
   // tiene, elegir uno es OBLIGATORIO (no se puede planificar fabricacion "suelta").
   const sectorTieneSemi = !!modeloSel && componentesDeModelo(modeloSel).some((c) => c.sectorId === sectorId)
 
+  // v1.24: tiempo estandar SUGERIDO por el asistente (mediana de tiempos reales).
+  // Se busca en la tabla de estandares con la MISMA clave que el motor:
+  //  - Bobinado: bobina (semielaborado) + maquina.  - Montaje/manual: sector + modelo.
+  // Si hay un estandar aprendido para la combinacion elegida, precarga el campo.
+  const estandaresGuardados = useLiveQuery(() => db.estandares.toArray(), []) ?? []
+  const estandarSugerido = useMemo(() => {
+    if (esProto || soloReparacion || tipo === 'reparacion') return undefined
+    if (!ordenSel?.modelo || !maquinaId) return undefined
+    const key = claveEstandar(sectorId, ordenSel.modelo, maquinaId, componenteCodigo || undefined)
+    return estandaresGuardados.find((e) => e.id === key)?.minutos
+  }, [estandaresGuardados, sectorId, ordenSel?.modelo, maquinaId, componenteCodigo, esProto, soloReparacion, tipo])
+  // Al cambiar la combinacion, si hay un estandar aprendido, precarga el valor.
+  useEffect(() => {
+    if (estandarSugerido != null) setEstandar(String(estandarSugerido))
+  }, [estandarSugerido])
+
   // v1.16: ¿faltan campos para poder asignar? (deshabilita el boton).
   const faltanCampos = (soloReparacion || tipo === 'reparacion')
     ? (!descripcion.trim() || !maquinaId || !fechaPlan || !horaPlan)
@@ -697,6 +713,9 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
           <div className="field">
             <label>Tiempo estandar (min)</label>
             <input className="input" type="number" min={1} value={estandar} onChange={(e) => setEstandar(e.target.value)} />
+            {estandarSugerido != null
+              ? <div className="meta" style={{ marginTop: 4, color: 'var(--estado-fin)' }}>✓ Sugerido por datos reales (mediana): {estandarSugerido} min</div>
+              : <div className="meta" style={{ marginTop: 4 }}>Sin estándar aprendido aún · valor por defecto (editable)</div>}
           </div>
           <div className="field">
             <label>Dia de arranque</label>

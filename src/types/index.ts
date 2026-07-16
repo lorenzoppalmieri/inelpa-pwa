@@ -380,12 +380,14 @@ export interface TiempoEstandar {
 }
 
 // Clave deterministica de agrupamiento de estandares segun la regla bifurcada.
-//   - Bobinado: MODELO + MAQUINA (la maquina forma parte de la clave).
+//   - Bobinado: BOBINA (semielaborado) + MAQUINA. Cada bobina (AT/BT, modelo)
+//     tiene su propio tiempo segun la maquina (automatica vs manual). Si no hay
+//     componente (raro), cae al modelo.
 //   - Montaje y demas manuales: SECTOR (operacion) + MODELO -> PA, PO, dist y
 //     rural quedan como estandares SEPARADOS (tienen tiempos distintos).
-export function claveEstandar(sectorId: SectorId, modelo: string, maquinaId?: string): string {
+export function claveEstandar(sectorId: SectorId, modelo: string, maquinaId?: string, componenteCodigo?: string): string {
   return areaDemora(sectorId) === 'bobinado'
-    ? `bobinado||${modelo}||${maquinaId ?? ''}`
+    ? `bobinado||${componenteCodigo || modelo}||${maquinaId ?? ''}`
     : `${sectorId}||${modelo}`
 }
 

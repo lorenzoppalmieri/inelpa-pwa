@@ -1,5 +1,6 @@
 import type { Tarea, TiempoEstandar, AreaDemora, SectorId } from '../types'
 import { areaDemora, claveEstandar, esReparacion, sectorById } from '../types'
+import { componentePorCodigo } from '../data/catalogo'
 import { tiempoNetoMin, tiempoEstimadoMin } from './kpi'
 
 // ============================================================
@@ -74,9 +75,11 @@ export function sugerenciasEstandar(
 
     const area = areaDemora(t.sectorId)
     const usaMaquina = area === 'bobinado'
-    const id = claveEstandar(t.sectorId, t.modelo, t.maquinaId)
+    const id = claveEstandar(t.sectorId, t.modelo, t.maquinaId, t.componenteCodigo)
+    // En bobinado el "modelo" a mostrar es la BOBINA (semielaborado); en el resto, el modelo.
+    const etiquetaModelo = usaMaquina ? (componentePorCodigo(t.componenteCodigo)?.descripcion ?? t.modelo) : t.modelo
     const g = grupos.get(id) ?? {
-      area, sectorId: t.sectorId, modelo: t.modelo, maquinaId: usaMaquina ? t.maquinaId : undefined, netos: [], estandares: [],
+      area, sectorId: t.sectorId, modelo: etiquetaModelo, maquinaId: usaMaquina ? t.maquinaId : undefined, netos: [], estandares: [],
     }
     g.netos.push(neto)
     g.estandares.push(tiempoEstimadoMin(t))
