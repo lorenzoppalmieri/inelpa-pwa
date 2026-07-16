@@ -6,6 +6,7 @@ import { exportarProgramacionCSV, hayDatosProgramacion } from '../../lib/export'
 import GanttOperativo from './GanttOperativo'
 import ColaMaterial from './ColaMaterial'
 import LogisticaTareas from './LogisticaTareas'
+import LogisticaReportes from './LogisticaReportes'
 
 // ============================================================
 // Vista LOGISTICA. Dos pestañas:
@@ -14,7 +15,7 @@ import LogisticaTareas from './LogisticaTareas'
 // La alerta de espera de material queda arriba, siempre visible.
 // ============================================================
 export default function LogisticaView() {
-  const [pestania, setPestania] = useState<'gantt' | 'tareas'>('gantt')
+  const [pestania, setPestania] = useState<'gantt' | 'tareas' | 'reportes'>('gantt')
   return (
     <div>
       <div className="section-title" style={{ margin: '4px 0 12px' }}>Logística · cola de pedidos de material</div>
@@ -23,9 +24,10 @@ export default function LogisticaView() {
       <div className="tabs no-print" style={{ marginTop: 12 }}>
         <button className={'tab' + (pestania === 'gantt' ? ' active' : '')} onClick={() => setPestania('gantt')}>Gantt de planta</button>
         <button className={'tab' + (pestania === 'tareas' ? ' active' : '')} onClick={() => setPestania('tareas')}>📋 Tareas logísticas</button>
+        <button className={'tab' + (pestania === 'reportes' ? ' active' : '')} onClick={() => setPestania('reportes')}>📊 Reportes</button>
       </div>
 
-      {pestania === 'gantt' ? <LogisticaGantt /> : <LogisticaTareas />}
+      {pestania === 'gantt' ? <LogisticaGantt /> : pestania === 'tareas' ? <LogisticaTareas /> : <LogisticaReportes />}
     </div>
   )
 }
