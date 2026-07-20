@@ -214,8 +214,8 @@ export default function DespachoView() {
       </div>
       )}
 
-      {/* Fletes internos del día (registro + total) */}
-      <FletesInternos esSupervisora={esSupervisora} />
+      {/* Fletes internos del día — solo Melany los organiza */}
+      {esSupervisora && <FletesInternos esSupervisora={esSupervisora} />}
 
       {/* Esperando embalaje */}
       <div className="section-title">Esperando embalaje ({g.esperando.length})</div>
