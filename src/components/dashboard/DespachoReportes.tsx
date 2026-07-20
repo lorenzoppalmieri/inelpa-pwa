@@ -1,7 +1,10 @@
 import { useMemo } from 'react'
+import { useLiveQuery } from 'dexie-react-hooks'
+import { db } from '../../db/dexie'
 import type { DespachoTrafo, EstadoDespacho } from '../../types'
 import { ESTADOS_DESPACHO } from '../../types'
 import { fmtDur, minutosEntre, fechaCorta } from '../../lib/time'
+import { ars } from './FletesInternos'
 
 // ============================================================
 // REPORTES DE DESPACHO (v1.28, Fase 2) — analítica para Melany (supervisora).
@@ -39,6 +42,17 @@ const DIAS_ALERTA = 3 // "listos hace más de X días"
 
 export default function DespachoReportes({ despachos }: { despachos: DespachoTrafo[] }) {
   const ahoraISO = new Date().toISOString()
+  const fletes = useLiveQuery(() => db.fletes.toArray(), []) ?? []
+
+  const flete = useMemo(() => {
+    const now = new Date()
+    const mesAct = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+    const mesAnt = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`
+    const totMes = (m: string) => fletes.filter((f) => f.fecha.slice(0, 7) === m).reduce((s, f) => s + f.costo, 0)
+    const nMes = (m: string) => fletes.filter((f) => f.fecha.slice(0, 7) === m).length
+    return { gastoMes: totMes(mesAct), gastoMesAnt: totMes(mesAnt), viajesMes: nMes(mesAct) }
+  }, [fletes])
 
   const rep = useMemo(() => {
     const embalados = despachos.filter((d) => d.embalajeFin) // ya pasaron por embalaje
@@ -103,6 +117,15 @@ export default function DespachoReportes({ despachos }: { despachos: DespachoTra
         <div className="logi-kpi"><div className="n" style={{ color: evol >= 0 ? 'var(--estado-fin)' : 'var(--rojo)' }}>{evol >= 0 ? '+' : ''}{evol}</div><div className="l">vs mes anterior ({rep.despAnt})</div></div>
         <div className="logi-kpi"><div className="n">{rep.promGeneral ? fmtDur(rep.promGeneral) : '—'}</div><div className="l">Prom. embalaje</div></div>
         <div className="logi-kpi"><div className="n" style={{ color: (rep.listos[0]?.min ?? 0) > DIAS_ALERTA * 1440 ? 'var(--rojo)' : undefined }}>{rep.listos.length}</div><div className="l">Listos sin despachar</div></div>
+      </div>
+
+      {/* Gasto de flete interno */}
+      <div className="section-title">Gasto de flete interno</div>
+      <div className="logi-kpis">
+        <div className="logi-kpi"><div className="n" style={{ color: 'var(--naranja)' }}>{ars(flete.gastoMes)}</div><div className="l">Gasto este mes</div></div>
+        <div className="logi-kpi"><div className="n">{ars(flete.gastoMesAnt)}</div><div className="l">Mes anterior</div></div>
+        <div className="logi-kpi"><div className="n" style={{ color: (flete.gastoMes - flete.gastoMesAnt) <= 0 ? 'var(--estado-fin)' : 'var(--rojo)' }}>{flete.gastoMes - flete.gastoMesAnt >= 0 ? '+' : ''}{ars(flete.gastoMes - flete.gastoMesAnt)}</div><div className="l">Variación</div></div>
+        <div className="logi-kpi"><div className="n">{flete.viajesMes}</div><div className="l">Viajes este mes</div></div>
       </div>
 
       {/* Tiempo prom. embalaje: Distribución vs Rural */}

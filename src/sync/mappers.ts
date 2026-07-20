@@ -14,7 +14,7 @@ import type {
   SolicitudLogistica, EstadoSolicitudLog, Feriado,
   Mensaje, MensajeDestinoTipo, MensajeLectura,
   TiempoEstandar, AreaDemora, BloqueoLog,
-  DespachoTrafo, EstadoDespacho, DemoraDespacho, ChecklistDespacho,
+  DespachoTrafo, EstadoDespacho, DemoraDespacho, ChecklistDespacho, FleteInterno,
 } from '../types'
 
 // null -> undefined (Supabase devuelve null; la app usa undefined en opcionales).
@@ -364,6 +364,42 @@ export function despachoToRow(d: DespachoTrafo): DespachoRow {
     creada_en: d.creada,
     creada_por: d.creadaPor ?? null,
     entregada_en: d.entregadaEn ?? null,
+  }
+}
+
+// ---------- Fletes / viajes internos (v1.28) ----------
+export interface FleteRow {
+  id: string
+  fecha: string
+  concepto: string
+  costo: number
+  transportista: string | null
+  observaciones: string | null
+  creada_en: string
+  creada_por: string | null
+}
+export function fleteFromRow(r: FleteRow): FleteInterno {
+  return {
+    id: r.id,
+    fecha: r.fecha,
+    concepto: r.concepto,
+    costo: r.costo,
+    transportista: u(r.transportista),
+    observaciones: u(r.observaciones),
+    creada: r.creada_en,
+    creadaPor: u(r.creada_por),
+  }
+}
+export function fleteToRow(f: FleteInterno): FleteRow {
+  return {
+    id: f.id,
+    fecha: f.fecha,
+    concepto: f.concepto,
+    costo: f.costo,
+    transportista: f.transportista ?? null,
+    observaciones: f.observaciones ?? null,
+    creada_en: f.creada,
+    creada_por: f.creadaPor ?? null,
   }
 }
 

@@ -11,6 +11,8 @@ import { guardarDespacho, eliminarDespacho } from '../../sync/syncEngine'
 import { fmtDur, minutosEntre, fechaCorta, hhmm } from '../../lib/time'
 import FichaDespacho from './FichaDespacho'
 import DespachoReportes from './DespachoReportes'
+import AlertasDespacho from './AlertasDespacho'
+import FletesInternos from './FletesInternos'
 
 // ============================================================
 // TABLERO DE DESPACHO Y EMBALAJE (v1.27) — sector Melany. Fase 1: seguimiento de
@@ -169,6 +171,9 @@ export default function DespachoView() {
 
       {esSupervisora && vista === 'reportes' ? <DespachoReportes despachos={despachos} /> : (
       <>
+      {/* Alertas automáticas (arriba de todo, visibles para el equipo) */}
+      <AlertasDespacho despachos={despachos} />
+
       {/* Indicadores */}
       <div className="logi-kpis">
         <div className="logi-kpi"><div className="n">{g.esperando.length}</div><div className="l">Esperando embalaje</div></div>
@@ -197,6 +202,9 @@ export default function DespachoView() {
         <button className="btn btn-primary btn-bloque" style={{ marginTop: 10 }} onClick={crear}>＋ Ingresar a despacho</button>
         {msg && <div className="meta" style={{ marginTop: 8 }}>{msg}</div>}
       </div>
+
+      {/* Fletes internos del día (registro + total) */}
+      <FletesInternos esSupervisora={esSupervisora} />
 
       {/* Esperando embalaje */}
       <div className="section-title">Esperando embalaje ({g.esperando.length})</div>

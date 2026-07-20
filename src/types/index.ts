@@ -549,6 +549,23 @@ export interface DespachoTrafo {
   entregadaEn?: string           // ISO al marcar entregado
 }
 
+// v1.28 (Fase 3) — umbrales de las alertas automáticas del sector despacho.
+export const EMBALAJE_ALERTA_MIN = 120   // embalaje activo "excesivo" (min)
+export const LISTO_ALERTA_DIAS = 3       // embalado sin despachar hace + de X días
+
+// Flete/viaje interno (traslados a depósito, reacomodo con grúa, etc.) con su
+// costo. Base de la estadística de gastos de flete (relevamiento, prioridad 2).
+export interface FleteInterno {
+  id: string
+  fecha: string                  // ISO: día del flete
+  concepto: string               // ej. "Traslado a depósito 25 de mayo"
+  costo: number                  // ARS
+  transportista?: string
+  observaciones?: string
+  creada: string
+  creadaPor?: string
+}
+
 // ============================================================
 // SOLICITUDES LOGISTICAS (v1.13) — cola de pedidos de material.
 // Se enlaza 1:1 con la PARADA de material (id = parada.id). Es la "capa logistica"
@@ -616,7 +633,7 @@ export function mensajeEsPara(m: Mensaje, u: { id: string; rol: Rol; sectores: S
 // Cola de sincronizacion: cada cambio offline se encola y se empuja al backend.
 export interface SyncOp {
   id: string
-  entidad: 'tarea' | 'parada' | 'orden' | 'semielaborado' | 'objetivo' | 'tarea_logistica' | 'solicitud_logistica' | 'feriado' | 'mensaje' | 'mensaje_lectura' | 'estandar' | 'despacho'
+  entidad: 'tarea' | 'parada' | 'orden' | 'semielaborado' | 'objetivo' | 'tarea_logistica' | 'solicitud_logistica' | 'feriado' | 'mensaje' | 'mensaje_lectura' | 'estandar' | 'despacho' | 'flete'
   entidadId: string
   tipo: 'upsert' | 'delete'
   payload: unknown
