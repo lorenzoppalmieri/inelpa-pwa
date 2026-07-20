@@ -10,6 +10,7 @@ import {
 import { guardarDespacho, eliminarDespacho } from '../../sync/syncEngine'
 import { fmtDur, minutosEntre, fechaCorta, hhmm } from '../../lib/time'
 import FichaDespacho from './FichaDespacho'
+import DespachoReportes from './DespachoReportes'
 
 // ============================================================
 // TABLERO DE DESPACHO Y EMBALAJE (v1.27) — sector Melany. Fase 1: seguimiento de
@@ -24,6 +25,7 @@ export default function DespachoView() {
   // Melany = supervisora del sector: solo ella puede eliminar despachos. El equipo
   // (cuenta 'despacho') opera normalmente (crear, embalar, despachar) pero no borra.
   const esSupervisora = usuario?.usuario === 'melany'
+  const [vista, setVista] = useState<'operativo' | 'reportes'>('operativo')
   const despachos = useLiveQuery(() => db.despachos.toArray(), []) ?? []
 
   const [ahora, setAhora] = useState(() => Date.now())
@@ -157,6 +159,16 @@ export default function DespachoView() {
 
   return (
     <>
+      {/* Sub-pestañas: el tablero operativo lo ve todo el equipo; los Reportes, solo Melany */}
+      {esSupervisora && (
+        <div className="tabs no-print" style={{ marginBottom: 10 }}>
+          <button className={'tab' + (vista === 'operativo' ? ' active' : '')} onClick={() => setVista('operativo')}>🚚 Operativo</button>
+          <button className={'tab' + (vista === 'reportes' ? ' active' : '')} onClick={() => setVista('reportes')}>📊 Reportes</button>
+        </div>
+      )}
+
+      {esSupervisora && vista === 'reportes' ? <DespachoReportes despachos={despachos} /> : (
+      <>
       {/* Indicadores */}
       <div className="logi-kpis">
         <div className="logi-kpi"><div className="n">{g.esperando.length}</div><div className="l">Esperando embalaje</div></div>
@@ -279,6 +291,8 @@ export default function DespachoView() {
           </div>
         </div>
       ))}
+      </>
+      )}
 
       {/* --- Modales --- */}
       {ficha && <FichaDespacho despacho={despachos.find((x) => x.id === ficha.id) ?? ficha} onClose={() => setFicha(null)} />}
