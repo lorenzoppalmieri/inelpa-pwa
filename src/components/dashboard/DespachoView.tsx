@@ -192,9 +192,10 @@ export default function DespachoView() {
         <div className="logi-kpi"><div className="n">{g.prom ? fmtDur(g.prom) : '—'}</div><div className="l">Tiempo prom. embalaje</div></div>
       </div>
 
-      {/* Alta */}
+      {/* Alta — solo Melany crea/envía tareas de embalaje; el equipo las ejecuta */}
+      {esSupervisora && (
       <div className="card">
-        <div className="section-title">Ingresar transformador a despacho</div>
+        <div className="section-title">Ingresar transformador a despacho (tarea de embalaje)</div>
         <div className="form-grid">
           <div className="field"><label>OT</label><input className="input" value={ot} onChange={(e) => setOt(e.target.value)} placeholder="OT-1234" /></div>
           <div className="field"><label>Cliente</label><input className="input" value={cliente} onChange={(e) => setCliente(e.target.value)} /></div>
@@ -211,6 +212,7 @@ export default function DespachoView() {
         <button className="btn btn-primary btn-bloque" style={{ marginTop: 10 }} onClick={crear}>＋ Ingresar a despacho</button>
         {msg && <div className="meta" style={{ marginTop: 8 }}>{msg}</div>}
       </div>
+      )}
 
       {/* Fletes internos del día (registro + total) */}
       <FletesInternos esSupervisora={esSupervisora} />

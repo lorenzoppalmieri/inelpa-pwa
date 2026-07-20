@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
 import { SECTORES, materialLabel, esSectorBobinado, BOBINADO_SECTORES, type LineaProduccion, type SectorId, type Tarea } from '../../types'
 import { exportarProgramacionCSV, hayDatosProgramacion } from '../../lib/export'
+import { useAuth } from '../../auth/AuthContext'
 import GanttOperativo from './GanttOperativo'
 import ColaMaterial from './ColaMaterial'
 import LogisticaTareas from './LogisticaTareas'
@@ -16,7 +17,20 @@ import DespachoView from './DespachoView'
 // La alerta de espera de material queda arriba, siempre visible.
 // ============================================================
 export default function LogisticaView() {
+  const { usuario } = useAuth()
   const [pestania, setPestania] = useState<'gantt' | 'tareas' | 'reportes' | 'despacho'>('gantt')
+
+  // El equipo de despacho (cuenta 'despacho') ve SOLO el módulo de Despacho, sin
+  // pestañas ni la cola de material: entran, toman tareas de embalaje y las cierran.
+  if (usuario?.usuario === 'despacho') {
+    return (
+      <div>
+        <div className="section-title" style={{ margin: '4px 0 12px' }}>🚚 Despacho y embalaje</div>
+        <DespachoView />
+      </div>
+    )
+  }
+
   return (
     <div>
       <div className="section-title" style={{ margin: '4px 0 12px' }}>Logística · cola de pedidos de material</div>
