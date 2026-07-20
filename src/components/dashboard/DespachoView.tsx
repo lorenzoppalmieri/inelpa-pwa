@@ -274,9 +274,13 @@ export default function DespachoView() {
               {chip(d.estado)}
             </div>
             <div className="row-actions">
-              <button className="btn btn-verde" style={{ flex: 1 }} disabled={!listo} onClick={() => setDespachando(d)}>
-                {listo ? '🚚 Despachar' : '🔒 Completá el checklist'}
-              </button>
+              {esSupervisora
+                ? <button className="btn btn-verde" style={{ flex: 1 }} disabled={!listo} onClick={() => setDespachando(d)}>
+                    {listo ? '🚚 Despachar' : '🔒 Completá el checklist'}
+                  </button>
+                : <div className="meta" style={{ flex: 1, alignSelf: 'center', color: listo ? 'var(--estado-fin)' : 'var(--naranja)' }}>
+                    {listo ? '✓ Listo — Melany organiza el despacho' : `🔒 Completá el checklist (faltan: ${faltan.join(', ')})`}
+                  </div>}
               <button className="btn" onClick={() => setFicha(d)}>👁 Ficha / Checklist</button>
               {esSupervisora && <button className="btn btn-rojo" onClick={() => void borrar(d)}>🗑</button>}
             </div>
@@ -288,7 +292,9 @@ export default function DespachoView() {
       <div className="section-title">Despachado ({g.despachado.length})</div>
       {g.despachado.length === 0 ? <div className="empty">Nada despachado pendiente de entrega.</div> : g.despachado.map((d) => (
         <Tarjeta d={d} key={d.id}>
-          <button className="btn btn-verde" style={{ flex: 1 }} onClick={() => void marcarEntregado(d)}>✓ Marcar entregado</button>
+          {esSupervisora
+            ? <button className="btn btn-verde" style={{ flex: 1 }} onClick={() => void marcarEntregado(d)}>✓ Marcar entregado</button>
+            : <div className="meta" style={{ flex: 1, alignSelf: 'center' }}>Despachado — a la espera de entrega (Melany)</div>}
         </Tarjeta>
       ))}
 
