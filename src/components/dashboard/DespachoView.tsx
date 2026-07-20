@@ -28,6 +28,7 @@ export default function DespachoView() {
   // (cuenta 'despacho') opera normalmente (crear, embalar, despachar) pero no borra.
   const esSupervisora = usuario?.usuario === 'melany'
   const [vista, setVista] = useState<'operativo' | 'reportes'>('operativo')
+  const [busqueda, setBusqueda] = useState('')
   const despachos = useLiveQuery(() => db.despachos.toArray(), []) ?? []
 
   const [ahora, setAhora] = useState(() => Date.now())
@@ -114,11 +115,13 @@ export default function DespachoView() {
     await eliminarDespacho(d)
   }
 
-  // --- agrupamiento por estado ---
+  // --- agrupamiento por estado (las secciones se filtran por la búsqueda) ---
   const g = useMemo(() => {
+    const q = busqueda.trim().toLowerCase()
+    const match = (d: DespachoTrafo) => !q || `${d.nroSerie} ${d.ot} ${d.cliente}`.toLowerCase().includes(q)
     const by = (e: EstadoDespacho | EstadoDespacho[]) => {
       const arr = Array.isArray(e) ? e : [e]
-      return despachos.filter((d) => arr.includes(d.estado)).sort((a, b) => (a.fechaIngreso < b.fechaIngreso ? -1 : 1))
+      return despachos.filter((d) => arr.includes(d.estado) && match(d)).sort((a, b) => (a.fechaIngreso < b.fechaIngreso ? -1 : 1))
     }
     const finalizados = despachos.filter((d) => d.embalajeFin)
     const tiempos = finalizados.map((d) => Math.max(0, minutosEntre(d.embalajeInicio, d.embalajeFin) - (d.minutosDemora ?? 0))).filter((m) => m > 0)
@@ -130,7 +133,7 @@ export default function DespachoView() {
       embalado: by('embalado'), despachado: by('despachado'), entregado: by('entregado'),
       prom, despHoy,
     }
-  }, [despachos, ahora])
+  }, [despachos, ahora, busqueda])
 
   const chip = (e: EstadoDespacho) => <span className="estado-chip" style={{ background: color(e) }}>{estadoDespachoLabel(e)}</span>
   const cab = (d: DespachoTrafo) => (
@@ -171,6 +174,12 @@ export default function DespachoView() {
 
       {esSupervisora && vista === 'reportes' ? <DespachoReportes despachos={despachos} /> : (
       <>
+      {/* Búsqueda rápida por N° de serie / OT / cliente */}
+      <input
+        className="input" value={busqueda} onChange={(e) => setBusqueda(e.target.value)}
+        placeholder="🔍 Buscar por N° de serie, OT o cliente…" style={{ marginBottom: 12 }}
+      />
+
       {/* Alertas automáticas (arriba de todo, visibles para el equipo) */}
       <AlertasDespacho despachos={despachos} />
 

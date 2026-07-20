@@ -1,9 +1,14 @@
+import { useState } from 'react'
 import type { DespachoTrafo, ChecklistDespacho } from '../../types'
 import {
   estadoDespachoLabel, ESTADOS_DESPACHO, CHECKLIST_DESPACHO_ITEMS, checklistCompleto,
 } from '../../types'
 import { fmtDur, minutosEntre, fechaCorta, hhmm } from '../../lib/time'
 import { guardarDespacho } from '../../sync/syncEngine'
+import { supabase } from '../../lib/supabaseClient'
+
+// Bucket de Supabase Storage donde viven las fotos de los transformadores.
+export const BUCKET_FOTOS = 'despacho-fotos'
 
 // ============================================================
 // PANTALLA ÚNICA POR TRANSFORMADOR (v1.27) — ficha con TODO lo del trafo:
@@ -34,12 +39,40 @@ function Dato({ label, valor }: { label: string; valor?: string | null }) {
 export default function FichaDespacho({ despacho: d, onClose }: { despacho: DespachoTrafo; onClose: () => void }) {
   const ahoraISO = new Date().toISOString()
   const color = ESTADOS_DESPACHO.find((e) => e.id === d.estado)?.color ?? 'var(--texto-tenue)'
+  const [subiendo, setSubiendo] = useState(false)
+  const [errFoto, setErrFoto] = useState('')
 
+  const baseChecklist: ChecklistDespacho = d.checklist ?? {
+    pintura: false, limpieza: false, placa: false, accesorios: false, manual: false, fechas: false, etiquetas: false, fotos: false,
+  }
   async function toggleCheck(key: keyof ChecklistDespacho) {
-    const base: ChecklistDespacho = d.checklist ?? {
-      pintura: false, limpieza: false, placa: false, accesorios: false, manual: false, fechas: false, etiquetas: false, fotos: false,
+    await guardarDespacho({ ...d, checklist: { ...baseChecklist, [key]: !baseChecklist[key] } })
+  }
+
+  // Sube una o varias fotos a Supabase Storage y guarda sus URLs en el trafo.
+  // Marca automáticamente el ítem "fotos" del checklist. Requiere conexión.
+  async function subirFotos(files: FileList | null) {
+    if (!files || files.length === 0) return
+    if (!supabase) { setErrFoto('Storage no disponible.'); return }
+    setSubiendo(true); setErrFoto('')
+    try {
+      const nuevas: string[] = []
+      for (const file of Array.from(files)) {
+        const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
+        const path = `${d.id}/${crypto.randomUUID()}.${ext}`
+        const up = await supabase.storage.from(BUCKET_FOTOS).upload(path, file, { upsert: true, contentType: file.type || 'image/jpeg' })
+        if (up.error) throw up.error
+        nuevas.push(supabase.storage.from(BUCKET_FOTOS).getPublicUrl(path).data.publicUrl)
+      }
+      await guardarDespacho({ ...d, fotos: [...(d.fotos ?? []), ...nuevas], checklist: { ...baseChecklist, fotos: true } })
+    } catch {
+      setErrFoto('No se pudieron subir las fotos (revisá la conexión o que exista el bucket "despacho-fotos").')
+    } finally {
+      setSubiendo(false)
     }
-    await guardarDespacho({ ...d, checklist: { ...base, [key]: !base[key] } })
+  }
+  async function quitarFoto(url: string) {
+    await guardarDespacho({ ...d, fotos: (d.fotos ?? []).filter((u) => u !== url) })
   }
 
   const seccion = (t: string) => <div className="section-title" style={{ margin: '14px 0 8px' }}>{t}</div>
@@ -95,6 +128,25 @@ export default function FichaDespacho({ despacho: d, onClose }: { despacho: Desp
           <div className="meta" style={{ marginTop: 6, color: checklistCompleto(d.checklist) ? 'var(--estado-fin)' : 'var(--naranja)' }}>
             {checklistCompleto(d.checklist) ? '✓ Checklist completo — habilitado para despachar' : 'Checklist incompleto — no se puede despachar hasta completarlo'}
           </div>
+
+          {seccion(`Fotos${d.fotos?.length ? ` (${d.fotos.length})` : ''}`)}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+            {(d.fotos ?? []).map((url) => (
+              <div key={url} style={{ position: 'relative' }}>
+                <a href={url} target="_blank" rel="noreferrer">
+                  <img src={url} alt="foto trafo" style={{ width: 96, height: 96, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--borde)' }} />
+                </a>
+                <button title="Quitar" onClick={() => void quitarFoto(url)}
+                  style={{ position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: '50%', border: 'none', background: 'var(--rojo)', color: '#fff', cursor: 'pointer', fontSize: 12, lineHeight: '20px', padding: 0 }}>✕</button>
+              </div>
+            ))}
+            {(d.fotos ?? []).length === 0 && <div className="meta">Sin fotos todavía.</div>}
+          </div>
+          <label className="btn btn-primary" style={{ display: 'inline-block', cursor: subiendo ? 'default' : 'pointer', opacity: subiendo ? 0.6 : 1 }}>
+            {subiendo ? 'Subiendo…' : '📷 Agregar fotos'}
+            <input type="file" accept="image/*" multiple disabled={subiendo} style={{ display: 'none' }} onChange={(e) => void subirFotos(e.target.files)} />
+          </label>
+          {errFoto && <div className="meta" style={{ color: 'var(--rojo)', marginTop: 6 }}>{errFoto}</div>}
 
           {d.demoras && d.demoras.length > 0 && <>
             {seccion('Demoras registradas')}

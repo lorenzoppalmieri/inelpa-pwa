@@ -543,6 +543,8 @@ export interface DespachoTrafo {
   redespacho?: boolean
   transportista2?: string
   patente2?: string
+  // --- Fotos (v1.29) ---
+  fotos?: string[]               // URLs públicas en Supabase Storage
   // --- Meta ---
   creada: string
   creadaPor?: string

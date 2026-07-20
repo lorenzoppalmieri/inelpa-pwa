@@ -295,6 +295,7 @@ export interface DespachoRow {
   redespacho: boolean | null
   transportista2: string | null
   patente2: string | null
+  fotos: string[] | null
   creada_en: string
   creada_por: string | null
   entregada_en: string | null
@@ -328,6 +329,7 @@ export function despachoFromRow(r: DespachoRow): DespachoTrafo {
     redespacho: r.redespacho ?? undefined,
     transportista2: u(r.transportista2),
     patente2: u(r.patente2),
+    fotos: r.fotos ?? undefined,
     creada: r.creada_en,
     creadaPor: u(r.creada_por),
     entregadaEn: u(r.entregada_en),
@@ -361,6 +363,7 @@ export function despachoToRow(d: DespachoTrafo): DespachoRow {
     redespacho: d.redespacho ?? null,
     transportista2: d.transportista2 ?? null,
     patente2: d.patente2 ?? null,
+    fotos: d.fotos ?? null,
     creada_en: d.creada,
     creada_por: d.creadaPor ?? null,
     entregada_en: d.entregadaEn ?? null,
