@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import {
-  causasDeSector, CATEGORIA_LABEL,
+  causasDeSector, CATEGORIA_LABEL, areaDemora,
   type CausaParada, type CategoriaParada, type CausaParadaDef, type SectorId,
 } from '../../types'
 
@@ -20,6 +20,8 @@ export default function ModalParada({ sectorId, onConfirm, onCancel }: {
   const [causa, setCausa] = useState<CausaParada | null>(null)
   const [obs, setObs] = useState('')
   const [q, setQ] = useState('')
+  // En Montaje el operario NO escribe observación (solo elige la causa).
+  const esMontaje = areaDemora(sectorId) === 'montaje'
 
   // Causas de la SECCION del operario (+ globales) -> filtro por texto -> agrupa.
   const grupos = useMemo(() => {
@@ -70,10 +72,12 @@ export default function ModalParada({ sectorId, onConfirm, onCancel }: {
           ))}
         </div>
 
-        <div className="field" style={{ marginTop: 6 }}>
-          <label>Observacion (opcional)</label>
-          <input className="input" value={obs} onChange={(e) => setObs(e.target.value)} placeholder="detalle..." />
-        </div>
+        {!esMontaje && (
+          <div className="field" style={{ marginTop: 6 }}>
+            <label>Observacion (opcional)</label>
+            <input className="input" value={obs} onChange={(e) => setObs(e.target.value)} placeholder="detalle..." />
+          </div>
+        )}
         <div className="row-actions" style={{ marginTop: 8 }}>
           <button className="btn" style={{ flex: 1 }} onClick={onCancel}>Cancelar</button>
           <button className="btn btn-naranja" style={{ flex: 1 }} disabled={!causa}
