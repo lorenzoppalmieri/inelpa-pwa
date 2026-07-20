@@ -62,11 +62,14 @@ export default function OperarioView() {
     const mesIni = new Date(hoy.getFullYear(), hoy.getMonth(), 1).toISOString()
     const mesFin = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 1).toISOString()
     return db.tareas.where('maquinaId').equals(maquinaId).and((t) => {
+      // CRUCE OBLIGATORIO máquina + colaborador: solo las tareas de esta estación
+      // que estén asignadas a MÍ o SIN asignar. Nunca las de otro responsable.
+      if (t.operarioId && t.operarioId !== usuario?.id) return false
       if (t.estado !== 'finalizada') return true
       const ref = t.finReal ?? t.inicioReal
       return !!ref && ref >= mesIni && ref < mesFin
     }).toArray()
-  }, [maquinaId])
+  }, [maquinaId, usuario?.id])
 
   const [filtro, setFiltro] = useState<'activas' | 'pendientes' | 'finalizadas'>('activas')
   // v1.18: pausa/reanudación GLOBAL de la estación (montaje PA/PO: el equipo para
