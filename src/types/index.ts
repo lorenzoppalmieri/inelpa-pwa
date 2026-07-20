@@ -452,6 +452,104 @@ export function responsablesDe(t: TareaLogistica): string[] {
 }
 
 // ============================================================
+// DESPACHO Y EMBALAJE (v1.27) — sector de Melany: seguimiento de cada
+// transformador desde que ingresa al stock hasta que se entrega al cliente.
+// Entidad propia (DespachoTrafo). Fase 1: nucleo + estados + tiempos de embalaje
+// + checklist de liberacion (bloquea el despacho) + log de demoras + ficha unica.
+// ============================================================
+export type EstadoDespacho = 'esperando_embalaje' | 'embalando' | 'demorado' | 'embalado' | 'despachado' | 'entregado'
+export const ESTADOS_DESPACHO: { id: EstadoDespacho; label: string; color: string }[] = [
+  { id: 'esperando_embalaje', label: 'Esperando embalaje', color: 'var(--texto-tenue)' },
+  { id: 'embalando', label: 'Embalando', color: 'var(--estado-proceso)' },
+  { id: 'demorado', label: 'Demorado', color: 'var(--rojo)' },
+  { id: 'embalado', label: 'Embalado', color: 'var(--azul-claro)' },
+  { id: 'despachado', label: 'Despachado', color: 'var(--naranja)' },
+  { id: 'entregado', label: 'Entregado', color: 'var(--estado-fin)' },
+]
+export function estadoDespachoLabel(e: EstadoDespacho): string {
+  return ESTADOS_DESPACHO.find((x) => x.id === e)?.label ?? e
+}
+
+// Colaboradoras del sector despacho (operarias del embalaje). No son cuentas de login.
+export const RESPONSABLES_DESPACHO: string[] = ['Eugenia Suarez', 'Maribel Oggero']
+
+// Causas frecuentes de demora en despacho (relevamiento Melany, seccion 5).
+export const MOTIVOS_DEMORA_DESPACHO: string[] = [
+  'Espera puente grúa', 'Falta de materiales (carpintería)', 'Espera ensayo (laboratorio)',
+  'Retrabajo en despacho', 'Otro',
+]
+
+// Un evento de demora registrado (para el Pareto de cuellos de botella de despacho).
+export interface DemoraDespacho {
+  causa: string
+  inicio: string                 // ISO
+  fin?: string                   // ISO (undefined mientras sigue demorado)
+}
+
+// Items del checklist de liberacion (seccion 8). Todos deben estar OK para despachar.
+export interface ChecklistDespacho {
+  pintura: boolean
+  limpieza: boolean
+  placa: boolean
+  accesorios: boolean
+  manual: boolean
+  fechas: boolean
+  etiquetas: boolean
+  fotos: boolean
+}
+export const CHECKLIST_DESPACHO_ITEMS: { key: keyof ChecklistDespacho; label: string }[] = [
+  { key: 'pintura', label: 'Pintura' }, { key: 'limpieza', label: 'Limpieza' },
+  { key: 'placa', label: 'Placa' }, { key: 'accesorios', label: 'Accesorios' },
+  { key: 'manual', label: 'Manual' }, { key: 'fechas', label: 'Fechas' },
+  { key: 'etiquetas', label: 'Etiquetas' }, { key: 'fotos', label: 'Fotos' },
+]
+export function checklistCompleto(c?: ChecklistDespacho): boolean {
+  return !!c && CHECKLIST_DESPACHO_ITEMS.every((i) => c[i.key])
+}
+export function checklistFaltantes(c?: ChecklistDespacho): string[] {
+  return CHECKLIST_DESPACHO_ITEMS.filter((i) => !c?.[i.key]).map((i) => i.label)
+}
+
+export interface DespachoTrafo {
+  id: string
+  // --- Datos generales ---
+  ot: string                     // orden de trabajo
+  cliente: string
+  nroSerie: string
+  potencia?: string
+  tipo?: string                  // tipo de transformador
+  linea: LineaProduccion         // distribucion / rural (los tiempos difieren)
+  fechaIngreso: string           // ISO: ingreso del trafo al stock
+  // --- Estado del proceso ---
+  estado: EstadoDespacho
+  // --- Embalaje ---
+  operario?: string              // colaboradora que embala
+  embalajeInicio?: string        // ISO
+  embalajeFin?: string           // ISO
+  tipoEmbalaje?: string
+  observaciones?: string
+  demoraEnCurso?: string         // ISO: inicio de la demora vigente (estado 'demorado')
+  minutosDemora?: number         // minutos de demora acumulados (cerrados)
+  demoras?: DemoraDespacho[]     // historial de demoras (causa + duracion)
+  // --- Checklist de liberacion ---
+  checklist?: ChecklistDespacho
+  // --- Despacho ---
+  fechaDespacho?: string         // ISO
+  transportista?: string
+  patente?: string
+  remito?: string
+  destino?: string
+  // Redespacho (2do transporte, seccion 3)
+  redespacho?: boolean
+  transportista2?: string
+  patente2?: string
+  // --- Meta ---
+  creada: string
+  creadaPor?: string
+  entregadaEn?: string           // ISO al marcar entregado
+}
+
+// ============================================================
 // SOLICITUDES LOGISTICAS (v1.13) — cola de pedidos de material.
 // Se enlaza 1:1 con la PARADA de material (id = parada.id). Es la "capa logistica"
 // encima de la parada: a quien se asigno y en que estado de entrega esta.
@@ -518,7 +616,7 @@ export function mensajeEsPara(m: Mensaje, u: { id: string; rol: Rol; sectores: S
 // Cola de sincronizacion: cada cambio offline se encola y se empuja al backend.
 export interface SyncOp {
   id: string
-  entidad: 'tarea' | 'parada' | 'orden' | 'semielaborado' | 'objetivo' | 'tarea_logistica' | 'solicitud_logistica' | 'feriado' | 'mensaje' | 'mensaje_lectura' | 'estandar'
+  entidad: 'tarea' | 'parada' | 'orden' | 'semielaborado' | 'objetivo' | 'tarea_logistica' | 'solicitud_logistica' | 'feriado' | 'mensaje' | 'mensaje_lectura' | 'estandar' | 'despacho'
   entidadId: string
   tipo: 'upsert' | 'delete'
   payload: unknown

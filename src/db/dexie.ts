@@ -2,7 +2,7 @@ import Dexie, { type Table } from 'dexie'
 import type {
   Usuario, Tarea, OrdenProduccion, SyncOp, Semielaborado, Maquina,
   ModeloTransformador, ComponenteSemielaborado, Objetivo, TareaLogistica, SolicitudLogistica, Feriado,
-  Mensaje, MensajeLectura, TiempoEstandar,
+  Mensaje, MensajeLectura, TiempoEstandar, DespachoTrafo,
 } from '../types'
 
 // ============================================================
@@ -26,6 +26,7 @@ export class InelpaDB extends Dexie {
   mensajes!: Table<Mensaje, string>
   mensajesLectura!: Table<MensajeLectura, string>
   estandares!: Table<TiempoEstandar, string>
+  despachos!: Table<DespachoTrafo, string>
 
   constructor() {
     super('inelpa_pwa')
@@ -77,6 +78,10 @@ export class InelpaDB extends Dexie {
     // v1.24: tiempos estandar dinamicos (repositorio de estimados afinables).
     this.version(10).stores({
       estandares: 'id, area, modelo, maquinaId',
+    })
+    // v1.27: despacho y embalaje (sector Melany).
+    this.version(11).stores({
+      despachos: 'id, estado, nroSerie, ot, linea, operario, creada',
     })
   }
 }

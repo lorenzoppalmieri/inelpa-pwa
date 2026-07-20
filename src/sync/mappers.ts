@@ -14,6 +14,7 @@ import type {
   SolicitudLogistica, EstadoSolicitudLog, Feriado,
   Mensaje, MensajeDestinoTipo, MensajeLectura,
   TiempoEstandar, AreaDemora, BloqueoLog,
+  DespachoTrafo, EstadoDespacho, DemoraDespacho, ChecklistDespacho,
 } from '../types'
 
 // null -> undefined (Supabase devuelve null; la app usa undefined en opcionales).
@@ -263,6 +264,106 @@ export function estandarToRow(e: TiempoEstandar): TiempoEstandarRow {
     maquina_id: e.maquinaId ?? null,
     minutos: e.minutos,
     actualizado_en: e.actualizado,
+  }
+}
+
+// ---------- Despacho y embalaje (v1.27) ----------
+export interface DespachoRow {
+  id: string
+  ot: string
+  cliente: string
+  nro_serie: string
+  potencia: string | null
+  tipo: string | null
+  linea: string
+  fecha_ingreso: string
+  estado: string
+  operario: string | null
+  embalaje_inicio: string | null
+  embalaje_fin: string | null
+  tipo_embalaje: string | null
+  observaciones: string | null
+  demora_en_curso: string | null
+  minutos_demora: number | null
+  demoras: DemoraDespacho[] | null
+  checklist: ChecklistDespacho | null
+  fecha_despacho: string | null
+  transportista: string | null
+  patente: string | null
+  remito: string | null
+  destino: string | null
+  redespacho: boolean | null
+  transportista2: string | null
+  patente2: string | null
+  creada_en: string
+  creada_por: string | null
+  entregada_en: string | null
+}
+
+export function despachoFromRow(r: DespachoRow): DespachoTrafo {
+  return {
+    id: r.id,
+    ot: r.ot,
+    cliente: r.cliente,
+    nroSerie: r.nro_serie,
+    potencia: u(r.potencia),
+    tipo: u(r.tipo),
+    linea: r.linea as LineaProduccion,
+    fechaIngreso: r.fecha_ingreso,
+    estado: r.estado as EstadoDespacho,
+    operario: u(r.operario),
+    embalajeInicio: u(r.embalaje_inicio),
+    embalajeFin: u(r.embalaje_fin),
+    tipoEmbalaje: u(r.tipo_embalaje),
+    observaciones: u(r.observaciones),
+    demoraEnCurso: u(r.demora_en_curso),
+    minutosDemora: r.minutos_demora ?? undefined,
+    demoras: r.demoras ?? undefined,
+    checklist: r.checklist ?? undefined,
+    fechaDespacho: u(r.fecha_despacho),
+    transportista: u(r.transportista),
+    patente: u(r.patente),
+    remito: u(r.remito),
+    destino: u(r.destino),
+    redespacho: r.redespacho ?? undefined,
+    transportista2: u(r.transportista2),
+    patente2: u(r.patente2),
+    creada: r.creada_en,
+    creadaPor: u(r.creada_por),
+    entregadaEn: u(r.entregada_en),
+  }
+}
+export function despachoToRow(d: DespachoTrafo): DespachoRow {
+  return {
+    id: d.id,
+    ot: d.ot,
+    cliente: d.cliente,
+    nro_serie: d.nroSerie,
+    potencia: d.potencia ?? null,
+    tipo: d.tipo ?? null,
+    linea: d.linea,
+    fecha_ingreso: d.fechaIngreso,
+    estado: d.estado,
+    operario: d.operario ?? null,
+    embalaje_inicio: d.embalajeInicio ?? null,
+    embalaje_fin: d.embalajeFin ?? null,
+    tipo_embalaje: d.tipoEmbalaje ?? null,
+    observaciones: d.observaciones ?? null,
+    demora_en_curso: d.demoraEnCurso ?? null,
+    minutos_demora: d.minutosDemora ?? null,
+    demoras: d.demoras ?? null,
+    checklist: d.checklist ?? null,
+    fecha_despacho: d.fechaDespacho ?? null,
+    transportista: d.transportista ?? null,
+    patente: d.patente ?? null,
+    remito: d.remito ?? null,
+    destino: d.destino ?? null,
+    redespacho: d.redespacho ?? null,
+    transportista2: d.transportista2 ?? null,
+    patente2: d.patente2 ?? null,
+    creada_en: d.creada,
+    creada_por: d.creadaPor ?? null,
+    entregada_en: d.entregadaEn ?? null,
   }
 }
 

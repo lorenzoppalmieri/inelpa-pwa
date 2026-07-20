@@ -7,6 +7,7 @@ import GanttOperativo from './GanttOperativo'
 import ColaMaterial from './ColaMaterial'
 import LogisticaTareas from './LogisticaTareas'
 import LogisticaReportes from './LogisticaReportes'
+import DespachoView from './DespachoView'
 
 // ============================================================
 // Vista LOGISTICA. Dos pestañas:
@@ -15,7 +16,7 @@ import LogisticaReportes from './LogisticaReportes'
 // La alerta de espera de material queda arriba, siempre visible.
 // ============================================================
 export default function LogisticaView() {
-  const [pestania, setPestania] = useState<'gantt' | 'tareas' | 'reportes'>('gantt')
+  const [pestania, setPestania] = useState<'gantt' | 'tareas' | 'reportes' | 'despacho'>('gantt')
   return (
     <div>
       <div className="section-title" style={{ margin: '4px 0 12px' }}>Logística · cola de pedidos de material</div>
@@ -25,9 +26,10 @@ export default function LogisticaView() {
         <button className={'tab' + (pestania === 'gantt' ? ' active' : '')} onClick={() => setPestania('gantt')}>Gantt de planta</button>
         <button className={'tab' + (pestania === 'tareas' ? ' active' : '')} onClick={() => setPestania('tareas')}>📋 Tareas logísticas</button>
         <button className={'tab' + (pestania === 'reportes' ? ' active' : '')} onClick={() => setPestania('reportes')}>📊 Reportes</button>
+        <button className={'tab' + (pestania === 'despacho' ? ' active' : '')} onClick={() => setPestania('despacho')}>🚚 Despacho</button>
       </div>
 
-      {pestania === 'gantt' ? <LogisticaGantt /> : pestania === 'tareas' ? <LogisticaTareas /> : <LogisticaReportes />}
+      {pestania === 'gantt' ? <LogisticaGantt /> : pestania === 'tareas' ? <LogisticaTareas /> : pestania === 'reportes' ? <LogisticaReportes /> : <DespachoView />}
     </div>
   )
 }
