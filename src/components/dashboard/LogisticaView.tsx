@@ -19,6 +19,8 @@ import DespachoView from './DespachoView'
 export default function LogisticaView() {
   const { usuario } = useAuth()
   const [pestania, setPestania] = useState<'gantt' | 'tareas' | 'reportes' | 'despacho'>('gantt')
+  // El equipo de logística (cuenta 'logistica_equipo') no ve Reportes ni Despacho.
+  const esEquipoLog = usuario?.usuario === 'logistica_equipo'
 
   // El equipo de despacho (cuenta 'despacho') ve SOLO el módulo de Despacho, sin
   // pestañas ni la cola de material: entran, toman tareas de embalaje y las cierran.
@@ -39,11 +41,15 @@ export default function LogisticaView() {
       <div className="tabs no-print" style={{ marginTop: 12 }}>
         <button className={'tab' + (pestania === 'gantt' ? ' active' : '')} onClick={() => setPestania('gantt')}>Gantt de planta</button>
         <button className={'tab' + (pestania === 'tareas' ? ' active' : '')} onClick={() => setPestania('tareas')}>📋 Tareas logísticas</button>
-        <button className={'tab' + (pestania === 'reportes' ? ' active' : '')} onClick={() => setPestania('reportes')}>📊 Reportes</button>
-        <button className={'tab' + (pestania === 'despacho' ? ' active' : '')} onClick={() => setPestania('despacho')}>🚚 Despacho</button>
+        {!esEquipoLog && <button className={'tab' + (pestania === 'reportes' ? ' active' : '')} onClick={() => setPestania('reportes')}>📊 Reportes</button>}
+        {!esEquipoLog && <button className={'tab' + (pestania === 'despacho' ? ' active' : '')} onClick={() => setPestania('despacho')}>🚚 Despacho</button>}
       </div>
 
-      {pestania === 'gantt' ? <LogisticaGantt /> : pestania === 'tareas' ? <LogisticaTareas /> : pestania === 'reportes' ? <LogisticaReportes /> : <DespachoView />}
+      {pestania === 'gantt' ? <LogisticaGantt />
+        : pestania === 'tareas' ? <LogisticaTareas />
+        : (!esEquipoLog && pestania === 'reportes') ? <LogisticaReportes />
+        : (!esEquipoLog && pestania === 'despacho') ? <DespachoView />
+        : <LogisticaGantt />}
     </div>
   )
 }
