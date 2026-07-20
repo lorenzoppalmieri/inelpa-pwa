@@ -21,6 +21,9 @@ function color(e: EstadoDespacho): string { return ESTADOS_DESPACHO.find((x) => 
 
 export default function DespachoView() {
   const { usuario } = useAuth()
+  // Melany = supervisora del sector: solo ella puede eliminar despachos. El equipo
+  // (cuenta 'despacho') opera normalmente (crear, embalar, despachar) pero no borra.
+  const esSupervisora = usuario?.usuario === 'melany'
   const despachos = useLiveQuery(() => db.despachos.toArray(), []) ?? []
 
   const [ahora, setAhora] = useState(() => Date.now())
@@ -146,7 +149,7 @@ export default function DespachoView() {
         <div className="row-actions">
           {children}
           <button className="btn" onClick={() => setFicha(d)}>👁 Ficha</button>
-          <button className="btn btn-rojo" onClick={() => void borrar(d)}>🗑</button>
+          {esSupervisora && <button className="btn btn-rojo" onClick={() => void borrar(d)}>🗑</button>}
         </div>
       </div>
     )
@@ -216,7 +219,7 @@ export default function DespachoView() {
                 ? <button className="btn btn-primary" onClick={() => void reanudar(d)}>▶ Reanudar</button>
                 : <button className="btn btn-rojo" onClick={() => abrirDemora(d)}>⛔ Demora</button>}
               <button className="btn" onClick={() => setFicha(d)}>👁 Ficha</button>
-              <button className="btn btn-rojo" onClick={() => void borrar(d)}>🗑</button>
+              {esSupervisora && <button className="btn btn-rojo" onClick={() => void borrar(d)}>🗑</button>}
             </div>
           </div>
         )
@@ -244,7 +247,7 @@ export default function DespachoView() {
                 {listo ? '🚚 Despachar' : '🔒 Completá el checklist'}
               </button>
               <button className="btn" onClick={() => setFicha(d)}>👁 Ficha / Checklist</button>
-              <button className="btn btn-rojo" onClick={() => void borrar(d)}>🗑</button>
+              {esSupervisora && <button className="btn btn-rojo" onClick={() => void borrar(d)}>🗑</button>}
             </div>
           </div>
         )
@@ -272,7 +275,7 @@ export default function DespachoView() {
           </div>
           <div className="row-actions">
             <button className="btn" onClick={() => setFicha(d)}>👁 Ficha</button>
-            <button className="btn btn-rojo" onClick={() => void borrar(d)}>🗑</button>
+            {esSupervisora && <button className="btn btn-rojo" onClick={() => void borrar(d)}>🗑</button>}
           </div>
         </div>
       ))}
