@@ -354,7 +354,7 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
   const [editar, setEditar] = useState<Tarea | null>(null) // v1.16: tarea en edicion
   // v1.16: toolbar del listado de tareas (filtros + agrupacion para legibilidad).
   const [filtroSector, setFiltroSector] = useState<'todos' | SectorId>('todos')
-  const [agruparPor, setAgruparPor] = useState<'sector' | 'maquina' | 'operario'>('sector')
+  const [agruparPor, setAgruparPor] = useState<'sector' | 'maquina' | 'operario' | 'modelo'>('sector')
   const [filtroFecha, setFiltroFecha] = useState('')
   // v1.17: período (mes) + estado de la operación para el listado.
   const [periodoLista, setPeriodoLista] = useState<PeriodoLista>('mes_actual')
@@ -567,6 +567,7 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
       let key: string, label: string
       if (agruparPor === 'maquina') { key = t.maquinaId; label = nombreMaquina(t.maquinaId) }
       else if (agruparPor === 'operario') { key = t.operarioId ?? '__sin__'; label = t.operarioId ? nombreOperario(t.operarioId) : 'Sin asignar' }
+      else if (agruparPor === 'modelo') { key = t.modelo || '__sin__'; label = t.modelo || 'Sin modelo' }
       else { key = t.sectorId; label = sectorById(t.sectorId).nombre }
       const g = m.get(key) ?? { label, items: [] }
       g.items.push(t); m.set(key, g)
@@ -777,10 +778,11 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
           <option value="todos">Todos los sectores</option>
           {SECTORES.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
         </select>
-        <select className="select" value={agruparPor} onChange={(e) => setAgruparPor(e.target.value as 'sector' | 'maquina' | 'operario')}>
+        <select className="select" value={agruparPor} onChange={(e) => setAgruparPor(e.target.value as 'sector' | 'maquina' | 'operario' | 'modelo')}>
           <option value="sector">Agrupar por sector</option>
           <option value="maquina">Agrupar por estación</option>
           <option value="operario">Agrupar por colaborador</option>
+          <option value="modelo">Agrupar por modelo</option>
         </select>
         <input type="date" className="select" value={filtroFecha} onChange={(e) => setFiltroFecha(e.target.value)} title="Filtrar por día de arranque" />
         {filtroFecha && <button className="btn" onClick={() => setFiltroFecha('')}>✕ Quitar día</button>}
