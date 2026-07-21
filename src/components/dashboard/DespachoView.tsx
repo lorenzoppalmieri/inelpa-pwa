@@ -5,7 +5,7 @@ import { useAuth } from '../../auth/AuthContext'
 import type { DespachoTrafo, EstadoDespacho, LineaProduccion } from '../../types'
 import {
   ESTADOS_DESPACHO, estadoDespachoLabel, RESPONSABLES_DESPACHO, MOTIVOS_DEMORA_DESPACHO,
-  checklistCompleto, checklistFaltantes, seriesDespacho,
+  checklistCompleto, checklistFaltantes, seriesDespacho, UBICACIONES_DESPACHO,
 } from '../../types'
 import { guardarDespacho, eliminarDespacho } from '../../sync/syncEngine'
 import { fmtDur, minutosEntre, fechaCorta, hhmm } from '../../lib/time'
@@ -86,6 +86,10 @@ export default function DespachoView() {
     const set = d.cargados ?? []
     const cargados = set.includes(serie) ? set.filter((s) => s !== serie) : [...set, serie]
     await guardarDespacho({ ...d, cargados })
+  }
+  // v1.33: ubicación física donde se hace el embalaje (obligatoria para finalizar).
+  async function setUbicacion(d: DespachoTrafo, u: string) {
+    await guardarDespacho({ ...d, ubicacionDeposito: u })
   }
 
   // Iniciar embalaje: se pide la operaria.
@@ -292,8 +296,31 @@ export default function DespachoView() {
               </div>
               {chip(d.estado)}
             </div>
-            <div className="row-actions">
-              <button className="btn btn-verde" style={{ flex: 1 }} onClick={() => void marcarEmbalado(d)}>✓ Marcar embalado</button>
+
+            {/* Ubicación de trabajo — OBLIGATORIA para poder marcar embalado */}
+            <div style={{ marginTop: 6 }}>
+              <div className="meta" style={{ marginBottom: 6 }}>📍 Ubicación de trabajo <span style={{ color: 'var(--rojo)' }}>*</span></div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {UBICACIONES_DESPACHO.map((u) => {
+                  const on = d.ubicacionDeposito === u
+                  return (
+                    <button key={u} type="button" onClick={() => void setUbicacion(d, u)}
+                      style={{
+                        padding: '10px 16px', borderRadius: 10, cursor: 'pointer', fontSize: '.95rem', minHeight: 48,
+                        border: '2px solid ' + (on ? 'var(--azul-claro)' : 'var(--borde)'),
+                        background: on ? 'var(--azul-claro)' : 'transparent',
+                        color: on ? '#fff' : 'var(--texto)', fontWeight: on ? 800 : 600,
+                      }}>{on ? '● ' : '○ '}{u}</button>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div className="row-actions" style={{ marginTop: 8 }}>
+              <button className="btn btn-verde" style={{ flex: 1 }} disabled={!d.ubicacionDeposito}
+                onClick={() => void marcarEmbalado(d)}>
+                {d.ubicacionDeposito ? '✓ Marcar embalado' : '🔒 Elegí la ubicación'}
+              </button>
               {demorado
                 ? <button className="btn btn-primary" onClick={() => void reanudar(d)}>▶ Reanudar</button>
                 : <button className="btn btn-rojo" onClick={() => abrirDemora(d)}>⛔ Demora</button>}

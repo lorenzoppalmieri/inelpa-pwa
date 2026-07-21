@@ -101,6 +101,7 @@ export default function FichaDespacho({ despacho: d, onClose }: { despacho: Desp
           {seccion('Embalaje')}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14 }}>
             <Dato label="Operario" valor={d.operario} />
+            <Dato label="Ubicación" valor={d.ubicacionDeposito} />
             <Dato label="Inicio" valor={d.embalajeInicio ? `${fechaCorta(d.embalajeInicio)} ${hhmm(d.embalajeInicio)}` : undefined} />
             <Dato label="Fin" valor={d.embalajeFin ? `${fechaCorta(d.embalajeFin)} ${hhmm(d.embalajeFin)}` : undefined} />
             <Dato label="Tiempo activo" valor={d.embalajeInicio ? fmtDur(minsEmbalaje(d, ahoraISO)) : undefined} />

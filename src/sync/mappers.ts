@@ -282,6 +282,7 @@ export interface DespachoRow {
   fecha_ingreso: string
   estado: string
   operario: string | null
+  ubicacion_deposito: string | null
   embalaje_inicio: string | null
   embalaje_fin: string | null
   tipo_embalaje: string | null
@@ -319,6 +320,7 @@ export function despachoFromRow(r: DespachoRow): DespachoTrafo {
     fechaIngreso: r.fecha_ingreso,
     estado: r.estado as EstadoDespacho,
     operario: u(r.operario),
+    ubicacionDeposito: u(r.ubicacion_deposito),
     embalajeInicio: u(r.embalaje_inicio),
     embalajeFin: u(r.embalaje_fin),
     tipoEmbalaje: u(r.tipo_embalaje),
@@ -356,6 +358,7 @@ export function despachoToRow(d: DespachoTrafo): DespachoRow {
     fecha_ingreso: d.fechaIngreso,
     estado: d.estado,
     operario: d.operario ?? null,
+    ubicacion_deposito: d.ubicacionDeposito ?? null,
     embalaje_inicio: d.embalajeInicio ?? null,
     embalaje_fin: d.embalajeFin ?? null,
     tipo_embalaje: d.tipoEmbalaje ?? null,

@@ -473,6 +473,9 @@ export function estadoDespachoLabel(e: EstadoDespacho): string {
 // Colaboradoras del sector despacho (operarias del embalaje). No son cuentas de login.
 export const RESPONSABLES_DESPACHO: string[] = ['Eugenia Suarez', 'Maribel Oggero']
 
+// Ubicaciones físicas donde se realiza el embalaje (obligatorio al finalizar).
+export const UBICACIONES_DESPACHO: string[] = ['INELPA', 'Depósito 25 de Mayo', 'CERDAN']
+
 // Causas frecuentes de demora en despacho (relevamiento Melany, seccion 5).
 export const MOTIVOS_DEMORA_DESPACHO: string[] = [
   'Espera puente grúa', 'Falta de materiales (carpintería)', 'Espera ensayo (laboratorio)',
@@ -527,6 +530,7 @@ export interface DespachoTrafo {
   estado: EstadoDespacho
   // --- Embalaje ---
   operario?: string              // colaboradora que embala
+  ubicacionDeposito?: string     // v1.33: dónde se hizo el embalaje (obligatorio al finalizar)
   embalajeInicio?: string        // ISO
   embalajeFin?: string           // ISO
   tipoEmbalaje?: string
