@@ -5,13 +5,14 @@ import { useAuth } from '../../auth/AuthContext'
 import type { DespachoTrafo, EstadoDespacho, LineaProduccion } from '../../types'
 import {
   ESTADOS_DESPACHO, estadoDespachoLabel, RESPONSABLES_DESPACHO, MOTIVOS_DEMORA_DESPACHO,
-  checklistCompleto, checklistFaltantes,
+  checklistCompleto, checklistFaltantes, seriesDespacho,
 } from '../../types'
 import { guardarDespacho, eliminarDespacho } from '../../sync/syncEngine'
 import { fmtDur, minutosEntre, fechaCorta, hhmm } from '../../lib/time'
 import FichaDespacho from './FichaDespacho'
 import DespachoReportes from './DespachoReportes'
 import AlertasDespacho from './AlertasDespacho'
+import ChipsInput from './ChipsInput'
 import FletesInternos from './FletesInternos'
 
 // ============================================================
@@ -38,7 +39,7 @@ export default function DespachoView() {
   // Alta.
   const [ot, setOt] = useState('')
   const [cliente, setCliente] = useState('')
-  const [nroSerie, setNroSerie] = useState('')
+  const [numerosSerie, setNumerosSerie] = useState<string[]>([])
   const [potencia, setPotencia] = useState('')
   const [tipo, setTipo] = useState('')
   const [linea, setLinea] = useState<LineaProduccion>('distribucion')
@@ -63,18 +64,26 @@ export default function DespachoView() {
   }
 
   async function crear() {
-    if (!ot.trim() || !cliente.trim() || !nroSerie.trim()) { setMsg('Completá OT, cliente y N° de serie.'); return }
+    if (!ot.trim() || !cliente.trim() || numerosSerie.length === 0) { setMsg('Completá OT, cliente y al menos un N° de serie.'); return }
     const d: DespachoTrafo = {
       id: crypto.randomUUID(),
-      ot: ot.trim(), cliente: cliente.trim(), nroSerie: nroSerie.trim(),
+      ot: ot.trim(), cliente: cliente.trim(),
+      nroSerie: numerosSerie.join(', '), numerosSerie,
       potencia: potencia.trim() || undefined, tipo: tipo.trim() || undefined,
       linea, fechaIngreso: new Date().toISOString(),
       estado: 'esperando_embalaje',
       creada: new Date().toISOString(), creadaPor: usuario?.usuario,
     }
     await guardarDespacho(d)
-    setOt(''); setCliente(''); setNroSerie(''); setPotencia(''); setTipo(''); setLinea('distribucion')
-    setMsg(`Trafo ${d.nroSerie} ingresado a despacho.`)
+    setOt(''); setCliente(''); setNumerosSerie([]); setPotencia(''); setTipo(''); setLinea('distribucion')
+    setMsg(`Despacho de ${numerosSerie.length} unidad(es) ingresado.`)
+  }
+
+  // Tilda/destilda una serie como cargada al camión.
+  async function toggleCargado(d: DespachoTrafo, serie: string) {
+    const set = d.cargados ?? []
+    const cargados = set.includes(serie) ? set.filter((s) => s !== serie) : [...set, serie]
+    await guardarDespacho({ ...d, cargados })
   }
 
   // Iniciar embalaje: se pide la operaria.
@@ -136,11 +145,43 @@ export default function DespachoView() {
   }, [despachos, ahora, busqueda])
 
   const chip = (e: EstadoDespacho) => <span className="estado-chip" style={{ background: color(e) }}>{estadoDespachoLabel(e)}</span>
+
+  // Series del viaje como checkboxes: el operario tilda cada unidad que sube al camión.
+  const seriesUI = (d: DespachoTrafo) => {
+    const series = seriesDespacho(d)
+    if (series.length === 0) return null
+    const cargados = d.cargados ?? []
+    return (
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+        {series.map((s) => {
+          const on = cargados.includes(s)
+          return (
+            <button key={s} type="button" onClick={() => void toggleCargado(d, s)}
+              style={{
+                padding: '4px 10px', borderRadius: 8, cursor: 'pointer', fontSize: '.82rem',
+                border: '1px solid ' + (on ? 'var(--estado-fin)' : 'var(--borde)'),
+                background: on ? 'var(--estado-fin)' : 'transparent', color: on ? '#05230f' : 'var(--texto)', fontWeight: on ? 800 : 600,
+              }}>{on ? '☑' : '☐'} {s}</button>
+          )
+        })}
+        {series.length > 1 && <span className="meta" style={{ alignSelf: 'center' }}>{cargados.filter((c) => series.includes(c)).length}/{series.length} cargados</span>}
+      </div>
+    )
+  }
+
+  const tituloCard = (d: DespachoTrafo) => {
+    const s = seriesDespacho(d)
+    return s.length > 1 ? `Despacho · ${s.length} unidades` : `Serie ${s[0] ?? (d.nroSerie || '—')}`
+  }
+
   const cab = (d: DespachoTrafo) => (
-    <div className="meta">
-      {d.linea === 'rural' ? '🚜 Rural' : '🏭 Distribución'} · OT <strong>{d.ot}</strong> · {d.cliente}
-      {d.potencia ? <> · {d.potencia}</> : null}{d.tipo ? <> · {d.tipo}</> : null}
-    </div>
+    <>
+      <div className="meta">
+        {d.linea === 'rural' ? '🚜 Rural' : '🏭 Distribución'} · OT <strong>{d.ot}</strong> · Cliente <strong>{d.cliente}</strong>
+        {d.potencia ? <> · {d.potencia}</> : null}{d.tipo ? <> · {d.tipo}</> : null}
+      </div>
+      {seriesUI(d)}
+    </>
   )
 
   function Tarjeta({ d, children }: { d: DespachoTrafo; children: ReactNode }) {
@@ -148,7 +189,7 @@ export default function DespachoView() {
       <div className="card logi-tarea" key={d.id} style={{ borderLeft: `5px solid ${color(d.estado)}` }}>
         <div className="card-header">
           <div>
-            <h3>Serie {d.nroSerie || '—'}</h3>
+            <h3>{tituloCard(d)}</h3>
             {cab(d)}
           </div>
           {chip(d.estado)}
@@ -195,11 +236,14 @@ export default function DespachoView() {
       {/* Alta — solo Melany crea/envía tareas de embalaje; el equipo las ejecuta */}
       {esSupervisora && (
       <div className="card">
-        <div className="section-title">Ingresar transformador a despacho (tarea de embalaje)</div>
+        <div className="section-title">Nuevo despacho · uno o varios transformadores para un mismo viaje</div>
         <div className="form-grid">
           <div className="field"><label>OT</label><input className="input" value={ot} onChange={(e) => setOt(e.target.value)} placeholder="OT-1234" /></div>
           <div className="field"><label>Cliente</label><input className="input" value={cliente} onChange={(e) => setCliente(e.target.value)} /></div>
-          <div className="field"><label>N° de serie</label><input className="input" value={nroSerie} onChange={(e) => setNroSerie(e.target.value)} placeholder="M10-0581" /></div>
+          <div className="field" style={{ gridColumn: '1 / -1' }}>
+            <label>N° de serie (agregá cada unidad del viaje)</label>
+            <ChipsInput valores={numerosSerie} onChange={setNumerosSerie} placeholder="ej. 24664 · Enter para agregar" />
+          </div>
           <div className="field"><label>Potencia</label><input className="input" value={potencia} onChange={(e) => setPotencia(e.target.value)} placeholder="315 kVA" /></div>
           <div className="field"><label>Tipo</label><input className="input" value={tipo} onChange={(e) => setTipo(e.target.value)} placeholder="Trifásico / Monoposte…" /></div>
           <div className="field"><label>Línea</label>
@@ -234,7 +278,7 @@ export default function DespachoView() {
           <div className="card logi-tarea" key={d.id} style={{ borderLeft: `5px solid ${color(d.estado)}` }}>
             <div className="card-header">
               <div>
-                <h3>Serie {d.nroSerie || '—'}</h3>
+                <h3>{tituloCard(d)}</h3>
                 {cab(d)}
                 <div className="meta" style={{ marginTop: 3 }}>
                   Operaria <strong>{d.operario ?? '—'}</strong> · <strong style={{ color: 'var(--naranja)' }}>embalando {fmtDur(minsEmbalaje(d))}</strong>
@@ -265,7 +309,7 @@ export default function DespachoView() {
           <div className="card logi-tarea" key={d.id} style={{ borderLeft: `5px solid ${color(d.estado)}` }}>
             <div className="card-header">
               <div>
-                <h3>Serie {d.nroSerie || '—'}</h3>
+                <h3>{tituloCard(d)}</h3>
                 {cab(d)}
                 <div className="meta" style={{ marginTop: 3, color: listo ? 'var(--estado-fin)' : 'var(--naranja)' }}>
                   {listo ? '✓ Checklist completo' : `Checklist incompleto — faltan: ${faltan.join(', ')}`}
@@ -304,7 +348,7 @@ export default function DespachoView() {
         <div className="card" key={d.id} style={{ borderLeft: `5px solid ${color(d.estado)}` }}>
           <div className="card-header">
             <div>
-              <h3>Serie {d.nroSerie || '—'}</h3>
+              <h3>{tituloCard(d)}</h3>
               {cab(d)}
               <div className="meta" style={{ marginTop: 3 }}>{d.transportista ? <>Transporte {d.transportista} · {d.patente} · Remito {d.remito}</> : null}{d.entregadaEn ? <> · Entregado {fechaCorta(d.entregadaEn)}</> : null}</div>
             </div>

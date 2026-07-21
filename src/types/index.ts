@@ -515,7 +515,9 @@ export interface DespachoTrafo {
   // --- Datos generales ---
   ot: string                     // orden de trabajo
   cliente: string
-  nroSerie: string
+  nroSerie: string               // legacy / visualización: join de numerosSerie
+  numerosSerie?: string[]        // v1.30: N° de serie de cada trafo del viaje (1+)
+  cargados?: string[]            // series ya cargadas al camión (tildadas)
   potencia?: string
   tipo?: string                  // tipo de transformador
   linea: LineaProduccion         // distribucion / rural (los tiempos difieren)
@@ -549,6 +551,13 @@ export interface DespachoTrafo {
   creada: string
   creadaPor?: string
   entregadaEn?: string           // ISO al marcar entregado
+}
+
+// Series del despacho (viaje con 1+ trafos). Usa el array nuevo; cae al campo
+// legacy nroSerie (una sola) para los despachos viejos.
+export function seriesDespacho(d: DespachoTrafo): string[] {
+  if (d.numerosSerie && d.numerosSerie.length) return d.numerosSerie
+  return d.nroSerie ? d.nroSerie.split(',').map((s) => s.trim()).filter(Boolean) : []
 }
 
 // v1.28 (Fase 3) — umbrales de las alertas automáticas del sector despacho.
