@@ -7,6 +7,7 @@ import {
   operariosParaSector, esSectorHerreria, maquinaSirveSector, claveEstandar,
   type MaterialBobina, type SectorId, type OrdenProduccion, type Tarea,
   type Semielaborado, type EstadoSemielaborado, type TipoTarea, type Feriado, type EstadoTarea,
+  type DatosBobinado,
 } from '../../types'
 import { MODELOS_CATALOGO, modeloPorNombre, componentesDeModelo, componentePorCodigo } from '../../data/catalogo'
 import { guardarOrden, guardarTarea, guardarSemielaborado, eliminarTarea, eliminarOrden, guardarFeriado, eliminarFeriado } from '../../sync/syncEngine'
@@ -14,6 +15,18 @@ import { useAuth } from '../../auth/AuthContext'
 import { isoWeek, fechaCorta, hhmm } from '../../lib/time'
 import { tiempoNetoMin } from '../../lib/kpi'
 import EditarTarea from './EditarTarea'
+
+// v1.34: texto con los datos que cargan los bobinadores al finalizar (código de
+// bobina + diámetros). Devuelve '' si la tarea no es de bobinado / no tiene datos,
+// para no ensuciar las tarjetas de otros sectores.
+function datosBobinadoTxt(d?: DatosBobinado): string {
+  if (!d) return ''
+  const partes: string[] = []
+  if (d.codigoBobina) partes.push(`Cód: ${d.codigoBobina}`)
+  if (d.diametroInternoMm != null) partes.push(`Ø int: ${d.diametroInternoMm}mm`)
+  if (d.diametroExternoMm != null) partes.push(`Ø ext: ${d.diametroExternoMm}mm`)
+  return partes.join(' · ')
+}
 
 // v1.16: resumen de "Carga actual" (tareas asignadas + pendientes, SIN finalizar)
 // de un colaborador o maquina, agrupado por modelo + fase (F1/F2/F3 del
@@ -590,6 +603,9 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
               : t.componenteCodigo ? <> · Semielaborado <strong>{componentePorCodigo(t.componenteCodigo)?.descripcion ?? t.componenteCodigo}</strong></> : null}
             {t.activaHoraRecuperacion ? <> · <strong style={{ color: 'var(--naranja)' }}>Hora recup. ON</strong></> : null}
             {t.estado === 'finalizada' ? <> · Neto <strong>{tiempoNetoMin(t)}m</strong></> : null}
+            {datosBobinadoTxt(t.datosBobinado)
+              ? <> · <strong style={{ color: 'var(--azul-claro)' }}>{datosBobinadoTxt(t.datosBobinado)}</strong></>
+              : null}
           </div>
         </div>
         <span className={'estado-chip e-' + (t.estado === 'en_proceso' ? 'proceso' : t.estado === 'pausada' ? 'pausa' : t.estado === 'finalizada' ? 'finalizado' : 'pendiente')}>
