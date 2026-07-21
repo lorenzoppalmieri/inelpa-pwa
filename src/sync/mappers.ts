@@ -275,6 +275,7 @@ export interface DespachoRow {
   nro_serie: string
   numeros_serie: string[] | null
   cargados: string[] | null
+  cut: string | null
   potencia: string | null
   tipo: string | null
   linea: string
@@ -311,6 +312,7 @@ export function despachoFromRow(r: DespachoRow): DespachoTrafo {
     nroSerie: r.nro_serie,
     numerosSerie: r.numeros_serie ?? undefined,
     cargados: r.cargados ?? undefined,
+    cut: u(r.cut),
     potencia: u(r.potencia),
     tipo: u(r.tipo),
     linea: r.linea as LineaProduccion,
@@ -347,6 +349,7 @@ export function despachoToRow(d: DespachoTrafo): DespachoRow {
     nro_serie: d.nroSerie,
     numeros_serie: d.numerosSerie ?? null,
     cargados: d.cargados ?? null,
+    cut: d.cut ?? null,
     potencia: d.potencia ?? null,
     tipo: d.tipo ?? null,
     linea: d.linea,

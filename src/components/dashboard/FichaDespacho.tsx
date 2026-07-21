@@ -93,6 +93,7 @@ export default function FichaDespacho({ despacho: d, onClose }: { despacho: Desp
             <Dato label="N° serie" valor={d.nroSerie} />
             <Dato label="Potencia" valor={d.potencia} />
             <Dato label="Tipo" valor={d.tipo} />
+            <Dato label="CUT (EPE)" valor={d.cut} />
             <Dato label="Línea" valor={d.linea === 'rural' ? 'Rural' : 'Distribución'} />
             <Dato label="Ingreso a stock" valor={`${fechaCorta(d.fechaIngreso)} ${hhmm(d.fechaIngreso)}`} />
           </div>

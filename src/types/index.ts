@@ -518,6 +518,7 @@ export interface DespachoTrafo {
   nroSerie: string               // legacy / visualización: join de numerosSerie
   numerosSerie?: string[]        // v1.30: N° de serie de cada trafo del viaje (1+)
   cargados?: string[]            // series ya cargadas al camión (tildadas)
+  cut?: string                   // v1.31: N° CUT (solo trafos tipo EPE; opcional)
   potencia?: string
   tipo?: string                  // tipo de transformador
   linea: LineaProduccion         // distribucion / rural (los tiempos difieren)

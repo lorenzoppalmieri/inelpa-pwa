@@ -40,6 +40,7 @@ export default function DespachoView() {
   const [ot, setOt] = useState('')
   const [cliente, setCliente] = useState('')
   const [numerosSerie, setNumerosSerie] = useState<string[]>([])
+  const [cut, setCut] = useState('')
   const [potencia, setPotencia] = useState('')
   const [tipo, setTipo] = useState('')
   const [linea, setLinea] = useState<LineaProduccion>('distribucion')
@@ -69,13 +70,14 @@ export default function DespachoView() {
       id: crypto.randomUUID(),
       ot: ot.trim(), cliente: cliente.trim(),
       nroSerie: numerosSerie.join(', '), numerosSerie,
+      cut: cut.trim() || undefined,
       potencia: potencia.trim() || undefined, tipo: tipo.trim() || undefined,
       linea, fechaIngreso: new Date().toISOString(),
       estado: 'esperando_embalaje',
       creada: new Date().toISOString(), creadaPor: usuario?.usuario,
     }
     await guardarDespacho(d)
-    setOt(''); setCliente(''); setNumerosSerie([]); setPotencia(''); setTipo(''); setLinea('distribucion')
+    setOt(''); setCliente(''); setNumerosSerie([]); setCut(''); setPotencia(''); setTipo(''); setLinea('distribucion')
     setMsg(`Despacho de ${numerosSerie.length} unidad(es) ingresado.`)
   }
 
@@ -179,6 +181,7 @@ export default function DespachoView() {
       <div className="meta">
         {d.linea === 'rural' ? '🚜 Rural' : '🏭 Distribución'} · OT <strong>{d.ot}</strong> · Cliente <strong>{d.cliente}</strong>
         {d.potencia ? <> · {d.potencia}</> : null}{d.tipo ? <> · {d.tipo}</> : null}
+        {d.cut ? <> · CUT <strong style={{ color: 'var(--naranja)' }}>{d.cut}</strong></> : null}
       </div>
       {seriesUI(d)}
     </>
@@ -246,6 +249,7 @@ export default function DespachoView() {
           </div>
           <div className="field"><label>Potencia</label><input className="input" value={potencia} onChange={(e) => setPotencia(e.target.value)} placeholder="315 kVA" /></div>
           <div className="field"><label>Tipo</label><input className="input" value={tipo} onChange={(e) => setTipo(e.target.value)} placeholder="Trifásico / Monoposte…" /></div>
+          <div className="field"><label>CUT (opcional · solo EPE)</label><input className="input" value={cut} onChange={(e) => setCut(e.target.value)} placeholder="ej. 49078" /></div>
           <div className="field"><label>Línea</label>
             <select className="input" value={linea} onChange={(e) => setLinea(e.target.value as LineaProduccion)}>
               <option value="distribucion">Distribución</option>
