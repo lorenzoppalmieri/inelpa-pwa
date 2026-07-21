@@ -4,7 +4,7 @@ import { db } from '../../db/dexie'
 import { useAuth } from '../../auth/AuthContext'
 import { isoWeek } from '../../lib/time'
 import type { EstadoTarea, Tarea, CausaParada } from '../../types'
-import { sectorById, TIPO_ESTACION_LABEL, maquinaSirveSector, esSectorBobinado, causaLabel } from '../../types'
+import { sectorById, TIPO_ESTACION_LABEL, maquinaSirveSector, esSectorBobinado, causaLabel, areaDemora } from '../../types'
 import { guardarTarea } from '../../sync/syncEngine'
 import TareaCard from './TareaCard'
 import ModalParada from './ModalParada'
@@ -62,9 +62,10 @@ export default function OperarioView() {
     const mesIni = new Date(hoy.getFullYear(), hoy.getMonth(), 1).toISOString()
     const mesFin = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 1).toISOString()
     return db.tareas.where('maquinaId').equals(maquinaId).and((t) => {
-      // CRUCE OBLIGATORIO máquina + colaborador: solo las tareas de esta estación
-      // que estén asignadas a MÍ o SIN asignar. Nunca las de otro responsable.
-      if (t.operarioId && t.operarioId !== usuario?.id) return false
+      // Cruce máquina + colaborador, CON EXCEPCIÓN para Montaje:
+      //  - Montaje (PA/PO, trabajo en equipo): se ven TODAS las de la estación.
+      //  - Resto (bobinadoras, etc.): solo las MÍAS o SIN asignar (nunca de otro).
+      if (areaDemora(t.sectorId) !== 'montaje' && t.operarioId && t.operarioId !== usuario?.id) return false
       if (t.estado !== 'finalizada') return true
       const ref = t.finReal ?? t.inicioReal
       return !!ref && ref >= mesIni && ref < mesFin
