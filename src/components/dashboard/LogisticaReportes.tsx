@@ -4,6 +4,7 @@ import { db } from '../../db/dexie'
 import type { TareaLogistica, PrioridadLog } from '../../types'
 import { responsablesDe, RESPONSABLES_LOGISTICA } from '../../types'
 import { fmtDur, minutosEntre } from '../../lib/time'
+import { PERIODOS_REPORTE, rangoReporte, enRango, type PeriodoReporte } from '../../lib/periodoReporte'
 
 // ============================================================
 // TABLERO DE REPORTES DE LOGISTICA (v1.25) — analitica para el LIDER del area.
@@ -40,11 +41,15 @@ export default function LogisticaReportes() {
   const [ahora, setAhora] = useState(() => Date.now())
   useEffect(() => { const id = setInterval(() => setAhora(Date.now()), 30000); return () => clearInterval(id) }, [])
   const ahoraISO = new Date(ahora).toISOString()
+  const [periodo, setPeriodo] = useState<PeriodoReporte>('mes_actual')
 
   const rep = useMemo(() => {
-    const finalizadas = tareas.filter((t) => t.estado === 'finalizada')
-    const abiertas = tareas.filter((t) => t.estado !== 'finalizada')
-    const pendientesSinTomar = tareas.filter((t) => t.estado === 'pendiente')
+    // Filtro por período: se toma la fecha de actividad (finalizada / iniciada / creada).
+    const r = rangoReporte(periodo)
+    const tp = tareas.filter((t) => enRango(t.finalizada ?? t.iniciada ?? t.creada, r.desde, r.hasta))
+    const finalizadas = tp.filter((t) => t.estado === 'finalizada')
+    const abiertas = tp.filter((t) => t.estado !== 'finalizada')
+    const pendientesSinTomar = tp.filter((t) => t.estado === 'pendiente')
 
     const promGeneral = media(finalizadas.map(resolucion))
 
@@ -88,11 +93,11 @@ export default function LogisticaReportes() {
     // 6) Tendencia por día de la semana (pedidos creados). Lun -> Dom.
     const dias = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
     const idx = [1, 2, 3, 4, 5, 6, 0]
-    const conteoDia = idx.map((d, i) => ({ dia: dias[i], n: tareas.filter((t) => new Date(t.creada).getDay() === d).length }))
+    const conteoDia = idx.map((d, i) => ({ dia: dias[i], n: tp.filter((t) => new Date(t.creada).getDay() === d).length }))
 
     // 7) Pareto de tiempo perdido por CAUSA de bloqueo (los abiertos cuentan hasta ahora).
     const bloq = new Map<string, { min: number; n: number }>()
-    for (const t of tareas) for (const b of t.bloqueos ?? []) {
+    for (const t of tp) for (const b of t.bloqueos ?? []) {
       const min = minutosEntre(b.inicio, b.fin ?? ahoraISO)
       if (min <= 0) continue
       const cur = bloq.get(b.motivo) ?? { min: 0, n: 0 }
@@ -102,9 +107,17 @@ export default function LogisticaReportes() {
     const bloqueoTotal = bloqueos.reduce((a, b) => a + b.min, 0)
 
     return { finalizadas, abiertas, pendientesSinTomar, promGeneral, porVolumen, porVelocidad, cargaArr, sinAsignar, totalAbiertas, shareMax, porPrioridad, espera, conteoDia, bloqueos, bloqueoTotal }
-  }, [tareas, ahoraISO])
+  }, [tareas, ahoraISO, periodo])
 
-  if (tareas.length === 0) return <div className="empty">Aún no hay tareas logísticas para analizar.</div>
+  const selectorPeriodo = (
+    <div className="filtros no-print" style={{ marginBottom: 12 }}>
+      <select className="select" value={periodo} onChange={(e) => setPeriodo(e.target.value as PeriodoReporte)}>
+        {PERIODOS_REPORTE.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+      </select>
+    </div>
+  )
+
+  if (tareas.length === 0) return <>{selectorPeriodo}<div className="empty">Aún no hay tareas logísticas para analizar.</div></>
 
   const maxVol = rep.porVolumen[0]?.v ?? 1
   const maxVel = Math.max(1, ...rep.porVelocidad.map((x) => x.prom))
@@ -125,6 +138,7 @@ export default function LogisticaReportes() {
 
   return (
     <>
+      {selectorPeriodo}
       {/* Indicadores resumen */}
       <div className="logi-kpis">
         <div className="logi-kpi"><div className="n">{rep.finalizadas.length}</div><div className="l">Finalizadas</div></div>

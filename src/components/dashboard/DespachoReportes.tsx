@@ -1,10 +1,11 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
 import type { DespachoTrafo, EstadoDespacho } from '../../types'
 import { ESTADOS_DESPACHO } from '../../types'
 import { fmtDur, minutosEntre, fechaCorta } from '../../lib/time'
 import { ars } from './FletesInternos'
+import { PERIODOS_REPORTE, rangoReporte, enRango, type PeriodoReporte } from '../../lib/periodoReporte'
 
 // ============================================================
 // REPORTES DE DESPACHO (v1.28, Fase 2) — analítica para Melany (supervisora).
@@ -43,19 +44,20 @@ const DIAS_ALERTA = 3 // "listos hace más de X días"
 export default function DespachoReportes({ despachos }: { despachos: DespachoTrafo[] }) {
   const ahoraISO = new Date().toISOString()
   const fletes = useLiveQuery(() => db.fletes.toArray(), []) ?? []
+  const [periodo, setPeriodo] = useState<PeriodoReporte>('mes_actual')
 
   const flete = useMemo(() => {
-    const now = new Date()
-    const mesAct = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-    const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-    const mesAnt = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`
-    const totMes = (m: string) => fletes.filter((f) => f.fecha.slice(0, 7) === m).reduce((s, f) => s + f.costo, 0)
-    const nMes = (m: string) => fletes.filter((f) => f.fecha.slice(0, 7) === m).length
-    return { gastoMes: totMes(mesAct), gastoMesAnt: totMes(mesAnt), viajesMes: nMes(mesAct) }
-  }, [fletes])
+    const r = rangoReporte(periodo)
+    const tot = (desde: string, hasta: string) => fletes.filter((f) => enRango(f.fecha, desde, hasta)).reduce((s, f) => s + f.costo, 0)
+    const viajes = fletes.filter((f) => enRango(f.fecha, r.desde, r.hasta)).length
+    return { gastoMes: tot(r.desde, r.hasta), gastoMesAnt: tot(r.desdePrev, r.hastaPrev), viajesMes: viajes }
+  }, [fletes, periodo])
 
   const rep = useMemo(() => {
-    const embalados = despachos.filter((d) => d.embalajeFin) // ya pasaron por embalaje
+    // Filtro por período: fecha de actividad = despacho / fin de embalaje / ingreso.
+    const r = rangoReporte(periodo)
+    const dp = despachos.filter((d) => enRango(d.fechaDespacho ?? d.embalajeFin ?? d.fechaIngreso, r.desde, r.hasta))
+    const embalados = dp.filter((d) => d.embalajeFin) // ya pasaron por embalaje
 
     // 1) Tiempo prom. de embalaje: general + por línea.
     const tDist = embalados.filter((d) => d.linea === 'distribucion').map(tiempoEmbalaje).filter((m) => m > 0)
@@ -69,7 +71,7 @@ export default function DespachoReportes({ despachos }: { despachos: DespachoTra
 
     // 3) Pareto de demoras por causa (tiempo perdido; las abiertas cuentan hasta ahora).
     const dem = new Map<string, { min: number; n: number }>()
-    for (const d of despachos) for (const dm of d.demoras ?? []) {
+    for (const d of dp) for (const dm of d.demoras ?? []) {
       const min = minutosEntre(dm.inicio, dm.fin ?? ahoraISO)
       if (min <= 0) continue
       const cur = dem.get(dm.causa) ?? { min: 0, n: 0 }
@@ -79,28 +81,32 @@ export default function DespachoReportes({ despachos }: { despachos: DespachoTra
     const demoraTotal = demoras.reduce((a, b) => a + b.min, 0)
 
     // 4) Equipos listos (embalado) hace más de X días, sin despachar.
-    const listos = despachos.filter((d) => d.estado === 'embalado' && d.embalajeFin)
+    const listos = dp.filter((d) => d.estado === 'embalado' && d.embalajeFin)
       .map((d) => ({ d, min: minutosEntre(d.embalajeFin, ahoraISO) }))
       .sort((a, b) => b.min - a.min)
 
     // 5) Distribución por estado (semáforo).
-    const porEstado = ESTADOS_DESPACHO.map((e) => ({ e: e.id as EstadoDespacho, label: e.label, color: e.color, n: despachos.filter((d) => d.estado === e.id).length }))
+    const porEstado = ESTADOS_DESPACHO.map((e) => ({ e: e.id as EstadoDespacho, label: e.label, color: e.color, n: dp.filter((d) => d.estado === e.id).length }))
 
-    // 6) Despachados este mes vs el mes anterior.
-    const now = new Date()
-    const mesAct = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-    const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-    const mesAnt = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`
-    const despEnMes = (m: string) => despachos.filter((d) => d.fechaDespacho && d.fechaDespacho.slice(0, 7) === m).length
-    const despAct = despEnMes(mesAct), despAnt = despEnMes(mesAnt)
+    // 6) Despachados en el período vs el período anterior (por fecha de despacho).
+    const despAct = despachos.filter((d) => enRango(d.fechaDespacho, r.desde, r.hasta)).length
+    const despAnt = despachos.filter((d) => enRango(d.fechaDespacho, r.desdePrev, r.hastaPrev)).length
 
     return {
       promGeneral, promDist: media(tDist), promRural: media(tRural), nDist: tDist.length, nRural: tRural.length,
       cantOp, demoras, demoraTotal, listos, porEstado, despAct, despAnt,
     }
-  }, [despachos, ahoraISO])
+  }, [despachos, ahoraISO, periodo])
 
-  if (despachos.length === 0) return <div className="empty">Aún no hay transformadores en despacho para analizar.</div>
+  const selectorPeriodo = (
+    <div className="filtros no-print" style={{ marginBottom: 12 }}>
+      <select className="select" value={periodo} onChange={(e) => setPeriodo(e.target.value as PeriodoReporte)}>
+        {PERIODOS_REPORTE.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+      </select>
+    </div>
+  )
+
+  if (despachos.length === 0) return <>{selectorPeriodo}<div className="empty">Aún no hay transformadores en despacho para analizar.</div></>
 
   const maxProm = Math.max(1, rep.promDist, rep.promRural)
   const maxOp = Math.max(1, ...rep.cantOp.map((x) => x.v))
@@ -111,10 +117,11 @@ export default function DespachoReportes({ despachos }: { despachos: DespachoTra
 
   return (
     <>
+      {selectorPeriodo}
       {/* Indicadores resumen */}
       <div className="logi-kpis">
-        <div className="logi-kpi"><div className="n">{rep.despAct}</div><div className="l">Despachados este mes</div></div>
-        <div className="logi-kpi"><div className="n" style={{ color: evol >= 0 ? 'var(--estado-fin)' : 'var(--rojo)' }}>{evol >= 0 ? '+' : ''}{evol}</div><div className="l">vs mes anterior ({rep.despAnt})</div></div>
+        <div className="logi-kpi"><div className="n">{rep.despAct}</div><div className="l">Despachados (período)</div></div>
+        <div className="logi-kpi"><div className="n" style={{ color: evol >= 0 ? 'var(--estado-fin)' : 'var(--rojo)' }}>{evol >= 0 ? '+' : ''}{evol}</div><div className="l">vs período anterior ({rep.despAnt})</div></div>
         <div className="logi-kpi"><div className="n">{rep.promGeneral ? fmtDur(rep.promGeneral) : '—'}</div><div className="l">Prom. embalaje</div></div>
         <div className="logi-kpi"><div className="n" style={{ color: (rep.listos[0]?.min ?? 0) > DIAS_ALERTA * 1440 ? 'var(--rojo)' : undefined }}>{rep.listos.length}</div><div className="l">Listos sin despachar</div></div>
       </div>
@@ -122,8 +129,8 @@ export default function DespachoReportes({ despachos }: { despachos: DespachoTra
       {/* Gasto de flete interno */}
       <div className="section-title">Gasto de flete interno</div>
       <div className="logi-kpis">
-        <div className="logi-kpi"><div className="n" style={{ color: 'var(--naranja)' }}>{ars(flete.gastoMes)}</div><div className="l">Gasto este mes</div></div>
-        <div className="logi-kpi"><div className="n">{ars(flete.gastoMesAnt)}</div><div className="l">Mes anterior</div></div>
+        <div className="logi-kpi"><div className="n" style={{ color: 'var(--naranja)' }}>{ars(flete.gastoMes)}</div><div className="l">Gasto (período)</div></div>
+        <div className="logi-kpi"><div className="n">{ars(flete.gastoMesAnt)}</div><div className="l">Período anterior</div></div>
         <div className="logi-kpi"><div className="n" style={{ color: (flete.gastoMes - flete.gastoMesAnt) <= 0 ? 'var(--estado-fin)' : 'var(--rojo)' }}>{flete.gastoMes - flete.gastoMesAnt >= 0 ? '+' : ''}{ars(flete.gastoMes - flete.gastoMesAnt)}</div><div className="l">Variación</div></div>
         <div className="logi-kpi"><div className="n">{flete.viajesMes}</div><div className="l">Viajes este mes</div></div>
       </div>
