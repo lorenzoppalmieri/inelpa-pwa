@@ -334,8 +334,8 @@ export default function DespachoView() {
       {/* Embalado (listo para despachar) */}
       <div className="section-title">Embalado · listo para despachar ({g.embalado.length})</div>
       {g.embalado.length === 0 ? <div className="empty">Nada embalado esperando despacho.</div> : g.embalado.map((d) => {
-        const listo = checklistCompleto(d.checklist)
-        const faltan = checklistFaltantes(d.checklist)
+        const listo = checklistCompleto(d.checklist, !!d.cut)
+        const faltan = checklistFaltantes(d.checklist, !!d.cut)
         return (
           <div className="card logi-tarea" key={d.id} style={{ borderLeft: `5px solid ${color(d.estado)}` }}>
             <div className="card-header">

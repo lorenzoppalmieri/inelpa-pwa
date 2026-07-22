@@ -490,27 +490,35 @@ export interface DemoraDespacho {
 }
 
 // Items del checklist de liberacion (seccion 8). Todos deben estar OK para despachar.
+// v1.35: se quitó 'fechas'; se agregaron 'rotulo' y 'cutColocado' (este último solo
+// se exige en trafos EPE, ver checklistCompleto).
 export interface ChecklistDespacho {
   pintura: boolean
   limpieza: boolean
   placa: boolean
   accesorios: boolean
   manual: boolean
-  fechas: boolean
   etiquetas: boolean
   fotos: boolean
+  rotulo: boolean
+  cutColocado: boolean          // calco/rótulo CUT (solo EPE)
 }
 export const CHECKLIST_DESPACHO_ITEMS: { key: keyof ChecklistDespacho; label: string }[] = [
   { key: 'pintura', label: 'Pintura' }, { key: 'limpieza', label: 'Limpieza' },
   { key: 'placa', label: 'Placa' }, { key: 'accesorios', label: 'Accesorios' },
-  { key: 'manual', label: 'Manual' }, { key: 'fechas', label: 'Fechas' },
-  { key: 'etiquetas', label: 'Etiquetas' }, { key: 'fotos', label: 'Fotos' },
+  { key: 'manual', label: 'Manual' }, { key: 'etiquetas', label: 'Etiquetas' },
+  { key: 'fotos', label: 'Fotos' }, { key: 'rotulo', label: 'Rótulo' },
+  { key: 'cutColocado', label: 'CUT (solo EPE)' },
 ]
-export function checklistCompleto(c?: ChecklistDespacho): boolean {
-  return !!c && CHECKLIST_DESPACHO_ITEMS.every((i) => c[i.key])
+// El item 'cutColocado' solo se exige si el trafo es EPE (esEPE = tiene N° CUT).
+function itemRequerido(key: keyof ChecklistDespacho, esEPE: boolean): boolean {
+  return key === 'cutColocado' ? esEPE : true
 }
-export function checklistFaltantes(c?: ChecklistDespacho): string[] {
-  return CHECKLIST_DESPACHO_ITEMS.filter((i) => !c?.[i.key]).map((i) => i.label)
+export function checklistCompleto(c?: ChecklistDespacho, esEPE = false): boolean {
+  return CHECKLIST_DESPACHO_ITEMS.every((i) => !itemRequerido(i.key, esEPE) || !!c?.[i.key])
+}
+export function checklistFaltantes(c?: ChecklistDespacho, esEPE = false): string[] {
+  return CHECKLIST_DESPACHO_ITEMS.filter((i) => itemRequerido(i.key, esEPE) && !c?.[i.key]).map((i) => i.label)
 }
 
 export interface DespachoTrafo {

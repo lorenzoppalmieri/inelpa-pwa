@@ -43,7 +43,7 @@ export default function FichaDespacho({ despacho: d, onClose }: { despacho: Desp
   const [errFoto, setErrFoto] = useState('')
 
   const baseChecklist: ChecklistDespacho = d.checklist ?? {
-    pintura: false, limpieza: false, placa: false, accesorios: false, manual: false, fechas: false, etiquetas: false, fotos: false,
+    pintura: false, limpieza: false, placa: false, accesorios: false, manual: false, etiquetas: false, fotos: false, rotulo: false, cutColocado: false,
   }
   async function toggleCheck(key: keyof ChecklistDespacho) {
     await guardarDespacho({ ...d, checklist: { ...baseChecklist, [key]: !baseChecklist[key] } })
@@ -127,8 +127,8 @@ export default function FichaDespacho({ despacho: d, onClose }: { despacho: Desp
               )
             })}
           </div>
-          <div className="meta" style={{ marginTop: 6, color: checklistCompleto(d.checklist) ? 'var(--estado-fin)' : 'var(--naranja)' }}>
-            {checklistCompleto(d.checklist) ? '✓ Checklist completo — habilitado para despachar' : 'Checklist incompleto — no se puede despachar hasta completarlo'}
+          <div className="meta" style={{ marginTop: 6, color: checklistCompleto(d.checklist, !!d.cut) ? 'var(--estado-fin)' : 'var(--naranja)' }}>
+            {checklistCompleto(d.checklist, !!d.cut) ? '✓ Checklist completo — habilitado para despachar' : 'Checklist incompleto — no se puede despachar hasta completarlo'}
           </div>
 
           {seccion(`Fotos${d.fotos?.length ? ` (${d.fotos.length})` : ''}`)}
