@@ -43,7 +43,7 @@ export default function FichaDespacho({ despacho: d, onClose }: { despacho: Desp
   const [errFoto, setErrFoto] = useState('')
 
   const baseChecklist: ChecklistDespacho = d.checklist ?? {
-    pintura: false, limpieza: false, placa: false, accesorios: false, manual: false, etiquetas: false, fotos: false, rotulo: false, cutColocado: false,
+    pintura: false, limpieza: false, placa: false, accesorios: false, manual: false, etiquetas: false, fotos: false, numeroSerie: false, cutColocado: false, rotulo: false,
   }
   async function toggleCheck(key: keyof ChecklistDespacho) {
     await guardarDespacho({ ...d, checklist: { ...baseChecklist, [key]: !baseChecklist[key] } })
@@ -114,21 +114,26 @@ export default function FichaDespacho({ despacho: d, onClose }: { despacho: Desp
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {CHECKLIST_DESPACHO_ITEMS.map((it) => {
               const on = !!d.checklist?.[it.key]
+              // Verde si está marcado. Si NO está: opcional -> ROJO "✗ Sin X" (alerta
+              // visual para Melany); obligatorio -> neutro (○), es lo que falta cargar.
+              const rojo = !on && it.opcional
+              const fondo = on ? 'var(--estado-fin)' : rojo ? 'var(--rojo)' : 'transparent'
+              const borde = on ? 'var(--estado-fin)' : rojo ? 'var(--rojo)' : 'var(--borde)'
+              const texto = (on || rojo) ? '#fff' : 'var(--texto)'
               return (
                 <button
                   key={it.key} type="button" onClick={() => void toggleCheck(it.key)}
                   style={{
                     padding: '6px 12px', borderRadius: 999, cursor: 'pointer', fontSize: '.85rem',
-                    border: '1px solid ' + (on ? 'var(--estado-fin)' : 'var(--borde)'),
-                    background: on ? 'var(--estado-fin)' : 'transparent',
-                    color: on ? '#05230f' : 'var(--texto)', fontWeight: on ? 800 : 500,
+                    border: '1px solid ' + borde, background: fondo,
+                    color: on ? '#05230f' : texto, fontWeight: on || rojo ? 800 : 500,
                   }}
-                >{on ? '✓ ' : '○ '}{it.label}</button>
+                >{on ? `✓ ${it.label}` : rojo ? `✗ Sin ${it.label}` : `○ ${it.label}`}</button>
               )
             })}
           </div>
-          <div className="meta" style={{ marginTop: 6, color: checklistCompleto(d.checklist, !!d.cut) ? 'var(--estado-fin)' : 'var(--naranja)' }}>
-            {checklistCompleto(d.checklist, !!d.cut) ? '✓ Checklist completo — habilitado para despachar' : 'Checklist incompleto — no se puede despachar hasta completarlo'}
+          <div className="meta" style={{ marginTop: 6, color: checklistCompleto(d.checklist) ? 'var(--estado-fin)' : 'var(--naranja)' }}>
+            {checklistCompleto(d.checklist) ? '✓ Checklist completo — habilitado para despachar' : 'Checklist incompleto — no se puede despachar hasta completarlo'}
           </div>
 
           {seccion(`Fotos${d.fotos?.length ? ` (${d.fotos.length})` : ''}`)}

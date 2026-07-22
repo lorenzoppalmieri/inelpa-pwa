@@ -489,9 +489,9 @@ export interface DemoraDespacho {
   fin?: string                   // ISO (undefined mientras sigue demorado)
 }
 
-// Items del checklist de liberacion (seccion 8). Todos deben estar OK para despachar.
-// v1.35: se quitó 'fechas'; se agregaron 'rotulo' y 'cutColocado' (este último solo
-// se exige en trafos EPE, ver checklistCompleto).
+// Items del checklist de liberacion. v1.35: 'fechas' fuera; se agregan
+// 'numeroSerie' (OBLIGATORIO) y 'cutColocado' + 'rotulo' (OPCIONALES: no bloquean
+// el despacho, pero se marcan en rojo en la ficha si faltan).
 export interface ChecklistDespacho {
   pintura: boolean
   limpieza: boolean
@@ -500,25 +500,24 @@ export interface ChecklistDespacho {
   manual: boolean
   etiquetas: boolean
   fotos: boolean
-  rotulo: boolean
-  cutColocado: boolean          // calco/rótulo CUT (solo EPE)
+  numeroSerie: boolean
+  cutColocado: boolean          // CUT (opcional, según cliente)
+  rotulo: boolean               // Rótulo (opcional, según cliente)
 }
-export const CHECKLIST_DESPACHO_ITEMS: { key: keyof ChecklistDespacho; label: string }[] = [
+export const CHECKLIST_DESPACHO_ITEMS: { key: keyof ChecklistDespacho; label: string; opcional?: boolean }[] = [
   { key: 'pintura', label: 'Pintura' }, { key: 'limpieza', label: 'Limpieza' },
   { key: 'placa', label: 'Placa' }, { key: 'accesorios', label: 'Accesorios' },
   { key: 'manual', label: 'Manual' }, { key: 'etiquetas', label: 'Etiquetas' },
-  { key: 'fotos', label: 'Fotos' }, { key: 'rotulo', label: 'Rótulo' },
-  { key: 'cutColocado', label: 'CUT (solo EPE)' },
+  { key: 'fotos', label: 'Fotos' }, { key: 'numeroSerie', label: 'N° Serie' },
+  { key: 'cutColocado', label: 'CUT', opcional: true },
+  { key: 'rotulo', label: 'Rótulo', opcional: true },
 ]
-// El item 'cutColocado' solo se exige si el trafo es EPE (esEPE = tiene N° CUT).
-function itemRequerido(key: keyof ChecklistDespacho, esEPE: boolean): boolean {
-  return key === 'cutColocado' ? esEPE : true
+// "Completo" = todos los items OBLIGATORIOS marcados (los opcionales no bloquean).
+export function checklistCompleto(c?: ChecklistDespacho): boolean {
+  return CHECKLIST_DESPACHO_ITEMS.every((i) => i.opcional || !!c?.[i.key])
 }
-export function checklistCompleto(c?: ChecklistDespacho, esEPE = false): boolean {
-  return CHECKLIST_DESPACHO_ITEMS.every((i) => !itemRequerido(i.key, esEPE) || !!c?.[i.key])
-}
-export function checklistFaltantes(c?: ChecklistDespacho, esEPE = false): string[] {
-  return CHECKLIST_DESPACHO_ITEMS.filter((i) => itemRequerido(i.key, esEPE) && !c?.[i.key]).map((i) => i.label)
+export function checklistFaltantes(c?: ChecklistDespacho): string[] {
+  return CHECKLIST_DESPACHO_ITEMS.filter((i) => !i.opcional && !c?.[i.key]).map((i) => i.label)
 }
 
 export interface DespachoTrafo {

@@ -36,7 +36,7 @@ export default function AlertasDespacho({ despachos }: { despachos: DespachoTraf
     }
 
     // 2) Embalados sin checklist / sin fotos (no se pueden despachar).
-    const incompletos = despachos.filter((d) => d.estado === 'embalado' && !checklistCompleto(d.checklist, !!d.cut))
+    const incompletos = despachos.filter((d) => d.estado === 'embalado' && !checklistCompleto(d.checklist))
     const sinFotos = incompletos.filter((d) => !d.checklist?.fotos).length
     if (incompletos.length) {
       out.push({ nivel: 'naranja', icono: '📋', texto: `${incompletos.length} embalado(s) con checklist incompleto${sinFotos ? ` · ${sinFotos} sin fotos` : ''} — no se pueden despachar.` })
