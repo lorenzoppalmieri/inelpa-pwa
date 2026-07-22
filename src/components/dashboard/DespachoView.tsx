@@ -14,6 +14,7 @@ import DespachoReportes from './DespachoReportes'
 import AlertasDespacho from './AlertasDespacho'
 import ChipsInput from './ChipsInput'
 import FletesInternos from './FletesInternos'
+import LogisticaTareas from './LogisticaTareas'
 
 // ============================================================
 // TABLERO DE DESPACHO Y EMBALAJE (v1.27) — sector Melany. Fase 1: seguimiento de
@@ -28,7 +29,7 @@ export default function DespachoView() {
   // Melany = supervisora del sector: solo ella puede eliminar despachos. El equipo
   // (cuenta 'despacho') opera normalmente (crear, embalar, despachar) pero no borra.
   const esSupervisora = usuario?.usuario === 'melany'
-  const [vista, setVista] = useState<'operativo' | 'reportes'>('operativo')
+  const [vista, setVista] = useState<'operativo' | 'tareas' | 'reportes'>('operativo')
   const [busqueda, setBusqueda] = useState('')
   const despachos = useLiveQuery(() => db.despachos.toArray(), []) ?? []
 
@@ -212,15 +213,16 @@ export default function DespachoView() {
 
   return (
     <>
-      {/* Sub-pestañas: el tablero operativo lo ve todo el equipo; los Reportes, solo Melany */}
-      {esSupervisora && (
-        <div className="tabs no-print" style={{ marginBottom: 10 }}>
-          <button className={'tab' + (vista === 'operativo' ? ' active' : '')} onClick={() => setVista('operativo')}>🚚 Operativo</button>
-          <button className={'tab' + (vista === 'reportes' ? ' active' : '')} onClick={() => setVista('reportes')}>📊 Reportes</button>
-        </div>
-      )}
+      {/* Sub-pestañas: Operativo y Tareas los ve todo el equipo; Reportes, solo Melany */}
+      <div className="tabs no-print" style={{ marginBottom: 10 }}>
+        <button className={'tab' + (vista === 'operativo' ? ' active' : '')} onClick={() => setVista('operativo')}>🚚 Operativo</button>
+        <button className={'tab' + (vista === 'tareas' ? ' active' : '')} onClick={() => setVista('tareas')}>📋 Tareas</button>
+        {esSupervisora && <button className={'tab' + (vista === 'reportes' ? ' active' : '')} onClick={() => setVista('reportes')}>📊 Reportes</button>}
+      </div>
 
-      {esSupervisora && vista === 'reportes' ? <DespachoReportes despachos={despachos} /> : (
+      {vista === 'tareas'
+        ? <LogisticaTareas origen="despacho" roster={RESPONSABLES_DESPACHO} esEncargado={esSupervisora} tituloAlta="Nueva tarea de despacho" />
+        : esSupervisora && vista === 'reportes' ? <DespachoReportes despachos={despachos} /> : (
       <>
       {/* Búsqueda rápida por N° de serie / OT / cliente */}
       <input

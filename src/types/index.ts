@@ -410,6 +410,7 @@ export const RESPONSABLES_LOGISTICA: string[] = [
 
 export interface TareaLogistica {
   id: string
+  origen?: 'logistica' | 'despacho'  // v1.36: separa las tareas de Giuliano (logística) de las de Melany (despacho). undefined = logística.
   titulo: string
   detalle?: string
   responsable: string            // legacy / fallback de visualizacion (join de responsables); '' = sin asignar

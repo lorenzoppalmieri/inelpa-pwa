@@ -40,11 +40,11 @@ function AutoTextarea({ value, onChange, placeholder }: { value: string; onChang
 }
 
 // Selector de uno o varios colaboradores (chips que se marcan/desmarcan).
-function SelectorResponsables({ seleccion, onChange }: { seleccion: string[]; onChange: (v: string[]) => void }) {
+function SelectorResponsables({ seleccion, onChange, roster = RESPONSABLES_LOGISTICA }: { seleccion: string[]; onChange: (v: string[]) => void; roster?: string[] }) {
   const toggle = (r: string) => onChange(seleccion.includes(r) ? seleccion.filter((x) => x !== r) : [...seleccion, r])
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-      {RESPONSABLES_LOGISTICA.map((r) => {
+      {roster.map((r) => {
         const on = seleccion.includes(r)
         return (
           <button
@@ -62,10 +62,23 @@ function SelectorResponsables({ seleccion, onChange }: { seleccion: string[]; on
   )
 }
 
-export default function LogisticaTareas() {
+export default function LogisticaTareas({
+  origen = 'logistica',
+  roster = RESPONSABLES_LOGISTICA,
+  esEncargado,
+  tituloAlta = 'Nueva tarea logística',
+}: {
+  origen?: 'logistica' | 'despacho'
+  roster?: string[]
+  esEncargado?: boolean            // si se pasa, define quién crea/borra; si no, se infiere Giuliano
+  tituloAlta?: string
+} = {}) {
   const { usuario } = useAuth()
-  const esGiuliano = usuario?.usuario === 'giuliano_logistica' // encargado: crea/borra
-  const tareas = useLiveQuery(() => db.tareasLogistica.toArray(), []) ?? []
+  // "Encargado" = quien puede crear/editar/borrar (Giuliano en logística, Melany en despacho).
+  const esGiuliano = esEncargado ?? (usuario?.usuario === 'giuliano_logistica')
+  // Solo las tareas del sector correspondiente (logística vs despacho).
+  const todas = useLiveQuery(() => db.tareasLogistica.toArray(), []) ?? []
+  const tareas = useMemo(() => todas.filter((t) => (t.origen ?? 'logistica') === origen), [todas, origen])
 
   const [ahora, setAhora] = useState(() => Date.now())
   useEffect(() => { const id = setInterval(() => setAhora(Date.now()), 30000); return () => clearInterval(id) }, [])
@@ -126,6 +139,7 @@ export default function LogisticaTareas() {
     if (!titulo.trim()) { setMsg('Completá el título de la tarea.'); return }
     const t: TareaLogistica = {
       id: crypto.randomUUID(),
+      origen,
       titulo: titulo.trim(),
       detalle: detalle.trim() || undefined,
       responsable: responsables.join(', '),   // '' si queda sin asignar
@@ -273,7 +287,7 @@ export default function LogisticaTareas() {
       {/* Alta (solo Giuliano) */}
       {esGiuliano && (
         <div className="card">
-          <div className="section-title">Nueva tarea logística</div>
+          <div className="section-title">{tituloAlta}</div>
           <div className="form-grid">
             <div className="field" style={{ gridColumn: '1 / -1' }}>
               <label>Título / pedido</label>
@@ -285,7 +299,7 @@ export default function LogisticaTareas() {
             </div>
             <div className="field" style={{ gridColumn: '1 / -1' }}>
               <label>Responsable(s) — podés elegir varios</label>
-              <SelectorResponsables seleccion={responsables} onChange={setResponsables} />
+              <SelectorResponsables seleccion={responsables} onChange={setResponsables} roster={roster} />
             </div>
             <div className="field">
               <label>Prioridad</label>
@@ -406,7 +420,7 @@ export default function LogisticaTareas() {
             <div className="meta" style={{ marginBottom: 10 }}>{tomando.titulo}</div>
             <div className="field" style={{ marginBottom: 12 }}>
               <label>Colaborador(es)</label>
-              <SelectorResponsables seleccion={quienToma} onChange={setQuienToma} />
+              <SelectorResponsables seleccion={quienToma} onChange={setQuienToma} roster={roster} />
             </div>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button className="btn" onClick={() => setTomando(null)}>Cancelar</button>
@@ -431,7 +445,7 @@ export default function LogisticaTareas() {
             </div>
             <div className="field" style={{ marginBottom: 12 }}>
               <label>Responsable(s) — podés elegir varios</label>
-              <SelectorResponsables seleccion={eResponsables} onChange={setEResponsables} />
+              <SelectorResponsables seleccion={eResponsables} onChange={setEResponsables} roster={roster} />
             </div>
             <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
               <div className="field" style={{ flex: 1 }}>
@@ -485,7 +499,7 @@ export default function LogisticaTareas() {
             <div className="meta" style={{ marginBottom: 10 }}>{reasignando.titulo}</div>
             <div className="field" style={{ marginBottom: 12 }}>
               <label>Nuevo(s) responsable(s)</label>
-              <SelectorResponsables seleccion={reasignaResp} onChange={setReasignaResp} />
+              <SelectorResponsables seleccion={reasignaResp} onChange={setReasignaResp} roster={roster} />
             </div>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button className="btn" onClick={() => setReasignando(null)}>Cancelar</button>

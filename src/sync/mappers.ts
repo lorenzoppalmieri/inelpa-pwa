@@ -107,6 +107,7 @@ export interface TiempoEstandarRow {
 
 export interface TareaLogisticaRow {
   id: string
+  origen: string | null
   titulo: string
   detalle: string | null
   responsable: string
@@ -491,6 +492,7 @@ export function lecturaToRow(l: MensajeLectura): MensajeLecturaRow {
 export function tareaLogFromRow(r: TareaLogisticaRow): TareaLogistica {
   return {
     id: r.id,
+    origen: (r.origen as TareaLogistica['origen']) ?? undefined,
     titulo: r.titulo,
     detalle: u(r.detalle),
     responsable: r.responsable,
@@ -515,6 +517,7 @@ export function tareaLogFromRow(r: TareaLogisticaRow): TareaLogistica {
 export function tareaLogToRow(t: TareaLogistica): TareaLogisticaRow {
   return {
     id: t.id,
+    origen: t.origen ?? 'logistica',
     titulo: t.titulo,
     detalle: t.detalle ?? null,
     responsable: t.responsable,
