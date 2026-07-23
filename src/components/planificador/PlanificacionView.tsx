@@ -15,6 +15,7 @@ import { useAuth } from '../../auth/AuthContext'
 import { isoWeek, fechaCorta, hhmm } from '../../lib/time'
 import { tiempoNetoMin } from '../../lib/kpi'
 import EditarTarea from './EditarTarea'
+import RetrabajosLab from './RetrabajosLab'
 
 // v1.34: texto con los datos que cargan los bobinadores al finalizar (código de
 // bobina + diámetros). Devuelve '' si la tarea no es de bobinado / no tiene datos,
@@ -69,6 +70,7 @@ export default function PlanificacionView({ focoTareaId, onFocoConsumido }: { fo
 
   return (
     <div>
+      {!soloReparacion && <RetrabajosLab />}
       <div className="tabs">
         {!soloReparacion && <button className={'tab' + (sub === 'ordenes' ? ' active' : '')} onClick={() => setSub('ordenes')}>Ordenes de fabricacion</button>}
         <button className={'tab' + (sub === 'asignar' ? ' active' : '')} onClick={() => setSub('asignar')}>{soloReparacion ? 'Cargar reparación' : 'Asignar tareas'}</button>

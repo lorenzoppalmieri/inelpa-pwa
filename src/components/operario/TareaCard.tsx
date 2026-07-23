@@ -3,7 +3,8 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
 import type { Tarea, CausaParada, DatosBobinado } from '../../types'
 import { sectorById, causaLabel, requiereDatosBobinado, esCausaLogistica, nombreSemielaborado } from '../../types'
-import { guardarTarea } from '../../sync/syncEngine'
+import { guardarTarea, guardarLaboratorio } from '../../sync/syncEngine'
+import type { TareaLaboratorio } from '../../types'
 import { useAuth } from '../../auth/AuthContext'
 import { hhmm, cronometro, fmtDur, minutosEntre, fechaCorta } from '../../lib/time'
 import { calcularTiempoNetoProductivo } from '../../lib/calendario'
@@ -122,6 +123,29 @@ export default function TareaCard({ tarea, onIniciar }: { tarea: Tarea; onInicia
       duracionEfectivaMin,
       datosBobinado: datosBobinado ?? tarea.datosBobinado,
     })
+
+    // v1.37: PUENTE A LABORATORIO. Al finalizar una tarea de Montaje PO, el trafo
+    // está terminado -> se crea automáticamente una tarea de ensayo (una sola vez).
+    const esMontajePO = tarea.sectorId === 'montaje_po_dist' || tarea.sectorId === 'montaje_po_rural'
+    if (esMontajePO) {
+      const yaExiste = await db.laboratorio.where('tareaOrigenId').equals(tarea.id).count()
+      if (yaExiste === 0) {
+        const orden = tarea.ordenId ? await db.ordenes.get(tarea.ordenId) : undefined
+        const lab: TareaLaboratorio = {
+          id: crypto.randomUUID(),
+          modelo: tarea.modelo,
+          nroSerie: tarea.nroTransformador || undefined,
+          ot: orden?.nroOrden,
+          linea: tarea.sectorId.includes('rural') ? 'rural' : 'distribucion',
+          ordenId: tarea.ordenId,
+          tareaOrigenId: tarea.id,
+          estado: 'pendiente',
+          creada: finReal,
+          creadaPor: usuario?.usuario,
+        }
+        await guardarLaboratorio(lab)
+      }
+    }
   }
 
   // "Paradas" en la tarjeta = SUMA de TODAS las paradas registradas (productivas y

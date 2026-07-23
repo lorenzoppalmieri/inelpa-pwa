@@ -2,7 +2,7 @@ import Dexie, { type Table } from 'dexie'
 import type {
   Usuario, Tarea, OrdenProduccion, SyncOp, Semielaborado, Maquina,
   ModeloTransformador, ComponenteSemielaborado, Objetivo, TareaLogistica, SolicitudLogistica, Feriado,
-  Mensaje, MensajeLectura, TiempoEstandar, DespachoTrafo, FleteInterno,
+  Mensaje, MensajeLectura, TiempoEstandar, DespachoTrafo, FleteInterno, TareaLaboratorio,
 } from '../types'
 
 // ============================================================
@@ -28,6 +28,7 @@ export class InelpaDB extends Dexie {
   estandares!: Table<TiempoEstandar, string>
   despachos!: Table<DespachoTrafo, string>
   fletes!: Table<FleteInterno, string>
+  laboratorio!: Table<TareaLaboratorio, string>
 
   constructor() {
     super('inelpa_pwa')
@@ -87,6 +88,10 @@ export class InelpaDB extends Dexie {
     // v1.28: fletes / viajes internos (costos de flete).
     this.version(12).stores({
       fletes: 'id, fecha, creada',
+    })
+    // v1.37: laboratorio (cola de ensayos).
+    this.version(13).stores({
+      laboratorio: 'id, estado, ordenId, tareaOrigenId, nroSerie, creada',
     })
   }
 }

@@ -1,12 +1,12 @@
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import { db } from '../db/dexie'
 import { supabase, SUPABASE_HABILITADO } from '../lib/supabaseClient'
-import type { SyncOp, Tarea, OrdenProduccion, Semielaborado, SectorId, Objetivo, TareaLogistica, SolicitudLogistica, Feriado, Mensaje, MensajeLectura, TiempoEstandar, DespachoTrafo, FleteInterno } from '../types'
+import type { SyncOp, Tarea, OrdenProduccion, Semielaborado, SectorId, Objetivo, TareaLogistica, SolicitudLogistica, Feriado, Mensaje, MensajeLectura, TiempoEstandar, DespachoTrafo, FleteInterno, TareaLaboratorio } from '../types'
 import { setFeriados } from '../lib/calendario'
 import {
-  tareaFromRow, paradaFromRow, ordenFromRow, semiFromRow, maquinaFromRow, usuarioFromRow, objetivoFromRow, tareaLogFromRow, solicitudLogFromRow, feriadoFromRow, mensajeFromRow, lecturaFromRow, estandarFromRow, despachoFromRow, fleteFromRow,
-  tareaToRow, paradaToRow, ordenToRow, semiToRow, objetivoToRow, tareaLogToRow, solicitudLogToRow, feriadoToRow, mensajeToRow, lecturaToRow, estandarToRow, despachoToRow, fleteToRow,
-  type TareaRow, type ParadaRow, type OrdenRow, type SemiRow, type MaquinaRow, type UsuarioRow, type ObjetivoRow, type TareaLogisticaRow, type SolicitudLogisticaRow, type FeriadoRow, type MensajeRow, type MensajeLecturaRow, type TiempoEstandarRow, type DespachoRow, type FleteRow,
+  tareaFromRow, paradaFromRow, ordenFromRow, semiFromRow, maquinaFromRow, usuarioFromRow, objetivoFromRow, tareaLogFromRow, solicitudLogFromRow, feriadoFromRow, mensajeFromRow, lecturaFromRow, estandarFromRow, despachoFromRow, fleteFromRow, laboratorioFromRow,
+  tareaToRow, paradaToRow, ordenToRow, semiToRow, objetivoToRow, tareaLogToRow, solicitudLogToRow, feriadoToRow, mensajeToRow, lecturaToRow, estandarToRow, despachoToRow, fleteToRow, laboratorioToRow,
+  type TareaRow, type ParadaRow, type OrdenRow, type SemiRow, type MaquinaRow, type UsuarioRow, type ObjetivoRow, type TareaLogisticaRow, type SolicitudLogisticaRow, type FeriadoRow, type MensajeRow, type MensajeLecturaRow, type TiempoEstandarRow, type DespachoRow, type FleteRow, type LaboratorioRow,
 } from './mappers'
 
 // ============================================================
@@ -112,10 +112,10 @@ export async function fetchInicial(): Promise<void> {
       db.maquinas.clear(), db.usuarios.clear(), db.ordenes.clear(),
       db.semielaborados.clear(), db.tareas.clear(), db.objetivos.clear(),
       db.tareasLogistica.clear(), db.solicitudesLogistica.clear(), db.feriados.clear(),
-      db.mensajes.clear(), db.mensajesLectura.clear(), db.estandares.clear(), db.despachos.clear(), db.fletes.clear(),
+      db.mensajes.clear(), db.mensajesLectura.clear(), db.estandares.clear(), db.despachos.clear(), db.fletes.clear(), db.laboratorio.clear(),
     ])
 
-    const [maqs, usrs, uss, ords, semis, tars, pars, objs, tlog, slog, fers, msgs, lects, ests, desp, flts] = await Promise.all([
+    const [maqs, usrs, uss, ords, semis, tars, pars, objs, tlog, slog, fers, msgs, lects, ests, desp, flts, labs] = await Promise.all([
       supabase.from('maquinas').select('*'),
       supabase.from('usuarios').select('id, nombre, usuario, rol, grupo_nomina, activo'),
       supabase.from('usuario_sectores').select('usuario_id, sector_id'),
@@ -132,6 +132,7 @@ export async function fetchInicial(): Promise<void> {
       supabase.from('tiempos_estandar').select('*'),
       supabase.from('despachos').select('*'),
       supabase.from('fletes_internos').select('*'),
+      supabase.from('laboratorio').select('*'),
     ])
 
     // Maquinas
@@ -167,6 +168,9 @@ export async function fetchInicial(): Promise<void> {
 
     // Fletes / viajes internos
     if (flts.data) await db.fletes.bulkPut((flts.data as FleteRow[]).map(fleteFromRow))
+
+    // Laboratorio (cola de ensayos)
+    if (labs.data) await db.laboratorio.bulkPut((labs.data as LaboratorioRow[]).map(laboratorioFromRow))
 
     // Tareas logisticas
     if (tlog.data) await db.tareasLogistica.bulkPut((tlog.data as TareaLogisticaRow[]).map(tareaLogFromRow))
@@ -292,6 +296,10 @@ async function onFleteChange(payload: Payload) {
   if (payload.eventType === 'DELETE') { await db.fletes.delete((payload.old as { id: string }).id); return }
   await db.fletes.put(fleteFromRow(payload.new as unknown as FleteRow))
 }
+async function onLaboratorioChange(payload: Payload) {
+  if (payload.eventType === 'DELETE') { await db.laboratorio.delete((payload.old as { id: string }).id); return }
+  await db.laboratorio.put(laboratorioFromRow(payload.new as unknown as LaboratorioRow))
+}
 
 function suscribirRealtime() {
   if (!supabase || canal) return
@@ -311,6 +319,7 @@ function suscribirRealtime() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'tiempos_estandar' }, onEstandarChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'despachos' }, onDespachoChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'fletes_internos' }, onFleteChange)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'laboratorio' }, onLaboratorioChange)
     .subscribe()
 }
 
@@ -414,6 +423,7 @@ async function empujar(op: SyncOp): Promise<EmpujeResultado> {
         : op.entidad === 'estandar' ? 'tiempos_estandar'
         : op.entidad === 'despacho' ? 'despachos'
         : op.entidad === 'flete' ? 'fletes_internos'
+        : op.entidad === 'laboratorio' ? 'laboratorio'
         : 'paradas'
       const { error } = await supabase.from(tabla).delete().eq('id', op.entidadId)
       if (error) return fallo(`delete ${op.entidad}`, error.message)
@@ -467,6 +477,10 @@ async function empujar(op: SyncOp): Promise<EmpujeResultado> {
       case 'flete': {
         const { error } = await supabase.from('fletes_internos').upsert(fleteToRow(op.payload as FleteInterno), { onConflict: 'id' })
         return error ? fallo('upsert flete', error.message) : OK_EMPUJE
+      }
+      case 'laboratorio': {
+        const { error } = await supabase.from('laboratorio').upsert(laboratorioToRow(op.payload as TareaLaboratorio), { onConflict: 'id' })
+        return error ? fallo('upsert laboratorio', error.message) : OK_EMPUJE
       }
       case 'tarea_logistica': {
         const { error } = await supabase.from('tareas_logistica').upsert(tareaLogToRow(op.payload as TareaLogistica), { onConflict: 'id' })
@@ -575,6 +589,16 @@ export async function guardarFlete(f: FleteInterno): Promise<void> {
 export async function eliminarFlete(f: FleteInterno): Promise<void> {
   await db.fletes.delete(f.id)
   await encolar({ entidad: 'flete', entidadId: f.id, tipo: 'delete', payload: f })
+}
+
+// v1.37: laboratorio (cola de ensayos).
+export async function guardarLaboratorio(t: TareaLaboratorio): Promise<void> {
+  await db.laboratorio.put(t)
+  await encolar({ entidad: 'laboratorio', entidadId: t.id, tipo: 'upsert', payload: t })
+}
+export async function eliminarLaboratorio(t: TareaLaboratorio): Promise<void> {
+  await db.laboratorio.delete(t.id)
+  await encolar({ entidad: 'laboratorio', entidadId: t.id, tipo: 'delete', payload: t })
 }
 
 // v1.17: feriados / dias no laborables (los carga el planificador).

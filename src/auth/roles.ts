@@ -44,6 +44,13 @@ export const PERMISOS: Record<Rol, Permisos> = {
     configurarEstandares: false, verTodosSectores: true,
     gestionProduccion: false, crearReparacion: false,
   },
+  // v1.37: Laboratorio = solo su cola de ensayos (vista propia).
+  laboratorio: {
+    verTareasPropias: false, cambiarEstadoTarea: false, verDashboard: false,
+    validarDatos: false, reasignarPrioridad: false, cargarProgramacion: false,
+    configurarEstandares: false, verTodosSectores: false,
+    gestionProduccion: false, crearReparacion: false,
+  },
 }
 
 export const ROL_LABEL: Record<Rol, string> = {
@@ -51,4 +58,5 @@ export const ROL_LABEL: Record<Rol, string> = {
   encargado: 'Encargado',
   planificador: 'Planificador',
   logistica: 'Logística',
+  laboratorio: 'Laboratorio',
 }

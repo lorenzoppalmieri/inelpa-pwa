@@ -15,6 +15,7 @@ import type {
   Mensaje, MensajeDestinoTipo, MensajeLectura,
   TiempoEstandar, AreaDemora, BloqueoLog,
   DespachoTrafo, EstadoDespacho, DemoraDespacho, ChecklistDespacho, FleteInterno,
+  TareaLaboratorio, EstadoLab, EnsayoEstado,
 } from '../types'
 
 // null -> undefined (Supabase devuelve null; la app usa undefined en opcionales).
@@ -416,6 +417,69 @@ export function fleteToRow(f: FleteInterno): FleteRow {
     observaciones: f.observaciones ?? null,
     creada_en: f.creada,
     creada_por: f.creadaPor ?? null,
+  }
+}
+
+// ---------- Laboratorio (v1.37) ----------
+export interface LaboratorioRow {
+  id: string
+  modelo: string
+  cliente: string | null
+  nro_serie: string | null
+  ot: string | null
+  linea: string | null
+  orden_id: string | null
+  tarea_origen_id: string | null
+  estado: string
+  ensayos: Record<string, EnsayoEstado> | null
+  comentario: string | null
+  resultado: string | null
+  retrabajo_resuelto: boolean | null
+  creada_en: string
+  creada_por: string | null
+  finalizada_en: string | null
+  finalizada_por: string | null
+}
+export function laboratorioFromRow(r: LaboratorioRow): TareaLaboratorio {
+  return {
+    id: r.id,
+    modelo: r.modelo,
+    cliente: u(r.cliente),
+    nroSerie: u(r.nro_serie),
+    ot: u(r.ot),
+    linea: (r.linea as LineaProduccion | null) ?? undefined,
+    ordenId: u(r.orden_id),
+    tareaOrigenId: u(r.tarea_origen_id),
+    estado: r.estado as EstadoLab,
+    ensayos: r.ensayos ?? undefined,
+    comentario: u(r.comentario),
+    resultado: (r.resultado as TareaLaboratorio['resultado']) ?? undefined,
+    retrabajoResuelto: r.retrabajo_resuelto ?? undefined,
+    creada: r.creada_en,
+    creadaPor: u(r.creada_por),
+    finalizada: u(r.finalizada_en),
+    finalizadaPor: u(r.finalizada_por),
+  }
+}
+export function laboratorioToRow(t: TareaLaboratorio): LaboratorioRow {
+  return {
+    id: t.id,
+    modelo: t.modelo,
+    cliente: t.cliente ?? null,
+    nro_serie: t.nroSerie ?? null,
+    ot: t.ot ?? null,
+    linea: t.linea ?? null,
+    orden_id: t.ordenId ?? null,
+    tarea_origen_id: t.tareaOrigenId ?? null,
+    estado: t.estado,
+    ensayos: t.ensayos ?? null,
+    comentario: t.comentario ?? null,
+    resultado: t.resultado ?? null,
+    retrabajo_resuelto: t.retrabajoResuelto ?? null,
+    creada_en: t.creada,
+    creada_por: t.creadaPor ?? null,
+    finalizada_en: t.finalizada ?? null,
+    finalizada_por: t.finalizadaPor ?? null,
   }
 }
 

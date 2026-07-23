@@ -4,7 +4,7 @@
 // (ver src/sap/sapMapping.ts)
 // ============================================================
 
-export type Rol = 'operario' | 'encargado' | 'planificador' | 'logistica'
+export type Rol = 'operario' | 'encargado' | 'planificador' | 'logistica' | 'laboratorio'
 
 export type LineaProduccion = 'distribucion' | 'rural' | 'general'
 
@@ -477,6 +477,57 @@ export const RESPONSABLES_DESPACHO: string[] = ['Eugenia Suarez', 'Maribel Ogger
 // Ubicaciones físicas donde se realiza el embalaje (obligatorio al finalizar).
 export const UBICACIONES_DESPACHO: string[] = ['INELPA', 'Depósito 25 de Mayo', 'CERDAN']
 
+// ============================================================
+// LABORATORIO (v1.37) — puente entre el fin de producción (Montaje PO) y despacho.
+// Al finalizar una tarea de Montaje PO se crea automáticamente una TareaLaboratorio
+// "pendiente". El laboratorista corre los ensayos y al finalizar el sistema rutea:
+//  - todo lo ensayado aprobado -> crea el despacho (DespachoTrafo).
+//  - algún ensayo rechazado    -> retrabajo (avisa al planificador) + comentario.
+// ============================================================
+export type EstadoLab = 'pendiente' | 'en_ensayo' | 'finalizada'
+export type EnsayoEstado = 'sin' | 'aprobado' | 'rechazado'
+
+// Protocolo de ensayos (opcionales: los trafos chicos no llevan todos).
+export const ENSAYOS_LAB: { key: string; label: string }[] = [
+  { key: 'perdidas_vacio', label: 'Pérdidas en vacío' },
+  { key: 'perdida_cc', label: 'Pérdida en cortocircuito' },
+  { key: 'relacion', label: 'Medición de relación de transformación' },
+  { key: 'res_arrollamiento', label: 'Medición de resistencia de arrollamiento' },
+  { key: 'res_aislamiento', label: 'Medición de resistencia de aislamiento' },
+  { key: 'tension_aplicada', label: 'Tensión aplicada' },
+  { key: 'tension_inducida', label: 'Tensión inducida' },
+  { key: 'calentamiento', label: 'Calentamiento' },
+]
+
+export interface TareaLaboratorio {
+  id: string
+  modelo: string
+  cliente?: string
+  nroSerie?: string              // editable por el laboratorista si llegó vacío
+  ot?: string
+  linea?: LineaProduccion
+  ordenId?: string               // orden de producción de origen (referencia)
+  tareaOrigenId?: string         // tarea de Montaje PO que la generó (para dedup)
+  estado: EstadoLab
+  ensayos?: Record<string, EnsayoEstado>   // key de ENSAYOS_LAB -> estado
+  comentario?: string            // observación / posible solución (retrabajo)
+  resultado?: 'aprobado' | 'retrabajo'     // set al finalizar
+  retrabajoResuelto?: boolean    // el planificador ya lo replanificó/atendió
+  creada: string
+  creadaPor?: string
+  finalizada?: string
+  finalizadaPor?: string
+}
+
+// Estado de un ensayo (default 'sin').
+export function estadoEnsayo(t: TareaLaboratorio, key: string): EnsayoEstado {
+  return t.ensayos?.[key] ?? 'sin'
+}
+// ¿Algún ensayo quedó rechazado? -> va a retrabajo, no a despacho.
+export function tieneRechazo(t: TareaLaboratorio): boolean {
+  return ENSAYOS_LAB.some((e) => estadoEnsayo(t, e.key) === 'rechazado')
+}
+
 // Causas frecuentes de demora en despacho (relevamiento Melany, seccion 5).
 export const MOTIVOS_DEMORA_DESPACHO: string[] = [
   'Espera puente grúa', 'Falta de materiales (carpintería)', 'Espera ensayo (laboratorio)',
@@ -657,7 +708,7 @@ export function mensajeEsPara(m: Mensaje, u: { id: string; rol: Rol; sectores: S
 // Cola de sincronizacion: cada cambio offline se encola y se empuja al backend.
 export interface SyncOp {
   id: string
-  entidad: 'tarea' | 'parada' | 'orden' | 'semielaborado' | 'objetivo' | 'tarea_logistica' | 'solicitud_logistica' | 'feriado' | 'mensaje' | 'mensaje_lectura' | 'estandar' | 'despacho' | 'flete'
+  entidad: 'tarea' | 'parada' | 'orden' | 'semielaborado' | 'objetivo' | 'tarea_logistica' | 'solicitud_logistica' | 'feriado' | 'mensaje' | 'mensaje_lectura' | 'estandar' | 'despacho' | 'flete' | 'laboratorio'
   entidadId: string
   tipo: 'upsert' | 'delete'
   payload: unknown
