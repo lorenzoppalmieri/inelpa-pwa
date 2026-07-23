@@ -355,6 +355,7 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
   const [prioridad, setPrioridad] = useState('1')
   const [estandar, setEstandar] = useState('120')
   const [nroTransformador, setNroTransformador] = useState('')
+  const [cliente, setCliente] = useState('')   // v1.38: cliente (o Stock) para Montaje PO
   // v1.4: dia + hora de arranque planificado (alimenta el Gantt y el auto-shift).
   const [fechaPlan, setFechaPlan] = useState(() => new Date().toLocaleDateString('en-CA'))
   const [horaPlan, setHoraPlan] = useState('07:00')
@@ -502,6 +503,7 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
       modelo: esRep ? descripcion.trim() : (orden?.modelo ?? 'Prototipo'),
       componenteCodigo: (esRep || proto) ? undefined : (componenteCodigo || undefined),
       nroTransformador: nroTransformador.trim() || undefined,
+      cliente: cliente.trim() || undefined,
       semana: isoWeek(new Date(inicioPlanificado)),
       prioridad: Math.max(1, Number(prioridad) || 1),
       estado: 'pendiente',
@@ -513,7 +515,7 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
       notas: proto ? notaProto.trim() : undefined,
     }
     await guardarTarea(t)
-    setNroTransformador(''); setComponenteCodigo(''); setHoraRecup(false); setDescripcion(''); setEsProto(false); setNotaProto('')
+    setNroTransformador(''); setCliente(''); setComponenteCodigo(''); setHoraRecup(false); setDescripcion(''); setEsProto(false); setNotaProto('')
     const queTipo = esRep ? 'Reparacion' : proto ? 'Prototipo' : 'Tarea'
     setMsg(`${queTipo} asignad${queTipo === 'Tarea' ? 'a' : queTipo === 'Prototipo' ? 'o' : 'a'} a ${nombreOperario(operarioId)} · ${nombreMaquina(maquinaId)} en ${sectorById(sectorId).nombre}.`)
   }
@@ -725,6 +727,12 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
             <label>N° transformador (opcional)</label>
             <input className="input" value={nroTransformador} onChange={(e) => setNroTransformador(e.target.value)} placeholder="TR-10280" />
           </div>
+          {(sectorId === 'montaje_po_dist' || sectorId === 'montaje_po_rural') && (
+            <div className="field">
+              <label>Cliente (vacío = Stock)</label>
+              <input className="input" value={cliente} onChange={(e) => setCliente(e.target.value)} placeholder="Cliente · vacío = Stock" />
+            </div>
+          )}
           <div className="field">
             <label>Prioridad (1 = mas alta)</label>
             <input className="input" type="number" min={1} value={prioridad} onChange={(e) => setPrioridad(e.target.value)} />

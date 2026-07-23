@@ -49,6 +49,7 @@ export interface TareaRow {
   bob_diametro_interno_mm: number | null
   bob_diametro_externo_mm: number | null
   bob_codigo: string | null
+  cliente: string | null
   notas: string | null
   es_prototipo: boolean | null
 }
@@ -193,6 +194,7 @@ export function tareaFromRow(r: TareaRow, paradas: Parada[] = []): Tarea {
     defecto: u(r.defecto),
     paradas,
     datosBobinado: tieneDatos ? datos : undefined,
+    cliente: u(r.cliente),
     notas: u(r.notas),
     esPrototipo: r.es_prototipo ?? false,
   }
@@ -695,6 +697,7 @@ export function tareaToRow(t: Tarea): TareaRow {
     bob_diametro_interno_mm: t.datosBobinado?.diametroInternoMm ?? null,
     bob_diametro_externo_mm: t.datosBobinado?.diametroExternoMm ?? null,
     bob_codigo: t.datosBobinado?.codigoBobina ?? null,
+    cliente: t.cliente ?? null,
     notas: t.notas ?? null,
     es_prototipo: t.esPrototipo ?? false,
   }

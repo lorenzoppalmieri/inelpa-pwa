@@ -245,6 +245,7 @@ export interface Tarea {
   defecto?: string         // defecto/rechazo encontrado
   paradas: Parada[]
   datosBobinado?: DatosBobinado // solo sectores de bobinado
+  cliente?: string             // v1.38: cliente (o vacío = Stock). Lo carga el planificador en Montaje PO; viaja al laboratorio/despacho.
   notas?: string
   // v1.18: PROTOTIPO de prueba (sin semielaborado definido). El detalle del
   // prototipo va en `notas`. Se puede planificar para cualquier colaborador/sector.

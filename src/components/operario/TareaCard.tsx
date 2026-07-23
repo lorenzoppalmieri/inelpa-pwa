@@ -134,6 +134,7 @@ export default function TareaCard({ tarea, onIniciar }: { tarea: Tarea; onInicia
         const lab: TareaLaboratorio = {
           id: crypto.randomUUID(),
           modelo: tarea.modelo,
+          cliente: tarea.cliente || undefined,
           nroSerie: tarea.nroTransformador || undefined,
           ot: orden?.nroOrden,
           linea: tarea.sectorId.includes('rural') ? 'rural' : 'distribucion',
