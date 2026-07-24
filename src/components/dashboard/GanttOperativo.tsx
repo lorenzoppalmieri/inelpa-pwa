@@ -1,6 +1,6 @@
 import { type PointerEvent as ReactPointerEvent, useMemo, useRef, useState } from 'react'
 import type { Tarea, EstadoTarea, Maquina } from '../../types'
-import { sectorById, causaLabel, esParadaNoProductiva, esSectorBobinado, nombreSemielaborado } from '../../types'
+import { sectorById, causaLabel, esParadaNoProductiva, esSectorBobinado, nombreSemielaborado, minutosRecupTarea } from '../../types'
 import { componentePorCodigo } from '../../data/catalogo'
 import { hhmm, fmtDur, isoWeek, minutosEntre, fechaCorta } from '../../lib/time'
 import { proximoInstanteLaborable, tramosLaborables, calcularTiempoNetoProductivo, type GrupoAlmuerzo } from '../../lib/calendario'
@@ -307,7 +307,7 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
     else if (t.estado === 'en_proceso') endRef = ahoraISO
     else return 0 // pendiente / pausada: no se evalua
     if (!endRef) return 0
-    const real = calcularTiempoNetoProductivo(new Date(t.inicioReal), new Date(endRef), { horaRecuperacion: t.activaHoraRecuperacion, sinAlmuerzo: true }) - minutosNoProductivos(t)
+    const real = calcularTiempoNetoProductivo(new Date(t.inicioReal), new Date(endRef), { recupMin: minutosRecupTarea(t), sinAlmuerzo: true }) - minutosNoProductivos(t)
     const neto = real - minutosParada(t) // v1.18: Neto = Real - demoras justificadas
     return Math.max(0, Math.round(neto - t.tiempoEstandarMin))
   }

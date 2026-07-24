@@ -1,7 +1,7 @@
 import type { Tarea, CausaParada } from '../types'
 import { minutosEntre } from './time'
 import { calcularTiempoNetoProductivo } from './calendario'
-import { causaLabel, esParadaNoProductiva, esReparacion } from '../types'
+import { causaLabel, esParadaNoProductiva, esReparacion, minutosRecupTarea } from '../types'
 
 // ============================================================
 // Calculo de KPIs de planta (OEE simplificado, desvios, Pareto).
@@ -14,7 +14,7 @@ import { causaLabel, esParadaNoProductiva, esReparacion } from '../types'
 export function minutosParada(t: Tarea): number {
   return t.paradas
     .filter((p) => !esParadaNoProductiva(p.causa) && p.fin)
-    .reduce((acc, p) => acc + calcularTiempoNetoProductivo(new Date(p.inicio), new Date(p.fin as string), { horaRecuperacion: t.activaHoraRecuperacion, sinAlmuerzo: true }), 0)
+    .reduce((acc, p) => acc + calcularTiempoNetoProductivo(new Date(p.inicio), new Date(p.fin as string), { recupMin: minutosRecupTarea(t), sinAlmuerzo: true }), 0)
 }
 
 // Minutos de paradas NO productivas (almuerzo, pausas programadas, lapso de
@@ -25,7 +25,7 @@ export function minutosParada(t: Tarea): number {
 export function minutosNoProductivos(t: Tarea): number {
   return t.paradas
     .filter((p) => esParadaNoProductiva(p.causa) && p.fin)
-    .reduce((acc, p) => acc + calcularTiempoNetoProductivo(new Date(p.inicio), new Date(p.fin as string), { horaRecuperacion: t.activaHoraRecuperacion, sinAlmuerzo: true }), 0)
+    .reduce((acc, p) => acc + calcularTiempoNetoProductivo(new Date(p.inicio), new Date(p.fin as string), { recupMin: minutosRecupTarea(t), sinAlmuerzo: true }), 0)
 }
 
 // Tiempo real de ejecucion BRUTO (resta cruda de timestamps). Solo informativo
@@ -43,7 +43,7 @@ export function tiempoRealBruto(t: Tarea): number {
 export function tiempoDisponible(t: Tarea): number {
   if (!t.inicioReal || !t.finReal) return 0
   const wall = calcularTiempoNetoProductivo(new Date(t.inicioReal), new Date(t.finReal), {
-    horaRecuperacion: t.activaHoraRecuperacion,
+    recupMin: minutosRecupTarea(t),
     sinAlmuerzo: true,
   })
   return Math.max(0, wall - minutosNoProductivos(t))
@@ -160,7 +160,7 @@ export function paretoDemoras(tareas: Tarea[]): ParetoItem[] {
     for (const p of t.paradas) {
       if (esParadaNoProductiva(p.causa)) continue // el almuerzo no es una demora
       // v1.17: minutos LABORABLES (no crudos): no cuenta noches/finde/planta cerrada.
-      const min = p.fin ? calcularTiempoNetoProductivo(new Date(p.inicio), new Date(p.fin), { horaRecuperacion: t.activaHoraRecuperacion, sinAlmuerzo: true }) : 0
+      const min = p.fin ? calcularTiempoNetoProductivo(new Date(p.inicio), new Date(p.fin), { recupMin: minutosRecupTarea(t), sinAlmuerzo: true }) : 0
       if (min <= 0) continue // ignora paradas en curso sin cierre
       const cur = map.get(p.causa) ?? { min: 0, ev: 0 }
       cur.min += min

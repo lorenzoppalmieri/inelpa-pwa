@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
 import type { Tarea, CausaParada, DatosBobinado } from '../../types'
-import { sectorById, causaLabel, requiereDatosBobinado, esCausaLogistica, nombreSemielaborado } from '../../types'
+import { sectorById, causaLabel, requiereDatosBobinado, esCausaLogistica, nombreSemielaborado, minutosRecupTarea } from '../../types'
 import { guardarTarea, guardarLaboratorio } from '../../sync/syncEngine'
 import type { TareaLaboratorio } from '../../types'
 import { useAuth } from '../../auth/AuthContext'
@@ -62,11 +62,14 @@ export default function TareaCard({ tarea, onIniciar }: { tarea: Tarea; onInicia
     onIniciar?.()
   }
 
-  // HOTFIX: la hora de recuperacion es POR TAREA (vinculada a este tarea_id), no
-  // un estado global del operario. Asi, con varias tareas abiertas a la vez, marcar
-  // recuperacion en una NO afecta a las demas.
-  async function toggleRecup() {
-    await guardarTarea({ ...tarea, activaHoraRecuperacion: !tarea.activaHoraRecuperacion })
+  // v1.40: la recuperacion es POR TAREA y FRACCIONAL (30 o 60 min). El operario
+  // elige cuanto se queda; se guarda la cantidad exacta en minutosRecuperacion.
+  // (Mantenemos activaHoraRecuperacion sincronizado por compatibilidad con datos
+  // viejos / consultas que aun lean el booleano.)
+  const [modalRecup, setModalRecup] = useState(false)
+  async function setRecup(min: number) {
+    setModalRecup(false)
+    await guardarTarea({ ...tarea, minutosRecuperacion: min, activaHoraRecuperacion: min > 0 })
   }
   async function confirmarParada(causa: CausaParada, obs: string) {
     setModal(false)
@@ -115,7 +118,7 @@ export default function TareaCard({ tarea, onIniciar }: { tarea: Tarea; onInicia
     // La hora de recuperacion es la de ESTA tarea (toggle por tarjeta).
     const duracionEfectivaMin = tarea.inicioReal
       ? calcularTiempoNetoProductivo(new Date(tarea.inicioReal), new Date(finReal), {
-          horaRecuperacion: tarea.activaHoraRecuperacion,
+          recupMin: minutosRecupTarea(tarea),
         })
       : 0
     await guardarTarea({
@@ -161,7 +164,7 @@ export default function TareaCard({ tarea, onIniciar }: { tarea: Tarea; onInicia
     const finDiaInicio = new Date(ini); finDiaInicio.setHours(24, 0, 0, 0) // 00:00 del día siguiente
     const fin = new Date(p.fin)
     const finAcotado = fin < finDiaInicio ? fin : finDiaInicio
-    return acc + calcularTiempoNetoProductivo(ini, finAcotado, { horaRecuperacion: tarea.activaHoraRecuperacion, sinAlmuerzo: true })
+    return acc + calcularTiempoNetoProductivo(ini, finAcotado, { recupMin: minutosRecupTarea(tarea), sinAlmuerzo: true })
   }, 0)
   // "Ejecutado en" = Tiempo NETO de trabajo del operario = Tiempo Real laborable
   // (ya sin horas de planta cerrada ni almuerzo) MENOS las paradas operativas
@@ -264,22 +267,50 @@ export default function TareaCard({ tarea, onIniciar }: { tarea: Tarea; onInicia
         </div>
       )}
 
-      {/* HOTFIX: hora de recuperacion POR TAREA (no global). Solo mientras la tarea
-          esta abierta. La franja depende del dia (Vie 15-16, resto 16-17). */}
+      {/* v1.40: recuperacion POR TAREA y FRACCIONAL (30/60 min). El boton abre un
+          modal tactil; una vez elegido, muestra feedback (borde verde) y un ✕ para
+          cancelar. Solo mientras la tarea esta abierta. */}
       {(tarea.estado === 'en_proceso' || tarea.estado === 'pausada') && (() => {
-        const esViernes = new Date().getDay() === 5
-        const banda = esViernes ? '15:00–16:00' : '16:00–17:00'
+        const recup = minutosRecupTarea(tarea)
+        const txtRecup = recup === 60 ? 'Recuperando 1h' : recup === 30 ? 'Recuperando 30m' : recup > 0 ? `Recuperando ${recup}m` : ''
         return (
-          <button
-            className={'btn btn-bloque' + (tarea.activaHoraRecuperacion ? ' btn-primary' : '')}
-            style={{ justifyContent: 'space-between', marginBottom: 10 }}
-            onClick={toggleRecup}
-          >
-            <span>⏱ Me quedo a recuperar en ESTA tarea ({banda})</span>
-            <span className="rol-badge">{tarea.activaHoraRecuperacion ? 'SÍ' : 'NO'}</span>
-          </button>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+            <button
+              className="btn btn-bloque"
+              style={{
+                flex: 1, justifyContent: 'space-between',
+                border: recup > 0 ? '2px solid var(--estado-fin)' : undefined,
+                color: recup > 0 ? 'var(--estado-fin)' : undefined,
+                fontWeight: recup > 0 ? 700 : undefined,
+              }}
+              onClick={() => setModalRecup(true)}
+            >
+              <span>⏱ {recup > 0 ? txtRecup : 'Habilitar hora recup.'}</span>
+              <span className="rol-badge">{recup > 0 ? '✓' : '＋'}</span>
+            </button>
+            {recup > 0 && (
+              <button className="btn btn-rojo" title="Cancelar recuperación" onClick={() => void setRecup(0)}>✕</button>
+            )}
+          </div>
         )
       })()}
+
+      {/* Modal: cuánto tiempo se queda a recuperar (táctil) */}
+      {modalRecup && (
+        <div className="modal-overlay" onClick={() => setModalRecup(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="section-title" style={{ marginTop: 0 }}>¿Cuánto tiempo te quedás a recuperar?</div>
+            <div className="meta" style={{ marginBottom: 16 }}>Se suma a tu salida base ({new Date().getDay() === 5 ? '15:00' : '16:00'} hs) solo en ESTA tarea.</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <button className="btn btn-primary btn-bloque" style={{ padding: '18px', fontSize: '1.15rem' }} onClick={() => void setRecup(30)}>＋ 30 minutos</button>
+              <button className="btn btn-primary btn-bloque" style={{ padding: '18px', fontSize: '1.15rem' }} onClick={() => void setRecup(60)}>＋ 1 hora</button>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
+              <button className="btn" onClick={() => setModalRecup(false)}>Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Acciones segun estado */}
       <div className="row-actions">

@@ -234,7 +234,13 @@ export interface Tarea {
   // v1.6: habilita la franja de recuperacion (16-17 Lun-Jue / 15-16 Vie) como
   // tiempo productivo PARA ESTA TAREA. Si false, el dia cierra estricto a las
   // 16:00 / 15:00 a efectos del tiempo neto.
+  // v1.40: legacy — se conserva por compatibilidad. La cantidad exacta vive ahora
+  // en minutosRecuperacion (true equivale a 60 min).
   activaHoraRecuperacion?: boolean
+  // v1.40: minutos EXACTOS de recuperacion que el operario decide quedarse en ESTA
+  // tarea (0 / 30 / 60). Extiende el cierre base (16:00 L-J, 15:00 Vie) en esa
+  // cantidad, con tope de 60 min (17:00 / 16:00). Reemplaza al booleano.
+  minutosRecuperacion?: number
   // v1.6: tiempo PRODUCTIVO NETO real (min), calculado al finalizar descontando
   // noches, fines de semana y almuerzo. Base de KPIs/OEE (no la resta cruda).
   duracionEfectivaMin?: number
@@ -250,6 +256,14 @@ export interface Tarea {
   // v1.18: PROTOTIPO de prueba (sin semielaborado definido). El detalle del
   // prototipo va en `notas`. Se puede planificar para cualquier colaborador/sector.
   esPrototipo?: boolean
+}
+
+// v1.40: minutos de recuperacion efectivos de una tarea. Usa el campo nuevo
+// (minutosRecuperacion) y cae al booleano legacy (activaHoraRecuperacion = 60 min)
+// para tareas viejas. 0 = no se queda a recuperar.
+export function minutosRecupTarea(t: { minutosRecuperacion?: number; activaHoraRecuperacion?: boolean }): number {
+  if (t.minutosRecuperacion != null) return t.minutosRecuperacion
+  return t.activaHoraRecuperacion ? 60 : 0
 }
 
 // Etiqueta a mostrar para el semielaborado de una tarea (Gantt, tarjetas, KPIs).
