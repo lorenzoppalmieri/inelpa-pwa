@@ -2,10 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
 import { useAuth } from '../../auth/AuthContext'
-import type { TareaLogistica, PrioridadLog } from '../../types'
+import type { TareaLogistica, PrioridadLog, PlantillaRecurrente } from '../../types'
 import { PRIORIDADES_LOG, RESPONSABLES_LOGISTICA, MOTIVOS_BLOQUEO_LOG, responsablesDe } from '../../types'
-import { guardarTareaLogistica, eliminarTareaLogistica } from '../../sync/syncEngine'
+import { guardarTareaLogistica, eliminarTareaLogistica, guardarPlantilla } from '../../sync/syncEngine'
 import { fmtDur, minutosEntre, fechaCorta, hhmm } from '../../lib/time'
+import { instanciasAGenerar } from '../../lib/recurrencia'
+import PlantillasRecurrentes, { SelectorDias } from './PlantillasRecurrentes'
 
 const ORDEN_PRIO: Record<PrioridadLog, number> = { alta: 0, media: 1, baja: 2 }
 const PRIO_LABEL: Record<PrioridadLog, string> = { alta: 'ALTA', media: 'MEDIA', baja: 'BAJA' }
@@ -79,6 +81,43 @@ export default function LogisticaTareas({
   // Solo las tareas del sector correspondiente (logística vs despacho).
   const todas = useLiveQuery(() => db.tareasLogistica.toArray(), []) ?? []
   const tareas = useMemo(() => todas.filter((t) => (t.origen ?? 'logistica') === origen), [todas, origen])
+
+  // v1.39: plantillas recurrentes de este sector + generación perezosa de la
+  // instancia del día (anti-spam: solo hoy, una a la vez). Ver lib/recurrencia.ts.
+  const plantillasTodas = useLiveQuery(() => db.plantillasRecurrentes.toArray(), []) ?? []
+  const misPlantillas = useMemo(
+    () => plantillasTodas.filter((p) => (p.origen ?? 'logistica') === origen),
+    [plantillasTodas, origen],
+  )
+  useEffect(() => {
+    const nuevas = instanciasAGenerar(misPlantillas, todas)
+    for (const t of nuevas) void guardarTareaLogistica(t)
+  }, [misPlantillas, todas])
+
+  // Vista "Tareas Repetitivas" (panel de gestión) vs. tablero normal.
+  const [verRepetitivas, setVerRepetitivas] = useState(false)
+  // Modal "Repetir" (crear plantilla a partir de una tarea existente).
+  const [repitiendo, setRepitiendo] = useState<TareaLogistica | null>(null)
+  const [repDias, setRepDias] = useState<number[]>([])
+  function repetir(t: TareaLogistica) { setRepitiendo(t); setRepDias([]) }
+  async function confirmarRepetir() {
+    if (!repitiendo || repDias.length === 0) return
+    const p: PlantillaRecurrente = {
+      id: crypto.randomUUID(),
+      origen,
+      titulo: repitiendo.titulo,
+      detalle: repitiendo.detalle,
+      responsables: responsablesDe(repitiendo).length ? responsablesDe(repitiendo) : undefined,
+      prioridad: repitiendo.prioridad,
+      estimadoMin: repitiendo.estimadoMin,
+      dias: repDias,
+      activa: true,
+      creada: new Date().toISOString(),
+      creadaPor: usuario?.usuario,
+    }
+    await guardarPlantilla(p)
+    setRepitiendo(null); setRepDias([])
+  }
 
   const [ahora, setAhora] = useState(() => Date.now())
   useEffect(() => { const id = setInterval(() => setAhora(Date.now()), 30000); return () => clearInterval(id) }, [])
@@ -250,6 +289,14 @@ export default function LogisticaTareas({
   }
   async function borrar(t: TareaLogistica) {
     if (!window.confirm(`¿Eliminar la tarea "${t.titulo}"?`)) return
+    // Si es una instancia recurrente, marcamos ese día como salteado para que el
+    // motor NO la vuelva a generar (equivale a "no la dispares hoy", p.ej. feriado).
+    if (t.plantillaId && t.fechaInstancia) {
+      const p = misPlantillas.find((x) => x.id === t.plantillaId)
+      if (p && !(p.salteos ?? []).includes(t.fechaInstancia)) {
+        await guardarPlantilla({ ...p, salteos: [...(p.salteos ?? []), t.fechaInstancia] })
+      }
+    }
     await eliminarTareaLogistica(t)
   }
 
@@ -271,8 +318,22 @@ export default function LogisticaTareas({
     return { pend: pendientes.length, curso: enCurso.length, alta: porPrio('alta'), media: porPrio('media'), baja: porPrio('baja'), fin: finalizadas.length, prom }
   }, [pendientes, enCurso, finalizadas])
 
+  // Panel "Tareas Repetitivas" (solo el encargado). El motor de generación de
+  // arriba corre igual en esta vista, así no se frena la creación de instancias.
+  if (esGiuliano && verRepetitivas) {
+    return (
+      <>
+        <button className="btn" style={{ marginBottom: 12 }} onClick={() => setVerRepetitivas(false)}>← Volver a las tareas</button>
+        <PlantillasRecurrentes origen={origen} roster={roster} />
+      </>
+    )
+  }
+
   return (
     <>
+      {esGiuliano && (
+        <button className="btn" style={{ marginBottom: 12 }} onClick={() => setVerRepetitivas(true)}>🔁 Tareas repetitivas{misPlantillas.length ? ` (${misPlantillas.length})` : ''}</button>
+      )}
       {/* Indicadores */}
       <div className="logi-kpis">
         <div className="logi-kpi"><div className="n">{ind.pend}</div><div className="l">Pendientes</div></div>
@@ -347,6 +408,7 @@ export default function LogisticaTareas({
               {!disponible ? `🔒 Disponible el ${fmtFechaProg(t.fechaProgramada)}` : (responsablesDe(t).length ? '▶ Iniciar tarea' : '▶ Tomar tarea')}
             </button>
             {esGiuliano && <button className="btn" onClick={() => reasignar(t)}>⇄ Reasignar</button>}
+            {esGiuliano && <button className="btn" onClick={() => repetir(t)}>🔁 Repetir</button>}
             {esGiuliano && <button className="btn" onClick={() => abrirEdicion(t)}>✎ Editar</button>}
             {esGiuliano && <button className="btn btn-rojo" onClick={() => borrar(t)}>🗑</button>}
           </div>
@@ -407,10 +469,32 @@ export default function LogisticaTareas({
           </div>
           <div className="row-actions">
             {esGiuliano && <button className="btn" onClick={() => reabrir(t)}>↩ Reabrir</button>}
+            {esGiuliano && <button className="btn" onClick={() => repetir(t)}>🔁 Repetir</button>}
             {esGiuliano && <button className="btn btn-rojo" onClick={() => borrar(t)}>🗑</button>}
           </div>
         </div>
       ))}
+
+      {/* Modal "Repetir" — estilo alarma de celular: elegir los días */}
+      {repitiendo && (
+        <div className="modal-overlay" onClick={() => setRepitiendo(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="section-title" style={{ marginTop: 0 }}>🔁 Repetir tarea</div>
+            <div className="meta" style={{ marginBottom: 14 }}>“{repitiendo.titulo}” · se creará automáticamente cada día elegido.</div>
+            <div className="field" style={{ marginBottom: 8 }}>
+              <label>¿Qué días se repite?</label>
+              <SelectorDias seleccion={repDias} onChange={setRepDias} />
+            </div>
+            <div className="meta" style={{ marginBottom: 14 }}>
+              El operario solo verá la del día; la siguiente aparece recién cuando finaliza la anterior.
+            </div>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button className="btn" onClick={() => setRepitiendo(null)}>Cancelar</button>
+              <button className="btn btn-primary" disabled={repDias.length === 0} onClick={() => void confirmarRepetir()}>Crear recurrencia</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal "¿Quién toma esta tarea?" — al tomar una tarea sin asignar */}
       {tomando && (

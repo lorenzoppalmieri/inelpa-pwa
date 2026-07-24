@@ -431,6 +431,9 @@ export interface TareaLogistica {
   finalizada?: string            // ISO al completar
   finalizadaPor?: string         // usuario que la completo
   notaCierre?: string            // nota del operario al confirmar el cierre (real vs estimado)
+  // v1.39: recurrencia. Si la tarea nació de una plantilla, guarda el vínculo + el día.
+  plantillaId?: string           // id de la PlantillaRecurrente que la generó
+  fechaInstancia?: string        // 'YYYY-MM-DD' del día que representa esta instancia
 }
 
 // Un evento de bloqueo registrado (para el Pareto de tiempo perdido por causa).
@@ -451,6 +454,45 @@ export const MOTIVOS_BLOQUEO_LOG: string[] = [
 export function responsablesDe(t: TareaLogistica): string[] {
   if (t.responsables && t.responsables.length) return t.responsables
   return t.responsable ? [t.responsable] : []
+}
+
+// ============================================================
+// TAREAS RECURRENTES / REPETITIVAS (v1.39) — Giuliano automatiza rutinas del pañol.
+// Una PLANTILLA guarda la definición (qué tarea, para quién, qué días). Las tareas
+// que el operario ve son INSTANCIAS normales (TareaLogistica con plantillaId +
+// fechaInstancia). Anti-spam: solo se genera la instancia del día actual, y la
+// siguiente recién cuando la anterior se finalizó (ver lib/recurrencia.ts).
+// ============================================================
+// Días de la semana con getDay() de JS: 0=Dom .. 6=Sáb. El orden L→D es de display.
+export const DIAS_SEMANA: { dow: number; corta: string; larga: string }[] = [
+  { dow: 1, corta: 'L', larga: 'Lunes' },
+  { dow: 2, corta: 'M', larga: 'Martes' },
+  { dow: 3, corta: 'M', larga: 'Miércoles' },
+  { dow: 4, corta: 'J', larga: 'Jueves' },
+  { dow: 5, corta: 'V', larga: 'Viernes' },
+  { dow: 6, corta: 'S', larga: 'Sábado' },
+  { dow: 0, corta: 'D', larga: 'Domingo' },
+]
+
+export interface PlantillaRecurrente {
+  id: string
+  origen?: 'logistica' | 'despacho'  // igual que TareaLogistica; undefined = logística
+  titulo: string
+  detalle?: string
+  responsables?: string[]        // colaboradores asignados (0 = sin asignar)
+  prioridad: PrioridadLog
+  estimadoMin?: number
+  dias: number[]                 // días getDay() en los que se repite (1=Lun..0=Dom)
+  hora?: string                  // 'HH:MM' informativo (hora de arranque sugerida)
+  activa: boolean                // false = pausada (no genera instancias)
+  salteos?: string[]             // 'YYYY-MM-DD' que NO deben generarse (feriados / excepciones)
+  creada: string                 // ISO
+  creadaPor?: string
+}
+
+// Etiqueta corta de los días activos de una plantilla, en orden L→D (p.ej. "L·M·V").
+export function diasLabel(dias: number[]): string {
+  return DIAS_SEMANA.filter((d) => dias.includes(d.dow)).map((d) => d.corta).join('·')
 }
 
 // ============================================================
@@ -709,7 +751,7 @@ export function mensajeEsPara(m: Mensaje, u: { id: string; rol: Rol; sectores: S
 // Cola de sincronizacion: cada cambio offline se encola y se empuja al backend.
 export interface SyncOp {
   id: string
-  entidad: 'tarea' | 'parada' | 'orden' | 'semielaborado' | 'objetivo' | 'tarea_logistica' | 'solicitud_logistica' | 'feriado' | 'mensaje' | 'mensaje_lectura' | 'estandar' | 'despacho' | 'flete' | 'laboratorio'
+  entidad: 'tarea' | 'parada' | 'orden' | 'semielaborado' | 'objetivo' | 'tarea_logistica' | 'solicitud_logistica' | 'feriado' | 'mensaje' | 'mensaje_lectura' | 'estandar' | 'despacho' | 'flete' | 'laboratorio' | 'plantilla_recurrente'
   entidadId: string
   tipo: 'upsert' | 'delete'
   payload: unknown

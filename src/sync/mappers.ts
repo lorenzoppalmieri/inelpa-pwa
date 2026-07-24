@@ -16,6 +16,7 @@ import type {
   TiempoEstandar, AreaDemora, BloqueoLog,
   DespachoTrafo, EstadoDespacho, DemoraDespacho, ChecklistDespacho, FleteInterno,
   TareaLaboratorio, EstadoLab, EnsayoEstado,
+  PlantillaRecurrente,
 } from '../types'
 
 // null -> undefined (Supabase devuelve null; la app usa undefined en opcionales).
@@ -129,6 +130,8 @@ export interface TareaLogisticaRow {
   finalizada_en: string | null
   finalizada_por: string | null
   nota_cierre: string | null
+  plantilla_id: string | null
+  fecha_instancia: string | null
 }
 
 export interface MaquinaRow {
@@ -578,6 +581,8 @@ export function tareaLogFromRow(r: TareaLogisticaRow): TareaLogistica {
     finalizada: u(r.finalizada_en),
     finalizadaPor: u(r.finalizada_por),
     notaCierre: u(r.nota_cierre),
+    plantillaId: u(r.plantilla_id),
+    fechaInstancia: u(r.fecha_instancia),
   }
 }
 export function tareaLogToRow(t: TareaLogistica): TareaLogisticaRow {
@@ -603,6 +608,59 @@ export function tareaLogToRow(t: TareaLogistica): TareaLogisticaRow {
     finalizada_en: t.finalizada ?? null,
     finalizada_por: t.finalizadaPor ?? null,
     nota_cierre: t.notaCierre ?? null,
+    plantilla_id: t.plantillaId ?? null,
+    fecha_instancia: t.fechaInstancia ?? null,
+  }
+}
+
+// ---- Plantillas recurrentes (v1.39) ----
+export interface PlantillaRecurrenteRow {
+  id: string
+  origen: string | null
+  titulo: string
+  detalle: string | null
+  responsables: string[] | null
+  prioridad: string
+  estimado_min: number | null
+  dias: number[]
+  hora: string | null
+  activa: boolean
+  salteos: string[] | null
+  creada_en: string
+  creada_por: string | null
+}
+export function plantillaFromRow(r: PlantillaRecurrenteRow): PlantillaRecurrente {
+  return {
+    id: r.id,
+    origen: (r.origen as PlantillaRecurrente['origen']) ?? undefined,
+    titulo: r.titulo,
+    detalle: u(r.detalle),
+    responsables: r.responsables ?? undefined,
+    prioridad: r.prioridad as PrioridadLog,
+    estimadoMin: r.estimado_min ?? undefined,
+    dias: r.dias ?? [],
+    hora: u(r.hora),
+    activa: r.activa,
+    salteos: r.salteos ?? undefined,
+    creada: r.creada_en,
+    creadaPor: u(r.creada_por),
+  }
+}
+export function plantillaToRow(p: PlantillaRecurrente): PlantillaRecurrenteRow {
+  return {
+    id: p.id,
+    origen: p.origen ?? 'logistica',
+    titulo: p.titulo,
+    detalle: p.detalle ?? null,
+    responsables: p.responsables ?? null,
+    prioridad: p.prioridad,
+    estimado_min: p.estimadoMin ?? null,
+    dias: p.dias ?? [],
+    hora: p.hora ?? null,
+    activa: p.activa,
+    salteos: p.salteos ?? null,
+    creada_en: p.creada,
+    creada_por: p.creadaPor ?? null,
   }
 }
 

@@ -3,6 +3,7 @@ import type {
   Usuario, Tarea, OrdenProduccion, SyncOp, Semielaborado, Maquina,
   ModeloTransformador, ComponenteSemielaborado, Objetivo, TareaLogistica, SolicitudLogistica, Feriado,
   Mensaje, MensajeLectura, TiempoEstandar, DespachoTrafo, FleteInterno, TareaLaboratorio,
+  PlantillaRecurrente,
 } from '../types'
 
 // ============================================================
@@ -29,6 +30,7 @@ export class InelpaDB extends Dexie {
   despachos!: Table<DespachoTrafo, string>
   fletes!: Table<FleteInterno, string>
   laboratorio!: Table<TareaLaboratorio, string>
+  plantillasRecurrentes!: Table<PlantillaRecurrente, string>
 
   constructor() {
     super('inelpa_pwa')
@@ -92,6 +94,12 @@ export class InelpaDB extends Dexie {
     // v1.37: laboratorio (cola de ensayos).
     this.version(13).stores({
       laboratorio: 'id, estado, ordenId, tareaOrigenId, nroSerie, creada',
+    })
+    // v1.39: plantillas de tareas recurrentes + re-index de tareasLogistica con
+    // plantillaId (para buscar las instancias de una plantilla rápido).
+    this.version(14).stores({
+      plantillasRecurrentes: 'id, origen, activa, creada',
+      tareasLogistica: 'id, estado, responsable, prioridad, creada, plantillaId, fechaInstancia',
     })
   }
 }

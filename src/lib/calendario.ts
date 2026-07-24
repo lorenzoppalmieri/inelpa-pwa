@@ -217,11 +217,13 @@ export interface ConfigTiempoNeto {
 }
 
 // ============================================================
-// HORARIO DE LOGISTICA: Lunes a Viernes 08:00 - 17:00 (sin almuerzo partido).
-// Mide tiempos de respuesta de logistica solo dentro de su jornada.
+// HORARIO DEL PAÑOL (LOGISTICA): Lun-Jue 08:00-17:00 y Viernes 08:00-16:00
+// (sin almuerzo partido). Mide tiempos de respuesta solo dentro de la jornada;
+// lo de afuera (p.ej. arrancar 07:00, o el finde) NO penaliza los KPIs.
 // ============================================================
 const LOG_INI = 8 * 60
-const LOG_FIN = 17 * 60
+// Cierre segun el dia de la semana (getDay(): 5 = viernes).
+export function cierrePanol(dow: number): number { return dow === 5 ? 16 * 60 : 17 * 60 }
 
 export function minutosLaboralesLogistica(aIso?: string, bIso?: string): number {
   if (!aIso || !bIso) return 0
@@ -235,15 +237,16 @@ export function minutosLaboralesLogistica(aIso?: string, bIso?: string): number 
     if (dow === 0 || dow === 6) { // fin de semana -> saltar al lunes 08:00
       cursor.setDate(cursor.getDate() + 1); cursor.setHours(0, 0, 0, 0); continue
     }
+    const logFin = cierrePanol(dow)
     const cur = minDelDia(cursor)
-    if (cur >= LOG_FIN) { // despues del cierre -> dia siguiente
+    if (cur >= logFin) { // despues del cierre -> dia siguiente
       cursor.setDate(cursor.getDate() + 1); cursor.setHours(0, 0, 0, 0); continue
     }
     const ini = cur < LOG_INI ? conMinutos(cursor, LOG_INI) : new Date(cursor)
-    const fin = conMinutos(cursor, LOG_FIN)
+    const fin = conMinutos(cursor, logFin)
     const hasta = fin < b ? fin : b
     if (hasta > ini) total += (hasta.getTime() - ini.getTime()) / 60000
-    cursor = conMinutos(cursor, LOG_FIN) // saltar al cierre y de ahi al dia sig.
+    cursor = conMinutos(cursor, logFin) // saltar al cierre y de ahi al dia sig.
   }
   return Math.round(total)
 }

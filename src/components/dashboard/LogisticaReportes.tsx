@@ -3,7 +3,8 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
 import type { TareaLogistica, PrioridadLog } from '../../types'
 import { responsablesDe, RESPONSABLES_LOGISTICA } from '../../types'
-import { fmtDur, minutosEntre } from '../../lib/time'
+import { fmtDur } from '../../lib/time'
+import { minutosLaboralesLogistica } from '../../lib/calendario'
 import { PERIODOS_REPORTE, rangoReporte, enRango, type PeriodoReporte } from '../../lib/periodoReporte'
 
 // ============================================================
@@ -15,8 +16,10 @@ import { PERIODOS_REPORTE, rangoReporte, enRango, type PeriodoReporte } from '..
 const PRIO_LABEL: Record<PrioridadLog, string> = { alta: 'ALTA', media: 'MEDIA', baja: 'BAJA' }
 
 // Tiempo ACTIVO de resolucion de una tarea finalizada (descuenta pausas).
+// v1.39: se mide en minutos DENTRO del horario del pañol (Lun-Jue 08-17, Vie
+// 08-16). Lo trabajado fuera de ese rango no penaliza el KPI de resolución.
 function resolucion(t: TareaLogistica): number {
-  return Math.max(0, minutosEntre(t.iniciada ?? t.creada, t.finalizada) - (t.minutosPausada ?? 0))
+  return Math.max(0, minutosLaboralesLogistica(t.iniciada ?? t.creada, t.finalizada) - (t.minutosPausada ?? 0))
 }
 function media(nums: number[]): number {
   return nums.length ? Math.round(nums.reduce((a, b) => a + b, 0) / nums.length) : 0
@@ -86,8 +89,9 @@ export default function LogisticaReportes() {
     })
 
     // 5) Tiempo de espera: pendientes sin tomar, ordenadas por antigüedad.
+    //    En minutos del pañol (no penaliza la noche / finde que estuvieron esperando).
     const espera = pendientesSinTomar
-      .map((t) => ({ t, min: minutosEntre(t.creada, ahoraISO) }))
+      .map((t) => ({ t, min: minutosLaboralesLogistica(t.creada, ahoraISO) }))
       .sort((a, b) => b.min - a.min)
 
     // 6) Tendencia por día de la semana (pedidos creados). Lun -> Dom.
@@ -98,7 +102,7 @@ export default function LogisticaReportes() {
     // 7) Pareto de tiempo perdido por CAUSA de bloqueo (los abiertos cuentan hasta ahora).
     const bloq = new Map<string, { min: number; n: number }>()
     for (const t of tp) for (const b of t.bloqueos ?? []) {
-      const min = minutosEntre(b.inicio, b.fin ?? ahoraISO)
+      const min = minutosLaboralesLogistica(b.inicio, b.fin ?? ahoraISO)
       if (min <= 0) continue
       const cur = bloq.get(b.motivo) ?? { min: 0, n: 0 }
       cur.min += min; cur.n++; bloq.set(b.motivo, cur)
