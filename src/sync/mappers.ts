@@ -628,6 +628,7 @@ export interface PlantillaRecurrenteRow {
   hora: string | null
   activa: boolean
   salteos: string[] | null
+  ultima_generacion?: string | null   // v1.42: candado anti-respawn
   creada_en: string
   creada_por: string | null
 }
@@ -644,6 +645,7 @@ export function plantillaFromRow(r: PlantillaRecurrenteRow): PlantillaRecurrente
     hora: u(r.hora),
     activa: r.activa,
     salteos: r.salteos ?? undefined,
+    ultimaGeneracion: u(r.ultima_generacion ?? null),
     creada: r.creada_en,
     creadaPor: u(r.creada_por),
   }
@@ -661,6 +663,7 @@ export function plantillaToRow(p: PlantillaRecurrente): PlantillaRecurrenteRow {
     hora: p.hora ?? null,
     activa: p.activa,
     salteos: p.salteos ?? null,
+    ultima_generacion: p.ultimaGeneracion ?? null,
     creada_en: p.creada,
     creada_por: p.creadaPor ?? null,
   }

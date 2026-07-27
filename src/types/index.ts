@@ -508,6 +508,10 @@ export interface PlantillaRecurrente {
   hora?: string                  // 'HH:MM' informativo (hora de arranque sugerida)
   activa: boolean                // false = pausada (no genera instancias)
   salteos?: string[]             // 'YYYY-MM-DD' que NO deben generarse (feriados / excepciones)
+  // v1.42: candado de generación. Último día ('YYYY-MM-DD') para el que esta
+  // plantilla ya disparó su instancia. Si es >= hoy, el motor NO genera nada,
+  // aunque la instancia de hoy ya esté finalizada o haya sido borrada.
+  ultimaGeneracion?: string
   creada: string                 // ISO
   creadaPor?: string
 }

@@ -111,20 +111,49 @@ export default function LogisticaTareas({
   // "Encargado" = quien puede crear/editar/borrar (Giuliano en logística, Melany en despacho).
   const esGiuliano = esEncargado ?? (usuario?.usuario === 'giuliano_logistica')
   // Solo las tareas del sector correspondiente (logística vs despacho).
-  const todas = useLiveQuery(() => db.tareasLogistica.toArray(), []) ?? []
+  // OJO: useLiveQuery devuelve undefined hasta que Dexie resuelve. Guardamos el
+  // valor CRUDO para poder distinguir "todavía no cargó" de "no hay tareas".
+  const todasRaw = useLiveQuery(() => db.tareasLogistica.toArray(), [])
+  const todas = useMemo(() => todasRaw ?? [], [todasRaw])
   const tareas = useMemo(() => todas.filter((t) => (t.origen ?? 'logistica') === origen), [todas, origen])
 
   // v1.39: plantillas recurrentes de este sector + generación perezosa de la
   // instancia del día (anti-spam: solo hoy, una a la vez). Ver lib/recurrencia.ts.
-  const plantillasTodas = useLiveQuery(() => db.plantillasRecurrentes.toArray(), []) ?? []
+  const plantillasRaw = useLiveQuery(() => db.plantillasRecurrentes.toArray(), [])
+  const plantillasTodas = useMemo(() => plantillasRaw ?? [], [plantillasRaw])
   const misPlantillas = useMemo(
     () => plantillasTodas.filter((p) => (p.origen ?? 'logistica') === origen),
     [plantillasTodas, origen],
   )
+  // v1.42: generación de instancias con candado anti-respawn.
+  // 1) No corre hasta que AMBAS consultas resolvieron. Antes corría con la lista
+  //    vacía del primer render y el put pisaba la instancia ya finalizada,
+  //    devolviéndola a 'pendiente' (ese era el "bucle" reportado).
+  // 2) Antes de escribir, relee la tarea por id: si ya existe, NO la toca.
+  // 3) Al generar, sella la plantilla con ultimaGeneracion = hoy.
+  const generando = useRef(false)
   useEffect(() => {
+    if (todasRaw === undefined || plantillasRaw === undefined) return   // datos aún no cargados
+    if (generando.current) return                                        // evita reentradas
     const nuevas = instanciasAGenerar(misPlantillas, todas)
-    for (const t of nuevas) void guardarTareaLogistica(t)
-  }, [misPlantillas, todas])
+    if (nuevas.length === 0) return
+    generando.current = true
+    void (async () => {
+      try {
+        for (const t of nuevas) {
+          // Candado final contra la carrera: si la instancia del día ya está en
+          // la base (finalizada o no), no se sobrescribe nunca.
+          const yaExiste = await db.tareasLogistica.get(t.id)
+          if (yaExiste) continue
+          await guardarTareaLogistica(t)
+          const p = misPlantillas.find((x) => x.id === t.plantillaId)
+          if (p) await guardarPlantilla({ ...p, ultimaGeneracion: t.fechaInstancia })
+        }
+      } finally {
+        generando.current = false
+      }
+    })()
+  }, [misPlantillas, todas, todasRaw, plantillasRaw])
 
   // v1.42: filtros del listado (NO afectan al formulario de alta de arriba).
   // Default 'acumulado': en logística una tarea pendiente vieja NO puede desaparecer de la vista.
@@ -150,6 +179,10 @@ export default function LogisticaTareas({
       estimadoMin: repitiendo.estimadoMin,
       dias: repDias,
       activa: true,
+      // v1.42: la tarea desde la que se creó la recurrencia YA cubre el día de hoy.
+      // Sellamos hoy como generado para que la primera instancia automática caiga
+      // recién en la próxima fecha que corresponda (y no se duplique ahora mismo).
+      ultimaGeneracion: hoyLocal(),
       creada: new Date().toISOString(),
       creadaPor: usuario?.usuario,
     }
