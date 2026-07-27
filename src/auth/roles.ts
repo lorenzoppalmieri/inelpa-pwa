@@ -53,6 +53,21 @@ export const PERMISOS: Record<Rol, Permisos> = {
   },
 }
 
+// ============================================================
+// SUPER ADMIN (v1.43) — Planificación/Gerencia.
+// Lista blanca de cuentas que ven el layout de ERP (menú lateral) y pueden
+// entrar a los módulos de los demás encargados (Logística, Laboratorio,
+// Despacho) con los MISMOS permisos que su responsable.
+// No es el rol 'planificador' completo a propósito: hay varios planificadores
+// (rocio, alassiato.lucas, zurvera.rocio) que NO deben tener este acceso.
+// Para sumar a alguien, agregá su usuario a esta lista.
+// ============================================================
+export const SUPER_ADMINS: string[] = ['lorenzo']
+
+export function esSuperAdmin(u?: { usuario?: string } | null): boolean {
+  return !!u?.usuario && SUPER_ADMINS.includes(u.usuario)
+}
+
 export const ROL_LABEL: Record<Rol, string> = {
   operario: 'Operario',
   encargado: 'Encargado',

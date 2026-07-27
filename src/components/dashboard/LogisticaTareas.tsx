@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
 import { useAuth } from '../../auth/AuthContext'
+import { esSuperAdmin } from '../../auth/roles'
 import type { TareaLogistica, PrioridadLog, PlantillaRecurrente } from '../../types'
 import { PRIORIDADES_LOG, RESPONSABLES_LOGISTICA, MOTIVOS_BLOQUEO_LOG, responsablesDe } from '../../types'
 import { guardarTareaLogistica, eliminarTareaLogistica, guardarPlantilla } from '../../sync/syncEngine'
@@ -108,8 +109,9 @@ export default function LogisticaTareas({
   tituloAlta?: string
 } = {}) {
   const { usuario } = useAuth()
-  // "Encargado" = quien puede crear/editar/borrar (Giuliano en logística, Melany en despacho).
-  const esGiuliano = esEncargado ?? (usuario?.usuario === 'giuliano_logistica')
+  // "Encargado" = quien puede crear/editar/borrar (Giuliano en logística, Melany en
+  // despacho). v1.43: el super admin (Gerencia) siempre tiene esos permisos.
+  const esGiuliano = esSuperAdmin(usuario) || (esEncargado ?? (usuario?.usuario === 'giuliano_logistica'))
   // Solo las tareas del sector correspondiente (logística vs despacho).
   // OJO: useLiveQuery devuelve undefined hasta que Dexie resuelve. Guardamos el
   // valor CRUDO para poder distinguir "todavía no cargó" de "no hay tareas".

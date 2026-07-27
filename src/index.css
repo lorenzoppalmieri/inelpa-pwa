@@ -509,3 +509,80 @@ button { font-family: inherit; cursor: pointer; border: none; }
   .kpi-grid { break-inside: avoid; }
   .pareto-row { break-inside: avoid; }
 }
+
+/* ============================================================
+   LAYOUT DE ERP (v1.43) — solo Planificacion/Gerencia (super admin).
+   Menu lateral fijo + contenedor dinamico a la derecha.
+   ============================================================ */
+.admin-shell { display: flex; gap: 16px; align-items: flex-start; }
+
+.admin-sidebar {
+  position: sticky; top: 16px;
+  flex: 0 0 246px; width: 246px;
+  background: var(--panel); border: 1px solid var(--borde);
+  border-radius: var(--radio); padding: 10px 10px 12px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.admin-sidebar.colapsado { flex-basis: 68px; width: 68px; align-items: center; padding: 10px 6px; }
+
+.admin-toggle {
+  align-self: flex-end; min-height: 30px; min-width: 30px;
+  background: var(--panel-2); color: var(--texto-tenue);
+  border: 1px solid var(--borde); border-radius: 8px;
+  cursor: pointer; font-weight: 700; line-height: 1;
+}
+.admin-toggle:hover { color: var(--texto); }
+.admin-sidebar.colapsado .admin-toggle { align-self: center; }
+
+.admin-search .input { width: 100%; min-height: 40px; }
+
+.admin-nav { display: flex; flex-direction: column; gap: 4px; }
+.admin-navitem {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; min-height: 48px; padding: 8px 10px;
+  background: transparent; color: var(--texto);
+  border: 1px solid transparent; border-radius: 10px;
+  cursor: pointer; text-align: left;
+  border-left: 3px solid transparent;
+}
+.admin-navitem:hover { background: var(--panel-2); }
+.admin-navitem.active {
+  background: var(--panel-2);
+  border-left-color: var(--azul-claro);
+  border-color: var(--borde); border-left-width: 3px;
+}
+.admin-ico { font-size: 1.2rem; line-height: 1; flex: 0 0 auto; }
+.admin-sidebar.colapsado .admin-navitem { justify-content: center; padding: 8px 0; }
+.admin-txt { display: flex; flex-direction: column; min-width: 0; }
+.admin-label { font-weight: 700; font-size: .95rem; }
+.admin-navitem.active .admin-label { color: var(--azul-claro); }
+.admin-sub {
+  font-size: .72rem; color: var(--texto-tenue);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.admin-foot { margin-top: auto; padding-top: 8px; border-top: 1px solid var(--borde); text-align: center; }
+
+/* Area principal. min-width:0 es CLAVE: sin eso el Gantt (overflow-x) desborda el flex. */
+.admin-main { flex: 1 1 auto; min-width: 0; }
+
+.admin-crumb {
+  display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+  background: var(--panel); border: 1px solid var(--borde);
+  border-left: 4px solid var(--azul-claro);
+  border-radius: var(--radio); padding: 10px 14px; margin-bottom: 12px;
+}
+
+/* Pantallas chicas / tablet vertical: el menu pasa arriba en horizontal. */
+@media (max-width: 900px) {
+  .admin-shell { flex-direction: column; }
+  .admin-sidebar, .admin-sidebar.colapsado {
+    position: static; width: 100%; flex-basis: auto;
+    flex-direction: row; align-items: center; overflow-x: auto; padding: 8px;
+  }
+  .admin-toggle, .admin-search, .admin-foot { display: none; }
+  .admin-nav { flex-direction: row; gap: 6px; }
+  .admin-navitem { width: auto; white-space: nowrap; }
+  .admin-sub { display: none; }
+  .admin-main { width: 100%; }
+}

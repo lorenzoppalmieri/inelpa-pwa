@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
 import { useAuth } from '../../auth/AuthContext'
+import { esSuperAdmin } from '../../auth/roles'
 import type { DespachoTrafo, EstadoDespacho, LineaProduccion } from '../../types'
 import {
   ESTADOS_DESPACHO, estadoDespachoLabel, RESPONSABLES_DESPACHO, MOTIVOS_DEMORA_DESPACHO,
@@ -28,7 +29,8 @@ export default function DespachoView() {
   const { usuario } = useAuth()
   // Melany = supervisora del sector: solo ella puede eliminar despachos. El equipo
   // (cuenta 'despacho') opera normalmente (crear, embalar, despachar) pero no borra.
-  const esSupervisora = usuario?.usuario === 'melany'
+  // v1.43: el super admin (Gerencia) entra con los mismos permisos que Melany.
+  const esSupervisora = usuario?.usuario === 'melany' || esSuperAdmin(usuario)
   const [vista, setVista] = useState<'operativo' | 'tareas' | 'reportes'>('operativo')
   const [busqueda, setBusqueda] = useState('')
   const despachos = useLiveQuery(() => db.despachos.toArray(), []) ?? []
