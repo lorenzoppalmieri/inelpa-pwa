@@ -4,6 +4,7 @@ import { db } from '../../db/dexie'
 import {
   SECTORES, sectorById,
   MATERIALES, lineaDesdeModelo, materialLabel, CATEGORIA_COMPONENTE_LABEL,
+  MODELO_PROTOTIPO, esOrdenPrototipo,
   operariosParaSector, esSectorHerreria, maquinaSirveSector, claveEstandar,
   type MaterialBobina, type SectorId, type OrdenProduccion, type Tarea,
   type Semielaborado, type EstadoSemielaborado, type TipoTarea, type Feriado, type EstadoTarea,
@@ -229,6 +230,9 @@ function PanelOrdenes() {
             <label>Modelo de transformador</label>
             <select className="input" value={modelo} onChange={(e) => elegirModelo(e.target.value)}>
               <option value="">— Selecciona —</option>
+              <optgroup label="Especial">
+                <option value={MODELO_PROTOTIPO}>🧪 PROTOTIPO (prueba)</option>
+              </optgroup>
               <optgroup label="Distribucion">
                 {MODELOS_CATALOGO.filter((m) => m.linea === 'distribucion').map((m) => <option key={m.codigo} value={m.nombre}>{m.nombre}</option>)}
               </optgroup>
@@ -257,6 +261,13 @@ function PanelOrdenes() {
             <input className="input" type="date" value={fechaEntrega} onChange={(e) => setFechaEntrega(e.target.value)} />
           </div>
         </div>
+        {modelo === MODELO_PROTOTIPO && (
+          <div className="semi-preview">
+            <div className="meta">
+              🧪 <strong>Orden de PROTOTIPO.</strong> No usa semielaborados del catálogo: al asignar tareas vas a poder mandarlas a cualquier área, todas bajo el nombre “PROTOTIPO”.
+            </div>
+          </div>
+        )}
         {modeloSel && (
           <div className="semi-preview">
             <div className="meta" style={{ marginBottom: 8 }}>
@@ -408,6 +419,8 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
   // fabrican EN ESTE SECTOR. Ej. Bobinado Dist A.T. -> bobinas AT del modelo.
   const ordenSel = (ordenes ?? []).find((o) => o.id === ordenId)
   const modeloSel = modeloPorNombre(ordenSel?.modelo)
+  // v1.41: la orden elegida es una OF de PROTOTIPO -> no lleva semielaborado.
+  const ordenEsProto = esOrdenPrototipo(ordenSel)
 
   // OF "activa" = aun tiene trabajo: sin tareas creadas o con alguna NO finalizada.
   // Las OF con TODAS sus tareas finalizadas se ocultan del desplegable (no se borran).
@@ -477,11 +490,16 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
     const proto = !esRep && esProto // v1.18: prototipo de prueba (sin semielaborado)
     // Fabricacion necesita orden; reparacion necesita descripcion (no lleva orden).
     const orden = (ordenes ?? []).find((o) => o.id === ordenId)
+    // v1.41: si la orden elegida es una OF de PROTOTIPO, la tarea se trata como
+    // prototipo (sin semielaborado del catalogo) pero LIGADA a esa orden, para que
+    // todas las tareas de las distintas areas queden bajo el mismo nombre "PROTOTIPO".
+    const protoOrden = esOrdenPrototipo(orden)
+    const esProtoTarea = proto || protoOrden
     if (!esRep && !proto && !orden) { setMsg('Selecciona una orden.'); return }
     if (esRep && !descripcion.trim()) { setMsg('Describe la reparacion (que se corrige).'); return }
     if (proto && !notaProto.trim()) { setMsg('Escribí qué tipo de prototipo es (la nota).'); return }
     // v1.16: el semielaborado es obligatorio si el sector del modelo lo tiene (salvo prototipo).
-    if (!esRep && !proto && sectorTieneSemi && !componenteCodigo) {
+    if (!esRep && !esProtoTarea && sectorTieneSemi && !componenteCodigo) {
       setMsg(componentesDelSector.length === 0
         ? 'Todos los semielaborados de este sector ya estan planificados para esta orden.'
         : 'Selecciona el semielaborado (segun sector).')
@@ -501,7 +519,7 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
       // v1.3: el planificador asigna colaborador + estacion simultaneamente.
       operarioId: operarioId || undefined,
       modelo: esRep ? descripcion.trim() : (orden?.modelo ?? 'Prototipo'),
-      componenteCodigo: (esRep || proto) ? undefined : (componenteCodigo || undefined),
+      componenteCodigo: (esRep || esProtoTarea) ? undefined : (componenteCodigo || undefined),
       nroTransformador: nroTransformador.trim() || undefined,
       cliente: cliente.trim() || undefined,
       semana: isoWeek(new Date(inicioPlanificado)),
@@ -687,7 +705,16 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
               {SECTORES.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
             </select>
           </div>
-          {tipo === 'fabricacion' && !esProto && (
+          {tipo === 'fabricacion' && !esProto && ordenEsProto && (
+            <div className="field">
+              <label>Semielaborado (segun sector)</label>
+              <select className="input" value="" disabled>
+                <option value="">🧪 No aplica — orden de PROTOTIPO</option>
+              </select>
+              <div className="meta" style={{ marginTop: 6 }}>La tarea se crea bajo el nombre “PROTOTIPO”.</div>
+            </div>
+          )}
+          {tipo === 'fabricacion' && !esProto && !ordenEsProto && (
             <div className="field">
               <label>Semielaborado (segun sector){sectorTieneSemi ? ' *' : ''}</label>
               <select className="input" value={componenteCodigo} onChange={(e) => setComponenteCodigo(e.target.value)} disabled={!ordenSel || componentesDelSector.length === 0}>

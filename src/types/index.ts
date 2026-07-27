@@ -46,6 +46,14 @@ export function lineaDesdeModelo(modelo: string): LineaProduccion {
   return 'general'
 }
 
+// v1.41: "articulo" especial PROTOTIPO. El planificador crea una OF con este
+// modelo (sin semielaborado del catalogo) y le asigna tareas a distintas areas,
+// todas bajo el nombre "PROTOTIPO". No exige elegir componente por sector.
+export const MODELO_PROTOTIPO = 'PROTOTIPO'
+export function esOrdenPrototipo(o?: { modelo?: string } | null): boolean {
+  return (o?.modelo ?? '') === MODELO_PROTOTIPO
+}
+
 // Los 13 sectores productivos relevados en planta.
 export type SectorId =
   | 'corte_conformado'
