@@ -45,12 +45,17 @@ export default function DespachoReportes({ despachos }: { despachos: DespachoTra
   const ahoraISO = new Date().toISOString()
   const fletes = useLiveQuery(() => db.fletes.toArray(), []) ?? []
   const [periodo, setPeriodo] = useState<PeriodoReporte>('mes_actual')
+  const [verFletes, setVerFletes] = useState(false)   // v1.42: modal de desglose de viajes
 
+  // v1.42: además de los totales, se guarda la LISTA de viajes del período para
+  // el desglose (Melany necesita poder auditar de dónde sale el gasto).
   const flete = useMemo(() => {
     const r = rangoReporte(periodo)
     const tot = (desde: string, hasta: string) => fletes.filter((f) => enRango(f.fecha, desde, hasta)).reduce((s, f) => s + f.costo, 0)
-    const viajes = fletes.filter((f) => enRango(f.fecha, r.desde, r.hasta)).length
-    return { gastoMes: tot(r.desde, r.hasta), gastoMesAnt: tot(r.desdePrev, r.hastaPrev), viajesMes: viajes }
+    const detalle = fletes
+      .filter((f) => enRango(f.fecha, r.desde, r.hasta))
+      .sort((a, b) => (a.fecha < b.fecha ? 1 : -1))   // más reciente primero
+    return { gastoMes: tot(r.desde, r.hasta), gastoMesAnt: tot(r.desdePrev, r.hastaPrev), viajesMes: detalle.length, detalle }
   }, [fletes, periodo])
 
   const rep = useMemo(() => {
@@ -132,7 +137,18 @@ export default function DespachoReportes({ despachos }: { despachos: DespachoTra
         <div className="logi-kpi"><div className="n" style={{ color: 'var(--naranja)' }}>{ars(flete.gastoMes)}</div><div className="l">Gasto (período)</div></div>
         <div className="logi-kpi"><div className="n">{ars(flete.gastoMesAnt)}</div><div className="l">Período anterior</div></div>
         <div className="logi-kpi"><div className="n" style={{ color: (flete.gastoMes - flete.gastoMesAnt) <= 0 ? 'var(--estado-fin)' : 'var(--rojo)' }}>{flete.gastoMes - flete.gastoMesAnt >= 0 ? '+' : ''}{ars(flete.gastoMes - flete.gastoMesAnt)}</div><div className="l">Variación</div></div>
-        <div className="logi-kpi"><div className="n">{flete.viajesMes}</div><div className="l">Viajes este mes</div></div>
+        {/* v1.42: tarjeta clickeable → abre el desglose de viajes del período. */}
+        <button
+          type="button" className="logi-kpi" onClick={() => setVerFletes(true)} disabled={flete.viajesMes === 0}
+          title={flete.viajesMes ? 'Ver el detalle de los viajes' : 'Sin viajes registrados en el período'}
+          style={{
+            cursor: flete.viajesMes ? 'pointer' : 'default', font: 'inherit', color: 'inherit', textAlign: 'center',
+            border: flete.viajesMes ? '1px solid var(--azul-claro)' : '1px solid var(--borde)',
+          }}
+        >
+          <div className="n">{flete.viajesMes}</div>
+          <div className="l">Viajes (período){flete.viajesMes ? ' · ver detalle 🔍' : ''}</div>
+        </button>
       </div>
 
       {/* Tiempo prom. embalaje: Distribución vs Rural */}
@@ -178,6 +194,57 @@ export default function DespachoReportes({ despachos }: { despachos: DespachoTra
       <div className="card">
         {rep.porEstado.map(({ e, label, color, n }) => <Barra key={e} label={label} valor={`${n}`} ratio={n / maxEst} color={color} />)}
       </div>
+
+      {/* v1.42: desglose de viajes del período (drill-down de la tarjeta "Viajes") */}
+      {verFletes && (
+        <div className="modal-overlay" onClick={() => setVerFletes(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 820, width: '92vw' }}>
+            <div className="section-title" style={{ marginTop: 0 }}>
+              Detalle de fletes del período · {flete.detalle.length} viaje(s) · total <strong style={{ color: 'var(--naranja)' }}>{ars(flete.gastoMes)}</strong>
+            </div>
+            <div style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+              <table className="tabla-fletes" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.9rem' }}>
+                <thead>
+                  <tr style={{ textAlign: 'left', borderBottom: '2px solid var(--borde)' }}>
+                    <th style={{ padding: '8px 6px' }}>Fecha</th>
+                    <th style={{ padding: '8px 6px' }}>Cliente / destino</th>
+                    <th style={{ padding: '8px 6px' }}>Serie(s) / modelo</th>
+                    <th style={{ padding: '8px 6px' }}>Transportista</th>
+                    <th style={{ padding: '8px 6px', textAlign: 'right' }}>Costo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {flete.detalle.map((f) => (
+                    <tr key={f.id} style={{ borderBottom: '1px solid var(--borde)' }}>
+                      <td style={{ padding: '8px 6px', whiteSpace: 'nowrap' }}>{fechaCorta(f.fecha)}</td>
+                      {/* Los fletes anteriores a v1.42 no tienen cliente: cae al concepto. */}
+                      <td style={{ padding: '8px 6px' }}>
+                        {f.cliente || f.concepto}
+                        {f.cliente && f.concepto ? <div className="meta">{f.concepto}</div> : null}
+                      </td>
+                      <td style={{ padding: '8px 6px' }}>{f.series?.length ? f.series.join(', ') : <span className="meta">—</span>}</td>
+                      <td style={{ padding: '8px 6px' }}>{f.transportista || <span className="meta">—</span>}</td>
+                      <td style={{ padding: '8px 6px', textAlign: 'right', fontWeight: 700 }}>{ars(f.costo)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr style={{ borderTop: '2px solid var(--borde)' }}>
+                    <td colSpan={4} style={{ padding: '8px 6px', fontWeight: 700 }}>Total del período</td>
+                    <td style={{ padding: '8px 6px', textAlign: 'right', fontWeight: 700, color: 'var(--naranja)' }}>{ars(flete.gastoMes)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+            <div className="meta" style={{ marginTop: 10 }}>
+              Cliente y series se cargan al registrar el flete. Los viajes anteriores a esta versión muestran el concepto en su lugar.
+            </div>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 12 }}>
+              <button className="btn" onClick={() => setVerFletes(false)}>Cerrar</button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }

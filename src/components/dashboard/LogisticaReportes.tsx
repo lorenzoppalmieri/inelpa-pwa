@@ -25,6 +25,20 @@ function media(nums: number[]): number {
   return nums.length ? Math.round(nums.reduce((a, b) => a + b, 0) / nums.length) : 0
 }
 
+// v1.42: candado de sector. Este tablero es SOLO de logística (el pañol).
+// Sin esto se colaban las tareas de Despacho — que viven en la misma tabla
+// tareasLogistica con origen='despacho' — y Maribel y Eugenia aparecían en los
+// gráficos por operario de Giuliano.
+function esDeLogistica(t: TareaLogistica): boolean {
+  return (t.origen ?? 'logistica') === 'logistica'
+}
+// Segundo candado, por persona: solo cuentan los del roster del pañol. Cubre el
+// caso de una tarea de logística que quedó asignada a alguien de otro sector.
+const ROSTER_LOG = new Set(RESPONSABLES_LOGISTICA)
+function responsablesLogistica(t: TareaLogistica): string[] {
+  return responsablesDe(t).filter((r) => ROSTER_LOG.has(r))
+}
+
 // Barra horizontal reutilizable (estilo pareto del tablero).
 function Barra({ label, sub, valor, ratio, color }: {
   label: string; sub?: string; valor: string; ratio: number; color?: string
@@ -40,7 +54,9 @@ function Barra({ label, sub, valor, ratio, color }: {
 }
 
 export default function LogisticaReportes() {
-  const tareas = useLiveQuery(() => db.tareasLogistica.toArray(), []) ?? []
+  // v1.42: se filtra por sector EN LA CONSULTA, no más abajo, para que ningún
+  // cálculo de este archivo pueda ver una tarea de despacho.
+  const tareas = useLiveQuery(async () => (await db.tareasLogistica.toArray()).filter(esDeLogistica), []) ?? []
   const [ahora, setAhora] = useState(() => Date.now())
   useEffect(() => { const id = setInterval(() => setAhora(Date.now()), 30000); return () => clearInterval(id) }, [])
   const ahoraISO = new Date(ahora).toISOString()
@@ -60,7 +76,7 @@ export default function LogisticaReportes() {
     const volumen = new Map<string, number>()
     const tiempos = new Map<string, number[]>()
     for (const t of finalizadas) {
-      for (const r of responsablesDe(t)) {
+      for (const r of responsablesLogistica(t)) {
         volumen.set(r, (volumen.get(r) ?? 0) + 1)
         const arr = tiempos.get(r) ?? []; arr.push(resolucion(t)); tiempos.set(r, arr)
       }
@@ -73,7 +89,7 @@ export default function LogisticaReportes() {
     for (const r of RESPONSABLES_LOGISTICA) carga.set(r, 0)
     let sinAsignar = 0
     for (const t of abiertas) {
-      const rs = responsablesDe(t)
+      const rs = responsablesLogistica(t)
       if (rs.length === 0) sinAsignar++
       else for (const r of rs) carga.set(r, (carga.get(r) ?? 0) + 1)
     }

@@ -5,6 +5,7 @@ import { useAuth } from '../../auth/AuthContext'
 import type { FleteInterno } from '../../types'
 import { guardarFlete, eliminarFlete } from '../../sync/syncEngine'
 import { fechaCorta } from '../../lib/time'
+import ChipsInput from './ChipsInput'
 
 // ============================================================
 // FLETES / VIAJES INTERNOS (v1.28, Fase 3) — registro de traslados con su costo
@@ -25,6 +26,9 @@ export default function FletesInternos({ esSupervisora }: { esSupervisora: boole
   const [costo, setCosto] = useState('')
   const [transportista, setTransportista] = useState('')
   const [fecha, setFecha] = useState<string>(hoyLocal)
+  // v1.42: detalle del viaje, para que el desglose de Reportes sirva de auditoría.
+  const [cliente, setCliente] = useState('')
+  const [series, setSeries] = useState<string[]>([])
   const [msg, setMsg] = useState('')
 
   async function crear() {
@@ -36,11 +40,13 @@ export default function FletesInternos({ esSupervisora }: { esSupervisora: boole
       concepto: concepto.trim(),
       costo: c,
       transportista: transportista.trim() || undefined,
+      cliente: cliente.trim() || undefined,
+      series: series.length ? series : undefined,
       creada: new Date().toISOString(),
       creadaPor: usuario?.usuario,
     }
     await guardarFlete(f)
-    setConcepto(''); setCosto(''); setTransportista(''); setFecha(hoyLocal())
+    setConcepto(''); setCosto(''); setTransportista(''); setFecha(hoyLocal()); setCliente(''); setSeries([])
     setMsg(`Flete registrado: ${ars(c)}.`)
   }
   async function borrar(f: FleteInterno) {
@@ -68,6 +74,11 @@ export default function FletesInternos({ esSupervisora }: { esSupervisora: boole
         <div className="field"><label>Costo (ARS)</label><input className="input" type="number" min={0} value={costo} onChange={(e) => setCosto(e.target.value)} placeholder="0" /></div>
         <div className="field"><label>Transportista (opcional)</label><input className="input" value={transportista} onChange={(e) => setTransportista(e.target.value)} /></div>
         <div className="field"><label>Fecha</label><input type="date" className="input" value={fecha} onChange={(e) => setFecha(e.target.value)} /></div>
+        <div className="field"><label>Cliente / destino (opcional)</label><input className="input" value={cliente} onChange={(e) => setCliente(e.target.value)} placeholder="ej. EPE Rosario / Depósito 25 de Mayo" /></div>
+        <div className="field" style={{ gridColumn: '1 / -1' }}>
+          <label>N° de serie o modelo (opcional) — podés cargar varios</label>
+          <ChipsInput valores={series} onChange={setSeries} placeholder="ej. 24-1187 · Enter para agregar" />
+        </div>
       </div>
       <button className="btn btn-primary btn-bloque" style={{ marginTop: 10 }} onClick={crear}>＋ Registrar flete</button>
       {msg && <div className="meta" style={{ marginTop: 8 }}>{msg}</div>}
@@ -78,7 +89,11 @@ export default function FletesInternos({ esSupervisora }: { esSupervisora: boole
             <div key={f.id} className="pareto-row" style={{ marginBottom: 6 }}>
               <div style={{ flex: 1 }}>
                 <strong>{f.concepto}</strong>
-                <div className="meta">{ars(f.costo)}{f.transportista ? ` · ${f.transportista}` : ''} · {fechaCorta(f.fecha)}</div>
+                <div className="meta">
+                  {ars(f.costo)}{f.transportista ? ` · ${f.transportista}` : ''} · {fechaCorta(f.fecha)}
+                  {f.cliente ? ` · ${f.cliente}` : ''}
+                  {f.series?.length ? ` · series ${f.series.join(', ')}` : ''}
+                </div>
               </div>
               {esSupervisora && <button className="btn btn-rojo" onClick={() => void borrar(f)}>🗑</button>}
             </div>

@@ -398,6 +398,8 @@ export interface FleteRow {
   concepto: string
   costo: number
   transportista: string | null
+  cliente?: string | null          // v1.42
+  series?: string[] | null         // v1.42
   observaciones: string | null
   creada_en: string
   creada_por: string | null
@@ -409,6 +411,8 @@ export function fleteFromRow(r: FleteRow): FleteInterno {
     concepto: r.concepto,
     costo: r.costo,
     transportista: u(r.transportista),
+    cliente: u(r.cliente ?? null),
+    series: r.series?.length ? r.series : undefined,
     observaciones: u(r.observaciones),
     creada: r.creada_en,
     creadaPor: u(r.creada_por),
@@ -421,6 +425,8 @@ export function fleteToRow(f: FleteInterno): FleteRow {
     concepto: f.concepto,
     costo: f.costo,
     transportista: f.transportista ?? null,
+    cliente: f.cliente ?? null,
+    series: f.series?.length ? f.series : null,
     observaciones: f.observaciones ?? null,
     creada_en: f.creada,
     creada_por: f.creadaPor ?? null,

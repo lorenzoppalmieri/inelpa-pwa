@@ -705,6 +705,9 @@ export interface FleteInterno {
   concepto: string               // ej. "Traslado a depósito 25 de mayo"
   costo: number                  // ARS
   transportista?: string
+  // v1.42: detalle para el drill-down de "Viajes" en Reportes de Despacho.
+  cliente?: string               // cliente o destino del viaje
+  series?: string[]              // N° de serie / modelo(s) trasladados
   observaciones?: string
   creada: string
   creadaPor?: string
