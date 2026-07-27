@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Sidebar, { MENU_ADMIN, type ModuloAdmin } from './Sidebar'
 import DashboardView from '../dashboard/DashboardView'
 import LogisticaView from '../dashboard/LogisticaView'
@@ -31,6 +31,15 @@ export default function AdminLayout() {
     return g && MENU_ADMIN.some((i) => i.id === g) ? g : 'planificacion'
   })
   const [colapsado, setColapsado] = useState(() => localStorage.getItem(CLAVE_COLAPSO) === '1')
+
+  // El shell general (.content) está limitado a 1400px y centrado, pensado para
+  // lectura. En modo ERP eso desperdicia media pantalla, así que marcamos el body
+  // y liberamos el ancho completo (ver "LAYOUT DE ERP" en index.css). Pensado para
+  // monitores grandes / pantalla de Dirección.
+  useEffect(() => {
+    document.body.classList.add('admin-mode')
+    return () => document.body.classList.remove('admin-mode')
+  }, [])
 
   function seleccionar(m: ModuloAdmin) {
     setModulo(m)

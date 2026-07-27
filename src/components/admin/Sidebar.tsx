@@ -37,24 +37,26 @@ export default function Sidebar({ activo, onSelect, colapsado, onToggle }: {
 
   return (
     <aside className={'admin-sidebar no-print' + (colapsado ? ' colapsado' : '')}>
-      <button
-        className="admin-toggle"
-        onClick={onToggle}
-        title={colapsado ? 'Expandir menú' : 'Contraer menú'}
-        aria-label={colapsado ? 'Expandir menú' : 'Contraer menú'}
-      >{colapsado ? '»' : '«'}</button>
-
-      {!colapsado && (
-        <div className="admin-search">
-          <input
-            className="input"
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-            placeholder="🔎 Buscar módulo…"
-            aria-label="Buscar módulo"
-          />
-        </div>
-      )}
+      {/* Cabecera: buscador + botón de contraer en la MISMA fila (no roba alto). */}
+      <div className="admin-head">
+        {!colapsado && (
+          <div className="admin-search">
+            <input
+              className="input"
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              placeholder="🔎 Buscar…"
+              aria-label="Buscar módulo"
+            />
+          </div>
+        )}
+        <button
+          className="admin-toggle"
+          onClick={onToggle}
+          title={colapsado ? 'Expandir menú' : 'Contraer menú'}
+          aria-label={colapsado ? 'Expandir menú' : 'Contraer menú'}
+        >{colapsado ? '»' : '«'}</button>
+      </div>
 
       <nav className="admin-nav">
         {items.map((i) => (
