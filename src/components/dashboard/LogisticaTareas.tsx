@@ -12,6 +12,38 @@ import PlantillasRecurrentes, { SelectorDias } from './PlantillasRecurrentes'
 const ORDEN_PRIO: Record<PrioridadLog, number> = { alta: 0, media: 1, baja: 2 }
 const PRIO_LABEL: Record<PrioridadLog, string> = { alta: 'ALTA', media: 'MEDIA', baja: 'BAJA' }
 
+// v1.42: barra de filtros del listado (mismo criterio que el Planificador General).
+type EstadoLog = TareaLogistica['estado']
+type PeriodoLog = 'mes_actual' | 'mes_anterior' | 'acumulado' | 'todas'
+const PERIODOS_LOG: { id: PeriodoLog; label: string }[] = [
+  { id: 'mes_actual', label: 'Mes actual' },
+  { id: 'mes_anterior', label: 'Mes anterior' },
+  { id: 'acumulado', label: 'Acumulado total' },
+  { id: 'todas', label: 'Todas' },
+]
+const ESTADOS_LOG: { id: 'todos' | EstadoLog; label: string }[] = [
+  { id: 'todos', label: 'Todos los estados' },
+  { id: 'pendiente', label: 'Pendiente' },
+  { id: 'en_curso', label: 'En proceso' },
+  { id: 'pausada', label: 'Pausada' },
+  { id: 'bloqueada', label: 'Bloqueada' },
+  { id: 'finalizada', label: 'Finalizada' },
+]
+// Fecha de referencia de la tarea: día programado si lo tiene, si no la fecha de creación.
+// Se devuelve como 'YYYY-MM-DD' local para comparar contra el date picker sin líos de huso.
+function fechaRefLog(t: TareaLogistica): string {
+  if (t.fechaProgramada) return t.fechaProgramada
+  return new Date(t.creada).toLocaleDateString('en-CA')
+}
+// ¿La tarea cae dentro del período elegido? 'acumulado' = año en curso.
+function enPeriodoLog(t: TareaLogistica, per: PeriodoLog, now: Date): boolean {
+  if (per === 'todas') return true
+  const [y, m] = fechaRefLog(t).split('-').map(Number)
+  if (per === 'acumulado') return y === now.getFullYear()
+  const base = new Date(now.getFullYear(), per === 'mes_anterior' ? now.getMonth() - 1 : now.getMonth(), 1)
+  return y === base.getFullYear() && m - 1 === base.getMonth()
+}
+
 // Fecha de hoy en formato 'YYYY-MM-DD' (hora local de la tablet).
 function hoyLocal(): string { return new Date().toLocaleDateString('en-CA') }
 // 'YYYY-MM-DD' -> 'DD/MM/AAAA' para mostrar.
@@ -93,6 +125,12 @@ export default function LogisticaTareas({
     const nuevas = instanciasAGenerar(misPlantillas, todas)
     for (const t of nuevas) void guardarTareaLogistica(t)
   }, [misPlantillas, todas])
+
+  // v1.42: filtros del listado (NO afectan al formulario de alta de arriba).
+  // Default 'acumulado': en logística una tarea pendiente vieja NO puede desaparecer de la vista.
+  const [filtroPeriodo, setFiltroPeriodo] = useState<PeriodoLog>('acumulado')
+  const [filtroEstado, setFiltroEstado] = useState<'todos' | EstadoLog>('todos')
+  const [filtroFecha, setFiltroFecha] = useState('')   // 'YYYY-MM-DD'; si hay fecha, pisa al período
 
   // Vista "Tareas Repetitivas" (panel de gestión) vs. tablero normal.
   const [verRepetitivas, setVerRepetitivas] = useState(false)
@@ -300,23 +338,43 @@ export default function LogisticaTareas({
     await eliminarTareaLogistica(t)
   }
 
-  const pendientes = useMemo(() => tareas.filter((t) => t.estado === 'pendiente')
-    .sort((a, b) => (ORDEN_PRIO[a.prioridad] - ORDEN_PRIO[b.prioridad]) || (a.creada < b.creada ? -1 : 1)), [tareas])
+  // v1.42: recorte por PERÍODO (o por día puntual, que lo pisa). Los KPIs usan este
+  // conjunto: así el filtro de estado no vacía los indicadores.
+  const porPeriodo = useMemo(() => {
+    const now = new Date()
+    return tareas.filter((t) => filtroFecha ? fechaRefLog(t) === filtroFecha : enPeriodoLog(t, filtroPeriodo, now))
+  }, [tareas, filtroPeriodo, filtroFecha])
+  // v1.42: sobre eso, el filtro de estado. Es lo que se renderiza en las listas.
+  const filteredTasks = useMemo(
+    () => filtroEstado === 'todos' ? porPeriodo : porPeriodo.filter((t) => t.estado === filtroEstado),
+    [porPeriodo, filtroEstado],
+  )
+  // Secciones visibles según el estado elegido (evita mostrar títulos vacíos al filtrar).
+  const verPend = filtroEstado === 'todos' || filtroEstado === 'pendiente'
+  const verCurso = filtroEstado === 'todos' || filtroEstado === 'en_curso' || filtroEstado === 'pausada' || filtroEstado === 'bloqueada'
+  const verFin = filtroEstado === 'todos' || filtroEstado === 'finalizada'
+
+  const pendientes = useMemo(() => filteredTasks.filter((t) => t.estado === 'pendiente')
+    .sort((a, b) => (ORDEN_PRIO[a.prioridad] - ORDEN_PRIO[b.prioridad]) || (a.creada < b.creada ? -1 : 1)), [filteredTasks])
   // "En curso" incluye pausadas y bloqueadas (siguen abiertas, sólo detenidas).
-  const enCurso = useMemo(() => tareas.filter((t) => t.estado === 'en_curso' || t.estado === 'pausada' || t.estado === 'bloqueada')
-    .sort((a, b) => (ORDEN_PRIO[a.prioridad] - ORDEN_PRIO[b.prioridad]) || ((a.iniciada ?? '') < (b.iniciada ?? '') ? -1 : 1)), [tareas])
-  const finalizadas = useMemo(() => tareas.filter((t) => t.estado === 'finalizada')
-    .sort((a, b) => ((b.finalizada ?? '') < (a.finalizada ?? '') ? -1 : 1)), [tareas])
+  const enCurso = useMemo(() => filteredTasks.filter((t) => t.estado === 'en_curso' || t.estado === 'pausada' || t.estado === 'bloqueada')
+    .sort((a, b) => (ORDEN_PRIO[a.prioridad] - ORDEN_PRIO[b.prioridad]) || ((a.iniciada ?? '') < (b.iniciada ?? '') ? -1 : 1)), [filteredTasks])
+  const finalizadas = useMemo(() => filteredTasks.filter((t) => t.estado === 'finalizada')
+    .sort((a, b) => ((b.finalizada ?? '') < (a.finalizada ?? '') ? -1 : 1)), [filteredTasks])
 
   // Indicadores. Las prioridades cuentan tareas abiertas (pendientes + en curso).
   // El tiempo de resolucion es tiempo ACTIVO (descontando pausas).
+  // v1.42: se calculan sobre porPeriodo (ignoran el filtro de estado, a propósito).
   const ind = useMemo(() => {
+    const pendientes = porPeriodo.filter((t) => t.estado === 'pendiente')
+    const enCurso = porPeriodo.filter((t) => t.estado === 'en_curso' || t.estado === 'pausada' || t.estado === 'bloqueada')
+    const finalizadas = porPeriodo.filter((t) => t.estado === 'finalizada')
     const abiertas = [...pendientes, ...enCurso]
     const porPrio = (p: PrioridadLog) => abiertas.filter((t) => t.prioridad === p).length
     const tiempos = finalizadas.map((t) => Math.max(0, minutosEntre(t.iniciada ?? t.creada, t.finalizada) - (t.minutosPausada ?? 0))).filter((m) => m > 0)
     const prom = tiempos.length ? Math.round(tiempos.reduce((a, b) => a + b, 0) / tiempos.length) : 0
     return { pend: pendientes.length, curso: enCurso.length, alta: porPrio('alta'), media: porPrio('media'), baja: porPrio('baja'), fin: finalizadas.length, prom }
-  }, [pendientes, enCurso, finalizadas])
+  }, [porPeriodo])
 
   // Panel "Tareas Repetitivas" (solo el encargado). El motor de generación de
   // arriba corre igual en esta vista, así no se frena la creación de instancias.
@@ -382,7 +440,32 @@ export default function LogisticaTareas({
         </div>
       )}
 
+      {/* v1.42: barra de filtros del listado (período + estado + día puntual). */}
+      <div className="section-title">
+        Tareas · {filtroFecha ? fmtFechaProg(filtroFecha) : PERIODOS_LOG.find((p) => p.id === filtroPeriodo)?.label}
+        {' '}({filteredTasks.length}{filteredTasks.length !== tareas.length ? ` de ${tareas.length}` : ''})
+      </div>
+      <div className="filtros">
+        <select className="select" value={filtroPeriodo} disabled={!!filtroFecha} title={filtroFecha ? 'Anulado por el filtro de día' : 'Filtrar por período'}
+          onChange={(e) => setFiltroPeriodo(e.target.value as PeriodoLog)}>
+          {PERIODOS_LOG.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+        </select>
+        <select className="select" value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value as 'todos' | EstadoLog)}>
+          {ESTADOS_LOG.map((e) => <option key={e.id} value={e.id}>{e.label}</option>)}
+        </select>
+        <input type="date" className="select" value={filtroFecha} onChange={(e) => setFiltroFecha(e.target.value)} title="Filtrar por un día puntual (anula el período)" />
+        {filtroFecha && <button className="btn" onClick={() => setFiltroFecha('')}>✕ Quitar día</button>}
+        {(filtroFecha || filtroPeriodo !== 'acumulado' || filtroEstado !== 'todos') && (
+          <button className="btn" onClick={() => { setFiltroFecha(''); setFiltroPeriodo('acumulado'); setFiltroEstado('todos') }}>↺ Limpiar filtros</button>
+        )}
+      </div>
+
+      {filteredTasks.length === 0 && (
+        <div className="empty">{tareas.length === 0 ? 'Aún no hay tareas cargadas.' : 'No hay tareas para el filtro seleccionado.'}</div>
+      )}
+
       {/* Pendientes — el colaborador todavia no la arranco */}
+      {verPend && <>
       <div className="section-title">Pendientes ({pendientes.length})</div>
       {pendientes.length === 0 ? <div className="empty">Sin tareas pendientes.</div> : pendientes.map((t) => {
         const disponible = disponibleHoy(t)
@@ -414,8 +497,10 @@ export default function LogisticaTareas({
           </div>
         </div>
       )})}
+      </>}
 
       {/* En curso — iniciada, pendiente de finalizar. Pueden convivir varias en simultaneo */}
+      {verCurso && <>
       <div className="section-title">En curso ({enCurso.length})</div>
       {enCurso.length === 0 ? <div className="empty">Sin tareas en curso.</div> : enCurso.map((t) => {
         const pausada = t.estado === 'pausada'
@@ -452,8 +537,10 @@ export default function LogisticaTareas({
           </div>
         </div>
       )})}
+      </>}
 
       {/* Finalizadas */}
+      {verFin && <>
       <div className="section-title">Finalizadas ({finalizadas.length})</div>
       {finalizadas.length === 0 ? <div className="empty">Aún no hay tareas finalizadas.</div> : finalizadas.map((t) => (
         <div className="card" key={t.id}>
@@ -474,6 +561,7 @@ export default function LogisticaTareas({
           </div>
         </div>
       ))}
+      </>}
 
       {/* Modal "Repetir" — estilo alarma de celular: elegir los días */}
       {repitiendo && (
