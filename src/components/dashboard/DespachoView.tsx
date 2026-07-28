@@ -34,7 +34,8 @@ export default function DespachoView() {
   // (cuenta 'despacho') opera normalmente (crear, embalar, despachar) pero no borra.
   // v1.43: el super admin (Gerencia) entra con los mismos permisos que Melany.
   const esSupervisora = usuario?.usuario === 'melany' || esSuperAdmin(usuario)
-  const [vista, setVista] = useState<'operativo' | 'tareas' | 'reportes'>('operativo')
+  // v1.43: los fletes salieron del medio del operativo a su propia pestaña.
+  const [vista, setVista] = useState<'operativo' | 'tareas' | 'reportes' | 'fletes'>('operativo')
   const [busqueda, setBusqueda] = useState('')
   // v1.43: período del historial (despachado / entregado). No toca los estados abiertos.
   const [periodoHist, setPeriodoHist] = useState<PeriodoReporte>('mes_actual')
@@ -244,11 +245,13 @@ export default function DespachoView() {
         <button className={'tab' + (vista === 'operativo' ? ' active' : '')} onClick={() => setVista('operativo')}>🚚 Operativo</button>
         <button className={'tab' + (vista === 'tareas' ? ' active' : '')} onClick={() => setVista('tareas')}>📋 Tareas</button>
         {esSupervisora && <button className={'tab' + (vista === 'reportes' ? ' active' : '')} onClick={() => setVista('reportes')}>📊 Reportes</button>}
+        {esSupervisora && <button className={'tab' + (vista === 'fletes' ? ' active' : '')} onClick={() => setVista('fletes')}>🚛 Fletes</button>}
       </div>
 
       {vista === 'tareas'
         ? <LogisticaTareas origen="despacho" roster={RESPONSABLES_DESPACHO} esEncargado={esSupervisora} tituloAlta="Nueva tarea de despacho" />
-        : esSupervisora && vista === 'reportes' ? <DespachoReportes despachos={despachos} /> : (
+        : esSupervisora && vista === 'reportes' ? <DespachoReportes despachos={despachos} />
+        : esSupervisora && vista === 'fletes' ? <FletesInternos esSupervisora={esSupervisora} /> : (
       <>
       {/* Búsqueda rápida por N° de serie / OT / cliente */}
       <input
@@ -293,9 +296,6 @@ export default function DespachoView() {
         {msg && <div className="meta" style={{ marginTop: 8 }}>{msg}</div>}
       </div>
       )}
-
-      {/* Fletes internos del día — solo Melany los organiza */}
-      {esSupervisora && <FletesInternos esSupervisora={esSupervisora} />}
 
       {/* Esperando embalaje */}
       <div className="section-title">Esperando embalaje ({g.esperando.length})</div>
