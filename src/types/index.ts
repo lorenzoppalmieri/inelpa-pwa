@@ -253,6 +253,10 @@ export interface Tarea {
   // noches, fines de semana y almuerzo. Base de KPIs/OEE (no la resta cruda).
   duracionEfectivaMin?: number
   inicioPlanificado?: string // dia+hora planificado de arranque (ISO); base del Gantt (v1.4)
+  // v1.46: instante EXACTO en que el planificador asignó la tarea (ISO). Es la
+  // base del orden FIFO en la tablet del colaborador: la primera que le mandaron
+  // queda arriba. NO se toca nunca al editar la tarea (por eso el orden es estable).
+  creada?: string
   inicioReal?: string      // timestamp al pasar a en_proceso
   finReal?: string         // timestamp al pasar a finalizada
   calidadOk?: boolean      // resultado del control de calidad
@@ -264,6 +268,25 @@ export interface Tarea {
   // v1.18: PROTOTIPO de prueba (sin semielaborado definido). El detalle del
   // prototipo va en `notas`. Se puede planificar para cualquier colaborador/sector.
   esPrototipo?: boolean
+}
+
+// ============================================================
+// v1.46: CLAVE DE ORDEN FIFO de una tarea (cola del colaborador).
+// Devuelve el instante de ASIGNACION. Cae en cascada para tareas viejas que
+// todavia no tienen `creada`: usa el arranque planificado y, si tampoco esta,
+// manda la tarea al final. Nunca usa campos que cambien al editar (updated_at),
+// para que corregir una observacion NO reordene la lista del operario.
+// ============================================================
+export function claveFifoTarea(t: Tarea): string {
+  return t.creada ?? t.inicioPlanificado ?? '9999'
+}
+
+// Comparador FIFO estable: por antiguedad de asignacion y, ante empate exacto,
+// por id (desempate deterministico -> el orden nunca "baila" entre renders).
+export function compararFifo(a: Tarea, b: Tarea): number {
+  const ka = claveFifoTarea(a), kb = claveFifoTarea(b)
+  if (ka !== kb) return ka < kb ? -1 : 1
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0
 }
 
 // v1.40: minutos de recuperacion efectivos de una tarea. Usa el campo nuevo

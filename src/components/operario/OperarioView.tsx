@@ -4,7 +4,7 @@ import { db } from '../../db/dexie'
 import { useAuth } from '../../auth/AuthContext'
 import { isoWeek } from '../../lib/time'
 import type { EstadoTarea, Tarea, CausaParada } from '../../types'
-import { sectorById, TIPO_ESTACION_LABEL, maquinaSirveSector, esSectorBobinado, causaLabel, areaDemora } from '../../types'
+import { sectorById, TIPO_ESTACION_LABEL, maquinaSirveSector, esSectorBobinado, causaLabel, areaDemora, compararFifo } from '../../types'
 import { guardarTarea } from '../../sync/syncEngine'
 import TareaCard from './TareaCard'
 import ModalParada from './ModalParada'
@@ -150,11 +150,22 @@ export default function OperarioView() {
 
   if (!tareas) return <div className="meta">Cargando tareas...</div>
 
-  const orden = [...tareas].sort((a, b) => (ORDEN[a.estado] - ORDEN[b.estado]) || (a.prioridad - b.prioridad))
-  const vis = orden.filter((t) =>
+  // v1.46: ORDEN FIFO. Dentro de cada estado, la cola respeta el orden EXACTO en
+  // que el planificador fue asignando las tareas: la primera que le mandaron
+  // queda arriba y las nuevas se apilan al final. Se ordena por la fecha de
+  // asignación (`creada`), nunca por campos que cambien al editar, así corregir
+  // una observación NO reordena la lista. `compararFifo` desempata por id para
+  // que el orden sea estable entre renders.
+  const orden = [...tareas].sort((a, b) => (ORDEN[a.estado] - ORDEN[b.estado]) || compararFifo(a, b))
+  const visBase = orden.filter((t) =>
     filtro === 'activas' ? (t.estado === 'en_proceso' || t.estado === 'pausada')
       : filtro === 'pendientes' ? t.estado === 'pendiente'
       : t.estado === 'finalizada')
+  // En "Finalizadas" conviene lo más reciente arriba (es un historial, no una cola).
+  // En "Pendientes" y "En curso" mandan el orden FIFO de asignación.
+  const vis = filtro === 'finalizadas'
+    ? [...visBase].sort((a, b) => ((b.finReal ?? '') < (a.finReal ?? '') ? -1 : 1))
+    : visBase
 
   const cuenta = {
     activas: tareas.filter((t) => t.estado === 'en_proceso' || t.estado === 'pausada').length,

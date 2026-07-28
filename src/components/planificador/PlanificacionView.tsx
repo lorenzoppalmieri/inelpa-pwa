@@ -528,6 +528,10 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
       tiempoEstandarMin: Math.max(1, Number(estandar) || 1),
       activaHoraRecuperacion: horaRecup,
       inicioPlanificado,
+      // v1.46: instante de asignación. Define el orden FIFO en la tablet del
+      // colaborador (la primera que le mandaron queda arriba). No se modifica
+      // nunca al editar la tarea, así el orden no se altera por una corrección.
+      creada: new Date().toISOString(),
       paradas: [],
       esPrototipo: proto || undefined,
       notas: proto ? notaProto.trim() : undefined,
