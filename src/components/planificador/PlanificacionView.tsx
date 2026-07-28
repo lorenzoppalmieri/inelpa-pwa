@@ -596,6 +596,9 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
   }, [tareasOrdenadas, periodoLista, filtroEstado, filtroSector, filtroFecha])
 
   // v1.16: agrupacion dinamica (sector / estacion / colaborador) para legibilidad.
+  // v1.44: cada grupo calcula su AVANCE = finalizadas / programadas. Es dinamico:
+  // si la planificadora suma tareas sube el denominador, y a medida que el
+  // colaborador cierra tareas sube el numerador y se llena la barra.
   const grupos = useMemo(() => {
     const m = new Map<string, { label: string; items: Tarea[] }>()
     for (const t of visibles) {
@@ -607,7 +610,14 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
       const g = m.get(key) ?? { label, items: [] }
       g.items.push(t); m.set(key, g)
     }
-    return [...m.values()].sort((a, b) => a.label.localeCompare(b.label))
+    return [...m.values()]
+      .map((g) => {
+        const total = g.items.length
+        const fin = g.items.filter((t) => t.estado === 'finalizada').length
+        const curso = g.items.filter((t) => t.estado === 'en_proceso' || t.estado === 'pausada').length
+        return { ...g, total, fin, curso, pct: total > 0 ? Math.round((fin / total) * 100) : 0 }
+      })
+      .sort((a, b) => a.label.localeCompare(b.label))
   }, [visibles, agruparPor, nombreMaquina, nombreOperario])
 
   // Tarjeta de una tarea (extraida para reusar dentro de los grupos).
@@ -845,7 +855,21 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
         ? <div className="empty">{tareasOrdenadas.length === 0 ? 'Aun no hay tareas asignadas.' : 'No hay tareas para el filtro seleccionado.'}</div>
         : grupos.map((g) => (
             <div key={g.label} style={{ marginBottom: 14 }}>
-              <div className="grupo-tit">{g.label} <span className="grupo-n">{g.items.length} tarea(s)</span></div>
+              {/* v1.44: avance del grupo = finalizadas / programadas + barra. */}
+              <div className="grupo-tit">
+                <span className="grupo-lbl">{g.label}</span>
+                <span className={'grupo-n' + (g.pct === 100 ? ' completo' : '')}>
+                  {g.fin} / {g.total} completadas
+                </span>
+                <span className="grupo-barra" title={`${g.pct}% completado · ${g.curso} en curso · ${g.total - g.fin - g.curso} pendiente(s)`}>
+                  <span
+                    className="grupo-barra-fill"
+                    style={{ width: `${g.pct}%`, background: g.pct === 100 ? 'var(--estado-fin)' : 'var(--azul-claro)' }}
+                  />
+                </span>
+                <span className="grupo-pct">{g.pct}%</span>
+                {g.curso > 0 && <span className="grupo-curso">▶ {g.curso} en curso</span>}
+              </div>
               {g.items.map((t) => renderTarea(t))}
             </div>
           ))}

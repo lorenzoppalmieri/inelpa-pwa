@@ -47,6 +47,28 @@ export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina }:
       .sort((a, b) => b.sinJust - a.sinJust)
   }, [tareas, q, soloDemora, nombreOperario, nombreMaquina])
 
+  // v1.44: TOTALES del acumulado. Se calculan SOLO sobre las filas que están
+  // efectivamente en pantalla (ya filtradas por el buscador y el check de demora),
+  // así al tipear el nombre de un colaborador se ve al instante su acumulado.
+  const tot = useMemo(() => {
+    const suma = (f: (r: (typeof filas)[number]) => number) => filas.reduce((a, r) => a + f(r), 0)
+    const estimado = suma((r) => r.estimado)
+    const real = suma((r) => r.real)
+    const demorado = suma((r) => r.demorado)
+    const justificada = suma((r) => r.justificada)
+    const sinJust = suma((r) => r.sinJust)
+    return {
+      n: filas.length, estimado, real, demorado, justificada, sinJust,
+      // % de exceso sobre lo estimado (cuánto se pasó del estándar en conjunto).
+      desvioPct: estimado > 0 ? Math.round((demorado / estimado) * 100) : 0,
+      // De todo lo que se demoró, cuánto quedó SIN justificar.
+      sinJustPct: demorado > 0 ? Math.round((sinJust / demorado) * 100) : 0,
+    }
+  }, [filas])
+
+  // ¿Hay algún filtro activo? Sirve para aclarar que el total es del subconjunto.
+  const filtrado = q.trim().length > 0 || soloDemora
+
   return (
     <div className="card" style={{ overflowX: 'auto' }}>
       <div className="filtros no-print" style={{ marginBottom: 10 }}>
@@ -62,6 +84,42 @@ export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina }:
           onClick={() => exportarDetalleTareasCSV(filas.map((r) => r.t), nombreOperario, nombreMaquina, 'detalle')}
         >⬇ Exportar (Excel)</button>
       </div>
+
+      {/* v1.44: acumulado de lo que se ve en pantalla (responde al buscador). */}
+      {filas.length > 0 && (
+        <div className="tot-wrap">
+          <div className="tot-cab">
+            Σ Acumulado{filtrado ? ' del filtro actual' : ''} · <strong>{tot.n}</strong> tarea(s)
+            {q.trim() && <> · <strong style={{ color: 'var(--azul-claro)' }}>“{q.trim()}”</strong></>}
+          </div>
+          <div className="tot-cards">
+            <div className="tot-card">
+              <div className="l">Estimado</div>
+              <div className="n">{fmtDur(tot.estimado)}</div>
+            </div>
+            <div className="tot-card">
+              <div className="l">Real</div>
+              <div className="n">{fmtDur(tot.real)}</div>
+            </div>
+            <div className="tot-card">
+              <div className="l">Demorado</div>
+              <div className="n" style={{ color: 'var(--naranja)' }}>{tot.demorado > 0 ? fmtDur(tot.demorado) : '—'}</div>
+              {tot.estimado > 0 && <div className="s">+{tot.desvioPct}% sobre estimado</div>}
+            </div>
+            <div className="tot-card">
+              <div className="l">Demora justif.</div>
+              <div className="n">{tot.justificada > 0 ? fmtDur(tot.justificada) : '—'}</div>
+            </div>
+            <div className="tot-card destacada">
+              <div className="l">Demora s/just.</div>
+              <div className="n" style={{ color: tot.sinJust > 0 ? 'var(--rojo)' : 'var(--estado-fin)' }}>
+                {tot.sinJust > 0 ? `+${fmtDur(tot.sinJust)}` : '—'}
+              </div>
+              {tot.demorado > 0 && <div className="s">{tot.sinJustPct}% de lo demorado</div>}
+            </div>
+          </div>
+        </div>
+      )}
 
       {filas.length === 0 ? <div className="empty">Sin tareas finalizadas en la selección.</div> : (
         <table className="tabla-detalle">
@@ -89,6 +147,19 @@ export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina }:
               </tr>
             ))}
           </tbody>
+          {/* Fila de totales fija al pie (misma sumatoria que las tarjetas). */}
+          <tfoot>
+            <tr className="fila-total">
+              <td colSpan={3}>TOTAL · {tot.n} tarea(s){filtrado ? ' (filtrado)' : ''}</td>
+              <td className="num">{fmtDur(tot.estimado)}</td>
+              <td className="num">{fmtDur(tot.real)}</td>
+              <td className="num" style={{ color: 'var(--naranja)' }}>{tot.demorado > 0 ? fmtDur(tot.demorado) : '—'}</td>
+              <td className="num">{tot.justificada > 0 ? fmtDur(tot.justificada) : '—'}</td>
+              <td className="num" style={{ color: tot.sinJust > 0 ? 'var(--rojo)' : 'var(--texto-tenue)' }}>
+                {tot.sinJust > 0 ? `+${fmtDur(tot.sinJust)}` : '—'}
+              </td>
+            </tr>
+          </tfoot>
         </table>
       )}
     </div>
