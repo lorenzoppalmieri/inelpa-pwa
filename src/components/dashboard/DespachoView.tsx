@@ -17,6 +17,7 @@ import AlertasDespacho from './AlertasDespacho'
 import ChipsInput from './ChipsInput'
 import FletesInternos from './FletesInternos'
 import LogisticaTareas from './LogisticaTareas'
+import { PERIODOS_HISTORIAL, rangoReporte, enRango, type PeriodoReporte } from '../../lib/periodoReporte'
 
 // ============================================================
 // TABLERO DE DESPACHO Y EMBALAJE (v1.27) — sector Melany. Fase 1: seguimiento de
@@ -34,6 +35,10 @@ export default function DespachoView() {
   const esSupervisora = usuario?.usuario === 'melany' || esSuperAdmin(usuario)
   const [vista, setVista] = useState<'operativo' | 'tareas' | 'reportes'>('operativo')
   const [busqueda, setBusqueda] = useState('')
+  // v1.43: período del historial (despachado / entregado). No toca los estados abiertos.
+  const [periodoHist, setPeriodoHist] = useState<PeriodoReporte>('mes_actual')
+  const [topeEnt, setTopeEnt] = useState(20)
+  useEffect(() => { setTopeEnt(20) }, [periodoHist, busqueda])
   const despachos = useLiveQuery(() => db.despachos.toArray(), []) ?? []
 
   const [ahora, setAhora] = useState(() => Date.now())
@@ -142,6 +147,14 @@ export default function DespachoView() {
       const arr = Array.isArray(e) ? e : [e]
       return despachos.filter((d) => arr.includes(d.estado) && match(d)).sort((a, b) => (a.fechaIngreso < b.fechaIngreso ? -1 : 1))
     }
+    // v1.43: los estados cerrados (despachado / entregado) son historial y crecen
+    // sin techo. Se recortan por período y se ordenan del más reciente al más viejo.
+    // Los estados abiertos NO se filtran: el operativo del día tiene que verse entero.
+    const r = rangoReporte(periodoHist)
+    const byHist = (e: EstadoDespacho, ref: (d: DespachoTrafo) => string | undefined) =>
+      despachos
+        .filter((d) => d.estado === e && match(d) && enRango(ref(d) ?? d.fechaIngreso, r.desde, r.hasta))
+        .sort((a, b) => ((ref(b) ?? '') < (ref(a) ?? '') ? -1 : 1))
     const finalizados = despachos.filter((d) => d.embalajeFin)
     const tiempos = finalizados.map((d) => Math.max(0, calcularTiempoProductivo(d.embalajeInicio, d.embalajeFin) - (d.minutosDemora ?? 0))).filter((m) => m > 0)
     const prom = tiempos.length ? Math.round(tiempos.reduce((a, b) => a + b, 0) / tiempos.length) : 0
@@ -149,10 +162,15 @@ export default function DespachoView() {
     const despHoy = despachos.filter((d) => d.fechaDespacho && d.fechaDespacho.slice(0, 10) === hoy).length
     return {
       esperando: by('esperando_embalaje'), proceso: by(['embalando', 'demorado']),
-      embalado: by('embalado'), despachado: by('despachado'), entregado: by('entregado'),
+      embalado: by('embalado'),
+      despachado: byHist('despachado', (d) => d.fechaDespacho),
+      entregado: byHist('entregado', (d) => d.entregadaEn ?? d.fechaDespacho),
+      // Totales sin recorte, para avisar cuándo el período está escondiendo cosas.
+      totalDespachado: despachos.filter((d) => d.estado === 'despachado').length,
+      totalEntregado: despachos.filter((d) => d.estado === 'entregado').length,
       prom, despHoy,
     }
-  }, [despachos, ahora, busqueda])
+  }, [despachos, ahora, busqueda, periodoHist])
 
   const chip = (e: EstadoDespacho) => <span className="estado-chip" style={{ background: color(e) }}>{estadoDespachoLabel(e)}</span>
 
@@ -368,9 +386,22 @@ export default function DespachoView() {
         )
       })}
 
+      {/* v1.43: período del historial cerrado (despachado + entregado). */}
+      <div className="filtros no-print" style={{ marginTop: 18 }}>
+        <span className="meta">Historial de despachos:</span>
+        <select className="select" value={periodoHist} onChange={(e) => setPeriodoHist(e.target.value as PeriodoReporte)}>
+          {PERIODOS_HISTORIAL.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+        </select>
+        <span className="meta">Las secciones de arriba (esperando, en proceso, embalado) se ven siempre completas.</span>
+      </div>
+
       {/* Despachado */}
-      <div className="section-title">Despachado ({g.despachado.length})</div>
-      {g.despachado.length === 0 ? <div className="empty">Nada despachado pendiente de entrega.</div> : g.despachado.map((d) => (
+      <div className="section-title">
+        Despachado ({g.despachado.length}{g.totalDespachado !== g.despachado.length ? ` de ${g.totalDespachado}` : ''})
+      </div>
+      {g.despachado.length === 0
+        ? <div className="empty">{g.totalDespachado === 0 ? 'Nada despachado pendiente de entrega.' : `Ninguno en este período — hay ${g.totalDespachado} en el histórico.`}</div>
+        : g.despachado.map((d) => (
         <Tarjeta d={d} key={d.id}>
           {esSupervisora
             ? <button className="btn btn-verde" style={{ flex: 1 }} onClick={() => void marcarEntregado(d)}>✓ Marcar entregado</button>
@@ -379,8 +410,12 @@ export default function DespachoView() {
       ))}
 
       {/* Entregado */}
-      <div className="section-title">Entregado ({g.entregado.length})</div>
-      {g.entregado.length === 0 ? <div className="empty">Aún no hay entregas.</div> : g.entregado.slice(0, 20).map((d) => (
+      <div className="section-title">
+        Entregado ({g.entregado.length}{g.totalEntregado !== g.entregado.length ? ` de ${g.totalEntregado}` : ''})
+      </div>
+      {g.entregado.length === 0
+        ? <div className="empty">{g.totalEntregado === 0 ? 'Aún no hay entregas.' : `Ninguna en este período — hay ${g.totalEntregado} en el histórico.`}</div>
+        : g.entregado.slice(0, topeEnt).map((d) => (
         <div className="card" key={d.id} style={{ borderLeft: `5px solid ${color(d.estado)}` }}>
           <div className="card-header">
             <div>
@@ -396,6 +431,12 @@ export default function DespachoView() {
           </div>
         </div>
       ))}
+      {g.entregado.length > topeEnt && (
+        <button className="btn btn-bloque" onClick={() => setTopeEnt((n) => n + 20)}>
+          ▼ Ver {Math.min(20, g.entregado.length - topeEnt)} más
+          <span className="meta"> (mostrando {topeEnt} de {g.entregado.length})</span>
+        </button>
+      )}
       </>
       )}
 
