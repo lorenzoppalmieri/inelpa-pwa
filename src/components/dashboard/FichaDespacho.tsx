@@ -7,6 +7,7 @@ import { fmtDur, fechaCorta, hhmm } from '../../lib/time'
 import { calcularTiempoProductivo } from '../../lib/calendario'
 import { guardarDespacho } from '../../sync/syncEngine'
 import { supabase } from '../../lib/supabaseClient'
+import { datosModelo, tituloTrafo } from '../../lib/modeloTrafo'
 
 // Bucket de Supabase Storage donde viven las fotos de los transformadores.
 export const BUCKET_FOTOS = 'despacho-fotos'
@@ -28,9 +29,9 @@ function minsEmbalaje(d: DespachoTrafo, ahoraISO: string): number {
   return Math.max(0, calcularTiempoProductivo(d.embalajeInicio, fin) - minsDemora(d, ahoraISO))
 }
 
-function Dato({ label, valor }: { label: string; valor?: string | null }) {
+function Dato({ label, valor, ancho = 130 }: { label: string; valor?: string | null; ancho?: number }) {
   return (
-    <div style={{ minWidth: 130 }}>
+    <div style={{ minWidth: ancho }}>
       <div className="meta">{label}</div>
       <div><strong>{valor && valor.trim() ? valor : '—'}</strong></div>
     </div>
@@ -40,6 +41,8 @@ function Dato({ label, valor }: { label: string; valor?: string | null }) {
 export default function FichaDespacho({ despacho: d, onClose }: { despacho: DespachoTrafo; onClose: () => void }) {
   const ahoraISO = new Date().toISOString()
   const color = ESTADOS_DESPACHO.find((e) => e.id === d.estado)?.color ?? 'var(--texto-tenue)'
+  // Fallback: si el despacho no trae tipo/potencia, se derivan del nombre del modelo.
+  const dm = datosModelo(d.modelo)
   const [subiendo, setSubiendo] = useState(false)
   const [errFoto, setErrFoto] = useState('')
 
@@ -82,18 +85,24 @@ export default function FichaDespacho({ despacho: d, onClose }: { despacho: Desp
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 720, width: '96%', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 'none' }}>
-          <div className="section-title" style={{ margin: 0, flex: 1 }}>Ficha · {d.nroSerie || d.ot}</div>
+          <div className="section-title" style={{ margin: 0, flex: 1 }}>
+            Ficha · {d.modelo ? tituloTrafo(d.modelo, d.nroSerie) : (d.nroSerie || d.ot)}
+          </div>
           <span className="estado-chip" style={{ background: color }}>{estadoDespachoLabel(d.estado)}</span>
         </div>
 
         <div style={{ overflow: 'auto', flex: 1, minHeight: 0, paddingRight: 4 }}>
           {seccion('Datos generales')}
+          {/* v1.43: el modelo completo va primero y en ancho total — es lo que
+              identifica al trafo. Tipo y Potencia se derivan de él si Laboratorio
+              no los mandó (despachos anteriores a esta versión). */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14 }}>
+            <Dato label="Modelo" valor={d.modelo} ancho={280} />
             <Dato label="OT" valor={d.ot} />
             <Dato label="Cliente" valor={d.cliente} />
             <Dato label="N° serie" valor={d.nroSerie} />
-            <Dato label="Potencia" valor={d.potencia} />
-            <Dato label="Tipo" valor={d.tipo} />
+            <Dato label="Potencia" valor={d.potencia ?? dm.potencia} />
+            <Dato label="Tipo" valor={d.tipo ?? dm.tipo} />
             <Dato label="CUT (EPE)" valor={d.cut} />
             <Dato label="Línea" valor={d.linea === 'rural' ? 'Rural' : 'Distribución'} />
             <Dato label="Ingreso a stock" valor={`${fechaCorta(d.fechaIngreso)} ${hhmm(d.fechaIngreso)}`} />

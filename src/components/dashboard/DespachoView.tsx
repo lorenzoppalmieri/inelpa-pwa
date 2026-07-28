@@ -18,6 +18,7 @@ import ChipsInput from './ChipsInput'
 import FletesInternos from './FletesInternos'
 import LogisticaTareas from './LogisticaTareas'
 import { PERIODOS_HISTORIAL, rangoReporte, enRango, type PeriodoReporte } from '../../lib/periodoReporte'
+import { tituloTrafo } from '../../lib/modeloTrafo'
 
 // ============================================================
 // TABLERO DE DESPACHO Y EMBALAJE (v1.27) — sector Melany. Fase 1: seguimiento de
@@ -197,9 +198,13 @@ export default function DespachoView() {
     )
   }
 
+  // v1.43: el título muestra la descripción completa del modelo + la serie, igual
+  // que en Laboratorio. Antes decía solo "Serie 24.563" y Melany no sabía qué
+  // trafo era sin abrir la ficha.
   const tituloCard = (d: DespachoTrafo) => {
     const s = seriesDespacho(d)
-    return s.length > 1 ? `Despacho · ${s.length} unidades` : `Serie ${s[0] ?? (d.nroSerie || '—')}`
+    if (s.length > 1) return d.modelo ? `${d.modelo} · ${s.length} unidades` : `Despacho · ${s.length} unidades`
+    return tituloTrafo(d.modelo, s[0] ?? d.nroSerie)
   }
 
   const cab = (d: DespachoTrafo) => (

@@ -4,6 +4,8 @@ import { ENSAYOS_LAB, estadoEnsayo, tieneRechazo } from '../../types'
 import { useAuth } from '../../auth/AuthContext'
 import { guardarLaboratorio } from '../../sync/syncEngine'
 import { guardarDespacho } from '../../sync/syncEngine'
+import { db } from '../../db/dexie'
+import { datosModelo, buscarModelo } from '../../lib/modeloTrafo'
 
 // ============================================================
 // FICHA DE LABORATORIO (v1.37) — el laboratorista corre el protocolo de ensayos.
@@ -53,12 +55,22 @@ export default function FichaLaboratorio({ tarea: t, onClose }: { tarea: TareaLa
     })
     if (!retrabajo) {
       // CAMINO A: aprobado -> crea la tarea de despacho para Melany.
+      // v1.43: se hereda la DESCRIPCIÓN COMPLETA del modelo, no solo la serie.
+      // Antes a Despacho le llegaba "Serie 24.563" y la ficha mostraba "—" en
+      // Tipo y Potencia. El catálogo aporta tanque/montaje/potencia normalizados;
+      // si el modelo no está (prototipos, catálogo sin sincronizar) se parsea el
+      // nombre, que sigue la misma convención de SAP.
+      const catalogo = await db.modelos.toArray()
+      const dm = datosModelo(t.modelo, buscarModelo(t.modelo, catalogo))
       const d: DespachoTrafo = {
         id: crypto.randomUUID(),
         ot: t.ot ?? '',
         cliente: t.cliente || 'Stock',
         nroSerie: serie ?? '',
         numerosSerie: serie ? [serie] : undefined,
+        modelo: dm.nombre || undefined,
+        tipo: dm.tipo,
+        potencia: dm.potencia,
         linea: t.linea ?? 'distribucion',
         fechaIngreso: now,
         estado: 'esperando_embalaje',

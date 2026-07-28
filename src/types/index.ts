@@ -673,8 +673,11 @@ export interface DespachoTrafo {
   numerosSerie?: string[]        // v1.30: N° de serie de cada trafo del viaje (1+)
   cargados?: string[]            // series ya cargadas al camión (tildadas)
   cut?: string                   // v1.31: N° CUT (solo trafos tipo EPE; opcional)
-  potencia?: string
-  tipo?: string                  // tipo de transformador
+  // v1.43: descripción completa del modelo heredada de Laboratorio
+  // (ej. "TTD 63/33 - Tanque Expansion - Plataforma - Aluminio").
+  modelo?: string
+  potencia?: string              // ej. "63 kVA / 33 kV"
+  tipo?: string                  // variante constructiva (ej. "Tanque Expansion · Plataforma")
   linea: LineaProduccion         // distribucion / rural (los tiempos difieren)
   fechaIngreso: string           // ISO: ingreso del trafo al stock
   // --- Estado del proceso ---
