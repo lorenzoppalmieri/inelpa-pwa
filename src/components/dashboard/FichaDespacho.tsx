@@ -113,7 +113,12 @@ export default function FichaDespacho({ despacho: d, onClose }: { despacho: Desp
             <>
               {seccion('Depósito')}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14 }}>
-                <Dato label="Ubicación actual" valor={d.deposito ?? 'INELPA (planta)'} ancho={180} />
+                <Dato
+                  label="Ubicación actual"
+                  ancho={180}
+                  valor={d.deposito
+                    ?? (d.estado === 'despachado' || d.estado === 'entregado' ? 'Ya salió del depósito' : 'INELPA (planta)')}
+                />
                 <Dato label="Guardado desde" valor={d.fechaDeposito ? `${fechaCorta(d.fechaDeposito)} ${hhmm(d.fechaDeposito)}` : undefined} ancho={170} />
                 <Dato label="Días guardado" valor={d.fechaDeposito ? `${Math.floor((Date.parse(ahoraISO) - Date.parse(d.fechaDeposito)) / 86400000)} día(s)` : undefined} />
               </div>

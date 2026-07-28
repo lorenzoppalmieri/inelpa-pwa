@@ -386,19 +386,31 @@ export default function DespachoView() {
         return (
           <div className="card" style={{ marginBottom: 14 }}>
             <div className="section-title" style={{ marginTop: 0 }}>📦 {verDeposito} · {grupo.items.length} trafo(s)</div>
-            {grupo.items.map((d) => (
-              <div key={d.id} className="pareto-row" style={{ marginBottom: 8, alignItems: 'center' }}>
-                <div style={{ flex: 1 }}>
-                  <strong>{tituloCard(d)}</strong>
-                  <div className="meta">
-                    Cliente <strong>{d.cliente}</strong> · OT {d.ot}
-                    {d.estado === 'en_deposito' ? ` · guardado hace ${diasEnDeposito(d)} día(s)` : ' · embalado en planta'}
+            {grupo.items.map((d) => {
+              // v1.45: se puede despachar al cliente sin salir del desglose.
+              // Sigue exigiendo el checklist completo, igual que en la lista.
+              const listo = checklistCompleto(d.checklist)
+              return (
+                <div key={d.id} className="pareto-row" style={{ marginBottom: 8, alignItems: 'center' }}>
+                  <div style={{ flex: 1 }}>
+                    <strong>{tituloCard(d)}</strong>
+                    <div className="meta">
+                      Cliente <strong>{d.cliente}</strong> · OT {d.ot}
+                      {d.estado === 'en_deposito' ? ` · guardado hace ${diasEnDeposito(d)} día(s)` : ' · embalado en planta'}
+                      {!listo ? <> · <span style={{ color: 'var(--naranja)' }}>checklist incompleto</span></> : null}
+                    </div>
                   </div>
+                  <button className="btn" onClick={() => setFicha(d)}>👁 Ficha</button>
+                  {esSupervisora && <button className="btn" onClick={() => abrirDeposito(d)}>📦 Mover</button>}
+                  {esSupervisora && (
+                    <button className="btn btn-verde" disabled={!listo} onClick={() => setDespachando(d)}
+                      title={listo ? 'Despachar al cliente' : 'Completá el checklist en la ficha para poder despachar'}>
+                      {listo ? '🚚 Despachar' : '🔒 Despachar'}
+                    </button>
+                  )}
                 </div>
-                <button className="btn" onClick={() => setFicha(d)}>👁 Ficha</button>
-                {esSupervisora && <button className="btn" onClick={() => abrirDeposito(d)}>📦 Mover</button>}
-              </div>
-            ))}
+              )
+            })}
           </div>
         )
       })()}
@@ -760,6 +772,9 @@ function ModalDespachar({ despacho: d, onClose }: { despacho: DespachoTrafo; onC
     if (!transportista.trim() || !remito.trim()) return
     await guardarDespacho({
       ...d, estado: 'despachado', fechaDespacho: new Date().toISOString(),
+      // v1.45: al salir hacia el cliente deja de ocupar lugar en el depósito.
+      // El historial de movimientos se conserva para la trazabilidad.
+      deposito: undefined, fechaDeposito: undefined,
       transportista: transportista.trim(), patente: patente.trim() || undefined,
       remito: remito.trim(), destino: destino.trim() || undefined,
       redespacho: redespacho || undefined,
