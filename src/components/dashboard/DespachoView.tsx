@@ -7,7 +7,9 @@ import type { DespachoTrafo, EstadoDespacho, LineaProduccion } from '../../types
 import {
   ESTADOS_DESPACHO, estadoDespachoLabel, RESPONSABLES_DESPACHO, MOTIVOS_DEMORA_DESPACHO,
   checklistCompleto, checklistFaltantes, seriesDespacho, UBICACIONES_DESPACHO,
+  DEPOSITOS, DEPOSITOS_EXTERNOS, PLANTA_INELPA, depositoActual, enStock,
 } from '../../types'
+import type { MovimientoDeposito } from '../../types'
 import { guardarDespacho, eliminarDespacho } from '../../sync/syncEngine'
 import { fmtDur, fechaCorta, hhmm } from '../../lib/time'
 import { calcularTiempoProductivo } from '../../lib/calendario'
@@ -64,6 +66,12 @@ export default function DespachoView() {
   const [demorando, setDemorando] = useState<DespachoTrafo | null>(null)
   const [causaSel, setCausaSel] = useState(MOTIVOS_DEMORA_DESPACHO[0])
   const [despachando, setDespachando] = useState<DespachoTrafo | null>(null)
+  // v1.44: mover a depósito + desplegables de stock y entregados.
+  const [moviendo, setMoviendo] = useState<DespachoTrafo | null>(null)
+  const [depositoSel, setDepositoSel] = useState<string>(DEPOSITOS_EXTERNOS[0])
+  const [notaDep, setNotaDep] = useState('')
+  const [verDeposito, setVerDeposito] = useState<string | null>(null)   // depósito abierto en el KPI
+  const [verEntregados, setVerEntregados] = useState(false)
 
   // --- tiempos ---
   function minsDemora(d: DespachoTrafo): number {
@@ -136,6 +144,52 @@ export default function DespachoView() {
   async function marcarEntregado(d: DespachoTrafo) {
     await guardarDespacho({ ...d, estado: 'entregado', entregadaEn: new Date().toISOString() })
   }
+
+  // ------------------------------------------------------------
+  // v1.44: GUARDADO EN DEPÓSITO. Un trafo embalado no siempre sale directo al
+  // cliente; puede quedar guardado un tiempo indefinido. El destino final sigue
+  // siendo el cliente, así que NO se toca `cliente`: solo dónde está hoy.
+  // ------------------------------------------------------------
+  function abrirDeposito(d: DespachoTrafo) {
+    setMoviendo(d)
+    // Por defecto propone un depósito distinto al actual, para que mover sea un clic.
+    setDepositoSel(DEPOSITOS_EXTERNOS.find((x) => x !== d.deposito) ?? DEPOSITOS_EXTERNOS[0])
+    setNotaDep('')
+  }
+  async function confirmarDeposito() {
+    if (!moviendo || !depositoSel) return
+    const now = new Date().toISOString()
+    const mov: MovimientoDeposito = {
+      deposito: depositoSel,
+      desde: moviendo.deposito ?? (moviendo.estado === 'embalado' ? PLANTA_INELPA : undefined),
+      fecha: now,
+      usuario: usuario?.usuario,
+      nota: notaDep.trim() || undefined,
+    }
+    await guardarDespacho({
+      ...moviendo,
+      estado: 'en_deposito',
+      deposito: depositoSel,
+      fechaDeposito: now,
+      movimientos: [...(moviendo.movimientos ?? []), mov],
+    })
+    setMoviendo(null); setNotaDep('')
+  }
+  // Vuelve de depósito a planta: queda otra vez "embalado, listo para despachar".
+  async function volverAPlanta(d: DespachoTrafo) {
+    const now = new Date().toISOString()
+    const mov: MovimientoDeposito = { deposito: PLANTA_INELPA, desde: d.deposito, fecha: now, usuario: usuario?.usuario }
+    await guardarDespacho({
+      ...d, estado: 'embalado', deposito: undefined, fechaDeposito: undefined,
+      movimientos: [...(d.movimientos ?? []), mov],
+    })
+  }
+  // Días que lleva guardado en el depósito actual.
+  function diasEnDeposito(d: DespachoTrafo): number {
+    const desde = d.fechaDeposito ?? d.embalajeFin
+    if (!desde) return 0
+    return Math.floor((Date.parse(ahoraISO) - Date.parse(desde)) / 86400000)
+  }
   async function borrar(d: DespachoTrafo) {
     if (!window.confirm(`¿Eliminar el despacho del trafo ${d.nroSerie}?`)) return
     await eliminarDespacho(d)
@@ -162,14 +216,40 @@ export default function DespachoView() {
     const prom = tiempos.length ? Math.round(tiempos.reduce((a, b) => a + b, 0) / tiempos.length) : 0
     const hoy = new Date().toLocaleDateString('en-CA')
     const despHoy = despachos.filter((d) => d.fechaDespacho && d.fechaDespacho.slice(0, 10) === hoy).length
+    // v1.44: STOCK GUARDADO por depósito. Cuenta los trafos embalados que todavía
+    // no se despacharon, estén en planta o en un depósito externo. El total cierra
+    // contra embalado + en_deposito, así no se "pierde" ninguno en el conteo.
+    const enDeposito = by('en_deposito')
+    const stockPorDeposito = DEPOSITOS.map((dep) => ({
+      deposito: dep,
+      items: despachos.filter((d) => enStock(d) && depositoActual(d) === dep && match(d))
+        .sort((a, b) => ((a.fechaDeposito ?? a.embalajeFin ?? '') < (b.fechaDeposito ?? b.embalajeFin ?? '') ? -1 : 1)),
+    }))
+    const stockTotal = stockPorDeposito.reduce((s, x) => s + x.items.length, 0)
+
+    // v1.44: ENTREGAS por período — mes actual vs mes anterior vs año.
+    // La referencia es la fecha de entrega real; si falta, la de despacho.
+    const refEntrega = (d: DespachoTrafo) => d.entregadaEn ?? d.fechaDespacho
+    const entregados = despachos.filter((d) => d.estado === 'entregado')
+    const cuenta = (p: PeriodoReporte) => {
+      const rr = rangoReporte(p)
+      return entregados.filter((d) => enRango(refEntrega(d), rr.desde, rr.hasta)).length
+    }
+    const rMes = rangoReporte('mes_actual')
+    const entregasMes = cuenta('mes_actual')
+    const entregasMesAnt = entregados.filter((d) => enRango(refEntrega(d), rMes.desdePrev, rMes.hastaPrev)).length
+    const entregasAnual = cuenta('anual')
+
     return {
       esperando: by('esperando_embalaje'), proceso: by(['embalando', 'demorado']),
-      embalado: by('embalado'),
+      embalado: by('embalado'), enDeposito,
       despachado: byHist('despachado', (d) => d.fechaDespacho),
       entregado: byHist('entregado', (d) => d.entregadaEn ?? d.fechaDespacho),
       // Totales sin recorte, para avisar cuándo el período está escondiendo cosas.
       totalDespachado: despachos.filter((d) => d.estado === 'despachado').length,
-      totalEntregado: despachos.filter((d) => d.estado === 'entregado').length,
+      totalEntregado: entregados.length,
+      stockPorDeposito, stockTotal,
+      entregasMes, entregasMesAnt, entregasAnual,
       prom, despHoy,
     }
   }, [despachos, ahora, busqueda, periodoHist])
@@ -270,6 +350,121 @@ export default function DespachoView() {
         <div className="logi-kpi"><div className="n" style={{ color: 'var(--naranja)' }}>{g.despHoy}</div><div className="l">Despachados hoy</div></div>
         <div className="logi-kpi"><div className="n">{g.prom ? fmtDur(g.prom) : '—'}</div><div className="l">Tiempo prom. embalaje</div></div>
       </div>
+
+      {/* v1.44: STOCK GUARDADO — dónde está cada trafo embalado que no salió.
+          Cada tarjeta abre el detalle de ese depósito. */}
+      <div className="section-title">Stock guardado · {g.stockTotal} trafo(s) sin despachar</div>
+      <div className="logi-kpis">
+        {g.stockPorDeposito.map(({ deposito, items }) => {
+          const abierto = verDeposito === deposito
+          const esPlanta = deposito === PLANTA_INELPA
+          return (
+            <button
+              type="button" key={deposito} className="logi-kpi" disabled={items.length === 0}
+              onClick={() => setVerDeposito(abierto ? null : deposito)}
+              title={items.length ? 'Ver qué trafos hay acá' : 'Sin trafos en este depósito'}
+              style={{
+                font: 'inherit', color: 'inherit', textAlign: 'center',
+                cursor: items.length ? 'pointer' : 'default',
+                border: '1px solid ' + (abierto ? 'var(--azul-claro)' : 'var(--borde)'),
+              }}
+            >
+              <div className="n" style={{ color: esPlanta ? 'var(--azul-claro)' : 'var(--naranja)' }}>{items.length}</div>
+              <div className="l">{deposito}{items.length ? (abierto ? ' ▲' : ' ▼') : ''}</div>
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Detalle del depósito abierto */}
+      {verDeposito && (() => {
+        const grupo = g.stockPorDeposito.find((x) => x.deposito === verDeposito)
+        if (!grupo || grupo.items.length === 0) return null
+        return (
+          <div className="card" style={{ marginBottom: 14 }}>
+            <div className="section-title" style={{ marginTop: 0 }}>📦 {verDeposito} · {grupo.items.length} trafo(s)</div>
+            {grupo.items.map((d) => (
+              <div key={d.id} className="pareto-row" style={{ marginBottom: 8, alignItems: 'center' }}>
+                <div style={{ flex: 1 }}>
+                  <strong>{tituloCard(d)}</strong>
+                  <div className="meta">
+                    Cliente <strong>{d.cliente}</strong> · OT {d.ot}
+                    {d.estado === 'en_deposito' ? ` · guardado hace ${diasEnDeposito(d)} día(s)` : ' · embalado en planta'}
+                  </div>
+                </div>
+                <button className="btn" onClick={() => setFicha(d)}>👁 Ficha</button>
+                {esSupervisora && <button className="btn" onClick={() => abrirDeposito(d)}>📦 Mover</button>}
+              </div>
+            ))}
+          </div>
+        )
+      })()}
+
+      {/* v1.44: ENTREGAS al cliente — mes actual contra mes anterior y año.
+          La lista salió del operativo: se despliega desde acá. */}
+      <div className="section-title">Entregas a clientes</div>
+      <div className="logi-kpis">
+        <div className="logi-kpi"><div className="n" style={{ color: 'var(--estado-fin)' }}>{g.entregasMes}</div><div className="l">Entregados este mes</div></div>
+        <div className="logi-kpi"><div className="n">{g.entregasMesAnt}</div><div className="l">Mes anterior</div></div>
+        <div className="logi-kpi">
+          <div className="n" style={{ color: (g.entregasMes - g.entregasMesAnt) >= 0 ? 'var(--estado-fin)' : 'var(--rojo)' }}>
+            {g.entregasMes - g.entregasMesAnt >= 0 ? '+' : ''}{g.entregasMes - g.entregasMesAnt}
+          </div>
+          <div className="l">Variación vs mes anterior</div>
+        </div>
+        <div className="logi-kpi"><div className="n">{g.entregasAnual}</div><div className="l">Acumulado del año</div></div>
+        <button
+          type="button" className="logi-kpi" disabled={g.totalEntregado === 0}
+          onClick={() => setVerEntregados((v) => !v)}
+          title={g.totalEntregado ? 'Ver el detalle de las entregas' : 'Todavía no hay entregas'}
+          style={{
+            font: 'inherit', color: 'inherit', textAlign: 'center',
+            cursor: g.totalEntregado ? 'pointer' : 'default',
+            border: '1px solid ' + (verEntregados ? 'var(--azul-claro)' : 'var(--borde)'),
+          }}
+        >
+          <div className="n">{g.totalEntregado}</div>
+          <div className="l">Histórico{g.totalEntregado ? (verEntregados ? ' ▲ ocultar' : ' ▼ ver detalle') : ''}</div>
+        </button>
+      </div>
+
+      {/* Detalle de entregas — desplegable, ya no una lista infinita al pie */}
+      {verEntregados && (
+        <div className="card" style={{ marginBottom: 14 }}>
+          <div className="filtros" style={{ marginBottom: 10 }}>
+            <span className="meta">Período:</span>
+            <select className="select" value={periodoHist} onChange={(e) => setPeriodoHist(e.target.value as PeriodoReporte)}>
+              {PERIODOS_HISTORIAL.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+            </select>
+            <span className="meta">{g.entregado.length} de {g.totalEntregado} entrega(s)</span>
+          </div>
+          {g.entregado.length === 0
+            ? <div className="empty">Ninguna entrega en este período — hay {g.totalEntregado} en el histórico.</div>
+            : <>
+                {g.entregado.slice(0, topeEnt).map((d) => (
+                  <div key={d.id} className="pareto-row" style={{ marginBottom: 8, alignItems: 'center' }}>
+                    <div style={{ flex: 1 }}>
+                      <strong>{tituloCard(d)}</strong>
+                      <div className="meta">
+                        Cliente <strong>{d.cliente}</strong> · OT {d.ot}
+                        {d.entregadaEn ? ` · entregado ${fechaCorta(d.entregadaEn)}` : ''}
+                        {d.transportista ? ` · ${d.transportista}${d.patente ? ` (${d.patente})` : ''}` : ''}
+                        {d.remito ? ` · remito ${d.remito}` : ''}
+                      </div>
+                    </div>
+                    <button className="btn" onClick={() => setFicha(d)}>👁 Ficha</button>
+                    {esSupervisora && <button className="btn btn-rojo" onClick={() => void borrar(d)}>🗑</button>}
+                  </div>
+                ))}
+                {g.entregado.length > topeEnt && (
+                  <button className="btn btn-bloque" onClick={() => setTopeEnt((n) => n + 20)}>
+                    ▼ Ver {Math.min(20, g.entregado.length - topeEnt)} más
+                    <span className="meta"> (mostrando {topeEnt} de {g.entregado.length})</span>
+                  </button>
+                )}
+              </>}
+        </div>
+      )}
 
       {/* Alta — solo Melany crea/envía tareas de embalaje; el equipo las ejecuta */}
       {esSupervisora && (
@@ -379,11 +574,14 @@ export default function DespachoView() {
             <div className="row-actions">
               {esSupervisora
                 ? <button className="btn btn-verde" style={{ flex: 1 }} disabled={!listo} onClick={() => setDespachando(d)}>
-                    {listo ? '🚚 Despachar' : '🔒 Completá el checklist'}
+                    {listo ? '🚚 Despachar al cliente' : '🔒 Completá el checklist'}
                   </button>
                 : <div className="meta" style={{ flex: 1, alignSelf: 'center', color: listo ? 'var(--estado-fin)' : 'var(--naranja)' }}>
                     {listo ? '✓ Listo — Melany organiza el despacho' : `🔒 Completá el checklist (faltan: ${faltan.join(', ')})`}
                   </div>}
+              {/* v1.44: alternativa al despacho directo — guardarlo en un depósito.
+                  No pide checklist: mover a depósito no es liberar al cliente. */}
+              {esSupervisora && <button className="btn" onClick={() => abrirDeposito(d)}>📦 Enviar a depósito</button>}
               <button className="btn" onClick={() => setFicha(d)}>👁 Ficha / Checklist</button>
               {esSupervisora && <button className="btn btn-rojo" onClick={() => void borrar(d)}>🗑</button>}
             </div>
@@ -391,13 +589,47 @@ export default function DespachoView() {
         )
       })}
 
-      {/* v1.43: período del historial cerrado (despachado + entregado). */}
+      {/* v1.44: En depósito — guardados, a la espera de que el cliente los pida */}
+      <div className="section-title">En depósito ({g.enDeposito.length})</div>
+      {g.enDeposito.length === 0 ? <div className="empty">Nada guardado en depósito.</div> : g.enDeposito.map((d) => {
+        const listo = checklistCompleto(d.checklist)
+        const dias = diasEnDeposito(d)
+        return (
+          <div className="card logi-tarea" key={d.id} style={{ borderLeft: `5px solid ${color(d.estado)}` }}>
+            <div className="card-header">
+              <div>
+                <h3>{tituloCard(d)}</h3>
+                {cab(d)}
+                <div className="meta" style={{ marginTop: 3 }}>
+                  📦 En <strong>{d.deposito}</strong> desde {d.fechaDeposito ? fechaCorta(d.fechaDeposito) : '—'}
+                  {' · '}<strong style={{ color: dias > 60 ? 'var(--rojo)' : dias > 30 ? 'var(--naranja)' : undefined }}>{dias} día(s)</strong>
+                </div>
+              </div>
+              {chip(d.estado)}
+            </div>
+            <div className="row-actions">
+              {esSupervisora
+                ? <button className="btn btn-verde" style={{ flex: 1 }} disabled={!listo} onClick={() => setDespachando(d)}>
+                    {listo ? '🚚 Despachar al cliente' : '🔒 Completá el checklist'}
+                  </button>
+                : <div className="meta" style={{ flex: 1, alignSelf: 'center' }}>Guardado en {d.deposito}</div>}
+              {esSupervisora && <button className="btn" onClick={() => abrirDeposito(d)}>⇄ Mover de depósito</button>}
+              {esSupervisora && <button className="btn" onClick={() => void volverAPlanta(d)}>↩ Volver a planta</button>}
+              <button className="btn" onClick={() => setFicha(d)}>👁 Ficha</button>
+              {esSupervisora && <button className="btn btn-rojo" onClick={() => void borrar(d)}>🗑</button>}
+            </div>
+          </div>
+        )
+      })}
+
+      {/* v1.43: período del historial cerrado. Los entregados ya no viven acá:
+          se ven desde el desplegable de los KPIs de arriba. */}
       <div className="filtros no-print" style={{ marginTop: 18 }}>
         <span className="meta">Historial de despachos:</span>
         <select className="select" value={periodoHist} onChange={(e) => setPeriodoHist(e.target.value as PeriodoReporte)}>
           {PERIODOS_HISTORIAL.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
         </select>
-        <span className="meta">Las secciones de arriba (esperando, en proceso, embalado) se ven siempre completas.</span>
+        <span className="meta">Lo operativo de arriba (esperando, en proceso, embalado, en depósito) se ve siempre completo.</span>
       </div>
 
       {/* Despachado */}
@@ -414,39 +646,57 @@ export default function DespachoView() {
         </Tarjeta>
       ))}
 
-      {/* Entregado */}
-      <div className="section-title">
-        Entregado ({g.entregado.length}{g.totalEntregado !== g.entregado.length ? ` de ${g.totalEntregado}` : ''})
-      </div>
-      {g.entregado.length === 0
-        ? <div className="empty">{g.totalEntregado === 0 ? 'Aún no hay entregas.' : `Ninguna en este período — hay ${g.totalEntregado} en el histórico.`}</div>
-        : g.entregado.slice(0, topeEnt).map((d) => (
-        <div className="card" key={d.id} style={{ borderLeft: `5px solid ${color(d.estado)}` }}>
-          <div className="card-header">
-            <div>
-              <h3>{tituloCard(d)}</h3>
-              {cab(d)}
-              <div className="meta" style={{ marginTop: 3 }}>{d.transportista ? <>Transporte {d.transportista} · {d.patente} · Remito {d.remito}</> : null}{d.entregadaEn ? <> · Entregado {fechaCorta(d.entregadaEn)}</> : null}</div>
-            </div>
-            {chip(d.estado)}
-          </div>
-          <div className="row-actions">
-            <button className="btn" onClick={() => setFicha(d)}>👁 Ficha</button>
-            {esSupervisora && <button className="btn btn-rojo" onClick={() => void borrar(d)}>🗑</button>}
-          </div>
-        </div>
-      ))}
-      {g.entregado.length > topeEnt && (
-        <button className="btn btn-bloque" onClick={() => setTopeEnt((n) => n + 20)}>
-          ▼ Ver {Math.min(20, g.entregado.length - topeEnt)} más
-          <span className="meta"> (mostrando {topeEnt} de {g.entregado.length})</span>
-        </button>
-      )}
       </>
       )}
 
       {/* --- Modales --- */}
       {ficha && <FichaDespacho despacho={despachos.find((x) => x.id === ficha.id) ?? ficha} onClose={() => setFicha(null)} />}
+
+      {/* v1.44: enviar / mover a depósito */}
+      {moviendo && (
+        <div className="modal-overlay" onClick={() => setMoviendo(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="section-title" style={{ marginTop: 0 }}>📦 {moviendo.estado === 'en_deposito' ? 'Mover de depósito' : 'Enviar a depósito'}</div>
+            <div className="meta" style={{ marginBottom: 12 }}>
+              {tituloCard(moviendo)} · cliente <strong>{moviendo.cliente}</strong>
+              {moviendo.deposito ? <> · hoy está en <strong>{moviendo.deposito}</strong></> : null}
+            </div>
+            <div className="field" style={{ marginBottom: 12 }}>
+              <label>¿A qué depósito va?</label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {DEPOSITOS_EXTERNOS.map((dep) => {
+                  const on = depositoSel === dep
+                  const actual = moviendo.deposito === dep
+                  return (
+                    <button
+                      key={dep} type="button" disabled={actual} onClick={() => setDepositoSel(dep)}
+                      title={actual ? 'Ya está en este depósito' : undefined}
+                      style={{
+                        padding: '10px 16px', borderRadius: 10, cursor: actual ? 'default' : 'pointer', minHeight: 46,
+                        border: '2px solid ' + (on ? 'var(--azul-claro)' : 'var(--borde)'),
+                        background: on ? 'var(--azul-claro)' : 'transparent',
+                        color: on ? '#fff' : 'var(--texto)', fontWeight: on ? 800 : 600,
+                        opacity: actual ? 0.45 : 1,
+                      }}>{on ? '● ' : '○ '}{dep}</button>
+                  )
+                })}
+              </div>
+            </div>
+            <div className="field" style={{ marginBottom: 12 }}>
+              <label>Nota (opcional) — ¿por qué se guarda?</label>
+              <input className="input" value={notaDep} onChange={(e) => setNotaDep(e.target.value)}
+                placeholder="ej. el cliente lo retira en septiembre" style={{ width: '100%' }} />
+            </div>
+            <div className="meta" style={{ marginBottom: 12 }}>
+              El trafo sigue asignado a <strong>{moviendo.cliente}</strong>. Guardarlo no lo despacha: queda en el stock del depósito hasta que lo mandes al cliente.
+            </div>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button className="btn" onClick={() => setMoviendo(null)}>Cancelar</button>
+              <button className="btn btn-primary" disabled={!depositoSel || depositoSel === moviendo.deposito} onClick={() => void confirmarDeposito()}>📦 Guardar en {depositoSel}</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {iniciando && (
         <div className="modal-overlay" onClick={() => setIniciando(null)}>

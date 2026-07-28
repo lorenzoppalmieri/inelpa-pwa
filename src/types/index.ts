@@ -550,12 +550,19 @@ export function diasLabel(dias: number[]): string {
 // Entidad propia (DespachoTrafo). Fase 1: nucleo + estados + tiempos de embalaje
 // + checklist de liberacion (bloquea el despacho) + log de demoras + ficha unica.
 // ============================================================
-export type EstadoDespacho = 'esperando_embalaje' | 'embalando' | 'demorado' | 'embalado' | 'despachado' | 'entregado'
+// v1.44: se suma 'en_deposito'. Un trafo embalado no siempre sale directo al
+// cliente: puede quedar guardado en un depósito por tiempo indefinido y recién
+// después despacharse. Flujo completo:
+//   esperando_embalaje -> embalando (↔ demorado) -> embalado
+//     -> despachado -> entregado            (sale directo)
+//     -> en_deposito -> despachado -> entregado   (pasa por depósito)
+export type EstadoDespacho = 'esperando_embalaje' | 'embalando' | 'demorado' | 'embalado' | 'en_deposito' | 'despachado' | 'entregado'
 export const ESTADOS_DESPACHO: { id: EstadoDespacho; label: string; color: string }[] = [
   { id: 'esperando_embalaje', label: 'Esperando embalaje', color: 'var(--texto-tenue)' },
   { id: 'embalando', label: 'Embalando', color: 'var(--estado-proceso)' },
   { id: 'demorado', label: 'Demorado', color: 'var(--rojo)' },
   { id: 'embalado', label: 'Embalado', color: 'var(--azul-claro)' },
+  { id: 'en_deposito', label: 'En depósito', color: 'var(--violeta, #8b5cf6)' },
   { id: 'despachado', label: 'Despachado', color: 'var(--naranja)' },
   { id: 'entregado', label: 'Entregado', color: 'var(--estado-fin)' },
 ]
@@ -568,6 +575,36 @@ export const RESPONSABLES_DESPACHO: string[] = ['Eugenia Suarez', 'Maribel Ogger
 
 // Ubicaciones físicas donde se realiza el embalaje (obligatorio al finalizar).
 export const UBICACIONES_DESPACHO: string[] = ['INELPA', 'Depósito 25 de Mayo', 'CERDAN']
+
+// ------------------------------------------------------------
+// v1.44: DEPÓSITOS donde puede quedar guardado un trafo ya embalado.
+// PLANTA_INELPA no es un depósito externo: representa el trafo embalado que
+// todavía no salió. Se lista igual para que el stock cierre contra el total.
+// ------------------------------------------------------------
+export const PLANTA_INELPA = 'INELPA (planta)'
+export const DEPOSITOS_EXTERNOS: string[] = ['Lorenzatti', 'Cerdán', '25 de Mayo']
+export const DEPOSITOS: string[] = [...DEPOSITOS_EXTERNOS, PLANTA_INELPA]
+
+// Un movimiento entre depósitos (para saber desde cuándo está donde está).
+export interface MovimientoDeposito {
+  deposito: string               // destino del movimiento
+  desde?: string                 // depósito de origen (undefined = primera salida de planta)
+  fecha: string                  // ISO
+  usuario?: string
+  nota?: string
+}
+
+// ¿Dónde está físicamente el trafo hoy? Solo tiene sentido antes del despacho.
+// Un embalado sin depósito asignado se cuenta en planta.
+export function depositoActual(d: DespachoTrafo): string | undefined {
+  if (d.estado === 'en_deposito') return d.deposito ?? PLANTA_INELPA
+  if (d.estado === 'embalado') return d.deposito ?? PLANTA_INELPA
+  return undefined
+}
+// ¿El trafo forma parte del stock guardado? (embalado o en depósito, sin despachar)
+export function enStock(d: DespachoTrafo): boolean {
+  return d.estado === 'embalado' || d.estado === 'en_deposito'
+}
 
 // ============================================================
 // LABORATORIO (v1.37) — puente entre el fin de producción (Montaje PO) y despacho.
@@ -694,6 +731,10 @@ export interface DespachoTrafo {
   demoras?: DemoraDespacho[]     // historial de demoras (causa + duracion)
   // --- Checklist de liberacion ---
   checklist?: ChecklistDespacho
+  // --- v1.44: guardado en depósito (entre el embalaje y el despacho) ---
+  deposito?: string              // dónde está guardado hoy (ver DEPOSITOS)
+  fechaDeposito?: string         // ISO: ingreso al depósito actual (para la antigüedad)
+  movimientos?: MovimientoDeposito[]  // historial de traslados entre depósitos
   // --- Despacho ---
   fechaDespacho?: string         // ISO
   transportista?: string

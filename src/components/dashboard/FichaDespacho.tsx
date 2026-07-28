@@ -108,6 +108,28 @@ export default function FichaDespacho({ despacho: d, onClose }: { despacho: Desp
             <Dato label="Ingreso a stock" valor={`${fechaCorta(d.fechaIngreso)} ${hhmm(d.fechaIngreso)}`} />
           </div>
 
+          {/* v1.44: dónde está guardado + historial de traslados entre depósitos */}
+          {(d.deposito || d.movimientos?.length) ? (
+            <>
+              {seccion('Depósito')}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14 }}>
+                <Dato label="Ubicación actual" valor={d.deposito ?? 'INELPA (planta)'} ancho={180} />
+                <Dato label="Guardado desde" valor={d.fechaDeposito ? `${fechaCorta(d.fechaDeposito)} ${hhmm(d.fechaDeposito)}` : undefined} ancho={170} />
+                <Dato label="Días guardado" valor={d.fechaDeposito ? `${Math.floor((Date.parse(ahoraISO) - Date.parse(d.fechaDeposito)) / 86400000)} día(s)` : undefined} />
+              </div>
+              {d.movimientos?.length ? (
+                <div style={{ marginTop: 8 }}>
+                  {d.movimientos.map((m, i) => (
+                    <div className="meta" key={i}>
+                      {fechaCorta(m.fecha)} {hhmm(m.fecha)} · {m.desde ? `${m.desde} → ` : ''}<strong>{m.deposito}</strong>
+                      {m.usuario ? ` · ${m.usuario}` : ''}{m.nota ? ` · ${m.nota}` : ''}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </>
+          ) : null}
+
           {seccion('Embalaje')}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14 }}>
             <Dato label="Operario" valor={d.operario} />

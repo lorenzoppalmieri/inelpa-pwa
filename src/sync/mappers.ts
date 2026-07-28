@@ -14,7 +14,7 @@ import type {
   SolicitudLogistica, EstadoSolicitudLog, Feriado,
   Mensaje, MensajeDestinoTipo, MensajeLectura,
   TiempoEstandar, AreaDemora, BloqueoLog,
-  DespachoTrafo, EstadoDespacho, DemoraDespacho, ChecklistDespacho, FleteInterno,
+  DespachoTrafo, EstadoDespacho, DemoraDespacho, ChecklistDespacho, FleteInterno, MovimientoDeposito,
   TareaLaboratorio, EstadoLab, EnsayoEstado,
   PlantillaRecurrente,
 } from '../types'
@@ -303,6 +303,9 @@ export interface DespachoRow {
   minutos_demora: number | null
   demoras: DemoraDespacho[] | null
   checklist: ChecklistDespacho | null
+  deposito?: string | null                       // v1.44
+  fecha_deposito?: string | null                 // v1.44
+  movimientos?: MovimientoDeposito[] | null      // v1.44
   fecha_despacho: string | null
   transportista: string | null
   patente: string | null
@@ -342,6 +345,9 @@ export function despachoFromRow(r: DespachoRow): DespachoTrafo {
     minutosDemora: r.minutos_demora ?? undefined,
     demoras: r.demoras ?? undefined,
     checklist: r.checklist ?? undefined,
+    deposito: u(r.deposito ?? null),
+    fechaDeposito: u(r.fecha_deposito ?? null),
+    movimientos: r.movimientos?.length ? r.movimientos : undefined,
     fechaDespacho: u(r.fecha_despacho),
     transportista: u(r.transportista),
     patente: u(r.patente),
@@ -381,6 +387,9 @@ export function despachoToRow(d: DespachoTrafo): DespachoRow {
     minutos_demora: d.minutosDemora ?? null,
     demoras: d.demoras ?? null,
     checklist: d.checklist ?? null,
+    deposito: d.deposito ?? null,
+    fecha_deposito: d.fechaDeposito ?? null,
+    movimientos: d.movimientos?.length ? d.movimientos : null,
     fecha_despacho: d.fechaDespacho ?? null,
     transportista: d.transportista ?? null,
     patente: d.patente ?? null,
