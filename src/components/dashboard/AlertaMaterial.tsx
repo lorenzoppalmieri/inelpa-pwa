@@ -4,7 +4,8 @@ import { db } from '../../db/dexie'
 import type { Tarea, Parada } from '../../types'
 import { sectorById, causaLabel, esCausaLogistica } from '../../types'
 import { componentePorCodigo } from '../../data/catalogo'
-import { fmtDur, minutosEntre } from '../../lib/time'
+import { fmtDur } from '../../lib/time'
+import { calcularTiempoProductivo } from '../../lib/calendario'
 
 // ============================================================
 // Alerta de ESPERA DE MATERIAL (abastecimiento). Tareas 'pausada' cuya parada
@@ -49,7 +50,8 @@ export default function AlertaMaterial({ compacto = false }: { compacto?: boolea
               <div className="logi-alert-maq">{nombreMaquina(t.maquinaId)}</div>
               <div className="logi-alert-sec">{sectorById(t.sectorId).nombre}</div>
               <div className="logi-alert-causa">{causaLabel(p.causa)}</div>
-              <div className="logi-alert-time">hace {fmtDur(minutosEntre(p.inicio, ahoraISO))}</div>
+              {/* v1.45: la espera se mide en horas hábiles (no cuenta la noche ni el finde). */}
+              <div className="logi-alert-time">hace {fmtDur(calcularTiempoProductivo(p.inicio, ahoraISO))}</div>
               <div className="logi-alert-det">
                 📦 <strong>{queMaterial ?? 'Material sin especificar'}</strong>
                 {transf ? <> · {transf}</> : null}

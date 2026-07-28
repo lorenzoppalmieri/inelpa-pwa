@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import type { DespachoTrafo } from '../../types'
 import { EMBALAJE_ALERTA_MIN, LISTO_ALERTA_DIAS, checklistCompleto } from '../../types'
 import { fmtDur, minutosEntre } from '../../lib/time'
+import { calcularTiempoProductivo } from '../../lib/calendario'
 
 // ============================================================
 // ALERTAS AUTOMÁTICAS DE DESPACHO (v1.28, Fase 3). Se calculan en vivo sobre los
@@ -24,8 +25,8 @@ export default function AlertasDespacho({ despachos }: { despachos: DespachoTraf
     // Tiempo activo de embalaje (descuenta demoras cerradas + la vigente).
     const activo = (d: DespachoTrafo) => {
       if (!d.embalajeInicio) return 0
-      const dem = (d.minutosDemora ?? 0) + (d.demoraEnCurso ? minutosEntre(d.demoraEnCurso, ahoraISO) : 0)
-      return Math.max(0, minutosEntre(d.embalajeInicio, ahoraISO) - dem)
+      const dem = (d.minutosDemora ?? 0) + (d.demoraEnCurso ? calcularTiempoProductivo(d.demoraEnCurso, ahoraISO) : 0)
+      return Math.max(0, calcularTiempoProductivo(d.embalajeInicio, ahoraISO) - dem)
     }
 
     // 1) Embalaje excesivo.
@@ -43,6 +44,8 @@ export default function AlertasDespacho({ despachos }: { despachos: DespachoTraf
     }
 
     // 3) Listos (embalado) hace más de X días, sin despachar.
+    // ANTIGÜEDAD en días calendario a propósito (un trafo listo sin despachar
+    // envejece también de noche y el finde). No cambiar a horas hábiles.
     const listosViejos = despachos.filter((d) => d.estado === 'embalado' && d.embalajeFin && minutosEntre(d.embalajeFin, ahoraISO) > LISTO_ALERTA_DIAS * 1440)
     if (listosViejos.length) {
       out.push({ nivel: 'rojo', icono: '📦', texto: `${listosViejos.length} equipo(s) listo(s) hace más de ${LISTO_ALERTA_DIAS} días sin despachar.` })

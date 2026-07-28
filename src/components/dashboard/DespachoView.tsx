@@ -9,7 +9,8 @@ import {
   checklistCompleto, checklistFaltantes, seriesDespacho, UBICACIONES_DESPACHO,
 } from '../../types'
 import { guardarDespacho, eliminarDespacho } from '../../sync/syncEngine'
-import { fmtDur, minutosEntre, fechaCorta, hhmm } from '../../lib/time'
+import { fmtDur, fechaCorta, hhmm } from '../../lib/time'
+import { calcularTiempoProductivo } from '../../lib/calendario'
 import FichaDespacho from './FichaDespacho'
 import DespachoReportes from './DespachoReportes'
 import AlertasDespacho from './AlertasDespacho'
@@ -59,12 +60,12 @@ export default function DespachoView() {
 
   // --- tiempos ---
   function minsDemora(d: DespachoTrafo): number {
-    return (d.minutosDemora ?? 0) + (d.demoraEnCurso ? minutosEntre(d.demoraEnCurso, ahoraISO) : 0)
+    return (d.minutosDemora ?? 0) + (d.demoraEnCurso ? calcularTiempoProductivo(d.demoraEnCurso, ahoraISO) : 0)
   }
   function minsEmbalaje(d: DespachoTrafo): number {
     if (!d.embalajeInicio) return 0
     const fin = d.embalajeFin ?? ahoraISO
-    return Math.max(0, minutosEntre(d.embalajeInicio, fin) - minsDemora(d))
+    return Math.max(0, calcularTiempoProductivo(d.embalajeInicio, fin) - minsDemora(d))
   }
 
   async function crear() {
@@ -117,12 +118,12 @@ export default function DespachoView() {
   }
   async function reanudar(d: DespachoTrafo) {
     const now = new Date().toISOString()
-    const acum = (d.minutosDemora ?? 0) + (d.demoraEnCurso ? minutosEntre(d.demoraEnCurso, now) : 0)
+    const acum = (d.minutosDemora ?? 0) + (d.demoraEnCurso ? calcularTiempoProductivo(d.demoraEnCurso, now) : 0)
     await guardarDespacho({ ...d, estado: 'embalando', demoraEnCurso: undefined, minutosDemora: acum, demoras: cerrarDemoraAbierta(d.demoras, now) })
   }
   async function marcarEmbalado(d: DespachoTrafo) {
     const now = new Date().toISOString()
-    const acum = (d.minutosDemora ?? 0) + (d.demoraEnCurso ? minutosEntre(d.demoraEnCurso, now) : 0)
+    const acum = (d.minutosDemora ?? 0) + (d.demoraEnCurso ? calcularTiempoProductivo(d.demoraEnCurso, now) : 0)
     await guardarDespacho({ ...d, estado: 'embalado', demoraEnCurso: undefined, minutosDemora: acum, demoras: cerrarDemoraAbierta(d.demoras, now), embalajeFin: now })
   }
   async function marcarEntregado(d: DespachoTrafo) {
@@ -142,7 +143,7 @@ export default function DespachoView() {
       return despachos.filter((d) => arr.includes(d.estado) && match(d)).sort((a, b) => (a.fechaIngreso < b.fechaIngreso ? -1 : 1))
     }
     const finalizados = despachos.filter((d) => d.embalajeFin)
-    const tiempos = finalizados.map((d) => Math.max(0, minutosEntre(d.embalajeInicio, d.embalajeFin) - (d.minutosDemora ?? 0))).filter((m) => m > 0)
+    const tiempos = finalizados.map((d) => Math.max(0, calcularTiempoProductivo(d.embalajeInicio, d.embalajeFin) - (d.minutosDemora ?? 0))).filter((m) => m > 0)
     const prom = tiempos.length ? Math.round(tiempos.reduce((a, b) => a + b, 0) / tiempos.length) : 0
     const hoy = new Date().toLocaleDateString('en-CA')
     const despHoy = despachos.filter((d) => d.fechaDespacho && d.fechaDespacho.slice(0, 10) === hoy).length
@@ -294,7 +295,7 @@ export default function DespachoView() {
                 {cab(d)}
                 <div className="meta" style={{ marginTop: 3 }}>
                   Operaria <strong>{d.operario ?? '—'}</strong> · <strong style={{ color: 'var(--naranja)' }}>embalando {fmtDur(minsEmbalaje(d))}</strong>
-                  {demorado ? <> · <strong style={{ color: 'var(--rojo)' }}>demorado hace {fmtDur(minutosEntre(d.demoraEnCurso ?? ahoraISO, ahoraISO))}</strong></> : (d.minutosDemora ? <> · demoras: {fmtDur(d.minutosDemora)}</> : null)}
+                  {demorado ? <> · <strong style={{ color: 'var(--rojo)' }}>demorado hace {fmtDur(calcularTiempoProductivo(d.demoraEnCurso ?? ahoraISO, ahoraISO))}</strong></> : (d.minutosDemora ? <> · demoras: {fmtDur(d.minutosDemora)}</> : null)}
                 </div>
                 {demorado && ultimaDemora ? <div className="meta" style={{ color: 'var(--rojo)' }}>⛔ {ultimaDemora.causa}</div> : null}
               </div>

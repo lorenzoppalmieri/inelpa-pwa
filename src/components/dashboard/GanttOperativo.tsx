@@ -2,8 +2,8 @@ import { type PointerEvent as ReactPointerEvent, useMemo, useRef, useState } fro
 import type { Tarea, EstadoTarea, Maquina } from '../../types'
 import { sectorById, causaLabel, esParadaNoProductiva, esSectorBobinado, nombreSemielaborado, minutosRecupTarea } from '../../types'
 import { componentePorCodigo } from '../../data/catalogo'
-import { hhmm, fmtDur, isoWeek, minutosEntre, fechaCorta } from '../../lib/time'
-import { proximoInstanteLaborable, tramosLaborables, calcularTiempoNetoProductivo, type GrupoAlmuerzo } from '../../lib/calendario'
+import { hhmm, fmtDur, isoWeek, fechaCorta } from '../../lib/time'
+import { proximoInstanteLaborable, tramosLaborables, calcularTiempoNetoProductivo, calcularTiempoProductivo, type GrupoAlmuerzo } from '../../lib/calendario'
 import { programar, type Plan } from '../../lib/programacion'
 import { minutosNoProductivos, minutosParada } from '../../lib/kpi'
 import { guardarTarea } from '../../sync/syncEngine'
@@ -39,12 +39,16 @@ function rangoFechaHora(aIso: string, bIso: string): string {
 
 // v1.17: resumen de paradas de una tarea para el tooltip de la barra (causa +
 // horario inicio-fin + duracion). Marca el almuerzo/pausa como no productivo.
+// v1.45: la duracion se mide en HORAS HABILES (calcularTiempoProductivo). Antes
+// restaba fechas crudas, asi que una parada de 11:16 a 07:45 del dia siguiente
+// figuraba como "20h 30m" contando la fabrica cerrada.
 function resumenParadas(t: Tarea): string {
   if (!t.paradas?.length) return ''
+  const recup = minutosRecupTarea(t)
   const lineas = t.paradas.map((p) => {
     const etq = causaLabel(p.causa) + (esParadaNoProductiva(p.causa) ? ' (almuerzo/pausa)' : '')
     return p.fin
-      ? `• ${etq}: ${hhmm(p.inicio)}–${hhmm(p.fin)} (${fmtDur(minutosEntre(p.inicio, p.fin))})`
+      ? `• ${etq}: ${hhmm(p.inicio)}–${hhmm(p.fin)} (${fmtDur(calcularTiempoProductivo(p.inicio, p.fin, recup))})`
       : `• ${etq}: desde ${hhmm(p.inicio)} · en curso`
   })
   return `\n— Paradas —\n${lineas.join('\n')}`
@@ -391,7 +395,9 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
                     const arrastrable = !soloLectura && b.tarea.estado === 'pendiente' && b.esInicio
                       && (puedeMoverProduccion || b.tarea.tipo === 'reparacion')
                     const dragging = ghost?.id === b.tarea.id && b.esInicio
-                    const recup = !!b.tarea.activaHoraRecuperacion
+                    // v1.45: la recuperacion es fraccional (30/60), no un booleano.
+                    const recupMin = minutosRecupTarea(b.tarea)
+                    const recup = recupMin > 0
                     const reparacion = b.tarea.tipo === 'reparacion'
                     // Etiqueta principal = SEMIELABORADO completo (nombre del maestro
                     // de articulos: incluye potencia/tension, fase y material).
@@ -416,10 +422,10 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
                           border: b.estimada ? '1px dashed rgba(255,255,255,.5)' : 'none',
                           color: b.tarea.estado === 'pausada' && !reparacion ? '#1a1206' : '#fff',
                         }}
-                        title={`${reparacion ? '🔧 REPARACIÓN · ' : ''}Semielaborado: ${semiTxt}\nModelo: ${b.tarea.modelo}\n${b.tarea.estado} · ${nombreMaquina(b.tarea.maquinaId)} · ${b.tarea.operarioId ? nombreOperario(b.tarea.operarioId) : 'sin colaborador'} · ${rangoFechaHora(b.plan.startISO, b.plan.endISO)} · ${fmtDur(b.tarea.tiempoEstandarMin)}${reparacion ? ' · no productivo (excluido del OEE)' : ''}${recup ? ' · con hora de recuperación' : ''}${arrastrable ? ' · arrastrá para reprogramar' : ''}${resumenParadas(b.tarea)}`}
+                        title={`${reparacion ? '🔧 REPARACIÓN · ' : ''}Semielaborado: ${semiTxt}\nModelo: ${b.tarea.modelo}\n${b.tarea.estado} · ${nombreMaquina(b.tarea.maquinaId)} · ${b.tarea.operarioId ? nombreOperario(b.tarea.operarioId) : 'sin colaborador'} · ${rangoFechaHora(b.plan.startISO, b.plan.endISO)} · ${fmtDur(b.tarea.tiempoEstandarMin)}${reparacion ? ' · no productivo (excluido del OEE)' : ''}${recup ? ` · recuperación +${recupMin}m` : ''}${arrastrable ? ' · arrastrá para reprogramar' : ''}${resumenParadas(b.tarea)}`}
                       >
                         {reparacion && b.esInicio && <span className="gantt-rep-tag">🔧</span>}
-                        {recup && b.esInicio && <span className="gantt-recup-tag">⏱+1h</span>}
+                        {recup && b.esInicio && <span className="gantt-recup-tag">⏱+{recupMin === 60 ? '1h' : `${recupMin}m`}</span>}
                         <span className="gantt-bar-txt">{etiqueta}</span>
                       </div>
                     )

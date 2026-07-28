@@ -3,7 +3,8 @@ import type { DespachoTrafo, ChecklistDespacho } from '../../types'
 import {
   estadoDespachoLabel, ESTADOS_DESPACHO, CHECKLIST_DESPACHO_ITEMS, checklistCompleto,
 } from '../../types'
-import { fmtDur, minutosEntre, fechaCorta, hhmm } from '../../lib/time'
+import { fmtDur, fechaCorta, hhmm } from '../../lib/time'
+import { calcularTiempoProductivo } from '../../lib/calendario'
 import { guardarDespacho } from '../../sync/syncEngine'
 import { supabase } from '../../lib/supabaseClient'
 
@@ -18,13 +19,13 @@ export const BUCKET_FOTOS = 'despacho-fotos'
 
 // Tiempo de demora acumulado (incluye la demora vigente si está demorado).
 function minsDemora(d: DespachoTrafo, ahoraISO: string): number {
-  return (d.minutosDemora ?? 0) + (d.demoraEnCurso ? minutosEntre(d.demoraEnCurso, ahoraISO) : 0)
+  return (d.minutosDemora ?? 0) + (d.demoraEnCurso ? calcularTiempoProductivo(d.demoraEnCurso, ahoraISO) : 0)
 }
 // Tiempo activo de embalaje = transcurrido desde el inicio menos las demoras.
 function minsEmbalaje(d: DespachoTrafo, ahoraISO: string): number {
   if (!d.embalajeInicio) return 0
   const fin = d.embalajeFin ?? ahoraISO
-  return Math.max(0, minutosEntre(d.embalajeInicio, fin) - minsDemora(d, ahoraISO))
+  return Math.max(0, calcularTiempoProductivo(d.embalajeInicio, fin) - minsDemora(d, ahoraISO))
 }
 
 function Dato({ label, valor }: { label: string; valor?: string | null }) {
@@ -159,7 +160,7 @@ export default function FichaDespacho({ despacho: d, onClose }: { despacho: Desp
             {seccion('Demoras registradas')}
             {d.demoras.map((dm, i) => (
               <div key={i} className="meta" style={{ marginBottom: 3 }}>
-                • <strong>{dm.causa}</strong>: {hhmm(dm.inicio)}{dm.fin ? `–${hhmm(dm.fin)} (${fmtDur(minutosEntre(dm.inicio, dm.fin))})` : ' · en curso'}
+                • <strong>{dm.causa}</strong>: {hhmm(dm.inicio)}{dm.fin ? `–${hhmm(dm.fin)} (${fmtDur(calcularTiempoProductivo(dm.inicio, dm.fin))})` : ' · en curso'}
               </div>
             ))}
           </>}

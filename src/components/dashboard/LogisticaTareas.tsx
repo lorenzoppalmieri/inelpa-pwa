@@ -6,7 +6,8 @@ import { esSuperAdmin } from '../../auth/roles'
 import type { TareaLogistica, PrioridadLog, PlantillaRecurrente } from '../../types'
 import { PRIORIDADES_LOG, RESPONSABLES_LOGISTICA, MOTIVOS_BLOQUEO_LOG, responsablesDe } from '../../types'
 import { guardarTareaLogistica, eliminarTareaLogistica, guardarPlantilla } from '../../sync/syncEngine'
-import { fmtDur, minutosEntre, fechaCorta, hhmm } from '../../lib/time'
+import { fmtDur, fechaCorta, hhmm } from '../../lib/time'
+import { minutosLaboralesLogistica } from '../../lib/calendario'
 import { instanciasAGenerar } from '../../lib/recurrencia'
 import PlantillasRecurrentes, { SelectorDias } from './PlantillasRecurrentes'
 
@@ -307,7 +308,7 @@ export default function LogisticaTareas({
   async function reanudar(t: TareaLogistica) {
     // Cierra la pausa/bloqueo vigente y lo acumula. Cierra el bloqueo en el historial.
     const ahoraStr = new Date().toISOString()
-    const acum = (t.minutosPausada ?? 0) + (t.pausadaEn ? minutosEntre(t.pausadaEn, ahoraStr) : 0)
+    const acum = (t.minutosPausada ?? 0) + (t.pausadaEn ? minutosLaboralesLogistica(t.pausadaEn, ahoraStr) : 0)
     await guardarTareaLogistica({ ...t, estado: 'en_curso', pausadaEn: undefined, minutosPausada: acum, bloqueoMotivo: undefined, bloqueos: cerrarBloqueoAbierto(t.bloqueos, ahoraStr) })
   }
   // BLOQUEAR: el operario marca la tarea como trabada por una causa externa.
@@ -324,7 +325,7 @@ export default function LogisticaTareas({
   async function ejecutarCierre() {
     if (!cerrando) return
     const ahoraStr = new Date().toISOString()
-    const acum = (cerrando.minutosPausada ?? 0) + (cerrando.pausadaEn ? minutosEntre(cerrando.pausadaEn, ahoraStr) : 0)
+    const acum = (cerrando.minutosPausada ?? 0) + (cerrando.pausadaEn ? minutosLaboralesLogistica(cerrando.pausadaEn, ahoraStr) : 0)
     await guardarTareaLogistica({
       ...cerrando, estado: 'finalizada', pausadaEn: undefined, minutosPausada: acum, bloqueoMotivo: undefined,
       bloqueos: cerrarBloqueoAbierto(cerrando.bloqueos, ahoraStr),
@@ -347,12 +348,12 @@ export default function LogisticaTareas({
 
   // Minutos de pausa acumulados (incluye la pausa vigente si está pausada ahora).
   function minsPausa(t: TareaLogistica): number {
-    return (t.minutosPausada ?? 0) + (t.pausadaEn ? minutosEntre(t.pausadaEn, ahoraISO) : 0)
+    return (t.minutosPausada ?? 0) + (t.pausadaEn ? minutosLaboralesLogistica(t.pausadaEn, ahoraISO) : 0)
   }
   // Tiempo activo real = transcurrido desde el inicio menos las pausas.
   function minsActivos(t: TareaLogistica): number {
     const fin = t.finalizada ?? ahoraISO
-    return Math.max(0, minutosEntre(t.iniciada ?? t.creada, fin) - minsPausa(t))
+    return Math.max(0, minutosLaboralesLogistica(t.iniciada ?? t.creada, fin) - minsPausa(t))
   }
   // Etiqueta de responsable(s) o "sin asignar".
   function respTxt(t: TareaLogistica) {
@@ -406,7 +407,7 @@ export default function LogisticaTareas({
     const finalizadas = porPeriodo.filter((t) => t.estado === 'finalizada')
     const abiertas = [...pendientes, ...enCurso]
     const porPrio = (p: PrioridadLog) => abiertas.filter((t) => t.prioridad === p).length
-    const tiempos = finalizadas.map((t) => Math.max(0, minutosEntre(t.iniciada ?? t.creada, t.finalizada) - (t.minutosPausada ?? 0))).filter((m) => m > 0)
+    const tiempos = finalizadas.map((t) => Math.max(0, minutosLaboralesLogistica(t.iniciada ?? t.creada, t.finalizada) - (t.minutosPausada ?? 0))).filter((m) => m > 0)
     const prom = tiempos.length ? Math.round(tiempos.reduce((a, b) => a + b, 0) / tiempos.length) : 0
     return { pend: pendientes.length, curso: enCurso.length, alta: porPrio('alta'), media: porPrio('media'), baja: porPrio('baja'), fin: finalizadas.length, prom }
   }, [porPeriodo])
@@ -510,7 +511,7 @@ export default function LogisticaTareas({
             <div>
               <h3><span className={'prio-chip prio-' + t.prioridad}>{PRIO_LABEL[t.prioridad]}</span> {t.titulo}</h3>
               <div className="meta">
-                {respTxt(t)} · Pedida {fechaCorta(t.creada)} {hhmm(t.creada)} · <strong style={{ color: 'var(--naranja)' }}>hace {fmtDur(minutosEntre(t.creada, ahoraISO))}</strong>
+                {respTxt(t)} · Pedida {fechaCorta(t.creada)} {hhmm(t.creada)} · <strong style={{ color: 'var(--naranja)' }}>hace {fmtDur(minutosLaboralesLogistica(t.creada, ahoraISO))}</strong>
                 {t.detalle ? <> · {t.detalle}</> : null}
               </div>
               {t.fechaProgramada && (
@@ -548,7 +549,7 @@ export default function LogisticaTareas({
               <h3><span className={'prio-chip prio-' + t.prioridad}>{PRIO_LABEL[t.prioridad]}</span> {t.titulo}</h3>
               <div className="meta">
                 {respTxt(t)} · Iniciada {t.iniciada ? `${fechaCorta(t.iniciada)} ${hhmm(t.iniciada)}` : '—'} · <strong style={{ color: 'var(--naranja)' }}>activa {fmtDur(minsActivos(t))}</strong>
-                {detenida ? <> · <strong style={{ color: 'var(--rojo)' }}>{bloqueada ? 'bloqueada' : 'en pausa'} hace {fmtDur(minutosEntre(t.pausadaEn ?? ahoraISO, ahoraISO))}</strong></>
+                {detenida ? <> · <strong style={{ color: 'var(--rojo)' }}>{bloqueada ? 'bloqueada' : 'en pausa'} hace {fmtDur(minutosLaboralesLogistica(t.pausadaEn ?? ahoraISO, ahoraISO))}</strong></>
                   : (t.minutosPausada ? <> · pausas: {fmtDur(t.minutosPausada)}</> : null)}
                 {t.detalle ? <> · {t.detalle}</> : null}
               </div>

@@ -4,6 +4,7 @@ import { db } from '../../db/dexie'
 import type { DespachoTrafo, EstadoDespacho } from '../../types'
 import { ESTADOS_DESPACHO } from '../../types'
 import { fmtDur, minutosEntre, fechaCorta } from '../../lib/time'
+import { calcularTiempoProductivo } from '../../lib/calendario'
 import { ars } from './FletesInternos'
 import { PERIODOS_REPORTE, rangoReporte, enRango, type PeriodoReporte } from '../../lib/periodoReporte'
 
@@ -23,7 +24,7 @@ function media(nums: number[]): number {
 }
 // Tiempo activo de embalaje = (fin - inicio) laborable menos las demoras acumuladas.
 function tiempoEmbalaje(d: DespachoTrafo): number {
-  return Math.max(0, minutosEntre(d.embalajeInicio, d.embalajeFin) - (d.minutosDemora ?? 0))
+  return Math.max(0, calcularTiempoProductivo(d.embalajeInicio, d.embalajeFin) - (d.minutosDemora ?? 0))
 }
 
 function Barra({ label, sub, valor, ratio, color }: {
@@ -77,7 +78,7 @@ export default function DespachoReportes({ despachos }: { despachos: DespachoTra
     // 3) Pareto de demoras por causa (tiempo perdido; las abiertas cuentan hasta ahora).
     const dem = new Map<string, { min: number; n: number }>()
     for (const d of dp) for (const dm of d.demoras ?? []) {
-      const min = minutosEntre(dm.inicio, dm.fin ?? ahoraISO)
+      const min = calcularTiempoProductivo(dm.inicio, dm.fin ?? ahoraISO)
       if (min <= 0) continue
       const cur = dem.get(dm.causa) ?? { min: 0, n: 0 }
       cur.min += min; cur.n++; dem.set(dm.causa, cur)
@@ -86,6 +87,9 @@ export default function DespachoReportes({ despachos }: { despachos: DespachoTra
     const demoraTotal = demoras.reduce((a, b) => a + b.min, 0)
 
     // 4) Equipos listos (embalado) hace más de X días, sin despachar.
+    // OJO: esto es ANTIGÜEDAD, no tiempo de trabajo -> va en días CALENDARIO a
+    // propósito (un trafo parado en depósito envejece también de noche y el finde).
+    // No cambiar a horas hábiles.
     const listos = dp.filter((d) => d.estado === 'embalado' && d.embalajeFin)
       .map((d) => ({ d, min: minutosEntre(d.embalajeFin, ahoraISO) }))
       .sort((a, b) => b.min - a.min)

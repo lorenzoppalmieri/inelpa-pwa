@@ -257,6 +257,37 @@ export function minutosLaboralesLogistica(aIso?: string, bIso?: string): number 
   return Math.round(total)
 }
 
+// ============================================================
+// MOTOR DE HORAS HABILES (v1.45) — funcion utilitaria PUBLICA.
+//
+// Devuelve los minutos PRODUCTIVOS entre dos instantes, descontando todo lo que
+// cae fuera del calendario de planta:
+//   Lun-Jue  07:00 - 16:00
+//   Viernes  07:00 - 15:00
+//   Sab/Dom  cerrado (0)         Feriados cargados: cerrado (0)
+//   Recuperacion: si la tarea la tiene activada, ese dia la franja se extiende
+//     30 o 60 min (16:30/17:00 L-J, 15:30/16:00 Vie).
+//
+// USARLA SIEMPRE en vez de restar fechas (minutosEntre). Sin esto, una parada que
+// arranca 11:16 y se resuelve 07:45 del dia siguiente figuraba como 20h 30m
+// cuando en realidad son ~5h 29m de planta abierta.
+//
+// `minutosRecuperacion`: 0 / 30 / 60. Para una tarea, pasar minutosRecupTarea(t).
+// ============================================================
+export function calcularTiempoProductivo(
+  inicio?: string | Date,
+  fin?: string | Date,
+  minutosRecuperacion = 0,
+  grupo: GrupoAlmuerzo = GRUPO_ALMUERZO_DEFAULT,
+): number {
+  if (!inicio || !fin) return 0
+  const a = inicio instanceof Date ? inicio.toISOString() : inicio
+  const b = fin instanceof Date ? fin.toISOString() : fin
+  // sinAlmuerzo = true: el almuerzo NO se descuenta por franja teorica; se
+  // descuenta por la parada real que marca el operario (criterio de direccion).
+  return minutosLaborablesEntre(a, b, grupo, minutosRecuperacion, true)
+}
+
 export function calcularTiempoNetoProductivo(
   inicio: Date,
   fin: Date,

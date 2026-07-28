@@ -6,8 +6,8 @@ import { sectorById, causaLabel, requiereDatosBobinado, esCausaLogistica, nombre
 import { guardarTarea, guardarLaboratorio } from '../../sync/syncEngine'
 import type { TareaLaboratorio } from '../../types'
 import { useAuth } from '../../auth/AuthContext'
-import { hhmm, cronometro, fmtDur, minutosEntre, fechaCorta } from '../../lib/time'
-import { calcularTiempoNetoProductivo } from '../../lib/calendario'
+import { hhmm, cronometro, fmtDur, fechaCorta } from '../../lib/time'
+import { calcularTiempoNetoProductivo, calcularTiempoProductivo } from '../../lib/calendario'
 import { componentePorCodigo } from '../../data/catalogo'
 import { tiempoNetoMin } from '../../lib/kpi'
 import ModalParada from './ModalParada'
@@ -170,9 +170,11 @@ export default function TareaCard({ tarea, onIniciar }: { tarea: Tarea; onInicia
   // (ya sin horas de planta cerrada ni almuerzo) MENOS las paradas operativas
   // (demoras justificadas: corte de luz, replanificación, espera de material, etc.).
   // Usa la función canónica del backend (tiempoNetoMin); no se toca nada global.
+  // v1.45: mientras la tarea está en curso también se mide en HORAS HÁBILES (antes
+  // restaba crudo: una tarea abierta de un día para el otro mostraba la noche entera).
   const ejecutado = tarea.estado === 'finalizada'
     ? tiempoNetoMin(tarea)
-    : (tarea.inicioReal ? minutosEntre(tarea.inicioReal, new Date().toISOString()) : 0)
+    : (tarea.inicioReal ? calcularTiempoProductivo(tarea.inicioReal, new Date().toISOString(), minutosRecupTarea(tarea)) : 0)
 
   // Titulo principal = SEMIELABORADO completo (o "PROTOTIPO · nota" si es prueba).
   const comp = componentePorCodigo(tarea.componenteCodigo)
