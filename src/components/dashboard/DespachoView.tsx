@@ -7,7 +7,7 @@ import type { DespachoTrafo, EstadoDespacho, LineaProduccion } from '../../types
 import {
   ESTADOS_DESPACHO, estadoDespachoLabel, RESPONSABLES_DESPACHO, MOTIVOS_DEMORA_DESPACHO,
   checklistCompleto, checklistFaltantes, seriesDespacho, UBICACIONES_DESPACHO,
-  DEPOSITOS, DEPOSITOS_EXTERNOS, PLANTA_INELPA, depositoActual, enStock,
+  DEPOSITOS, DEPOSITOS_EXTERNOS, DEPOSITO_PLANTA, depositoActual, enStock,
   minutosDemoraAcotados,
 } from '../../types'
 import type { MovimientoDeposito } from '../../types'
@@ -32,14 +32,39 @@ import StockDepositos from './StockDepositos'
 
 function color(e: EstadoDespacho): string { return ESTADOS_DESPACHO.find((x) => x.id === e)?.color ?? 'var(--texto-tenue)' }
 
-export default function DespachoView() {
+// v1.45: sub-vistas del módulo. Se exportan porque LogisticaView puede pintar la
+// barra de pestañas por su cuenta (modo controlado) y evitar así una pestaña
+// intermedia "Despacho y embalaje" que no aportaba nada.
+export type VistaDespacho = 'operativo' | 'tareas' | 'reportes' | 'fletes' | 'stock'
+export const TABS_DESPACHO: { id: VistaDespacho; label: string; soloSupervisora?: boolean }[] = [
+  { id: 'operativo', label: '🚚 Operativo' },
+  { id: 'tareas', label: '📋 Tareas' },
+  { id: 'reportes', label: '📊 Reportes', soloSupervisora: true },
+  { id: 'fletes', label: '🚛 Fletes', soloSupervisora: true },
+  { id: 'stock', label: '📦 Stock de transformadores' },
+]
+// Quién maneja el sector: Melany, el super admin y —para poder cubrirla cuando
+// falta— Giuliano. La cuenta operativa 'despacho' no borra ni ve reportes.
+export function esEncargadoDespacho(usuarioNombre?: string, superAdmin = false): boolean {
+  return superAdmin || usuarioNombre === 'melany' || usuarioNombre === 'giuliano_logistica'
+}
+
+export default function DespachoView({ vista: vistaProp, onVista }: {
+  vista?: VistaDespacho
+  onVista?: (v: VistaDespacho) => void
+} = {}) {
   const { usuario } = useAuth()
   // Melany = supervisora del sector: solo ella puede eliminar despachos. El equipo
   // (cuenta 'despacho') opera normalmente (crear, embalar, despachar) pero no borra.
   // v1.43: el super admin (Gerencia) entra con los mismos permisos que Melany.
-  const esSupervisora = usuario?.usuario === 'melany' || esSuperAdmin(usuario)
+  // v1.45: Giuliano también, para que puedan suplantarse entre encargados.
+  const esSupervisora = esEncargadoDespacho(usuario?.usuario, esSuperAdmin(usuario))
   // v1.43: los fletes salieron del medio del operativo a su propia pestaña.
-  const [vista, setVista] = useState<'operativo' | 'tareas' | 'reportes' | 'fletes' | 'stock'>('operativo')
+  // v1.45: si el padre controla la vista, no se pinta la barra propia.
+  const controlado = !!onVista
+  const [vistaLocal, setVistaLocal] = useState<VistaDespacho>('operativo')
+  const vista = vistaProp ?? vistaLocal
+  const setVista = onVista ?? setVistaLocal
   const [busqueda, setBusqueda] = useState('')
   // v1.43: período del historial (despachado / entregado). No toca los estados abiertos.
   const [periodoHist, setPeriodoHist] = useState<PeriodoReporte>('mes_actual')
@@ -170,7 +195,7 @@ export default function DespachoView() {
     const now = new Date().toISOString()
     const mov: MovimientoDeposito = {
       deposito: depositoSel,
-      desde: moviendo.deposito ?? (moviendo.estado === 'embalado' ? PLANTA_INELPA : undefined),
+      desde: moviendo.deposito ?? (moviendo.estado === 'embalado' ? DEPOSITO_PLANTA : undefined),
       fecha: now,
       usuario: usuario?.usuario,
       nota: notaDep.trim() || undefined,
@@ -184,10 +209,11 @@ export default function DespachoView() {
     })
     setMoviendo(null); setNotaDep('')
   }
-  // Vuelve de depósito a planta: queda otra vez "embalado, listo para despachar".
+  // Vuelve de un depósito externo a Lorenzatti (la planta): queda otra vez
+  // "embalado, listo para despachar", sin `deposito` (la planta es el default).
   async function volverAPlanta(d: DespachoTrafo) {
     const now = new Date().toISOString()
-    const mov: MovimientoDeposito = { deposito: PLANTA_INELPA, desde: d.deposito, fecha: now, usuario: usuario?.usuario }
+    const mov: MovimientoDeposito = { deposito: DEPOSITO_PLANTA, desde: d.deposito, fecha: now, usuario: usuario?.usuario }
     await guardarDespacho({
       ...d, estado: 'embalado', deposito: undefined, fechaDeposito: undefined,
       movimientos: [...(d.movimientos ?? []), mov],
@@ -329,14 +355,15 @@ export default function DespachoView() {
 
   return (
     <>
-      {/* Sub-pestañas: Operativo y Tareas los ve todo el equipo; Reportes, solo Melany */}
-      <div className="tabs no-print" style={{ marginBottom: 10 }}>
-        <button className={'tab' + (vista === 'operativo' ? ' active' : '')} onClick={() => setVista('operativo')}>🚚 Operativo</button>
-        <button className={'tab' + (vista === 'tareas' ? ' active' : '')} onClick={() => setVista('tareas')}>📋 Tareas</button>
-        {esSupervisora && <button className={'tab' + (vista === 'reportes' ? ' active' : '')} onClick={() => setVista('reportes')}>📊 Reportes</button>}
-        {esSupervisora && <button className={'tab' + (vista === 'fletes' ? ' active' : '')} onClick={() => setVista('fletes')}>🚛 Fletes</button>}
-        <button className={'tab' + (vista === 'stock' ? ' active' : '')} onClick={() => setVista('stock')}>📦 Stock de transformadores</button>
-      </div>
+      {/* Sub-pestañas propias. Si el padre las pinta (modo controlado), no se
+          repiten acá — así no queda una barra de pestañas arriba de la otra. */}
+      {!controlado && (
+        <div className="tabs no-print" style={{ marginBottom: 10 }}>
+          {TABS_DESPACHO.filter((t) => !t.soloSupervisora || esSupervisora).map((t) => (
+            <button key={t.id} className={'tab' + (vista === t.id ? ' active' : '')} onClick={() => setVista(t.id)}>{t.label}</button>
+          ))}
+        </div>
+      )}
 
       {vista === 'tareas'
         ? <LogisticaTareas origen="despacho" roster={RESPONSABLES_DESPACHO} esEncargado={esSupervisora} tituloAlta="Nueva tarea de despacho" />
@@ -368,7 +395,7 @@ export default function DespachoView() {
       <div className="logi-kpis">
         {g.stockPorDeposito.map(({ deposito, items }) => {
           const abierto = verDeposito === deposito
-          const esPlanta = deposito === PLANTA_INELPA
+          const esPlanta = deposito === DEPOSITO_PLANTA
           return (
             <button
               type="button" key={deposito} className="logi-kpi" disabled={items.length === 0}
@@ -404,7 +431,7 @@ export default function DespachoView() {
                     <strong>{tituloCard(d)}</strong>
                     <div className="meta">
                       Cliente <strong>{d.cliente}</strong> · OT {d.ot}
-                      {d.estado === 'en_deposito' ? ` · guardado hace ${diasEnDeposito(d)} día(s)` : ' · embalado en planta'}
+                      {d.estado === 'en_deposito' ? ` · guardado hace ${diasEnDeposito(d)} día(s)` : ` · embalado en ${DEPOSITO_PLANTA}`}
                       {!listo ? <> · <span style={{ color: 'var(--naranja)' }}>checklist incompleto</span></> : null}
                     </div>
                   </div>
@@ -637,7 +664,7 @@ export default function DespachoView() {
                   </button>
                 : <div className="meta" style={{ flex: 1, alignSelf: 'center' }}>Guardado en {d.deposito}</div>}
               {esSupervisora && <button className="btn" onClick={() => abrirDeposito(d)}>⇄ Mover de depósito</button>}
-              {esSupervisora && <button className="btn" onClick={() => void volverAPlanta(d)}>↩ Volver a planta</button>}
+              {esSupervisora && <button className="btn" onClick={() => void volverAPlanta(d)}>↩ Volver a {DEPOSITO_PLANTA}</button>}
               <button className="btn" onClick={() => setFicha(d)}>👁 Ficha</button>
               {esSupervisora && <button className="btn btn-rojo" onClick={() => void borrar(d)}>🗑</button>}
             </div>

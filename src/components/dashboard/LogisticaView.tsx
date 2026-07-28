@@ -8,7 +8,8 @@ import GanttOperativo from './GanttOperativo'
 import ColaMaterial from './ColaMaterial'
 import LogisticaTareas from './LogisticaTareas'
 import LogisticaReportes from './LogisticaReportes'
-import DespachoView from './DespachoView'
+import DespachoView, { TABS_DESPACHO, esEncargadoDespacho, type VistaDespacho } from './DespachoView'
+import { esSuperAdmin } from '../../auth/roles'
 
 // ============================================================
 // Vista LOGISTICA (v1.45) — el área se divide en DOS bloques con su propio título:
@@ -33,6 +34,9 @@ export default function LogisticaView() {
   const esMelany = usuario?.usuario === 'melany'
   const [pestania, setPestania] = useState<PestaniaLog>(esMelany && !esEquipoLog ? 'despacho' : 'gantt')
   const enAdministrativa = pestania === 'despacho'
+  // Sub-vista del módulo de despacho, controlada desde acá (ver TABS_DESPACHO).
+  const [vistaDespacho, setVistaDespacho] = useState<VistaDespacho>('operativo')
+  const esEncargado = esEncargadoDespacho(usuario?.usuario, esSuperAdmin(usuario))
 
   // El equipo de despacho (cuenta 'despacho') ve SOLO el módulo de Despacho, sin
   // pestañas ni la cola de material: entran, toman tareas de embalaje y las cierran.
@@ -64,12 +68,21 @@ export default function LogisticaView() {
         {!esEquipoLog && <button className={'tab' + (pestania === 'reportes' ? ' active' : '')} onClick={() => setPestania('reportes')}>📊 Reportes</button>}
       </div>
 
-      {/* ---------- BLOQUE 2: LOGÍSTICA ADMINISTRATIVA (Melany) ---------- */}
+      {/* ---------- BLOQUE 2: LOGÍSTICA ADMINISTRATIVA (Melany) ----------
+          v1.45: las sub-pestañas del módulo de despacho se pintan acá directamente.
+          Antes había que pasar por una pestaña intermedia "Despacho y embalaje"
+          que no hacía más que revelar esta misma barra. */}
       {!esEquipoLog && (
         <>
           <Titulo activo={enAdministrativa} icono="📦" texto="Logística Administrativa" sub="despacho, embalaje, fletes y stock de depósitos" />
           <div className="tabs no-print">
-            <button className={'tab' + (enAdministrativa ? ' active' : '')} onClick={() => setPestania('despacho')}>🚚 Despacho y embalaje</button>
+            {TABS_DESPACHO.filter((t) => !t.soloSupervisora || esEncargado).map((t) => (
+              <button
+                key={t.id}
+                className={'tab' + (enAdministrativa && vistaDespacho === t.id ? ' active' : '')}
+                onClick={() => { setVistaDespacho(t.id); setPestania('despacho') }}
+              >{t.label}</button>
+            ))}
           </div>
         </>
       )}
@@ -87,7 +100,7 @@ export default function LogisticaView() {
         {pestania === 'gantt' ? <LogisticaGantt />
           : pestania === 'tareas' ? <LogisticaTareas />
           : (!esEquipoLog && pestania === 'reportes') ? <LogisticaReportes />
-          : (!esEquipoLog && pestania === 'despacho') ? <DespachoView />
+          : (!esEquipoLog && pestania === 'despacho') ? <DespachoView vista={vistaDespacho} onVista={setVistaDespacho} />
           : <LogisticaGantt />}
       </div>
     </div>

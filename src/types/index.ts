@@ -578,12 +578,14 @@ export const UBICACIONES_DESPACHO: string[] = ['INELPA', 'Depósito 25 de Mayo',
 
 // ------------------------------------------------------------
 // v1.44: DEPÓSITOS donde puede quedar guardado un trafo ya embalado.
-// PLANTA_INELPA no es un depósito externo: representa el trafo embalado que
-// todavía no salió. Se lista igual para que el stock cierre contra el total.
+// v1.45: "Lorenzatti" ES la planta — son el mismo lugar, así que se unificaron
+// bajo ese nombre. Un trafo embalado que todavía no salió está en Lorenzatti y
+// se guarda SIN `deposito` (la planta es la ubicación por defecto); los otros
+// dos son depósitos externos y sí se marcan explícitamente.
 // ------------------------------------------------------------
-export const PLANTA_INELPA = 'INELPA (planta)'
-export const DEPOSITOS_EXTERNOS: string[] = ['Lorenzatti', 'Cerdán', '25 de Mayo']
-export const DEPOSITOS: string[] = [...DEPOSITOS_EXTERNOS, PLANTA_INELPA]
+export const DEPOSITO_PLANTA = 'Lorenzatti'
+export const DEPOSITOS_EXTERNOS: string[] = ['Cerdán', '25 de Mayo']
+export const DEPOSITOS: string[] = [DEPOSITO_PLANTA, ...DEPOSITOS_EXTERNOS]
 
 // Un movimiento entre depósitos (para saber desde cuándo está donde está).
 export interface MovimientoDeposito {
@@ -597,8 +599,7 @@ export interface MovimientoDeposito {
 // ¿Dónde está físicamente el trafo hoy? Solo tiene sentido antes del despacho.
 // Un embalado sin depósito asignado se cuenta en planta.
 export function depositoActual(d: DespachoTrafo): string | undefined {
-  if (d.estado === 'en_deposito') return d.deposito ?? PLANTA_INELPA
-  if (d.estado === 'embalado') return d.deposito ?? PLANTA_INELPA
+  if (d.estado === 'en_deposito' || d.estado === 'embalado') return d.deposito ?? DEPOSITO_PLANTA
   return undefined
 }
 // ¿El trafo forma parte del stock guardado? (embalado o en depósito, sin despachar)
