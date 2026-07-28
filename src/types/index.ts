@@ -658,10 +658,34 @@ export function tieneRechazo(t: TareaLaboratorio): boolean {
 }
 
 // Causas frecuentes de demora en despacho (relevamiento Melany, seccion 5).
+// v1.45: se suman capacitación, almuerzo y falta de chapa identificatoria.
+// 'Otro' va último a propósito: es el cajón de sastre del selector.
 export const MOTIVOS_DEMORA_DESPACHO: string[] = [
   'Espera puente grúa', 'Falta de materiales (carpintería)', 'Espera ensayo (laboratorio)',
+  'Falta de chapa identificatoria (herrería)', 'Capacitación', 'Almuerzo',
   'Retrabajo en despacho', 'Otro',
 ]
+
+// v1.45: PAUSAS PROGRAMADAS. No son trabajo, así que descuentan del tiempo
+// activo de embalaje igual que cualquier demora, pero NO son cuellos de botella:
+// quedan fuera del Pareto para que no le tapen el lugar a las trabas reales.
+export const DEMORA_ALMUERZO = 'Almuerzo'
+export const DEMORAS_PROGRAMADAS: string[] = [DEMORA_ALMUERZO]
+export function esDemoraProgramada(causa: string): boolean {
+  return DEMORAS_PROGRAMADAS.includes(causa)
+}
+// Tope en minutos de una causa. El almuerzo dura 30': si alguien se olvida de
+// apretar "Reanudar", el excedente no se le descuenta al tiempo de embalaje.
+export const TOPES_DEMORA: Record<string, number> = { [DEMORA_ALMUERZO]: 30 }
+export function topeDemora(causa: string): number | undefined {
+  return TOPES_DEMORA[causa]
+}
+// Minutos que computa una demora, ya acotados por el tope de su causa.
+export function minutosDemoraAcotados(causa: string, minutosCrudos: number): number {
+  const tope = topeDemora(causa)
+  const m = Math.max(0, minutosCrudos)
+  return tope === undefined ? m : Math.min(m, tope)
+}
 
 // Un evento de demora registrado (para el Pareto de cuellos de botella de despacho).
 export interface DemoraDespacho {

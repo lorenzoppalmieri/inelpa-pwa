@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import type { DespachoTrafo } from '../../types'
-import { EMBALAJE_ALERTA_MIN, LISTO_ALERTA_DIAS, checklistCompleto } from '../../types'
+import { EMBALAJE_ALERTA_MIN, LISTO_ALERTA_DIAS, checklistCompleto, minutosDemoraAcotados } from '../../types'
 import { fmtDur, minutosEntre } from '../../lib/time'
 import { calcularTiempoProductivo } from '../../lib/calendario'
 
@@ -25,7 +25,11 @@ export default function AlertasDespacho({ despachos }: { despachos: DespachoTraf
     // Tiempo activo de embalaje (descuenta demoras cerradas + la vigente).
     const activo = (d: DespachoTrafo) => {
       if (!d.embalajeInicio) return 0
-      const dem = (d.minutosDemora ?? 0) + (d.demoraEnCurso ? calcularTiempoProductivo(d.demoraEnCurso, ahoraISO) : 0)
+      // v1.45: la demora vigente se acota por el tope de su causa (almuerzo = 30'),
+      // así un "Reanudar" olvidado no dispara ni tapa la alerta de embalaje excesivo.
+      const causa = d.demoras?.length ? d.demoras[d.demoras.length - 1].causa : ''
+      const vigente = d.demoraEnCurso ? minutosDemoraAcotados(causa, calcularTiempoProductivo(d.demoraEnCurso, ahoraISO)) : 0
+      const dem = (d.minutosDemora ?? 0) + vigente
       return Math.max(0, calcularTiempoProductivo(d.embalajeInicio, ahoraISO) - dem)
     }
 

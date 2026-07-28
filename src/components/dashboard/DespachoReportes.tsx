@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
 import type { DespachoTrafo, EstadoDespacho } from '../../types'
-import { ESTADOS_DESPACHO } from '../../types'
+import { ESTADOS_DESPACHO, esDemoraProgramada, minutosDemoraAcotados, DEMORAS_PROGRAMADAS } from '../../types'
 import { fmtDur, minutosEntre, fechaCorta } from '../../lib/time'
 import { calcularTiempoProductivo } from '../../lib/calendario'
 import { ars } from './FletesInternos'
@@ -76,10 +76,15 @@ export default function DespachoReportes({ despachos }: { despachos: DespachoTra
     const cantOp = [...porOp.entries()].map(([n, v]) => ({ n, v })).sort((a, b) => b.v - a.v)
 
     // 3) Pareto de demoras por causa (tiempo perdido; las abiertas cuentan hasta ahora).
+    // v1.45: las PAUSAS PROGRAMADAS (almuerzo) descuentan del tiempo activo pero
+    // NO entran al Pareto: no son trabas a corregir y le taparían el lugar a las
+    // causas reales. Se cuentan aparte para tenerlas a la vista.
     const dem = new Map<string, { min: number; n: number }>()
+    let progMin = 0, progN = 0
     for (const d of dp) for (const dm of d.demoras ?? []) {
-      const min = calcularTiempoProductivo(dm.inicio, dm.fin ?? ahoraISO)
+      const min = minutosDemoraAcotados(dm.causa, calcularTiempoProductivo(dm.inicio, dm.fin ?? ahoraISO))
       if (min <= 0) continue
+      if (esDemoraProgramada(dm.causa)) { progMin += min; progN++; continue }
       const cur = dem.get(dm.causa) ?? { min: 0, n: 0 }
       cur.min += min; cur.n++; dem.set(dm.causa, cur)
     }
@@ -103,7 +108,7 @@ export default function DespachoReportes({ despachos }: { despachos: DespachoTra
 
     return {
       promGeneral, promDist: media(tDist), promRural: media(tRural), nDist: tDist.length, nRural: tRural.length,
-      cantOp, demoras, demoraTotal, listos, porEstado, despAct, despAnt,
+      cantOp, demoras, demoraTotal, progMin, progN, listos, porEstado, despAct, despAnt,
     }
   }, [despachos, ahoraISO, periodo])
 
@@ -177,6 +182,11 @@ export default function DespachoReportes({ despachos }: { despachos: DespachoTra
           : rep.demoras.map(({ causa, min, n }) => (
             <Barra key={causa} label={causa} sub={`${n} evento(s)`} valor={`${fmtDur(min)} · ${Math.round((min / rep.demoraTotal) * 100)}%`} ratio={min / maxDem} color="var(--rojo)" />
           ))}
+        {/* v1.45: las pausas programadas se informan aparte, fuera del Pareto. */}
+        <div className="meta" style={{ marginTop: 8 }}>
+          {DEMORAS_PROGRAMADAS.join(' / ')} no entra{DEMORAS_PROGRAMADAS.length > 1 ? 'n' : ''} en este ranking: descuenta{DEMORAS_PROGRAMADAS.length > 1 ? 'n' : ''} del tiempo activo pero no {DEMORAS_PROGRAMADAS.length > 1 ? 'son trabas' : 'es una traba'} a corregir.
+          {rep.progN > 0 ? <> En el período: <strong>{fmtDur(rep.progMin)}</strong> en {rep.progN} evento(s).</> : null}
+        </div>
       </div>
 
       {/* Equipos listos hace más de X días */}

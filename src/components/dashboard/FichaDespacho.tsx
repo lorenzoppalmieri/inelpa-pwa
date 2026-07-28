@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { DespachoTrafo, ChecklistDespacho } from '../../types'
 import {
   estadoDespachoLabel, ESTADOS_DESPACHO, CHECKLIST_DESPACHO_ITEMS, checklistCompleto,
+  minutosDemoraAcotados,
 } from '../../types'
 import { fmtDur, fechaCorta, hhmm } from '../../lib/time'
 import { calcularTiempoProductivo } from '../../lib/calendario'
@@ -20,7 +21,10 @@ export const BUCKET_FOTOS = 'despacho-fotos'
 
 // Tiempo de demora acumulado (incluye la demora vigente si está demorado).
 function minsDemora(d: DespachoTrafo, ahoraISO: string): number {
-  return (d.minutosDemora ?? 0) + (d.demoraEnCurso ? calcularTiempoProductivo(d.demoraEnCurso, ahoraISO) : 0)
+  if (!d.demoraEnCurso) return d.minutosDemora ?? 0
+  // v1.45: la demora vigente se acota por el tope de su causa (almuerzo = 30').
+  const causa = d.demoras?.length ? d.demoras[d.demoras.length - 1].causa : ''
+  return (d.minutosDemora ?? 0) + minutosDemoraAcotados(causa, calcularTiempoProductivo(d.demoraEnCurso, ahoraISO))
 }
 // Tiempo activo de embalaje = transcurrido desde el inicio menos las demoras.
 function minsEmbalaje(d: DespachoTrafo, ahoraISO: string): number {

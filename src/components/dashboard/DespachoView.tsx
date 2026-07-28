@@ -8,6 +8,7 @@ import {
   ESTADOS_DESPACHO, estadoDespachoLabel, RESPONSABLES_DESPACHO, MOTIVOS_DEMORA_DESPACHO,
   checklistCompleto, checklistFaltantes, seriesDespacho, UBICACIONES_DESPACHO,
   DEPOSITOS, DEPOSITOS_EXTERNOS, PLANTA_INELPA, depositoActual, enStock,
+  minutosDemoraAcotados,
 } from '../../types'
 import type { MovimientoDeposito } from '../../types'
 import { guardarDespacho, eliminarDespacho } from '../../sync/syncEngine'
@@ -75,8 +76,15 @@ export default function DespachoView() {
   const [verEntregados, setVerEntregados] = useState(false)
 
   // --- tiempos ---
+  // v1.45: la demora VIGENTE se acota por el tope de su causa (el almuerzo son
+  // 30': si nadie aprieta "Reanudar", el excedente no se descuenta del embalaje).
+  function minsDemoraVigente(d: DespachoTrafo, hasta = ahoraISO): number {
+    if (!d.demoraEnCurso) return 0
+    const causa = d.demoras?.length ? d.demoras[d.demoras.length - 1].causa : ''
+    return minutosDemoraAcotados(causa, calcularTiempoProductivo(d.demoraEnCurso, hasta))
+  }
   function minsDemora(d: DespachoTrafo): number {
-    return (d.minutosDemora ?? 0) + (d.demoraEnCurso ? calcularTiempoProductivo(d.demoraEnCurso, ahoraISO) : 0)
+    return (d.minutosDemora ?? 0) + minsDemoraVigente(d)
   }
   function minsEmbalaje(d: DespachoTrafo): number {
     if (!d.embalajeInicio) return 0
@@ -134,12 +142,12 @@ export default function DespachoView() {
   }
   async function reanudar(d: DespachoTrafo) {
     const now = new Date().toISOString()
-    const acum = (d.minutosDemora ?? 0) + (d.demoraEnCurso ? calcularTiempoProductivo(d.demoraEnCurso, now) : 0)
+    const acum = (d.minutosDemora ?? 0) + minsDemoraVigente(d, now)   // v1.45: acotado por causa
     await guardarDespacho({ ...d, estado: 'embalando', demoraEnCurso: undefined, minutosDemora: acum, demoras: cerrarDemoraAbierta(d.demoras, now) })
   }
   async function marcarEmbalado(d: DespachoTrafo) {
     const now = new Date().toISOString()
-    const acum = (d.minutosDemora ?? 0) + (d.demoraEnCurso ? calcularTiempoProductivo(d.demoraEnCurso, now) : 0)
+    const acum = (d.minutosDemora ?? 0) + minsDemoraVigente(d, now)   // v1.45: acotado por causa
     await guardarDespacho({ ...d, estado: 'embalado', demoraEnCurso: undefined, minutosDemora: acum, demoras: cerrarDemoraAbierta(d.demoras, now), embalajeFin: now })
   }
   async function marcarEntregado(d: DespachoTrafo) {
