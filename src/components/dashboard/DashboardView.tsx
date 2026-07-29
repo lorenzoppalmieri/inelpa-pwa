@@ -167,18 +167,20 @@ export default function DashboardView() {
       {/* v1.11: alerta de espera de material visible para encargado/planificador. */}
       <AlertaMaterial compacto />
 
-      <div className="tabs no-print">
-        <button className={'tab' + (vista === 'gantt' ? ' active' : '')} onClick={() => setVista('gantt')}>Gantt operativo</button>
-        <button className={'tab' + (vista === 'andon' ? ' active' : '')} onClick={() => setVista('andon')}>🏆 Andon</button>
-        <button className={'tab' + (vista === 'kpis' ? ' active' : '')} onClick={() => setVista('kpis')}>Eficiencia / KPIs</button>
+      <div className="tabs tabs-nav no-print">
+        <button className={'tab' + (vista === 'gantt' ? ' active' : '')} onClick={() => setVista('gantt')}><span className="nav-ico" aria-hidden="true">📈</span><span className="nav-txt-largo">Gantt operativo</span><span className="nav-txt-corto">Gantt</span></button>
+        <button className={'tab' + (vista === 'andon' ? ' active' : '')} onClick={() => setVista('andon')}><span className="nav-ico" aria-hidden="true">🏆</span><span className="nav-txt-largo">🏆 Andon</span><span className="nav-txt-corto">Andon</span></button>
+        <button className={'tab' + (vista === 'kpis' ? ' active' : '')} onClick={() => setVista('kpis')}><span className="nav-ico" aria-hidden="true">📊</span><span className="nav-txt-largo">Eficiencia / KPIs</span><span className="nav-txt-corto">KPIs</span></button>
         {(permisos?.cargarProgramacion || permisos?.crearReparacion) && (
-          <button className={'tab' + (vista === 'planificacion' ? ' active' : '')} onClick={() => setVista('planificacion')}>Planificacion</button>
+          <button className={'tab' + (vista === 'planificacion' ? ' active' : '')} onClick={() => setVista('planificacion')}><span className="nav-ico" aria-hidden="true">🗂</span><span className="nav-txt-largo">Planificacion</span><span className="nav-txt-corto">Planificar</span></button>
         )}
         {esDireccion && (
-          <button className={'tab' + (vista === 'direccion' ? ' active' : '')} onClick={() => setVista('direccion')}>📊 Dirección</button>
+          <button className={'tab' + (vista === 'direccion' ? ' active' : '')} onClick={() => setVista('direccion')}><span className="nav-ico" aria-hidden="true">🏢</span><span className="nav-txt-largo">📊 Dirección</span><span className="nav-txt-corto">Dirección</span></button>
         )}
         <button className={'tab' + (vista === 'mensajes' ? ' active' : '')} onClick={() => setVista('mensajes')}>
-          💬 Mensajes{!esCompositor && noLeidos > 0 ? ` (${noLeidos})` : ''}
+          <span className="nav-ico" aria-hidden="true">💬</span>
+          <span className="nav-txt-largo">💬 Mensajes{!esCompositor && noLeidos > 0 ? ` (${noLeidos})` : ''}</span>
+          <span className="nav-txt-corto">Mensajes{!esCompositor && noLeidos > 0 ? ` (${noLeidos})` : ''}</span>
         </button>
       </div>
 

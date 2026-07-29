@@ -647,8 +647,8 @@ body.admin-mode .content { max-width: none; padding: 12px 18px; }
   border-radius: var(--radio); padding: 10px 14px; margin-bottom: 12px;
 }
 
-/* Pantallas chicas / tablet vertical: el menu pasa arriba en horizontal. */
-@media (max-width: 900px) {
+/* Tablet vertical (769-900px): el menu pasa arriba en horizontal. */
+@media (max-width: 900px) and (min-width: 769px) {
   .admin-shell { flex-direction: column; }
   .admin-sidebar, .admin-sidebar.colapsado {
     position: static; width: 100%; flex-basis: auto;
@@ -659,4 +659,268 @@ body.admin-mode .content { max-width: none; padding: 12px 18px; }
   .admin-navitem { width: auto; white-space: nowrap; }
   .admin-sub { display: none; }
   .admin-main { width: 100%; }
+}
+
+/* CELULAR: el menu lateral se convierte en barra inferior fija, igual que la
+   navegacion de los demas roles (misma altura, mismo comportamiento). */
+@media (max-width: 768px) {
+  .admin-shell { flex-direction: column; gap: 0; }
+  .admin-sidebar, .admin-sidebar.colapsado {
+    position: fixed; left: 0; right: 0; bottom: 0; top: auto; z-index: 40;
+    width: 100%; flex-basis: auto;
+    flex-direction: row; align-items: stretch; justify-content: space-around;
+    gap: 0; padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
+    border: none; border-top: 1px solid var(--borde); border-radius: 0;
+    box-shadow: 0 -2px 12px rgba(0, 0, 0, .35);
+    overflow-x: auto; scrollbar-width: none;
+  }
+  .admin-sidebar::-webkit-scrollbar { display: none; }
+  /* Buscador, boton de contraer y el pie no tienen lugar en la barra. */
+  .admin-head, .admin-foot { display: none; }
+  .admin-nav { flex-direction: row; gap: 0; flex: 1; }
+  .admin-navitem {
+    flex: 1 0 auto; min-width: 68px;
+    flex-direction: column; align-items: center; justify-content: center;
+    gap: 2px; padding: 6px 4px; min-height: 56px;
+    border: none; border-left: none; border-radius: 10px;
+    background: transparent; text-align: center;
+  }
+  .admin-navitem.active {
+    background: transparent; border: none; border-left: none;
+  }
+  .admin-navitem.active .admin-label { color: var(--azul-claro); }
+  .admin-navitem.active .admin-ico { transform: translateY(-1px) scale(1.12); }
+  .admin-ico { font-size: 1.25rem; }
+  .admin-txt { align-items: center; }
+  .admin-label { font-size: .66rem; font-weight: 600; }
+  .admin-sub { display: none; }              /* el subtitulo no cabe */
+  .admin-main { width: 100%; }
+  .admin-crumb { padding: 8px 12px; margin-bottom: 10px; }
+}
+
+/* ============================================================
+   ============  MODO MÓVIL (v1.56)  ============
+   TODO lo de abajo vive dentro de @media (max-width: 768px):
+   la vista de ESCRITORIO queda intacta, sin excepción.
+
+   Objetivo: que en el celular se sienta una app nativa.
+     1. Densidad y tipografía adaptadas a pantalla chica.
+     2. Navegación primaria como barra inferior fija (.tabs-nav).
+     3. Tablas convertidas en tarjetas apilables (.tabla-cards).
+     4. Botones e inputs de 48px, texto de 16px (evita el zoom de iOS).
+     5. Filtros y paneles secundarios detrás de un drawer.
+   ============================================================ */
+@media (max-width: 768px) {
+
+  /* ---------- 1. Layout general ---------- */
+  html { -webkit-text-size-adjust: 100%; }
+  body { overscroll-behavior-y: contain; }   /* menos "pull to refresh" accidental */
+
+  .content {
+    padding: 10px 12px;
+    /* Espacio para la barra inferior + notch del iPhone. */
+    padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+  }
+  body.admin-mode .content { padding: 10px 12px calc(76px + env(safe-area-inset-bottom, 0px)); }
+
+  /* Header compacto y pegado arriba: gana pantalla al scrollear. */
+  .topbar {
+    position: sticky; top: 0; z-index: 30;
+    padding: 8px 12px; gap: 8px; flex-wrap: nowrap;
+  }
+  .topbar .brand span { font-size: .95rem; }
+  .topbar .brand .logo { width: 24px; height: 24px; }
+  .topbar .user { gap: 6px; font-size: .8rem; }
+  /* El nombre del usuario y el rol ocupan mucho: queda solo el semáforo y salir. */
+  .topbar .user > div[style] { display: none; }
+  .topbar .user .btn { min-height: 40px; padding: 0 10px; font-size: .8rem; }
+  .sem-label { display: none; }              /* el punto de color ya comunica */
+
+  /* ---------- 2. Tipografía ---------- */
+  h1 { font-size: 1.25rem; }
+  h2 { font-size: 1.1rem; }
+  h3 { font-size: 1rem; }
+  .section-title { font-size: .95rem; margin: 12px 0 8px; }
+  .meta { font-size: .82rem; line-height: 1.45; }
+
+  /* ---------- 3. Tarjetas y grillas ---------- */
+  .card { padding: 12px; border-radius: 12px; margin-bottom: 10px; }
+  /* Una sola columna: en un celular dos columnas no se leen. */
+  .form-grid { grid-template-columns: 1fr; gap: 10px; }
+  .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .kpi { padding: 12px; }
+  .logi-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tot-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .causa-grid { grid-template-columns: 1fr; }
+
+  /* ---------- 4. Botones e inputs touch-friendly ---------- */
+  /* 48px de alto = objetivo cómodo para el pulgar. 16px de fuente en los campos
+     es el mínimo que evita que iOS haga zoom al enfocar. */
+  .btn { min-height: 48px; padding: 0 16px; font-size: .95rem; border-radius: 12px; }
+  .input, .select, textarea.input {
+    min-height: 48px; font-size: 16px; border-radius: 12px; width: 100%;
+  }
+  .field { width: 100%; }
+  /* Las filas de acciones se estiran: cada botón agarra su mitad. */
+  .row-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .row-actions > .btn { flex: 1 1 45%; }
+  .row-actions > .btn:only-child { flex-basis: 100%; }
+
+  /* ---------- 5. Ocultar lo secundario ---------- */
+  /* El Gantt no se usa en celular: es una herramienta de escritorio. Se avisa
+     en vez de mostrar una grilla ilegible (ver .solo-escritorio). */
+  .solo-escritorio { display: none !important; }
+  .aviso-escritorio { display: block; }
+}
+
+/* El aviso "esto se ve mejor en la compu" solo existe en móvil. */
+.aviso-escritorio { display: none; }
+
+/* ============================================================
+   BARRA DE NAVEGACIÓN INFERIOR (móvil)
+   Se aplica SOLO a las barras marcadas con .tabs-nav, que son las de
+   navegación primaria de cada rol. Las sub-pestañas siguen siendo píldoras
+   horizontales normales, así no se pisan entre sí.
+   ============================================================ */
+@media (max-width: 768px) {
+  .tabs-nav {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+    display: flex; gap: 0; margin: 0;
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
+    background: var(--panel);
+    border-top: 1px solid var(--borde);
+    overflow-x: auto; scrollbar-width: none;
+    box-shadow: 0 -2px 12px rgba(0, 0, 0, .35);
+  }
+  .tabs-nav::-webkit-scrollbar { display: none; }
+
+  .tabs-nav .tab {
+    flex: 1 0 auto; min-width: 64px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 2px; padding: 6px 8px; min-height: 56px;
+    background: transparent; border: none; border-radius: 10px;
+    font-size: .66rem; font-weight: 600; line-height: 1.15;
+    text-align: center; white-space: normal;
+    color: var(--texto-tenue);
+  }
+  /* El activo se marca con color, no con relleno: es lo que se espera de una
+     bottom nav (el relleno de píldora quedaba enorme en la barra). */
+  .tabs-nav .tab.active {
+    background: transparent; color: var(--azul-claro); border: none;
+  }
+  .tabs-nav .tab.active .nav-ico { transform: translateY(-1px) scale(1.12); }
+  .nav-ico { font-size: 1.25rem; line-height: 1; display: block; }
+  /* En la barra inferior: icono grande arriba y etiqueta corta abajo. */
+  .tabs-nav .tab .nav-txt-largo { display: none; }
+  .tabs-nav .tab .nav-ico { display: block; }
+  .tabs-nav .tab .nav-txt-corto { display: block; }
+}
+/* En ESCRITORIO solo se ve el texto largo: el icono y la etiqueta corta son
+   exclusivos de la barra inferior, así la vista de compu queda igual que antes. */
+.nav-ico, .nav-txt-corto { display: none; }
+
+/* ============================================================
+   TABLAS -> TARJETAS APILABLES (móvil)
+   Se activa en las tablas marcadas con .tabla-cards cuyos <td> tengan
+   data-label. En escritorio la tabla se ve exactamente igual que antes.
+   ============================================================ */
+@media (max-width: 768px) {
+  .tabla-cards thead { display: none; }             /* los encabezados pasan a cada celda */
+  .tabla-cards, .tabla-cards tbody, .tabla-cards tfoot { display: block; width: 100%; }
+
+  .tabla-cards tr {
+    display: block;
+    background: var(--panel);
+    border: 1px solid var(--borde);
+    border-radius: 12px;
+    padding: 10px 12px;
+    margin-bottom: 10px;
+  }
+  .tabla-cards td {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+    padding: 5px 0; border: none; white-space: normal; text-align: right;
+  }
+  /* El encabezado de la columna se dibuja como etiqueta a la izquierda. */
+  .tabla-cards td::before {
+    content: attr(data-label);
+    flex: 0 0 auto; margin-right: auto;
+    color: var(--texto-tenue); font-size: .74rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .3px; text-align: left;
+  }
+  /* La primera celda hace de título de la tarjeta. */
+  .tabla-cards td:first-child {
+    display: block; text-align: left;
+    font-weight: 800; font-size: .95rem;
+    padding-bottom: 8px; margin-bottom: 4px;
+    border-bottom: 1px solid var(--borde);
+  }
+  .tabla-cards td:first-child::before { display: none; }
+  /* Celdas vacías (—) no aportan: se esconden para acortar la tarjeta. */
+  .tabla-cards td.vacia { display: none; }
+  /* La fila de totales se destaca como tarjeta propia. */
+  .tabla-cards tfoot tr.fila-total {
+    position: static; background: var(--panel-2);
+    border: 1px solid var(--azul-claro);
+  }
+  .tabla-cards tfoot tr.fila-total td { text-align: right; }
+  .tabla-cards tfoot tr.fila-total td:first-child { border-bottom-color: var(--azul-claro); }
+}
+
+/* ============================================================
+   DRAWER de filtros / paneles secundarios (móvil)
+   Sube desde abajo, como una hoja de acción nativa.
+   ============================================================ */
+.drawer-overlay {
+  position: fixed; inset: 0; z-index: 60;
+  background: rgba(0, 0, 0, .55);
+  display: flex; align-items: flex-end;
+}
+.drawer {
+  width: 100%; max-height: 85vh;
+  background: var(--panel);
+  border-top: 1px solid var(--borde);
+  border-radius: 18px 18px 0 0;
+  padding: 8px 14px calc(14px + env(safe-area-inset-bottom, 0px));
+  display: flex; flex-direction: column; gap: 10px;
+  animation: drawer-sube .22s ease-out;
+}
+@keyframes drawer-sube { from { transform: translateY(100%); } to { transform: translateY(0); } }
+/* La "asa" de arriba: señal visual de que se puede cerrar arrastrando/tocando. */
+.drawer-asa {
+  width: 44px; height: 4px; border-radius: 999px;
+  background: var(--borde); margin: 4px auto 2px;
+}
+.drawer-body {
+  overflow-y: auto; flex: 1; min-height: 0;
+  display: flex; flex-direction: column; gap: 10px;
+}
+/* Dentro del drawer los controles ocupan todo el ancho, uno por renglón. */
+.drawer-body .input,
+.drawer-body .select { width: 100%; min-height: 48px; font-size: 16px; }
+.drawer-body label { font-size: .8rem; color: var(--texto-tenue); }
+
+/* ============================================================
+   MODALES en móvil: hoja que sube desde abajo, casi a pantalla completa.
+   Se usa !important porque varios modales traen width/max-width inline
+   (ej. la ficha de laboratorio) y en el celular esos valores no sirven.
+   ============================================================ */
+@media (max-width: 768px) {
+  .modal-overlay { place-items: end center; padding: 0; }
+  .modal {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 92vh !important;
+    border-radius: 18px 18px 0 0;
+    padding: 14px 14px calc(14px + env(safe-area-inset-bottom, 0px));
+    overflow-y: auto;
+    animation: drawer-sube .22s ease-out;
+  }
+  /* Los botones del pie del modal, apilados y grandes. */
+  .modal > div[style*="justify-content: flex-end"],
+  .modal > div[style*="justify-content:flex-end"] {
+    flex-direction: column-reverse; gap: 8px;
+  }
+  .modal > div[style*="justify-content: flex-end"] > .btn { width: 100%; }
+  /* Grilla de causas de parada: una sola columna, botones grandes. */
+  .causa-grid { grid-template-columns: 1fr; }
 }

@@ -11,6 +11,7 @@ import { exportarDetalleTareasCSV } from '../../lib/export'
 import { db } from '../../db/dexie'
 import { useAuth } from '../../auth/AuthContext'
 import { noConformidadDesdeParada, paradasCalidad } from '../../sgo/integraciones'
+import FiltrosMovil from '../ui/FiltrosMovil'
 
 // ============================================================
 // DETALLE POR TAREA — tabla filtrable de tareas finalizadas. Columnas (v1.18):
@@ -89,7 +90,8 @@ export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina }:
 
   return (
     <div className="card" style={{ overflowX: 'auto' }}>
-      <div className="filtros no-print" style={{ marginBottom: 10 }}>
+      {/* v1.56: en celular estos filtros van dentro de un drawer. */}
+      <FiltrosMovil titulo="Buscar y filtrar" activos={(q.trim() ? 1 : 0) + (soloDemora ? 1 : 0)}>
         <input className="input" placeholder="Buscar por semielaborado, colaborador o máquina…" value={q} onChange={(e) => setQ(e.target.value)} style={{ flex: 1, minWidth: 220 }} />
         <label className="meta" style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
           <input type="checkbox" checked={soloDemora} onChange={(e) => setSoloDemora(e.target.checked)} />
@@ -101,7 +103,7 @@ export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina }:
           title={filas.length === 0 ? 'No hay tareas para exportar' : 'Descargar la tabla filtrada en Excel (CSV)'}
           onClick={() => exportarDetalleTareasCSV(filas.map((r) => r.t), nombreOperario, nombreMaquina, 'detalle')}
         >⬇ Exportar (Excel)</button>
-      </div>
+      </FiltrosMovil>
 
       {/* v1.44: acumulado de lo que se ve en pantalla (responde al buscador). */}
       {filas.length > 0 && (
@@ -140,7 +142,7 @@ export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina }:
       )}
 
       {filas.length === 0 ? <div className="empty">Sin tareas finalizadas en la selección.</div> : (
-        <table className="tabla-detalle">
+        <table className="tabla-detalle tabla-cards">
           <thead>
             <tr>
               <th>Tarea</th><th>Colaborador</th><th>Estación</th>
@@ -154,17 +156,17 @@ export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina }:
               const pc = paradasCalidad(r.t)
               const vinculadas = pc.filter((p) => eventosSGO.some((e) => e.paradaId === p.id)).length
               return <tr key={r.id} className={r.sinJust > 0 ? 'fila-demora' : ''}>
-                <td>{r.nombre}{r.nro ? ` · ${r.nro}` : ''}</td>
-                <td>{r.operario}</td>
-                <td>{r.maquina}</td>
-                <td className="num">{fmtDur(r.estimado)}</td>
-                <td className="num">{fmtDur(r.real)}</td>
-                <td className="num">{r.demorado > 0 ? fmtDur(r.demorado) : '—'}</td>
-                <td className="num">{r.justificada > 0 ? fmtDur(r.justificada) : '—'}</td>
-                <td className="num" style={{ fontWeight: 800, color: r.sinJust > 0 ? 'var(--rojo)' : 'var(--texto-tenue)' }}>
+                <td data-label="Tarea">{r.nombre}{r.nro ? ` · ${r.nro}` : ''}</td>
+                <td data-label="Colaborador">{r.operario}</td>
+                <td data-label="Estación">{r.maquina}</td>
+                <td className="num" data-label="Estimado">{fmtDur(r.estimado)}</td>
+                <td className="num" data-label="Real">{fmtDur(r.real)}</td>
+                <td className={'num' + (r.demorado > 0 ? '' : ' vacia')} data-label="Demorado">{r.demorado > 0 ? fmtDur(r.demorado) : '—'}</td>
+                <td className={'num' + (r.justificada > 0 ? '' : ' vacia')} data-label="Demora justif.">{r.justificada > 0 ? fmtDur(r.justificada) : '—'}</td>
+                <td className={'num' + (r.sinJust > 0 ? '' : ' vacia')} data-label="Demora s/just." style={{ fontWeight: 800, color: r.sinJust > 0 ? 'var(--rojo)' : 'var(--texto-tenue)' }}>
                   {r.sinJust > 0 ? `+${fmtDur(r.sinJust)}` : '—'}
                 </td>
-                <td>{pc.length === 0 ? '—' : vinculadas === pc.length
+                <td className={pc.length === 0 ? 'vacia' : ''} data-label="SGO">{pc.length === 0 ? '—' : vinculadas === pc.length
                   ? <span className="estado-chip">NC creada</span>
                   : <button className="btn btn-rojo" disabled={creandoNC === r.id} onClick={() => void crearNoConformidades(r.t)}>{creandoNC === r.id ? 'Creando…' : `+ NC (${pc.length - vinculadas})`}</button>}</td>
               </tr>
@@ -173,15 +175,15 @@ export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina }:
           {/* Fila de totales fija al pie (misma sumatoria que las tarjetas). */}
           <tfoot>
             <tr className="fila-total">
-              <td colSpan={3}>TOTAL · {tot.n} tarea(s){filtrado ? ' (filtrado)' : ''}</td>
-              <td className="num">{fmtDur(tot.estimado)}</td>
-              <td className="num">{fmtDur(tot.real)}</td>
-              <td className="num" style={{ color: 'var(--naranja)' }}>{tot.demorado > 0 ? fmtDur(tot.demorado) : '—'}</td>
-              <td className="num">{tot.justificada > 0 ? fmtDur(tot.justificada) : '—'}</td>
-              <td className="num" style={{ color: tot.sinJust > 0 ? 'var(--rojo)' : 'var(--texto-tenue)' }}>
+              <td data-label="Total" colSpan={3}>TOTAL · {tot.n} tarea(s){filtrado ? ' (filtrado)' : ''}</td>
+              <td className="num" data-label="Estimado">{fmtDur(tot.estimado)}</td>
+              <td className="num" data-label="Real">{fmtDur(tot.real)}</td>
+              <td className="num" data-label="Demorado" style={{ color: 'var(--naranja)' }}>{tot.demorado > 0 ? fmtDur(tot.demorado) : '—'}</td>
+              <td className="num" data-label="Demora justif.">{tot.justificada > 0 ? fmtDur(tot.justificada) : '—'}</td>
+              <td className="num" data-label="Demora s/just." style={{ color: tot.sinJust > 0 ? 'var(--rojo)' : 'var(--texto-tenue)' }}>
                 {tot.sinJust > 0 ? `+${fmtDur(tot.sinJust)}` : '—'}
               </td>
-              <td>—</td>
+              <td className="vacia">—</td>
             </tr>
           </tfoot>
         </table>

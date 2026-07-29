@@ -115,11 +115,21 @@ export default function OperarioView() {
 
   // Barra de pestañas Mi trabajo / Andon (ya pasaron todos los hooks).
   const tabsTop = (
-    <div className="tabs">
-      <button className={'tab' + (pantalla === 'trabajo' ? ' active' : '')} onClick={() => setPantalla('trabajo')}>Mi trabajo</button>
-      <button className={'tab' + (pantalla === 'andon' ? ' active' : '')} onClick={() => setPantalla('andon')}>🏆 Andon</button>
+    <div className="tabs tabs-nav">
+      <button className={'tab' + (pantalla === 'trabajo' ? ' active' : '')} onClick={() => setPantalla('trabajo')}>
+        <span className="nav-ico" aria-hidden="true">🔧</span>
+        <span className="nav-txt-largo">Mi trabajo</span>
+        <span className="nav-txt-corto">Mi trabajo</span>
+      </button>
+      <button className={'tab' + (pantalla === 'andon' ? ' active' : '')} onClick={() => setPantalla('andon')}>
+        <span className="nav-ico" aria-hidden="true">🏆</span>
+        <span className="nav-txt-largo">🏆 Andon</span>
+        <span className="nav-txt-corto">Andon</span>
+      </button>
       <button className={'tab' + (pantalla === 'mensajes' ? ' active' : '')} onClick={() => setPantalla('mensajes')}>
-        💬 Mensajes{noLeidos > 0 ? ` (${noLeidos})` : ''}
+        <span className="nav-ico" aria-hidden="true">💬</span>
+        <span className="nav-txt-largo">💬 Mensajes{noLeidos > 0 ? ` (${noLeidos})` : ''}</span>
+        <span className="nav-txt-corto">Mensajes{noLeidos > 0 ? ` (${noLeidos})` : ''}</span>
       </button>
     </div>
   )
