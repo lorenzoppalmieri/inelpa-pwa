@@ -649,6 +649,9 @@ export interface TareaLaboratorio {
   protocoloPath?: string
   protocoloNombre?: string       // nombre original del archivo (para mostrar)
   protocoloSubido?: string       // ISO de la carga
+  // v1.48: auditoría de reaperturas. Una ficha finalizada queda en SOLO LECTURA;
+  // para volver a tocarla hay que reabrirla explícitamente y queda registrado.
+  reaperturas?: { en: string; por?: string }[]
   creada: string
   creadaPor?: string
   finalizada?: string
@@ -656,6 +659,14 @@ export interface TareaLaboratorio {
 }
 
 // Estado de un ensayo (default 'sin').
+// v1.48: id DETERMINÍSTICO del despacho que libera un ensayo. Al ser derivado del
+// id del ensayo, re-finalizar escribe SIEMPRE la misma fila (upsert) en vez de
+// crear un despacho nuevo. Es el mismo patrón anti-duplicado que usan las tareas
+// recurrentes. Funciona offline, sin depender de una transacción del servidor.
+export function idDespachoDeLab(laboratorioId: string): string {
+  return `desp_${laboratorioId}`
+}
+
 export function estadoEnsayo(t: TareaLaboratorio, key: string): EnsayoEstado {
   return t.ensayos?.[key] ?? 'sin'
 }
@@ -760,6 +771,10 @@ export interface DespachoTrafo {
   demoraEnCurso?: string         // ISO: inicio de la demora vigente (estado 'demorado')
   minutosDemora?: number         // minutos de demora acumulados (cerrados)
   demoras?: DemoraDespacho[]     // historial de demoras (causa + duracion)
+  // v1.48: ensayo de laboratorio que originó este despacho. Es la CLAVE DE
+  // IDEMPOTENCIA: un ensayo puede generar UN solo despacho. La base lo respalda
+  // con un índice único parcial (ver supabase_despacho_unico_v1.48.sql).
+  laboratorioId?: string
   // v1.47: protocolo de ensayo heredado de Laboratorio (ruta en Storage). Melany
   // lo exporta desde acá sin tener que entrar al módulo de laboratorio.
   protocoloPath?: string

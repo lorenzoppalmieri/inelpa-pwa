@@ -1,10 +1,11 @@
 import { useRef, useState } from 'react'
 import type { TareaLaboratorio, EnsayoEstado, DespachoTrafo } from '../../types'
-import { ENSAYOS_LAB, estadoEnsayo, tieneRechazo } from '../../types'
+import { ENSAYOS_LAB, estadoEnsayo, tieneRechazo, idDespachoDeLab } from '../../types'
 import { useAuth } from '../../auth/AuthContext'
 import { guardarLaboratorio } from '../../sync/syncEngine'
 import { guardarDespacho } from '../../sync/syncEngine'
 import { db } from '../../db/dexie'
+import { fechaCorta, hhmm } from '../../lib/time'
 import { datosModelo, buscarModelo } from '../../lib/modeloTrafo'
 import { subirProtocolo, abrirProtocolo, MAX_PDF_MB } from '../../lib/archivos'
 
@@ -34,7 +35,7 @@ export default function FichaLaboratorio({ tarea: t, onClose }: { tarea: TareaLa
   const [errPdf, setErrPdf] = useState('')
 
   async function elegirPdf(file?: File | null) {
-    if (!file) return
+    if (!file || t.estado === 'finalizada') return
     setErrPdf(''); setSubiendo(true)
     const ref = (nroSerie.trim() || t.nroSerie || t.modelo || 'protocolo')
     const r = await subirProtocolo(file, ref, t.id)
@@ -56,10 +57,30 @@ export default function FichaLaboratorio({ tarea: t, onClose }: { tarea: TareaLa
 
   // Cada toggle guarda el estado del ensayo al instante.
   async function setEnsayo(key: string, v: EnsayoEstado) {
+    if (t.estado === 'finalizada') return   // ficha cerrada: solo lectura
     await guardarLaboratorio({ ...t, ensayos: { ...(t.ensayos ?? {}), [key]: v } })
   }
   async function guardarSerie() {
+    if (t.estado === 'finalizada') return
     if ((nroSerie.trim() || undefined) !== t.nroSerie) await guardarLaboratorio({ ...t, nroSerie: nroSerie.trim() || undefined })
+  }
+
+  // v1.48: una ficha FINALIZADA queda en SOLO LECTURA. Antes se podía reabrir
+  // desde "Ver ensayo" y volver a finalizar, y cada pasada creaba un despacho
+  // nuevo (id aleatorio) -> despachos duplicados para el mismo transformador.
+  const finalizada = t.estado === 'finalizada'
+  const [reabriendo, setReabriendo] = useState(false)
+
+  // Reapertura EXPLÍCITA y auditada (queda quién y cuándo).
+  async function reabrir() {
+    if (!window.confirm('¿Reabrir este ensayo?\n\nQueda registrado quién y cuándo lo reabrió. Al volver a finalizarlo NO se crea un despacho nuevo: se actualiza el que ya existe.')) return
+    setReabriendo(true)
+    await guardarLaboratorio({
+      ...t,
+      estado: 'en_ensayo',
+      reaperturas: [...(t.reaperturas ?? []), { en: new Date().toISOString(), por: usuario?.usuario }],
+    })
+    setReabriendo(false)
   }
 
   const retrabajo = tieneRechazo(t)
@@ -67,11 +88,12 @@ export default function FichaLaboratorio({ tarea: t, onClose }: { tarea: TareaLa
   // Solo se exige el PDF cuando el trafo APRUEBA (es lo que se libera a despacho).
   // En retrabajo no se pide: el trafo no sale del sector.
   const faltaProtocolo = !retrabajo && !t.protocoloPath
-  const noPuedeFinalizar = guardando || subiendo || faltaComentario || faltaProtocolo
+  const noPuedeFinalizar = guardando || subiendo || faltaComentario || faltaProtocolo || finalizada
 
   // Handler de finalización: evalúa el checklist y rutea el transformador.
   async function finalizarEnsayo() {
     if (faltaComentario || faltaProtocolo) return
+    if (finalizada) return   // ya se liberó: no se vuelve a procesar
     setGuardando(true)
     const now = new Date().toISOString()
     const serie = nroSerie.trim() || t.nroSerie
@@ -91,10 +113,32 @@ export default function FichaLaboratorio({ tarea: t, onClose }: { tarea: TareaLa
       // Tipo y Potencia. El catálogo aporta tanque/montaje/potencia normalizados;
       // si el modelo no está (prototipos, catálogo sin sincronizar) se parsea el
       // nombre, que sigue la misma convención de SAP.
+      // v1.48: ANTI-DUPLICADO. El id del despacho se DERIVA del id del ensayo,
+      // así re-finalizar reescribe la misma fila en vez de crear otra. Además se
+      // chequea antes si ya existe (por id o por vínculo) y, si existe, no se
+      // pisa el trabajo que Melany ya haya hecho sobre él.
+      const despId = idDespachoDeLab(t.id)
+      const yaExiste = (await db.despachos.get(despId))
+        ?? (await db.despachos.where('laboratorioId').equals(t.id).first())
+      if (yaExiste) {
+        // Solo se refrescan los datos que puede haber corregido el laboratorio.
+        await guardarDespacho({
+          ...yaExiste,
+          nroSerie: serie ?? yaExiste.nroSerie,
+          numerosSerie: serie ? [serie] : yaExiste.numerosSerie,
+          protocoloPath: t.protocoloPath ?? yaExiste.protocoloPath,
+          protocoloNombre: t.protocoloNombre ?? yaExiste.protocoloNombre,
+          laboratorioId: t.id,
+        })
+        setGuardando(false)
+        onClose()
+        return
+      }
       const catalogo = await db.modelos.toArray()
       const dm = datosModelo(t.modelo, buscarModelo(t.modelo, catalogo))
       const d: DespachoTrafo = {
-        id: crypto.randomUUID(),
+        id: despId,
+        laboratorioId: t.id,
         ot: t.ot ?? '',
         cliente: t.cliente || 'Stock',
         nroSerie: serie ?? '',
@@ -123,7 +167,28 @@ export default function FichaLaboratorio({ tarea: t, onClose }: { tarea: TareaLa
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 640, width: '96%', maxHeight: '92vh', display: 'flex', flexDirection: 'column' }}>
-        <div className="section-title" style={{ marginTop: 0, flex: 'none' }}>🔬 Ensayo de laboratorio</div>
+        <div className="section-title" style={{ marginTop: 0, flex: 'none' }}>
+          🔬 Ensayo de laboratorio{finalizada ? ' · CERRADO' : ''}
+        </div>
+        {finalizada && (
+          <div className="card" style={{ flex: 'none', marginBottom: 10, borderLeft: '4px solid var(--estado-fin)' }}>
+            <div className="meta" style={{ fontWeight: 700 }}>
+              🔒 Ensayo finalizado{t.finalizada ? ` el ${fechaCorta(t.finalizada)} ${hhmm(t.finalizada)}` : ''}
+              {t.finalizadaPor ? ` por ${t.finalizadaPor}` : ''} · solo lectura.
+            </div>
+            <div className="meta" style={{ marginTop: 4 }}>
+              {t.resultado === 'retrabajo'
+                ? 'Resultado: RETRABAJO (no se despachó).'
+                : 'Resultado: APROBADO — el transformador ya fue liberado a despacho.'}
+            </div>
+            {t.reaperturas?.length ? (
+              <div className="meta" style={{ marginTop: 4, color: 'var(--naranja)' }}>
+                ↩ Reabierto {t.reaperturas.length} vez/veces · última: {fechaCorta(t.reaperturas[t.reaperturas.length - 1].en)} {hhmm(t.reaperturas[t.reaperturas.length - 1].en)}
+                {t.reaperturas[t.reaperturas.length - 1].por ? ` por ${t.reaperturas[t.reaperturas.length - 1].por}` : ''}
+              </div>
+            ) : null}
+          </div>
+        )}
 
         <div style={{ overflow: 'auto', flex: 1, minHeight: 0, paddingRight: 4 }}>
           {seccion('Transformador')}
@@ -131,7 +196,7 @@ export default function FichaLaboratorio({ tarea: t, onClose }: { tarea: TareaLa
           <div className="meta">Cliente <strong>{t.cliente || 'Stock'}</strong>{t.ot ? ` · OT ${t.ot}` : ''}</div>
           <div className="field" style={{ marginTop: 8, maxWidth: 260 }}>
             <label>N° de serie {t.nroSerie ? '' : '(cargalo si llegó vacío)'}</label>
-            <input className="input" value={nroSerie} onChange={(e) => setNroSerie(e.target.value)} onBlur={() => void guardarSerie()} placeholder="ej. 24610" style={{ width: '100%' }} />
+            <input className="input" value={nroSerie} onChange={(e) => setNroSerie(e.target.value)} onBlur={() => void guardarSerie()} placeholder="ej. 24610" disabled={finalizada} style={{ width: '100%' }} />
           </div>
 
           {seccion('Protocolo de ensayos (marcá solo los que hiciste)')}
@@ -144,7 +209,7 @@ export default function FichaLaboratorio({ tarea: t, onClose }: { tarea: TareaLa
                   {OPCIONES.map((o) => {
                     const on = cur === o.v
                     return (
-                      <button key={o.v} type="button" onClick={() => void setEnsayo(e.key, o.v)}
+                      <button key={o.v} type="button" disabled={finalizada} onClick={() => void setEnsayo(e.key, o.v)}
                         style={{
                           padding: '8px 12px', borderRadius: 8, cursor: 'pointer', fontSize: '.82rem', minHeight: 40,
                           border: '1px solid ' + (on ? (o.v === 'rechazado' ? 'var(--rojo)' : o.v === 'aprobado' ? 'var(--estado-fin)' : 'var(--azul-claro)') : 'var(--borde)'),
@@ -159,7 +224,7 @@ export default function FichaLaboratorio({ tarea: t, onClose }: { tarea: TareaLa
 
           <div style={{ marginTop: 10 }}>
             <label className="meta">Comentario / posible solución {retrabajo ? <span style={{ color: 'var(--rojo)' }}>* (obligatorio si hay rechazos)</span> : '(opcional)'}</label>
-            <textarea className="input" value={comentario} onChange={(e) => setComentario(e.target.value)} rows={3}
+            <textarea className="input" value={comentario} onChange={(e) => setComentario(e.target.value)} rows={3} disabled={finalizada}
               placeholder="ej. Falla de aislación en BT — revisar bobinado" style={{ width: '100%', resize: 'vertical' }} />
           </div>
 
@@ -175,9 +240,11 @@ export default function FichaLaboratorio({ tarea: t, onClose }: { tarea: TareaLa
                     </div>
                     <div className="row-actions" style={{ marginTop: 8 }}>
                       <button className="btn" onClick={() => void verPdf()}>👁 Ver PDF</button>
-                      <button className="btn" disabled={subiendo} onClick={() => fileRef.current?.click()}>
-                        {subiendo ? 'Subiendo…' : '↻ Reemplazar'}
-                      </button>
+                      {!finalizada && (
+                        <button className="btn" disabled={subiendo} onClick={() => fileRef.current?.click()}>
+                          {subiendo ? 'Subiendo…' : '↻ Reemplazar'}
+                        </button>
+                      )}
                     </div>
                   </>
                 ) : (
@@ -201,21 +268,28 @@ export default function FichaLaboratorio({ tarea: t, onClose }: { tarea: TareaLa
             </>
           )}
 
-          <div className="meta" style={{ marginTop: 8, color: retrabajo ? 'var(--rojo)' : faltaProtocolo ? 'var(--naranja)' : 'var(--estado-fin)' }}>
+          {!finalizada && <div className="meta" style={{ marginTop: 8, color: retrabajo ? 'var(--rojo)' : faltaProtocolo ? 'var(--naranja)' : 'var(--estado-fin)' }}>
             {retrabajo
               ? '⚠ Hay ensayos rechazados → al finalizar va a RETRABAJO (no se despacha).'
               : faltaProtocolo
                 ? '📎 Adjuntá el protocolo para poder liberar el transformador a despacho.'
                 : '✓ Sin rechazos y con protocolo → al finalizar se crea la tarea de despacho.'}
-          </div>
+          </div>}
         </div>
 
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 12, flex: 'none' }}>
           <button className="btn" onClick={onClose} disabled={guardando}>Cerrar</button>
-          <button className={'btn ' + (retrabajo ? 'btn-rojo' : 'btn-verde')} disabled={noPuedeFinalizar} onClick={() => void finalizarEnsayo()}
-            title={faltaProtocolo ? 'Falta adjuntar el protocolo de ensayo (PDF)' : undefined}>
-            {retrabajo ? '⚠ Finalizar → Retrabajo' : faltaProtocolo ? '🔒 Falta el protocolo' : '✓ Finalizar → Despacho'}
-          </button>
+          {finalizada ? (
+            <button className="btn" disabled={reabriendo} onClick={() => void reabrir()}
+              title="Reabrir el ensayo para corregirlo. Queda auditado y NO genera un despacho nuevo.">
+              ↩ Reabrir ensayo
+            </button>
+          ) : (
+            <button className={'btn ' + (retrabajo ? 'btn-rojo' : 'btn-verde')} disabled={noPuedeFinalizar} onClick={() => void finalizarEnsayo()}
+              title={faltaProtocolo ? 'Falta adjuntar el protocolo de ensayo (PDF)' : undefined}>
+              {retrabajo ? '⚠ Finalizar → Retrabajo' : faltaProtocolo ? '🔒 Falta el protocolo' : '✓ Finalizar → Despacho'}
+            </button>
+          )}
         </div>
       </div>
     </div>

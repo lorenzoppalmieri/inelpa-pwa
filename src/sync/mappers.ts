@@ -302,6 +302,7 @@ export interface DespachoRow {
   demora_en_curso: string | null
   minutos_demora: number | null
   demoras: DemoraDespacho[] | null
+  laboratorio_id: string | null
   protocolo_path: string | null
   protocolo_nombre: string | null
   checklist: ChecklistDespacho | null
@@ -346,6 +347,7 @@ export function despachoFromRow(r: DespachoRow): DespachoTrafo {
     demoraEnCurso: u(r.demora_en_curso),
     minutosDemora: r.minutos_demora ?? undefined,
     demoras: r.demoras ?? undefined,
+    laboratorioId: u(r.laboratorio_id),
     protocoloPath: u(r.protocolo_path),
     protocoloNombre: u(r.protocolo_nombre),
     checklist: r.checklist ?? undefined,
@@ -390,6 +392,7 @@ export function despachoToRow(d: DespachoTrafo): DespachoRow {
     demora_en_curso: d.demoraEnCurso ?? null,
     minutos_demora: d.minutosDemora ?? null,
     demoras: d.demoras ?? null,
+    laboratorio_id: d.laboratorioId ?? null,
     protocolo_path: d.protocoloPath ?? null,
     protocolo_nombre: d.protocoloNombre ?? null,
     checklist: d.checklist ?? null,
@@ -471,6 +474,7 @@ export interface LaboratorioRow {
   protocolo_path: string | null
   protocolo_nombre: string | null
   protocolo_subido_en: string | null
+  reaperturas: { en: string; por?: string }[] | null
   creada_en: string
   creada_por: string | null
   finalizada_en: string | null
@@ -494,6 +498,7 @@ export function laboratorioFromRow(r: LaboratorioRow): TareaLaboratorio {
     protocoloPath: u(r.protocolo_path),
     protocoloNombre: u(r.protocolo_nombre),
     protocoloSubido: u(r.protocolo_subido_en),
+    reaperturas: r.reaperturas ?? undefined,
     creada: r.creada_en,
     creadaPor: u(r.creada_por),
     finalizada: u(r.finalizada_en),
@@ -518,6 +523,7 @@ export function laboratorioToRow(t: TareaLaboratorio): LaboratorioRow {
     protocolo_path: t.protocoloPath ?? null,
     protocolo_nombre: t.protocoloNombre ?? null,
     protocolo_subido_en: t.protocoloSubido ?? null,
+    reaperturas: t.reaperturas ?? null,
     creada_en: t.creada,
     creada_por: t.creadaPor ?? null,
     finalizada_en: t.finalizada ?? null,

@@ -101,6 +101,12 @@ export class InelpaDB extends Dexie {
       plantillasRecurrentes: 'id, origen, activa, creada',
       tareasLogistica: 'id, estado, responsable, prioridad, creada, plantillaId, fechaInstancia',
     })
+    // v1.48: índice por laboratorioId. Es la clave anti-duplicado: antes de crear
+    // un despacho se busca si ese ensayo ya generó uno. Sin el índice, el
+    // .where('laboratorioId') de Dexie tira excepción.
+    this.version(15).stores({
+      despachos: 'id, estado, nroSerie, ot, linea, operario, creada, laboratorioId',
+    })
   }
 }
 
