@@ -40,15 +40,33 @@ export default function FichaCeldaSGO({ areaId, pilarId, indicadores, eventos, a
   const ids = new Set(eventosCelda.map((e) => e.id))
   const accionesCelda = acciones.filter((a) => ids.has(a.eventoId))
   const vencidas = accionesCelda.filter(accionVencida)
+  const emitidoEn = new Intl.DateTimeFormat('es-AR', { dateStyle: 'long', timeStyle: 'short' }).format(new Date())
 
-  return <div className="modal-overlay" onClick={onClose}>
-    <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 1100, width: '97%', maxHeight: '95vh', overflow: 'auto' }}>
+  function exportarPDF() {
+    const tituloAnterior = document.title
+    const secciones = Array.from(document.querySelectorAll<HTMLDetailsElement>('.sgo-ficha-print details'))
+    const estadoSecciones = secciones.map((seccion) => seccion.open)
+    secciones.forEach((seccion) => { seccion.open = true })
+    document.title = `Ficha_SGO_${area.label.replaceAll(' ', '_')}_${pilar.label.replaceAll(' ', '_')}`
+    window.print()
+    window.setTimeout(() => {
+      document.title = tituloAnterior
+      secciones.forEach((seccion, indice) => { seccion.open = estadoSecciones[indice] })
+    }, 500)
+  }
+
+  return <div className="modal-overlay sgo-ficha-overlay" onClick={onClose}>
+    <div className="modal sgo-ficha-print" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 1100, width: '97%', maxHeight: '95vh', overflow: 'auto' }}>
+      <div className="sgo-print-only sgo-print-header">
+        <div><strong>INELPA TRANSFORMADORES</strong><div>Sistema de Gestión Operativa Integral</div></div>
+        <div>Ficha Área × Pilar</div>
+      </div>
       <div className="card-header" style={{ borderBottom: `4px solid ${pilar.color}`, paddingBottom: 10 }}>
         <div>
           <div className="section-title" style={{ margin: 0 }}>Ficha de gestión · {area.label}</div>
           <div className="meta">Pilar: <strong>{pilar.label}</strong> · información trazable a los registros operativos</div>
         </div>
-        <button className="btn" onClick={onClose}>×</button>
+        <div className="row-actions no-print"><button className="btn btn-primary" onClick={exportarPDF}>🖨 Exportar PDF</button><button className="btn" onClick={onClose}>×</button></div>
       </div>
 
       <div className="logi-kpis" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(135px,1fr))', marginTop: 14 }}>
@@ -67,7 +85,7 @@ export default function FichaCeldaSGO({ areaId, pilarId, indicadores, eventos, a
       <div className="card" style={{ marginTop: 16 }}>
         <div className="card-header">
           <div className="section-title" style={{ margin: 0 }}>Eventos y acciones que impactan la celda</div>
-          <button className="btn" onClick={onFiltrarEventos}>Ver en el listado</button>
+          <button className="btn no-print" onClick={onFiltrarEventos}>Ver en el listado</button>
         </div>
         {eventosCelda.length === 0 ? <div className="empty">No hay eventos registrados para esta área y pilar.</div> :
           <div style={{ display: 'grid', gap: 8, marginTop: 10 }}>
@@ -80,6 +98,7 @@ export default function FichaCeldaSGO({ areaId, pilarId, indicadores, eventos, a
             })}
           </div>}
       </div>
+      <div className="sgo-print-only sgo-print-footer">Emitido el {emitidoEn} · Documento generado desde SGO Integral · INELPA Transformadores</div>
     </div>
   </div>
 }

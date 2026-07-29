@@ -508,6 +508,7 @@ button { font-family: inherit; cursor: pointer; border: none; }
 
 /* ---------- Barra de exportacion ---------- */
 .export-bar { display: flex; gap: 10px; flex-wrap: wrap; margin: 0 0 14px; }
+.sgo-print-only { display: none; }
 
 /* ---------- Vista previa de semielaborados del modelo ---------- */
 .semi-preview { margin-top: 12px; padding: 12px; background: var(--panel-2); border: 1px solid var(--borde); border-radius: var(--radio); }
@@ -538,6 +539,43 @@ button { font-family: inherit; cursor: pointer; border: none; }
   .kpi .bar > span, .pareto-bar { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .kpi-grid { break-inside: avoid; }
   .pareto-row { break-inside: avoid; }
+
+  /* Ficha auditable del tablero SGO: imprime solamente la celda seleccionada. */
+  body:has(.sgo-ficha-print) * { visibility: hidden !important; }
+  body:has(.sgo-ficha-print) .sgo-ficha-print,
+  body:has(.sgo-ficha-print) .sgo-ficha-print * { visibility: visible !important; }
+  .sgo-ficha-overlay { position: static !important; display: block !important; background: transparent !important; padding: 0 !important; }
+  .sgo-ficha-print {
+    position: absolute !important; left: 0 !important; top: 0 !important;
+    width: 100% !important; max-width: none !important; max-height: none !important;
+    overflow: visible !important; padding: 0 !important; border: 0 !important;
+    border-radius: 0 !important; background: #fff !important; color: #111827 !important;
+  }
+  .sgo-ficha-print .sgo-print-only { display: flex !important; visibility: visible !important; }
+  .sgo-print-header {
+    justify-content: space-between; align-items: center; gap: 20px;
+    padding: 0 0 9mm; margin-bottom: 6mm; border-bottom: 2px solid #0b3d6b;
+    color: #0b3d6b; font-size: 10pt;
+  }
+  .sgo-print-header strong { font-size: 15pt; letter-spacing: .4px; }
+  .sgo-print-footer {
+    margin-top: 8mm; padding-top: 4mm; border-top: 1px solid #94a3b8;
+    color: #475569 !important; font-size: 8pt; justify-content: center;
+  }
+  .sgo-ficha-print .logi-kpis { break-inside: avoid; }
+  .sgo-ficha-print .logi-kpi { background: #fff !important; color: #111827 !important; border: 1px solid #94a3b8 !important; }
+  .sgo-ficha-print .card { background: #fff !important; color: #111827 !important; border-color: #94a3b8 !important; }
+  .sgo-ficha-print strong { color: #111827 !important; }
+  .sgo-ficha-print .section-title { break-after: avoid-page; }
+  .sgo-ficha-print .card > .card { break-inside: avoid-page; }
+  .sgo-ficha-print details > * { display: block !important; }
+  .sgo-ficha-print details summary { display: none !important; }
+  .sgo-ficha-print table { color: #111827 !important; font-size: 8.5pt; }
+  .sgo-ficha-print th, .sgo-ficha-print td { padding: 5px; border-bottom: 1px solid #cbd5e1; }
+  .sgo-ficha-print thead { display: table-header-group; }
+  .sgo-ficha-print tr { break-inside: avoid; }
+  .sgo-ficha-print .estado-chip,
+  .sgo-ficha-print [style*="background"] { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
 
 /* ============================================================
