@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useLiveQuery } from 'dexie-react-hooks'
 import type { Tarea } from '../../types'
 import { esReparacion, nombreSemielaborado } from '../../types'
 import { componentePorCodigo } from '../../data/catalogo'
@@ -7,6 +8,9 @@ import {
   tiempoEstimadoMin, tiempoRealMin, totalDemoradoMin, demoraSinJustificarMin,
 } from '../../lib/kpi'
 import { exportarDetalleTareasCSV } from '../../lib/export'
+import { db } from '../../db/dexie'
+import { useAuth } from '../../auth/AuthContext'
+import { noConformidadDesdeParada, paradasCalidad } from '../../sgo/integraciones'
 
 // ============================================================
 // DETALLE POR TAREA — tabla filtrable de tareas finalizadas. Columnas (v1.18):
@@ -19,8 +23,22 @@ export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina }:
   nombreOperario: (id: string) => string
   nombreMaquina: (id: string) => string
 }) {
+  const { usuario } = useAuth()
+  const eventosSGO = useLiveQuery(() => db.eventosSGO.toArray(), []) ?? []
   const [q, setQ] = useState('')
   const [soloDemora, setSoloDemora] = useState(false)
+  const [creandoNC, setCreandoNC] = useState<string>()
+
+  async function crearNoConformidades(t: Tarea) {
+    setCreandoNC(t.id)
+    let creadas = 0
+    for (const p of paradasCalidad(t)) {
+      const r = await noConformidadDesdeParada(t, p, usuario?.usuario ?? 'planificador')
+      if (r.creado) creadas++
+    }
+    setCreandoNC(undefined)
+    window.alert(creadas ? `${creadas} no conformidad(es) creada(s) en SGO Integral.` : 'Las paradas de calidad ya estaban vinculadas a SGO.')
+  }
 
   const filas = useMemo(() => {
     const fin = tareas.filter((t) => t.estado === 'finalizada' && !esReparacion(t))
@@ -128,12 +146,14 @@ export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina }:
               <th>Tarea</th><th>Colaborador</th><th>Estación</th>
               <th className="num">Estimado</th><th className="num">Real</th>
               <th className="num">Demorado</th><th className="num">Demora justif.</th>
-              <th className="num">Demora s/just.</th>
+              <th className="num">Demora s/just.</th><th>SGO</th>
             </tr>
           </thead>
           <tbody>
-            {filas.map((r) => (
-              <tr key={r.id} className={r.sinJust > 0 ? 'fila-demora' : ''}>
+            {filas.map((r) => {
+              const pc = paradasCalidad(r.t)
+              const vinculadas = pc.filter((p) => eventosSGO.some((e) => e.paradaId === p.id)).length
+              return <tr key={r.id} className={r.sinJust > 0 ? 'fila-demora' : ''}>
                 <td>{r.nombre}{r.nro ? ` · ${r.nro}` : ''}</td>
                 <td>{r.operario}</td>
                 <td>{r.maquina}</td>
@@ -144,8 +164,11 @@ export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina }:
                 <td className="num" style={{ fontWeight: 800, color: r.sinJust > 0 ? 'var(--rojo)' : 'var(--texto-tenue)' }}>
                   {r.sinJust > 0 ? `+${fmtDur(r.sinJust)}` : '—'}
                 </td>
+                <td>{pc.length === 0 ? '—' : vinculadas === pc.length
+                  ? <span className="estado-chip">NC creada</span>
+                  : <button className="btn btn-rojo" disabled={creandoNC === r.id} onClick={() => void crearNoConformidades(r.t)}>{creandoNC === r.id ? 'Creando…' : `+ NC (${pc.length - vinculadas})`}</button>}</td>
               </tr>
-            ))}
+            })}
           </tbody>
           {/* Fila de totales fija al pie (misma sumatoria que las tarjetas). */}
           <tfoot>
@@ -158,6 +181,7 @@ export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina }:
               <td className="num" style={{ color: tot.sinJust > 0 ? 'var(--rojo)' : 'var(--texto-tenue)' }}>
                 {tot.sinJust > 0 ? `+${fmtDur(tot.sinJust)}` : '—'}
               </td>
+              <td>—</td>
             </tr>
           </tfoot>
         </table>

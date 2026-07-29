@@ -120,6 +120,14 @@ export class InelpaDB extends Dexie {
     this.version(17).stores({
       eventosSGO: 'id, codigo, pilar, tipo, estado, severidad, areaId, sectorId, tareaId, laboratorioId, detectadoEn, responsable',
     })
+    // v1.52: origen de la no conformidad separado del area de deteccion.
+    this.version(18).stores({
+      eventosSGO: 'id, codigo, pilar, tipo, estado, severidad, areaId, areaOrigenId, defectoCodigo, sectorId, tareaId, laboratorioId, detectadoEn, responsable',
+    })
+    // v1.52: vinculacion idempotente con paradas productivas de calidad.
+    this.version(19).stores({
+      eventosSGO: 'id, codigo, pilar, tipo, estado, severidad, areaId, areaOrigenId, defectoCodigo, sectorId, tareaId, paradaId, laboratorioId, detectadoEn, responsable',
+    })
   }
 }
 

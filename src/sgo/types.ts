@@ -34,6 +34,20 @@ export type AreaSGOId =
   | 'gerencia_directorio'
   | 'diseno'
 
+export interface CostoNoCalidad {
+  material: number
+  manoObra: number
+  maquina: number
+  ensayos: number
+  logistica: number
+  terceros: number
+}
+
+export function costoNoCalidadTotal(c?: Partial<CostoNoCalidad>): number {
+  return (c?.material ?? 0) + (c?.manoObra ?? 0) + (c?.maquina ?? 0) +
+    (c?.ensayos ?? 0) + (c?.logistica ?? 0) + (c?.terceros ?? 0)
+}
+
 export interface EventoSGO {
   id: string
   codigo: string
@@ -44,13 +58,17 @@ export interface EventoSGO {
   severidad: SeveridadSGO
   estado: EstadoEventoSGO
   areaId?: AreaSGOId
+  areaOrigenId?: AreaSGOId
   sectorId?: string
   maquinaId?: string
   ordenId?: string
   tareaId?: string
+  paradaId?: string
   laboratorioId?: string
   despachoId?: string
   nroSerie?: string
+  modelo?: string
+  defectoCodigo?: string
   detectadoEn: string
   detectadoPor: string
   responsable?: string
@@ -58,6 +76,7 @@ export interface EventoSGO {
   disposicion?: 'pendiente' | 'retrabajo' | 'rechazo' | 'concesion' | 'devolucion' | 'no_aplica'
   cantidadAfectada?: number
   costoEstimado?: number
+  costoDetalle?: CostoNoCalidad
   causaRaiz?: string
   metodoAnalisis?: '5_porques' | 'ishikawa' | 'a3' | '8d' | 'otro'
   evidenciaUrls?: string[]

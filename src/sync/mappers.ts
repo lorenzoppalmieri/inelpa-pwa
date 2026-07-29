@@ -164,13 +164,17 @@ export interface EventoSGORow {
   severidad: string
   estado: string
   area_id: string | null
+  area_origen_id: string | null
   sector_id: string | null
   maquina_id: string | null
   orden_id: string | null
   tarea_id: string | null
+  parada_id: string | null
   laboratorio_id: string | null
   despacho_id: string | null
   nro_serie: string | null
+  modelo: string | null
+  defecto_codigo: string | null
   detectado_en: string
   detectado_por: string
   responsable: string | null
@@ -178,6 +182,7 @@ export interface EventoSGORow {
   disposicion: string | null
   cantidad_afectada: number | null
   costo_estimado: number | null
+  costo_detalle: EventoSGO['costoDetalle'] | null
   causa_raiz: string | null
   metodo_analisis: string | null
   evidencia_urls: string[] | null
@@ -211,12 +216,12 @@ export function eventoSGOFromRow(r: EventoSGORow): EventoSGO {
   return {
     id: r.id, codigo: r.codigo, tipo: r.tipo as EventoSGO['tipo'], pilar: r.pilar as EventoSGO['pilar'],
     titulo: r.titulo, descripcion: r.descripcion, severidad: r.severidad as EventoSGO['severidad'],
-    estado: r.estado as EventoSGO['estado'], areaId: u(r.area_id) as EventoSGO['areaId'], sectorId: u(r.sector_id), maquinaId: u(r.maquina_id),
-    ordenId: u(r.orden_id), tareaId: u(r.tarea_id), laboratorioId: u(r.laboratorio_id),
-    despachoId: u(r.despacho_id), nroSerie: u(r.nro_serie), detectadoEn: r.detectado_en,
+    estado: r.estado as EventoSGO['estado'], areaId: u(r.area_id) as EventoSGO['areaId'], areaOrigenId: u(r.area_origen_id) as EventoSGO['areaOrigenId'], sectorId: u(r.sector_id), maquinaId: u(r.maquina_id),
+    ordenId: u(r.orden_id), tareaId: u(r.tarea_id), paradaId: u(r.parada_id), laboratorioId: u(r.laboratorio_id),
+    despachoId: u(r.despacho_id), nroSerie: u(r.nro_serie), modelo: u(r.modelo), defectoCodigo: u(r.defecto_codigo), detectadoEn: r.detectado_en,
     detectadoPor: r.detectado_por, responsable: u(r.responsable), contencion: u(r.contencion),
     disposicion: u(r.disposicion) as EventoSGO['disposicion'], cantidadAfectada: u(r.cantidad_afectada),
-    costoEstimado: u(r.costo_estimado), causaRaiz: u(r.causa_raiz),
+    costoEstimado: u(r.costo_estimado), costoDetalle: r.costo_detalle ?? undefined, causaRaiz: u(r.causa_raiz),
     metodoAnalisis: u(r.metodo_analisis) as EventoSGO['metodoAnalisis'],
     evidenciaUrls: r.evidencia_urls ?? undefined, creadoEn: r.creado_en,
     actualizadoEn: r.actualizado_en, cerradoEn: u(r.cerrado_en), cerradoPor: u(r.cerrado_por),
@@ -226,13 +231,13 @@ export function eventoSGOFromRow(r: EventoSGORow): EventoSGO {
 export function eventoSGOToRow(e: EventoSGO): EventoSGORow {
   return {
     id: e.id, codigo: e.codigo, tipo: e.tipo, pilar: e.pilar, titulo: e.titulo,
-    descripcion: e.descripcion, severidad: e.severidad, estado: e.estado, area_id: e.areaId ?? null,
+    descripcion: e.descripcion, severidad: e.severidad, estado: e.estado, area_id: e.areaId ?? null, area_origen_id: e.areaOrigenId ?? null,
     sector_id: e.sectorId ?? null, maquina_id: e.maquinaId ?? null, orden_id: e.ordenId ?? null,
-    tarea_id: e.tareaId ?? null, laboratorio_id: e.laboratorioId ?? null, despacho_id: e.despachoId ?? null,
-    nro_serie: e.nroSerie ?? null, detectado_en: e.detectadoEn, detectado_por: e.detectadoPor,
+    tarea_id: e.tareaId ?? null, parada_id: e.paradaId ?? null, laboratorio_id: e.laboratorioId ?? null, despacho_id: e.despachoId ?? null,
+    nro_serie: e.nroSerie ?? null, modelo: e.modelo ?? null, defecto_codigo: e.defectoCodigo ?? null, detectado_en: e.detectadoEn, detectado_por: e.detectadoPor,
     responsable: e.responsable ?? null, contencion: e.contencion ?? null,
     disposicion: e.disposicion ?? null, cantidad_afectada: e.cantidadAfectada ?? null,
-    costo_estimado: e.costoEstimado ?? null, causa_raiz: e.causaRaiz ?? null,
+    costo_estimado: e.costoEstimado ?? null, costo_detalle: e.costoDetalle ?? null, causa_raiz: e.causaRaiz ?? null,
     metodo_analisis: e.metodoAnalisis ?? null, evidencia_urls: e.evidenciaUrls ?? null,
     creado_en: e.creadoEn, actualizado_en: e.actualizadoEn, cerrado_en: e.cerradoEn ?? null,
     cerrado_por: e.cerradoPor ?? null,

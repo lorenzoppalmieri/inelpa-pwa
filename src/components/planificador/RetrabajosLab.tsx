@@ -1,10 +1,12 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
 import type { TareaLaboratorio } from '../../types'
 import { ENSAYOS_LAB, estadoEnsayo } from '../../types'
 import { guardarLaboratorio } from '../../sync/syncEngine'
 import { fechaCorta } from '../../lib/time'
+import { useAuth } from '../../auth/AuthContext'
+import { noConformidadDesdeLaboratorio } from '../../sgo/integraciones'
 
 // ============================================================
 // PANEL DE RETRABAJOS DE LABORATORIO (v1.37) — para el planificador.
@@ -13,7 +15,10 @@ import { fechaCorta } from '../../lib/time'
 // El planificador replanifica y marca "Resuelto".
 // ============================================================
 export default function RetrabajosLab() {
+  const { usuario } = useAuth()
   const lab = useLiveQuery(() => db.laboratorio.toArray(), []) ?? []
+  const eventosSGO = useLiveQuery(() => db.eventosSGO.toArray(), []) ?? []
+  const [creando, setCreando] = useState<string>()
   const pendientes = useMemo(
     () => lab.filter((t) => t.resultado === 'retrabajo' && !t.retrabajoResuelto)
       .sort((a, b) => ((b.finalizada ?? '') < (a.finalizada ?? '') ? -1 : 1)),
@@ -29,6 +34,13 @@ export default function RetrabajosLab() {
     await guardarLaboratorio({ ...t, retrabajoResuelto: true })
   }
 
+  async function abrirNC(t: TareaLaboratorio) {
+    setCreando(t.id)
+    const { evento, creado } = await noConformidadDesdeLaboratorio(t, usuario?.usuario ?? 'planificador')
+    setCreando(undefined)
+    window.alert(creado ? `No conformidad ${evento.codigo} creada en SGO Integral.` : `Ya existe la no conformidad ${evento.codigo}.`)
+  }
+
   return (
     <div className="card" style={{ borderLeft: '5px solid var(--rojo)', marginBottom: 14 }}>
       <div className="section-title" style={{ marginTop: 0, color: 'var(--rojo)' }}>🔧 Retrabajos de laboratorio ({pendientes.length})</div>
@@ -40,7 +52,12 @@ export default function RetrabajosLab() {
             {t.comentario ? <div className="meta" style={{ fontStyle: 'italic' }}>📝 {t.comentario}</div> : null}
             <div className="meta">{t.cliente || 'Stock'}{t.ot ? ` · OT ${t.ot}` : ''}{t.finalizada ? ` · ${fechaCorta(t.finalizada)}` : ''}</div>
           </div>
-          <button className="btn btn-verde" onClick={() => void resolver(t)}>✓ Resuelto</button>
+          <div className="row-actions">
+            {eventosSGO.some((e) => e.laboratorioId === t.id)
+              ? <span className="estado-chip">NC SGO creada</span>
+              : <button className="btn btn-rojo" disabled={creando === t.id} onClick={() => void abrirNC(t)}>{creando === t.id ? 'Creando…' : '+ No conformidad SGO'}</button>}
+            <button className="btn btn-verde" onClick={() => void resolver(t)}>✓ Resuelto</button>
+          </div>
         </div>
       ))}
     </div>
