@@ -163,6 +163,7 @@ export interface EventoSGORow {
   descripcion: string
   severidad: string
   estado: string
+  area_id: string | null
   sector_id: string | null
   maquina_id: string | null
   orden_id: string | null
@@ -210,7 +211,7 @@ export function eventoSGOFromRow(r: EventoSGORow): EventoSGO {
   return {
     id: r.id, codigo: r.codigo, tipo: r.tipo as EventoSGO['tipo'], pilar: r.pilar as EventoSGO['pilar'],
     titulo: r.titulo, descripcion: r.descripcion, severidad: r.severidad as EventoSGO['severidad'],
-    estado: r.estado as EventoSGO['estado'], sectorId: u(r.sector_id), maquinaId: u(r.maquina_id),
+    estado: r.estado as EventoSGO['estado'], areaId: u(r.area_id) as EventoSGO['areaId'], sectorId: u(r.sector_id), maquinaId: u(r.maquina_id),
     ordenId: u(r.orden_id), tareaId: u(r.tarea_id), laboratorioId: u(r.laboratorio_id),
     despachoId: u(r.despacho_id), nroSerie: u(r.nro_serie), detectadoEn: r.detectado_en,
     detectadoPor: r.detectado_por, responsable: u(r.responsable), contencion: u(r.contencion),
@@ -225,7 +226,7 @@ export function eventoSGOFromRow(r: EventoSGORow): EventoSGO {
 export function eventoSGOToRow(e: EventoSGO): EventoSGORow {
   return {
     id: e.id, codigo: e.codigo, tipo: e.tipo, pilar: e.pilar, titulo: e.titulo,
-    descripcion: e.descripcion, severidad: e.severidad, estado: e.estado,
+    descripcion: e.descripcion, severidad: e.severidad, estado: e.estado, area_id: e.areaId ?? null,
     sector_id: e.sectorId ?? null, maquina_id: e.maquinaId ?? null, orden_id: e.ordenId ?? null,
     tarea_id: e.tareaId ?? null, laboratorio_id: e.laboratorioId ?? null, despacho_id: e.despachoId ?? null,
     nro_serie: e.nroSerie ?? null, detectado_en: e.detectadoEn, detectado_por: e.detectadoPor,

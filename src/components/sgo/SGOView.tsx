@@ -2,12 +2,11 @@ import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
 import { useAuth } from '../../auth/AuthContext'
-import { SECTORES } from '../../types'
 import { guardarAccionSGO, guardarEventoSGO } from '../../sync/syncEngine'
 import {
-  PILARES_SGO, TIPOS_EVENTO_SGO, codigoEventoSGO,
+  AREAS_SGO, PILARES_SGO, TIPOS_EVENTO_SGO, areaSGOLabel, codigoEventoSGO,
   type AccionSGO, type EstadoEventoSGO, type EventoSGO,
-  type SeveridadSGO, type TipoAccionSGO, type TipoEventoSGO,
+  type AreaSGOId, type SeveridadSGO, type TipoAccionSGO, type TipoEventoSGO,
 } from '../../sgo/types'
 
 const ESTADOS_EVENTO: { id: EstadoEventoSGO; label: string }[] = [
@@ -40,6 +39,7 @@ export default function SGOView() {
   const acciones = useLiveQuery(() => db.accionesSGO.toArray(), []) ?? []
   const [nuevo, setNuevo] = useState(false)
   const [seleccionadoId, setSeleccionadoId] = useState<string>()
+  const [filtroArea, setFiltroArea] = useState('')
   const seleccionado = eventos.find((e) => e.id === seleccionadoId)
 
   const abiertos = eventos.filter((e) => e.estado !== 'cerrado')
@@ -49,6 +49,7 @@ export default function SGOView() {
     criticos: abiertos.filter((e) => e.pilar === p.id && e.severidad === 'critica').length,
   })), [eventos])
   const vencidas = acciones.filter(vencida).length
+  const abiertosFiltrados = filtroArea ? abiertos.filter((e) => e.areaId === filtroArea) : abiertos
 
   return (
     <div>
@@ -75,10 +76,19 @@ export default function SGOView() {
         </div>
       </div>
 
-      <div className="section-title" style={{ marginTop: 18 }}>Eventos abiertos ({abiertos.length})</div>
-      {abiertos.length === 0 ? <div className="empty">Todavía no hay eventos SGO abiertos.</div> : (
+      <div className="card" style={{ marginTop: 18, marginBottom: 10 }}>
+        <div className="field" style={{ margin: 0, maxWidth: 420 }}>
+          <label>Filtrar eventos por área</label>
+          <select className="input" value={filtroArea} onChange={(e) => setFiltroArea(e.target.value)}>
+            <option value="">Todas las áreas</option>
+            {AREAS_SGO.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
+          </select>
+        </div>
+      </div>
+      <div className="section-title">Eventos abiertos ({abiertosFiltrados.length}{filtroArea ? ` de ${abiertos.length}` : ''})</div>
+      {abiertosFiltrados.length === 0 ? <div className="empty">No hay eventos abiertos para el área seleccionada.</div> : (
         <div style={{ display: 'grid', gap: 10 }}>
-          {[...abiertos].sort((a, b) => b.detectadoEn.localeCompare(a.detectadoEn)).map((e) => {
+          {[...abiertosFiltrados].sort((a, b) => b.detectadoEn.localeCompare(a.detectadoEn)).map((e) => {
             const p = PILARES_SGO.find((x) => x.id === e.pilar)
             const acc = acciones.filter((a) => a.eventoId === e.id)
             return (
@@ -87,7 +97,7 @@ export default function SGOView() {
                 <div className="card-header">
                   <div>
                     <strong>{e.codigo} · {e.titulo}</strong>
-                    <div className="meta">{p?.label} · {SEVERIDADES.find((s) => s.id === e.severidad)?.label} · {fechaHora(e.detectadoEn)}</div>
+                    <div className="meta">{areaSGOLabel(e.areaId)} · {p?.label} · {SEVERIDADES.find((s) => s.id === e.severidad)?.label} · {fechaHora(e.detectadoEn)}</div>
                     <div style={{ marginTop: 5 }}>{e.descripcion}</div>
                   </div>
                   <span className="estado-chip">{ESTADOS_EVENTO.find((s) => s.id === e.estado)?.label}</span>
@@ -108,7 +118,7 @@ export default function SGOView() {
             {eventos.filter((e) => e.estado === 'cerrado').sort((a, b) => (b.cerradoEn ?? '').localeCompare(a.cerradoEn ?? '')).slice(0, 30).map((e) => (
               <button key={e.id} className="card" onClick={() => setSeleccionadoId(e.id)} style={{ textAlign: 'left', cursor: 'pointer', width: '100%' }}>
                 <strong>{e.codigo} · {e.titulo}</strong>
-                <div className="meta">{PILARES_SGO.find((p) => p.id === e.pilar)?.label} · cerrado {e.cerradoEn ? fechaHora(e.cerradoEn) : ''}</div>
+                <div className="meta">{areaSGOLabel(e.areaId)} · {PILARES_SGO.find((p) => p.id === e.pilar)?.label} · cerrado {e.cerradoEn ? fechaHora(e.cerradoEn) : ''}</div>
               </button>
             ))}
           </div>
@@ -126,20 +136,20 @@ function NuevoEvento({ usuario, onClose, onCreado }: { usuario: string; onClose:
   const [titulo, setTitulo] = useState('')
   const [descripcion, setDescripcion] = useState('')
   const [severidad, setSeveridad] = useState<SeveridadSGO>('media')
-  const [sectorId, setSectorId] = useState('')
+  const [areaId, setAreaId] = useState<AreaSGOId | ''>('')
   const [responsable, setResponsable] = useState('')
   const [nroSerie, setNroSerie] = useState('')
   const [guardando, setGuardando] = useState(false)
   const tipoDef = TIPOS_EVENTO_SGO.find((t) => t.id === tipo)!
 
   async function guardar() {
-    if (!titulo.trim() || !descripcion.trim()) return
+    if (!titulo.trim() || !descripcion.trim() || !areaId) return
     setGuardando(true)
     const id = crypto.randomUUID(), now = new Date().toISOString()
     const e: EventoSGO = {
       id, codigo: codigoEventoSGO(new Date(), id), tipo, pilar: tipoDef.pilar,
       titulo: titulo.trim(), descripcion: descripcion.trim(), severidad, estado: 'abierto',
-      sectorId: sectorId || undefined, nroSerie: nroSerie.trim() || undefined,
+      areaId: areaId || undefined, nroSerie: nroSerie.trim() || undefined,
       detectadoEn: now, detectadoPor: usuario, responsable: responsable.trim() || undefined,
       creadoEn: now, actualizadoEn: now,
     }
@@ -153,11 +163,11 @@ function NuevoEvento({ usuario, onClose, onCreado }: { usuario: string; onClose:
     <div className="field"><label>Descripción del hecho *</label><textarea className="input" rows={4} value={descripcion} onChange={(e) => setDescripcion(e.target.value)} placeholder="Qué ocurrió, dónde se detectó y qué producto o proceso está afectado" /></div>
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 10 }}>
       <div className="field"><label>Severidad</label><select className="input" value={severidad} onChange={(e) => setSeveridad(e.target.value as SeveridadSGO)}>{SEVERIDADES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}</select></div>
-      <div className="field"><label>Sector</label><select className="input" value={sectorId} onChange={(e) => setSectorId(e.target.value)}><option value="">Sin definir</option>{SECTORES.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}</select></div>
+      <div className="field"><label>Área *</label><select className="input" value={areaId} onChange={(e) => setAreaId(e.target.value as AreaSGOId | '')}><option value="">Seleccionar área</option>{AREAS_SGO.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}</select></div>
       <div className="field"><label>N° serie / identificación</label><input className="input" value={nroSerie} onChange={(e) => setNroSerie(e.target.value)} /></div>
       <div className="field"><label>Responsable inicial</label><input className="input" value={responsable} onChange={(e) => setResponsable(e.target.value)} placeholder="Nico, Azul, supervisor…" /></div>
     </div>
-    <div className="row-actions" style={{ justifyContent: 'flex-end', marginTop: 14 }}><button className="btn" onClick={onClose}>Cancelar</button><button className="btn btn-primary" disabled={guardando || !titulo.trim() || !descripcion.trim()} onClick={() => void guardar()}>{guardando ? 'Guardando…' : 'Registrar'}</button></div>
+    <div className="row-actions" style={{ justifyContent: 'flex-end', marginTop: 14 }}><button className="btn" onClick={onClose}>Cancelar</button><button className="btn btn-primary" disabled={guardando || !titulo.trim() || !descripcion.trim() || !areaId} onClick={() => void guardar()}>{guardando ? 'Guardando…' : 'Registrar'}</button></div>
   </Modal>
 }
 
@@ -178,7 +188,7 @@ function DetalleEvento({ evento, acciones, usuario, onClose }: { evento: EventoS
   }
 
   return <Modal titulo={`${evento.codigo} · ${evento.titulo}`} onClose={onClose} ancho={780}>
-    <div className="meta">Detectado {fechaHora(evento.detectadoEn)} por <strong>{evento.detectadoPor}</strong> · Pilar {PILARES_SGO.find((p) => p.id === evento.pilar)?.label}</div>
+    <div className="meta">Área <strong>{areaSGOLabel(evento.areaId)}</strong> · detectado {fechaHora(evento.detectadoEn)} por <strong>{evento.detectadoPor}</strong> · Pilar {PILARES_SGO.find((p) => p.id === evento.pilar)?.label}</div>
     <p>{evento.descripcion}</p>
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(210px,1fr))', gap: 10 }}>
       <div className="field"><label>Estado</label><select className="input" value={estado} onChange={(e) => setEstado(e.target.value as EstadoEventoSGO)}>{ESTADOS_EVENTO.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}</select></div>

@@ -16,6 +16,24 @@ export type EstadoEventoSGO = 'abierto' | 'contenido' | 'en_analisis' | 'con_acc
 export type EstadoAccionSGO = 'pendiente' | 'en_curso' | 'completada' | 'verificada' | 'cancelada'
 export type TipoAccionSGO = 'correccion' | 'correctiva' | 'preventiva' | 'mejora'
 
+export type AreaSGOId =
+  | 'bobinado_rural'
+  | 'bobinado_distribucion'
+  | 'montaje_distribucion'
+  | 'montaje_rural'
+  | 'herreria_pintura'
+  | 'laminado'
+  | 'administracion'
+  | 'logistica_operativa'
+  | 'logistica_administrativa'
+  | 'mantenimiento'
+  | 'automatismo'
+  | 'it'
+  | 'planificacion_produccion'
+  | 'laboratorio'
+  | 'gerencia_directorio'
+  | 'diseno'
+
 export interface EventoSGO {
   id: string
   codigo: string
@@ -25,6 +43,7 @@ export interface EventoSGO {
   descripcion: string
   severidad: SeveridadSGO
   estado: EstadoEventoSGO
+  areaId?: AreaSGOId
   sectorId?: string
   maquinaId?: string
   ordenId?: string
@@ -76,6 +95,29 @@ export const PILARES_SGO: { id: PilarSGO; label: string; color: string }[] = [
   { id: 'costos', label: 'Costos', color: '#d97706' },
   { id: 'mejora', label: 'Mejora Continua', color: '#0891b2' },
 ]
+
+export const AREAS_SGO: { id: AreaSGOId; label: string }[] = [
+  { id: 'bobinado_rural', label: 'BOBINADO RURAL' },
+  { id: 'bobinado_distribucion', label: 'BOBINADO DISTRIBUCIÓN' },
+  { id: 'montaje_distribucion', label: 'MONTAJE DISTRIBUCIÓN (PA y PO)' },
+  { id: 'montaje_rural', label: 'MONTAJE RURAL (PA y PO)' },
+  { id: 'herreria_pintura', label: 'HERRERÍA Y PINTURA' },
+  { id: 'laminado', label: 'LAMINADO' },
+  { id: 'administracion', label: 'ADMINISTRACIÓN' },
+  { id: 'logistica_operativa', label: 'LOGÍSTICA OPERATIVA' },
+  { id: 'logistica_administrativa', label: 'LOGÍSTICA ADMINISTRATIVA' },
+  { id: 'mantenimiento', label: 'MANTENIMIENTO' },
+  { id: 'automatismo', label: 'AUTOMATISMO' },
+  { id: 'it', label: 'IT' },
+  { id: 'planificacion_produccion', label: 'PLANIFICACIÓN PRODUCCIÓN' },
+  { id: 'laboratorio', label: 'LABORATORIO' },
+  { id: 'gerencia_directorio', label: 'GERENCIA Y DIRECTORIO' },
+  { id: 'diseno', label: 'DISEÑO' },
+]
+
+export function areaSGOLabel(id?: string): string {
+  return AREAS_SGO.find((a) => a.id === id)?.label ?? 'Sin área'
+}
 
 export const TIPOS_EVENTO_SGO: { id: TipoEventoSGO; label: string; pilar: PilarSGO }[] = [
   { id: 'no_conformidad', label: 'No conformidad', pilar: 'calidad' },

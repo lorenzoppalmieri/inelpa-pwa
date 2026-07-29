@@ -115,6 +115,11 @@ export class InelpaDB extends Dexie {
       eventosSGO: 'id, codigo, pilar, tipo, estado, severidad, sectorId, tareaId, laboratorioId, detectadoEn, responsable',
       accionesSGO: 'id, eventoId, estado, responsable, fechaCompromiso, tipo',
     })
+    // v1.51: areas SGO de toda la empresa, independientes del catalogo de
+    // sectores productivos utilizado por Planificacion.
+    this.version(17).stores({
+      eventosSGO: 'id, codigo, pilar, tipo, estado, severidad, areaId, sectorId, tareaId, laboratorioId, detectadoEn, responsable',
+    })
   }
 }
 
