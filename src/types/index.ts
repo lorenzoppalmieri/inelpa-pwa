@@ -643,6 +643,12 @@ export interface TareaLaboratorio {
   comentario?: string            // observación / posible solución (retrabajo)
   resultado?: 'aprobado' | 'retrabajo'     // set al finalizar
   retrabajoResuelto?: boolean    // el planificador ya lo replanificó/atendió
+  // v1.47: PROTOCOLO DE ENSAYO (PDF). Solo se guarda la RUTA en Supabase Storage
+  // (bucket privado 'protocolos'); el archivo NO viaja a la base ni a las tablets.
+  // Es OBLIGATORIO para liberar el trafo a despacho cuando aprueba los ensayos.
+  protocoloPath?: string
+  protocoloNombre?: string       // nombre original del archivo (para mostrar)
+  protocoloSubido?: string       // ISO de la carga
   creada: string
   creadaPor?: string
   finalizada?: string
@@ -754,6 +760,10 @@ export interface DespachoTrafo {
   demoraEnCurso?: string         // ISO: inicio de la demora vigente (estado 'demorado')
   minutosDemora?: number         // minutos de demora acumulados (cerrados)
   demoras?: DemoraDespacho[]     // historial de demoras (causa + duracion)
+  // v1.47: protocolo de ensayo heredado de Laboratorio (ruta en Storage). Melany
+  // lo exporta desde acá sin tener que entrar al módulo de laboratorio.
+  protocoloPath?: string
+  protocoloNombre?: string
   // --- Checklist de liberacion ---
   checklist?: ChecklistDespacho
   // --- v1.44: guardado en depósito (entre el embalaje y el despacho) ---

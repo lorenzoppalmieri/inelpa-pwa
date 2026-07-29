@@ -5,6 +5,7 @@ import {
   minutosDemoraAcotados,
 } from '../../types'
 import { fmtDur, fechaCorta, hhmm } from '../../lib/time'
+import { abrirProtocolo } from '../../lib/archivos'
 import { calcularTiempoProductivo } from '../../lib/calendario'
 import { guardarDespacho } from '../../sync/syncEngine'
 import { supabase } from '../../lib/supabaseClient'
@@ -150,6 +151,21 @@ export default function FichaDespacho({ despacho: d, onClose }: { despacho: Desp
             <Dato label="Tipo de embalaje" valor={d.tipoEmbalaje} />
           </div>
           {d.observaciones && <div className="meta" style={{ marginTop: 6, fontStyle: 'italic' }}>📝 {d.observaciones}</div>}
+
+          {/* v1.47: protocolo de ensayo que adjuntó el laboratorio. */}
+          {seccion('Protocolo de ensayo')}
+          {d.protocoloPath ? (
+            <div className="row-actions">
+              <button className="btn btn-primary" onClick={() => void abrirProtocolo(d.protocoloPath)}>
+                ⬇ Exportar protocolo (PDF)
+              </button>
+              {d.protocoloNombre && <span className="meta">{d.protocoloNombre}</span>}
+            </div>
+          ) : (
+            <div className="meta" style={{ color: 'var(--texto-tenue)' }}>
+              Sin protocolo adjunto (trafo cargado a mano, sin pasar por laboratorio).
+            </div>
+          )}
 
           {seccion('Checklist de liberación')}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>

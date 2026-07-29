@@ -14,6 +14,7 @@ import type { MovimientoDeposito } from '../../types'
 import { guardarDespacho, eliminarDespacho } from '../../sync/syncEngine'
 import { fmtDur, fechaCorta, hhmm } from '../../lib/time'
 import { calcularTiempoProductivo } from '../../lib/calendario'
+import { abrirProtocolo } from '../../lib/archivos'
 import FichaDespacho from './FichaDespacho'
 import DespachoReportes from './DespachoReportes'
 import AlertasDespacho from './AlertasDespacho'
@@ -347,6 +348,7 @@ export default function DespachoView({ vista: vistaProp, onVista }: {
         <div className="row-actions">
           {children}
           <button className="btn" onClick={() => setFicha(d)}>👁 Ficha</button>
+                  {d.protocoloPath && <button className="btn" title="Descargar el protocolo de ensayo" onClick={() => void abrirProtocolo(d.protocoloPath)}>⬇ Protocolo</button>}
           {esSupervisora && <button className="btn btn-rojo" onClick={() => void borrar(d)}>🗑</button>}
         </div>
       </div>
@@ -436,6 +438,7 @@ export default function DespachoView({ vista: vistaProp, onVista }: {
                     </div>
                   </div>
                   <button className="btn" onClick={() => setFicha(d)}>👁 Ficha</button>
+                  {d.protocoloPath && <button className="btn" title="Descargar el protocolo de ensayo" onClick={() => void abrirProtocolo(d.protocoloPath)}>⬇ Protocolo</button>}
                   {esSupervisora && <button className="btn" onClick={() => abrirDeposito(d)}>📦 Mover</button>}
                   {esSupervisora && (
                     <button className="btn btn-verde" disabled={!listo} onClick={() => setDespachando(d)}
@@ -503,6 +506,7 @@ export default function DespachoView({ vista: vistaProp, onVista }: {
                       </div>
                     </div>
                     <button className="btn" onClick={() => setFicha(d)}>👁 Ficha</button>
+                  {d.protocoloPath && <button className="btn" title="Descargar el protocolo de ensayo" onClick={() => void abrirProtocolo(d.protocoloPath)}>⬇ Protocolo</button>}
                     {esSupervisora && <button className="btn btn-rojo" onClick={() => void borrar(d)}>🗑</button>}
                   </div>
                 ))}
@@ -598,6 +602,7 @@ export default function DespachoView({ vista: vistaProp, onVista }: {
                 ? <button className="btn btn-primary" onClick={() => void reanudar(d)}>▶ Reanudar</button>
                 : <button className="btn btn-rojo" onClick={() => abrirDemora(d)}>⛔ Demora</button>}
               <button className="btn" onClick={() => setFicha(d)}>👁 Ficha</button>
+                  {d.protocoloPath && <button className="btn" title="Descargar el protocolo de ensayo" onClick={() => void abrirProtocolo(d.protocoloPath)}>⬇ Protocolo</button>}
               {esSupervisora && <button className="btn btn-rojo" onClick={() => void borrar(d)}>🗑</button>}
             </div>
           </div>
@@ -666,6 +671,7 @@ export default function DespachoView({ vista: vistaProp, onVista }: {
               {esSupervisora && <button className="btn" onClick={() => abrirDeposito(d)}>⇄ Mover de depósito</button>}
               {esSupervisora && <button className="btn" onClick={() => void volverAPlanta(d)}>↩ Volver a {DEPOSITO_PLANTA}</button>}
               <button className="btn" onClick={() => setFicha(d)}>👁 Ficha</button>
+                  {d.protocoloPath && <button className="btn" title="Descargar el protocolo de ensayo" onClick={() => void abrirProtocolo(d.protocoloPath)}>⬇ Protocolo</button>}
               {esSupervisora && <button className="btn btn-rojo" onClick={() => void borrar(d)}>🗑</button>}
             </div>
           </div>

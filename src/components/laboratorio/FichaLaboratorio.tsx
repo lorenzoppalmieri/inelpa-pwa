@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { TareaLaboratorio, EnsayoEstado, DespachoTrafo } from '../../types'
 import { ENSAYOS_LAB, estadoEnsayo, tieneRechazo } from '../../types'
 import { useAuth } from '../../auth/AuthContext'
@@ -6,6 +6,7 @@ import { guardarLaboratorio } from '../../sync/syncEngine'
 import { guardarDespacho } from '../../sync/syncEngine'
 import { db } from '../../db/dexie'
 import { datosModelo, buscarModelo } from '../../lib/modeloTrafo'
+import { subirProtocolo, abrirProtocolo, MAX_PDF_MB } from '../../lib/archivos'
 
 // ============================================================
 // FICHA DE LABORATORIO (v1.37) — el laboratorista corre el protocolo de ensayos.
@@ -26,6 +27,32 @@ export default function FichaLaboratorio({ tarea: t, onClose }: { tarea: TareaLa
   const [nroSerie, setNroSerie] = useState(t.nroSerie ?? '')
   const [comentario, setComentario] = useState(t.comentario ?? '')
   const [guardando, setGuardando] = useState(false)
+  // v1.47: PROTOCOLO DE ENSAYO (PDF). El archivo va a Supabase Storage; en la
+  // tarea solo queda la ruta. Es OBLIGATORIO para liberar el trafo a despacho.
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [subiendo, setSubiendo] = useState(false)
+  const [errPdf, setErrPdf] = useState('')
+
+  async function elegirPdf(file?: File | null) {
+    if (!file) return
+    setErrPdf(''); setSubiendo(true)
+    const ref = (nroSerie.trim() || t.nroSerie || t.modelo || 'protocolo')
+    const r = await subirProtocolo(file, ref, t.id)
+    setSubiendo(false)
+    if (fileRef.current) fileRef.current.value = ''   // permite re-elegir el mismo archivo
+    if (!r.ok) { setErrPdf(r.error ?? 'No se pudo subir el archivo.'); return }
+    await guardarLaboratorio({
+      ...t,
+      nroSerie: nroSerie.trim() || t.nroSerie,
+      protocoloPath: r.path,
+      protocoloNombre: r.nombre,
+      protocoloSubido: new Date().toISOString(),
+    })
+  }
+  async function verPdf() {
+    const err = await abrirProtocolo(t.protocoloPath)
+    if (err) setErrPdf(err)
+  }
 
   // Cada toggle guarda el estado del ensayo al instante.
   async function setEnsayo(key: string, v: EnsayoEstado) {
@@ -37,10 +64,14 @@ export default function FichaLaboratorio({ tarea: t, onClose }: { tarea: TareaLa
 
   const retrabajo = tieneRechazo(t)
   const faltaComentario = retrabajo && !comentario.trim()
+  // Solo se exige el PDF cuando el trafo APRUEBA (es lo que se libera a despacho).
+  // En retrabajo no se pide: el trafo no sale del sector.
+  const faltaProtocolo = !retrabajo && !t.protocoloPath
+  const noPuedeFinalizar = guardando || subiendo || faltaComentario || faltaProtocolo
 
   // Handler de finalización: evalúa el checklist y rutea el transformador.
   async function finalizarEnsayo() {
-    if (faltaComentario) return
+    if (faltaComentario || faltaProtocolo) return
     setGuardando(true)
     const now = new Date().toISOString()
     const serie = nroSerie.trim() || t.nroSerie
@@ -74,6 +105,9 @@ export default function FichaLaboratorio({ tarea: t, onClose }: { tarea: TareaLa
         linea: t.linea ?? 'distribucion',
         fechaIngreso: now,
         estado: 'esperando_embalaje',
+        // v1.47: el protocolo viaja a Despacho para que Melany lo exporte.
+        protocoloPath: t.protocoloPath,
+        protocoloNombre: t.protocoloNombre,
         creada: now, creadaPor: usuario?.usuario,
       }
       await guardarDespacho(d)
@@ -129,17 +163,58 @@ export default function FichaLaboratorio({ tarea: t, onClose }: { tarea: TareaLa
               placeholder="ej. Falla de aislación en BT — revisar bobinado" style={{ width: '100%', resize: 'vertical' }} />
           </div>
 
-          <div className="meta" style={{ marginTop: 8, color: retrabajo ? 'var(--rojo)' : 'var(--estado-fin)' }}>
+          {/* v1.47: PROTOCOLO DE ENSAYO en PDF. Obligatorio para liberar a despacho. */}
+          {!retrabajo && (
+            <>
+              {seccion('Protocolo de ensayo (PDF)')}
+              <div className="card" style={{ borderLeft: '4px solid ' + (t.protocoloPath ? 'var(--estado-fin)' : 'var(--rojo)') }}>
+                {t.protocoloPath ? (
+                  <>
+                    <div className="meta" style={{ color: 'var(--estado-fin)', fontWeight: 700 }}>
+                      ✓ Protocolo adjunto{t.protocoloNombre ? `: ${t.protocoloNombre}` : ''}
+                    </div>
+                    <div className="row-actions" style={{ marginTop: 8 }}>
+                      <button className="btn" onClick={() => void verPdf()}>👁 Ver PDF</button>
+                      <button className="btn" disabled={subiendo} onClick={() => fileRef.current?.click()}>
+                        {subiendo ? 'Subiendo…' : '↻ Reemplazar'}
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="meta" style={{ color: 'var(--rojo)', fontWeight: 700 }}>
+                      ✗ Falta adjuntar el protocolo — sin esto no se puede liberar a despacho.
+                    </div>
+                    <button className="btn btn-primary btn-bloque" style={{ marginTop: 8 }}
+                      disabled={subiendo} onClick={() => fileRef.current?.click()}>
+                      {subiendo ? 'Subiendo…' : '📎 Adjuntar protocolo (PDF)'}
+                    </button>
+                  </>
+                )}
+                <input
+                  ref={fileRef} type="file" accept="application/pdf,.pdf" style={{ display: 'none' }}
+                  onChange={(e) => void elegirPdf(e.target.files?.[0])}
+                />
+                <div className="meta" style={{ marginTop: 6 }}>PDF de 1 página, hasta {MAX_PDF_MB} MB.</div>
+                {errPdf && <div className="meta" style={{ marginTop: 6, color: 'var(--rojo)' }}>⚠ {errPdf}</div>}
+              </div>
+            </>
+          )}
+
+          <div className="meta" style={{ marginTop: 8, color: retrabajo ? 'var(--rojo)' : faltaProtocolo ? 'var(--naranja)' : 'var(--estado-fin)' }}>
             {retrabajo
               ? '⚠ Hay ensayos rechazados → al finalizar va a RETRABAJO (no se despacha).'
-              : '✓ Sin rechazos → al finalizar se crea la tarea de despacho.'}
+              : faltaProtocolo
+                ? '📎 Adjuntá el protocolo para poder liberar el transformador a despacho.'
+                : '✓ Sin rechazos y con protocolo → al finalizar se crea la tarea de despacho.'}
           </div>
         </div>
 
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 12, flex: 'none' }}>
           <button className="btn" onClick={onClose} disabled={guardando}>Cerrar</button>
-          <button className={'btn ' + (retrabajo ? 'btn-rojo' : 'btn-verde')} disabled={guardando || faltaComentario} onClick={() => void finalizarEnsayo()}>
-            {retrabajo ? '⚠ Finalizar → Retrabajo' : '✓ Finalizar → Despacho'}
+          <button className={'btn ' + (retrabajo ? 'btn-rojo' : 'btn-verde')} disabled={noPuedeFinalizar} onClick={() => void finalizarEnsayo()}
+            title={faltaProtocolo ? 'Falta adjuntar el protocolo de ensayo (PDF)' : undefined}>
+            {retrabajo ? '⚠ Finalizar → Retrabajo' : faltaProtocolo ? '🔒 Falta el protocolo' : '✓ Finalizar → Despacho'}
           </button>
         </div>
       </div>

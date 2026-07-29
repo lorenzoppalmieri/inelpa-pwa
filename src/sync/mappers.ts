@@ -302,6 +302,8 @@ export interface DespachoRow {
   demora_en_curso: string | null
   minutos_demora: number | null
   demoras: DemoraDespacho[] | null
+  protocolo_path: string | null
+  protocolo_nombre: string | null
   checklist: ChecklistDespacho | null
   deposito?: string | null                       // v1.44
   fecha_deposito?: string | null                 // v1.44
@@ -344,6 +346,8 @@ export function despachoFromRow(r: DespachoRow): DespachoTrafo {
     demoraEnCurso: u(r.demora_en_curso),
     minutosDemora: r.minutos_demora ?? undefined,
     demoras: r.demoras ?? undefined,
+    protocoloPath: u(r.protocolo_path),
+    protocoloNombre: u(r.protocolo_nombre),
     checklist: r.checklist ?? undefined,
     deposito: u(r.deposito ?? null),
     fechaDeposito: u(r.fecha_deposito ?? null),
@@ -386,6 +390,8 @@ export function despachoToRow(d: DespachoTrafo): DespachoRow {
     demora_en_curso: d.demoraEnCurso ?? null,
     minutos_demora: d.minutosDemora ?? null,
     demoras: d.demoras ?? null,
+    protocolo_path: d.protocoloPath ?? null,
+    protocolo_nombre: d.protocoloNombre ?? null,
     checklist: d.checklist ?? null,
     deposito: d.deposito ?? null,
     fecha_deposito: d.fechaDeposito ?? null,
@@ -462,6 +468,9 @@ export interface LaboratorioRow {
   comentario: string | null
   resultado: string | null
   retrabajo_resuelto: boolean | null
+  protocolo_path: string | null
+  protocolo_nombre: string | null
+  protocolo_subido_en: string | null
   creada_en: string
   creada_por: string | null
   finalizada_en: string | null
@@ -482,6 +491,9 @@ export function laboratorioFromRow(r: LaboratorioRow): TareaLaboratorio {
     comentario: u(r.comentario),
     resultado: (r.resultado as TareaLaboratorio['resultado']) ?? undefined,
     retrabajoResuelto: r.retrabajo_resuelto ?? undefined,
+    protocoloPath: u(r.protocolo_path),
+    protocoloNombre: u(r.protocolo_nombre),
+    protocoloSubido: u(r.protocolo_subido_en),
     creada: r.creada_en,
     creadaPor: u(r.creada_por),
     finalizada: u(r.finalizada_en),
@@ -503,6 +515,9 @@ export function laboratorioToRow(t: TareaLaboratorio): LaboratorioRow {
     comentario: t.comentario ?? null,
     resultado: t.resultado ?? null,
     retrabajo_resuelto: t.retrabajoResuelto ?? null,
+    protocolo_path: t.protocoloPath ?? null,
+    protocolo_nombre: t.protocoloNombre ?? null,
+    protocolo_subido_en: t.protocoloSubido ?? null,
     creada_en: t.creada,
     creada_por: t.creadaPor ?? null,
     finalizada_en: t.finalizada ?? null,
