@@ -2,6 +2,13 @@ import type { AreaSGOId, PilarSGO } from './types'
 
 export type DireccionKPI = 'mayor_mejor' | 'menor_mejor'
 export type EstadoSemaforo = 'verde' | 'amarillo' | 'rojo' | 'sin_dato'
+export type ClaveCalculoKPI =
+  | 'produccion_cumplimiento'
+  | 'produccion_retrabajos'
+  | 'laboratorio_fpy'
+  | 'logistica_cumplimiento'
+  | 'costo_no_calidad'
+  | 'acciones_en_fecha'
 
 export interface IndicadorSGO {
   id: string
@@ -13,6 +20,8 @@ export interface IndicadorSGO {
   meta: number
   umbralAmarillo: number
   valorActual?: number
+  origen?: 'manual' | 'automatico'
+  claveCalculo?: ClaveCalculoKPI
   periodo: string
   activo: boolean
   actualizadoEn: string

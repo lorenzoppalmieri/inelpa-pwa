@@ -6,6 +6,7 @@ import { guardarAccionSGO, guardarEventoSGO } from '../../sync/syncEngine'
 import MatrizSGO from './MatrizSGO'
 import IndicadoresSGO from './IndicadoresSGO'
 import { defectoSGOLabel, defectosParaArea } from '../../sgo/defectos'
+import { resolverKPIAutomaticos } from '../../sgo/kpiAutomaticos'
 import {
   AREAS_SGO, PILARES_SGO, TIPOS_EVENTO_SGO, areaSGOLabel, codigoEventoSGO, costoNoCalidadTotal,
   type AccionSGO, type EstadoEventoSGO, type EventoSGO,
@@ -41,6 +42,9 @@ export default function SGOView() {
   const eventos = useLiveQuery(() => db.eventosSGO.toArray(), []) ?? []
   const acciones = useLiveQuery(() => db.accionesSGO.toArray(), []) ?? []
   const indicadores = useLiveQuery(() => db.indicadoresSGO.toArray(), []) ?? []
+  const tareas = useLiveQuery(() => db.tareas.toArray(), []) ?? []
+  const laboratorio = useLiveQuery(() => db.laboratorio.toArray(), []) ?? []
+  const tareasLogistica = useLiveQuery(() => db.tareasLogistica.toArray(), []) ?? []
   const [nuevo, setNuevo] = useState(false)
   const [configIndicadores, setConfigIndicadores] = useState(false)
   const [seleccionadoId, setSeleccionadoId] = useState<string>()
@@ -55,6 +59,7 @@ export default function SGOView() {
     criticos: abiertos.filter((e) => e.pilar === p.id && e.severidad === 'critica').length,
   })), [eventos])
   const vencidas = acciones.filter(vencida).length
+  const indicadoresResueltos = useMemo(() => resolverKPIAutomaticos(indicadores, { tareas, laboratorio, tareasLogistica, eventos, acciones }), [indicadores, tareas, laboratorio, tareasLogistica, eventos, acciones])
   const abiertosFiltrados = abiertos.filter((e) =>
     (!filtroArea || (e.areaOrigenId ?? e.areaId) === filtroArea) && (!filtroPilar || e.pilar === filtroPilar))
 
@@ -83,7 +88,7 @@ export default function SGOView() {
         </div>
       </div>
 
-      <MatrizSGO eventos={eventos} acciones={acciones} indicadores={indicadores} onSelect={(area, pilar) => { setFiltroArea(area); setFiltroPilar(pilar) }} />
+      <MatrizSGO eventos={eventos} acciones={acciones} indicadores={indicadoresResueltos} onSelect={(area, pilar) => { setFiltroArea(area); setFiltroPilar(pilar) }} />
 
       <div className="card" style={{ marginTop: 18, marginBottom: 10 }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 10 }}>
@@ -133,7 +138,7 @@ export default function SGOView() {
       )}
 
       {nuevo && <NuevoEvento usuario={usuario?.usuario ?? 'sin_usuario'} onClose={() => setNuevo(false)} onCreado={(id) => { setNuevo(false); setSeleccionadoId(id) }} />}
-      {configIndicadores && <IndicadoresSGO indicadores={indicadores} usuario={usuario?.usuario ?? 'sin_usuario'} onClose={() => setConfigIndicadores(false)} />}
+      {configIndicadores && <IndicadoresSGO indicadores={indicadoresResueltos} usuario={usuario?.usuario ?? 'sin_usuario'} onClose={() => setConfigIndicadores(false)} />}
       {seleccionado && <DetalleEvento evento={seleccionado} acciones={acciones.filter((a) => a.eventoId === seleccionado.id)} usuario={usuario?.usuario ?? 'sin_usuario'} onClose={() => setSeleccionadoId(undefined)} />}
     </div>
   )

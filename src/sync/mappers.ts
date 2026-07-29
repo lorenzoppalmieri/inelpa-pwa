@@ -223,6 +223,8 @@ export interface IndicadorSGORow {
   meta: number
   umbral_amarillo: number
   valor_actual: number | null
+  origen: string | null
+  clave_calculo: string | null
   periodo: string
   activo: boolean
   actualizado_en: string
@@ -289,6 +291,7 @@ export function indicadorSGOFromRow(r: IndicadorSGORow): IndicadorSGO {
     id: r.id, areaId: r.area_id as IndicadorSGO['areaId'], pilar: r.pilar as IndicadorSGO['pilar'],
     nombre: r.nombre, unidad: r.unidad, direccion: r.direccion as IndicadorSGO['direccion'],
     meta: r.meta, umbralAmarillo: r.umbral_amarillo, valorActual: u(r.valor_actual),
+    origen: (r.origen as IndicadorSGO['origen']) ?? 'manual', claveCalculo: u(r.clave_calculo) as IndicadorSGO['claveCalculo'],
     periodo: r.periodo, activo: r.activo, actualizadoEn: r.actualizado_en,
     actualizadoPor: r.actualizado_por,
   }
@@ -298,7 +301,8 @@ export function indicadorSGOToRow(i: IndicadorSGO): IndicadorSGORow {
   return {
     id: i.id, area_id: i.areaId, pilar: i.pilar, nombre: i.nombre, unidad: i.unidad,
     direccion: i.direccion, meta: i.meta, umbral_amarillo: i.umbralAmarillo,
-    valor_actual: i.valorActual ?? null, periodo: i.periodo, activo: i.activo,
+    valor_actual: i.origen === 'automatico' ? null : i.valorActual ?? null,
+    origen: i.origen ?? 'manual', clave_calculo: i.claveCalculo ?? null, periodo: i.periodo, activo: i.activo,
     actualizado_en: i.actualizadoEn, actualizado_por: i.actualizadoPor,
   }
 }
