@@ -19,7 +19,7 @@ export const MENU_ADMIN: ItemMenu[] = [
   { id: 'logistica', label: 'Logística', icono: '🚛', sub: 'Pañol, pedidos de material y tareas' },
   { id: 'laboratorio', label: 'Laboratorio', icono: '🔬', sub: 'Ensayos y protocolos' },
   { id: 'despacho', label: 'Despacho', icono: '📦', sub: 'Embalaje, fletes y entregas' },
-  { id: 'sgo', label: 'SGO', icono: '🛡️', sub: 'Seis pilares, eventos y acciones' },
+  { id: 'sgo', label: 'SGO INTEGRAL', icono: '🛡️', sub: 'Seis pilares, eventos y acciones' },
 ]
 
 export default function Sidebar({ activo, onSelect, colapsado, onToggle }: {

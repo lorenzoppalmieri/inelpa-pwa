@@ -82,5 +82,5 @@ export const ROL_LABEL: Record<Rol, string> = {
   planificador: 'Planificador',
   logistica: 'Logística',
   laboratorio: 'Laboratorio',
-  sgo: 'SGO',
+  sgo: 'SGO Integral',
 }

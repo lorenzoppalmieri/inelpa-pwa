@@ -55,7 +55,7 @@ export default function SGOView() {
       <div className="card" style={{ marginBottom: 14, borderLeft: '5px solid #2563eb' }}>
         <div className="card-header">
           <div>
-            <div className="section-title" style={{ margin: 0 }}>🛡️ Sistema de Gestión Operacional</div>
+            <div className="section-title" style={{ margin: 0 }}>🛡️ SGO INTEGRAL</div>
             <div className="meta">Eventos, no conformidades y acciones de los seis pilares.</div>
           </div>
           <button className="btn btn-primary" onClick={() => setNuevo(true)}>+ Registrar evento</button>
