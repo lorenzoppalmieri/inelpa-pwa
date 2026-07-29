@@ -2,11 +2,12 @@ import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/
 import { db } from '../db/dexie'
 import { supabase, SUPABASE_HABILITADO } from '../lib/supabaseClient'
 import type { SyncOp, Tarea, OrdenProduccion, Semielaborado, SectorId, Objetivo, TareaLogistica, SolicitudLogistica, Feriado, Mensaje, MensajeLectura, TiempoEstandar, DespachoTrafo, FleteInterno, TareaLaboratorio, PlantillaRecurrente } from '../types'
+import type { EventoSGO, AccionSGO } from '../sgo/types'
 import { setFeriados } from '../lib/calendario'
 import {
-  tareaFromRow, paradaFromRow, ordenFromRow, semiFromRow, maquinaFromRow, usuarioFromRow, objetivoFromRow, tareaLogFromRow, solicitudLogFromRow, feriadoFromRow, mensajeFromRow, lecturaFromRow, estandarFromRow, despachoFromRow, fleteFromRow, laboratorioFromRow, plantillaFromRow,
-  tareaToRow, paradaToRow, ordenToRow, semiToRow, objetivoToRow, tareaLogToRow, solicitudLogToRow, feriadoToRow, mensajeToRow, lecturaToRow, estandarToRow, despachoToRow, fleteToRow, laboratorioToRow, plantillaToRow,
-  type TareaRow, type ParadaRow, type OrdenRow, type SemiRow, type MaquinaRow, type UsuarioRow, type ObjetivoRow, type TareaLogisticaRow, type SolicitudLogisticaRow, type FeriadoRow, type MensajeRow, type MensajeLecturaRow, type TiempoEstandarRow, type DespachoRow, type FleteRow, type LaboratorioRow, type PlantillaRecurrenteRow,
+  tareaFromRow, paradaFromRow, ordenFromRow, semiFromRow, maquinaFromRow, usuarioFromRow, objetivoFromRow, tareaLogFromRow, solicitudLogFromRow, feriadoFromRow, mensajeFromRow, lecturaFromRow, estandarFromRow, despachoFromRow, fleteFromRow, laboratorioFromRow, plantillaFromRow, eventoSGOFromRow, accionSGOFromRow,
+  tareaToRow, paradaToRow, ordenToRow, semiToRow, objetivoToRow, tareaLogToRow, solicitudLogToRow, feriadoToRow, mensajeToRow, lecturaToRow, estandarToRow, despachoToRow, fleteToRow, laboratorioToRow, plantillaToRow, eventoSGOToRow, accionSGOToRow,
+  type TareaRow, type ParadaRow, type OrdenRow, type SemiRow, type MaquinaRow, type UsuarioRow, type ObjetivoRow, type TareaLogisticaRow, type SolicitudLogisticaRow, type FeriadoRow, type MensajeRow, type MensajeLecturaRow, type TiempoEstandarRow, type DespachoRow, type FleteRow, type LaboratorioRow, type PlantillaRecurrenteRow, type EventoSGORow, type AccionSGORow,
 } from './mappers'
 
 // ============================================================
@@ -114,9 +115,10 @@ export async function fetchInicial(): Promise<void> {
       db.tareasLogistica.clear(), db.solicitudesLogistica.clear(), db.feriados.clear(),
       db.mensajes.clear(), db.mensajesLectura.clear(), db.estandares.clear(), db.despachos.clear(), db.fletes.clear(), db.laboratorio.clear(),
       db.plantillasRecurrentes.clear(),
+      db.eventosSGO.clear(), db.accionesSGO.clear(),
     ])
 
-    const [maqs, usrs, uss, ords, semis, tars, pars, objs, tlog, slog, fers, msgs, lects, ests, desp, flts, labs, plts] = await Promise.all([
+    const [maqs, usrs, uss, ords, semis, tars, pars, objs, tlog, slog, fers, msgs, lects, ests, desp, flts, labs, plts, eventosSgo, accionesSgo] = await Promise.all([
       supabase.from('maquinas').select('*'),
       supabase.from('usuarios').select('id, nombre, usuario, rol, grupo_nomina, activo'),
       supabase.from('usuario_sectores').select('usuario_id, sector_id'),
@@ -135,6 +137,8 @@ export async function fetchInicial(): Promise<void> {
       supabase.from('fletes_internos').select('*'),
       supabase.from('laboratorio').select('*'),
       supabase.from('plantillas_recurrentes').select('*'),
+      supabase.from('sgo_eventos').select('*'),
+      supabase.from('sgo_acciones').select('*'),
     ])
 
     // Maquinas
@@ -176,6 +180,9 @@ export async function fetchInicial(): Promise<void> {
 
     // Plantillas de tareas recurrentes
     if (plts.data) await db.plantillasRecurrentes.bulkPut((plts.data as PlantillaRecurrenteRow[]).map(plantillaFromRow))
+
+    if (eventosSgo.data) await db.eventosSGO.bulkPut((eventosSgo.data as EventoSGORow[]).map(eventoSGOFromRow))
+    if (accionesSgo.data) await db.accionesSGO.bulkPut((accionesSgo.data as AccionSGORow[]).map(accionSGOFromRow))
 
     // Tareas logisticas
     if (tlog.data) await db.tareasLogistica.bulkPut((tlog.data as TareaLogisticaRow[]).map(tareaLogFromRow))
@@ -309,6 +316,14 @@ async function onPlantillaChange(payload: Payload) {
   if (payload.eventType === 'DELETE') { await db.plantillasRecurrentes.delete((payload.old as { id: string }).id); return }
   await db.plantillasRecurrentes.put(plantillaFromRow(payload.new as unknown as PlantillaRecurrenteRow))
 }
+async function onEventoSGOChange(payload: Payload) {
+  if (payload.eventType === 'DELETE') { await db.eventosSGO.delete((payload.old as { id: string }).id); return }
+  await db.eventosSGO.put(eventoSGOFromRow(payload.new as unknown as EventoSGORow))
+}
+async function onAccionSGOChange(payload: Payload) {
+  if (payload.eventType === 'DELETE') { await db.accionesSGO.delete((payload.old as { id: string }).id); return }
+  await db.accionesSGO.put(accionSGOFromRow(payload.new as unknown as AccionSGORow))
+}
 
 function suscribirRealtime() {
   if (!supabase || canal) return
@@ -330,6 +345,8 @@ function suscribirRealtime() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'fletes_internos' }, onFleteChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'laboratorio' }, onLaboratorioChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'plantillas_recurrentes' }, onPlantillaChange)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'sgo_eventos' }, onEventoSGOChange)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'sgo_acciones' }, onAccionSGOChange)
     .subscribe()
 }
 
@@ -435,6 +452,8 @@ async function empujar(op: SyncOp): Promise<EmpujeResultado> {
         : op.entidad === 'flete' ? 'fletes_internos'
         : op.entidad === 'laboratorio' ? 'laboratorio'
         : op.entidad === 'plantilla_recurrente' ? 'plantillas_recurrentes'
+        : op.entidad === 'evento_sgo' ? 'sgo_eventos'
+        : op.entidad === 'accion_sgo' ? 'sgo_acciones'
         : 'paradas'
       const { error } = await supabase.from(tabla).delete().eq('id', op.entidadId)
       if (error) return fallo(`delete ${op.entidad}`, error.message)
@@ -496,6 +515,14 @@ async function empujar(op: SyncOp): Promise<EmpujeResultado> {
       case 'plantilla_recurrente': {
         const { error } = await supabase.from('plantillas_recurrentes').upsert(plantillaToRow(op.payload as PlantillaRecurrente), { onConflict: 'id' })
         return error ? fallo('upsert plantilla', error.message) : OK_EMPUJE
+      }
+      case 'evento_sgo': {
+        const { error } = await supabase.from('sgo_eventos').upsert(eventoSGOToRow(op.payload as EventoSGO), { onConflict: 'id' })
+        return error ? fallo('upsert evento_sgo', error.message) : OK_EMPUJE
+      }
+      case 'accion_sgo': {
+        const { error } = await supabase.from('sgo_acciones').upsert(accionSGOToRow(op.payload as AccionSGO), { onConflict: 'id' })
+        return error ? fallo('upsert accion_sgo', error.message) : OK_EMPUJE
       }
       case 'tarea_logistica': {
         const { error } = await supabase.from('tareas_logistica').upsert(tareaLogToRow(op.payload as TareaLogistica), { onConflict: 'id' })
@@ -614,6 +641,16 @@ export async function guardarLaboratorio(t: TareaLaboratorio): Promise<void> {
 export async function eliminarLaboratorio(t: TareaLaboratorio): Promise<void> {
   await db.laboratorio.delete(t.id)
   await encolar({ entidad: 'laboratorio', entidadId: t.id, tipo: 'delete', payload: t })
+}
+
+export async function guardarEventoSGO(e: EventoSGO): Promise<void> {
+  await db.eventosSGO.put(e)
+  await encolar({ entidad: 'evento_sgo', entidadId: e.id, tipo: 'upsert', payload: e })
+}
+
+export async function guardarAccionSGO(a: AccionSGO): Promise<void> {
+  await db.accionesSGO.put(a)
+  await encolar({ entidad: 'accion_sgo', entidadId: a.id, tipo: 'upsert', payload: a })
 }
 
 // v1.39: plantillas de tareas recurrentes (las administra Giuliano).

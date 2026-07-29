@@ -51,6 +51,14 @@ export const PERMISOS: Record<Rol, Permisos> = {
     configurarEstandares: false, verTodosSectores: false,
     gestionProduccion: false, crearReparacion: false,
   },
+  // SGO administra eventos, no conformidades y acciones; no modifica la
+  // programacion productiva ni opera los modulos de otras areas.
+  sgo: {
+    verTareasPropias: false, cambiarEstadoTarea: false, verDashboard: true,
+    validarDatos: true, reasignarPrioridad: false, cargarProgramacion: false,
+    configurarEstandares: false, verTodosSectores: true,
+    gestionProduccion: false, crearReparacion: false,
+  },
 }
 
 // ============================================================
@@ -74,4 +82,5 @@ export const ROL_LABEL: Record<Rol, string> = {
   planificador: 'Planificador',
   logistica: 'Logística',
   laboratorio: 'Laboratorio',
+  sgo: 'SGO',
 }

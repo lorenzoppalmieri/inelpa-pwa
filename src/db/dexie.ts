@@ -5,6 +5,7 @@ import type {
   Mensaje, MensajeLectura, TiempoEstandar, DespachoTrafo, FleteInterno, TareaLaboratorio,
   PlantillaRecurrente,
 } from '../types'
+import type { EventoSGO, AccionSGO } from '../sgo/types'
 
 // ============================================================
 // Capa offline-first con IndexedDB (via Dexie).
@@ -31,6 +32,8 @@ export class InelpaDB extends Dexie {
   fletes!: Table<FleteInterno, string>
   laboratorio!: Table<TareaLaboratorio, string>
   plantillasRecurrentes!: Table<PlantillaRecurrente, string>
+  eventosSGO!: Table<EventoSGO, string>
+  accionesSGO!: Table<AccionSGO, string>
 
   constructor() {
     super('inelpa_pwa')
@@ -106,6 +109,11 @@ export class InelpaDB extends Dexie {
     // .where('laboratorioId') de Dexie tira excepción.
     this.version(15).stores({
       despachos: 'id, estado, nroSerie, ot, linea, operario, creada, laboratorioId',
+    })
+    // v1.49: nucleo transversal del Sistema de Gestion Operacional.
+    this.version(16).stores({
+      eventosSGO: 'id, codigo, pilar, tipo, estado, severidad, sectorId, tareaId, laboratorioId, detectadoEn, responsable',
+      accionesSGO: 'id, eventoId, estado, responsable, fechaCompromiso, tipo',
     })
   }
 }

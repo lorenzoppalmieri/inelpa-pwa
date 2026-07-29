@@ -7,6 +7,7 @@ import DashboardView from './components/dashboard/DashboardView'
 import LogisticaView from './components/dashboard/LogisticaView'
 import LaboratorioView from './components/laboratorio/LaboratorioView'
 import AdminLayout from './components/admin/AdminLayout'
+import SGOView from './components/sgo/SGOView'
 
 // Ruteo por rol: operario ve su panel de planta; logistica ve la vista de solo
 // lectura (Gantt + alertas de material); encargado y planificador ven el dashboard.
@@ -28,6 +29,7 @@ export default function App() {
       {usuario.rol === 'operario' ? <OperarioView />
         : usuario.rol === 'logistica' ? <LogisticaView />
         : usuario.rol === 'laboratorio' ? <LaboratorioView />
+        : usuario.rol === 'sgo' ? <SGOView />
         : <DashboardView />}
     </Layout>
   )

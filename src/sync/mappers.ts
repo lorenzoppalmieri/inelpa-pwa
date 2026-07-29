@@ -18,6 +18,7 @@ import type {
   TareaLaboratorio, EstadoLab, EnsayoEstado,
   PlantillaRecurrente,
 } from '../types'
+import type { AccionSGO, EventoSGO } from '../sgo/types'
 
 // null -> undefined (Supabase devuelve null; la app usa undefined en opcionales).
 function u<T>(v: T | null | undefined): T | undefined {
@@ -151,6 +152,113 @@ export interface UsuarioRow {
   rol: string
   grupo_nomina: string | null
   activo: boolean | null
+}
+
+export interface EventoSGORow {
+  id: string
+  codigo: string
+  tipo: string
+  pilar: string
+  titulo: string
+  descripcion: string
+  severidad: string
+  estado: string
+  sector_id: string | null
+  maquina_id: string | null
+  orden_id: string | null
+  tarea_id: string | null
+  laboratorio_id: string | null
+  despacho_id: string | null
+  nro_serie: string | null
+  detectado_en: string
+  detectado_por: string
+  responsable: string | null
+  contencion: string | null
+  disposicion: string | null
+  cantidad_afectada: number | null
+  costo_estimado: number | null
+  causa_raiz: string | null
+  metodo_analisis: string | null
+  evidencia_urls: string[] | null
+  creado_en: string
+  actualizado_en: string
+  cerrado_en: string | null
+  cerrado_por: string | null
+}
+
+export interface AccionSGORow {
+  id: string
+  evento_id: string
+  tipo: string
+  descripcion: string
+  responsable: string
+  fecha_compromiso: string
+  estado: string
+  evidencia: string | null
+  completada_en: string | null
+  completada_por: string | null
+  verificada_en: string | null
+  verificada_por: string | null
+  eficaz: boolean | null
+  comentario_verificacion: string | null
+  creado_en: string
+  creado_por: string
+  actualizado_en: string
+}
+
+export function eventoSGOFromRow(r: EventoSGORow): EventoSGO {
+  return {
+    id: r.id, codigo: r.codigo, tipo: r.tipo as EventoSGO['tipo'], pilar: r.pilar as EventoSGO['pilar'],
+    titulo: r.titulo, descripcion: r.descripcion, severidad: r.severidad as EventoSGO['severidad'],
+    estado: r.estado as EventoSGO['estado'], sectorId: u(r.sector_id), maquinaId: u(r.maquina_id),
+    ordenId: u(r.orden_id), tareaId: u(r.tarea_id), laboratorioId: u(r.laboratorio_id),
+    despachoId: u(r.despacho_id), nroSerie: u(r.nro_serie), detectadoEn: r.detectado_en,
+    detectadoPor: r.detectado_por, responsable: u(r.responsable), contencion: u(r.contencion),
+    disposicion: u(r.disposicion) as EventoSGO['disposicion'], cantidadAfectada: u(r.cantidad_afectada),
+    costoEstimado: u(r.costo_estimado), causaRaiz: u(r.causa_raiz),
+    metodoAnalisis: u(r.metodo_analisis) as EventoSGO['metodoAnalisis'],
+    evidenciaUrls: r.evidencia_urls ?? undefined, creadoEn: r.creado_en,
+    actualizadoEn: r.actualizado_en, cerradoEn: u(r.cerrado_en), cerradoPor: u(r.cerrado_por),
+  }
+}
+
+export function eventoSGOToRow(e: EventoSGO): EventoSGORow {
+  return {
+    id: e.id, codigo: e.codigo, tipo: e.tipo, pilar: e.pilar, titulo: e.titulo,
+    descripcion: e.descripcion, severidad: e.severidad, estado: e.estado,
+    sector_id: e.sectorId ?? null, maquina_id: e.maquinaId ?? null, orden_id: e.ordenId ?? null,
+    tarea_id: e.tareaId ?? null, laboratorio_id: e.laboratorioId ?? null, despacho_id: e.despachoId ?? null,
+    nro_serie: e.nroSerie ?? null, detectado_en: e.detectadoEn, detectado_por: e.detectadoPor,
+    responsable: e.responsable ?? null, contencion: e.contencion ?? null,
+    disposicion: e.disposicion ?? null, cantidad_afectada: e.cantidadAfectada ?? null,
+    costo_estimado: e.costoEstimado ?? null, causa_raiz: e.causaRaiz ?? null,
+    metodo_analisis: e.metodoAnalisis ?? null, evidencia_urls: e.evidenciaUrls ?? null,
+    creado_en: e.creadoEn, actualizado_en: e.actualizadoEn, cerrado_en: e.cerradoEn ?? null,
+    cerrado_por: e.cerradoPor ?? null,
+  }
+}
+
+export function accionSGOFromRow(r: AccionSGORow): AccionSGO {
+  return {
+    id: r.id, eventoId: r.evento_id, tipo: r.tipo as AccionSGO['tipo'], descripcion: r.descripcion,
+    responsable: r.responsable, fechaCompromiso: r.fecha_compromiso, estado: r.estado as AccionSGO['estado'],
+    evidencia: u(r.evidencia), completadaEn: u(r.completada_en), completadaPor: u(r.completada_por),
+    verificadaEn: u(r.verificada_en), verificadaPor: u(r.verificada_por), eficaz: u(r.eficaz),
+    comentarioVerificacion: u(r.comentario_verificacion), creadoEn: r.creado_en,
+    creadoPor: r.creado_por, actualizadoEn: r.actualizado_en,
+  }
+}
+
+export function accionSGOToRow(a: AccionSGO): AccionSGORow {
+  return {
+    id: a.id, evento_id: a.eventoId, tipo: a.tipo, descripcion: a.descripcion,
+    responsable: a.responsable, fecha_compromiso: a.fechaCompromiso, estado: a.estado,
+    evidencia: a.evidencia ?? null, completada_en: a.completadaEn ?? null,
+    completada_por: a.completadaPor ?? null, verificada_en: a.verificadaEn ?? null,
+    verificada_por: a.verificadaPor ?? null, eficaz: a.eficaz ?? null,
+    comentario_verificacion: a.comentarioVerificacion ?? null, creado_en: a.creadoEn,
+    creado_por: a.creadoPor, actualizado_en: a.actualizadoEn,
+  }
 }
 
 // ============================================================
