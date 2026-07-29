@@ -16,7 +16,7 @@ export default function MatrizSGO({ eventos, acciones, indicadores, onSelect }: 
 
   return <div className="card" style={{ marginTop: 16, overflow: 'auto' }}>
     <div className="section-title" style={{ marginTop: 0 }}>Tablero matriz · Área × Pilares</div>
-    <div className="meta" style={{ marginBottom: 10 }}>Seleccioná una celda para ver los eventos que explican el estado.</div>
+    <div className="meta" style={{ marginBottom: 10 }}>Seleccioná una celda para abrir su ficha: KPI, fórmula, registros fuente, evolución, eventos y acciones.</div>
     <table style={{ borderCollapse: 'separate', borderSpacing: 4, minWidth: 980, width: '100%' }}>
       <thead><tr><th style={{ textAlign: 'left', minWidth: 220 }}>Área</th>{PILARES_SGO.map((p) => <th key={p.id} style={{ fontSize: '.78rem' }}>{p.label}</th>)}</tr></thead>
       <tbody>{AREAS_SGO.map((area) => <tr key={area.id}>

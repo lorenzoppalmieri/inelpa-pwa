@@ -5,6 +5,7 @@ import { useAuth } from '../../auth/AuthContext'
 import { guardarAccionSGO, guardarEventoSGO } from '../../sync/syncEngine'
 import MatrizSGO from './MatrizSGO'
 import IndicadoresSGO from './IndicadoresSGO'
+import FichaCeldaSGO from './FichaCeldaSGO'
 import { defectoSGOLabel, defectosParaArea } from '../../sgo/defectos'
 import { resolverKPIAutomaticos } from '../../sgo/kpiAutomaticos'
 import {
@@ -48,6 +49,7 @@ export default function SGOView() {
   const [nuevo, setNuevo] = useState(false)
   const [configIndicadores, setConfigIndicadores] = useState(false)
   const [seleccionadoId, setSeleccionadoId] = useState<string>()
+  const [celdaSeleccionada, setCeldaSeleccionada] = useState<{ area: AreaSGOId; pilar: PilarSGO }>()
   const [filtroArea, setFiltroArea] = useState('')
   const [filtroPilar, setFiltroPilar] = useState('')
   const seleccionado = eventos.find((e) => e.id === seleccionadoId)
@@ -88,7 +90,7 @@ export default function SGOView() {
         </div>
       </div>
 
-      <MatrizSGO eventos={eventos} acciones={acciones} indicadores={indicadoresResueltos} onSelect={(area, pilar) => { setFiltroArea(area); setFiltroPilar(pilar) }} />
+      <MatrizSGO eventos={eventos} acciones={acciones} indicadores={indicadoresResueltos} onSelect={(area, pilar) => setCeldaSeleccionada({ area, pilar })} />
 
       <div className="card" style={{ marginTop: 18, marginBottom: 10 }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 10 }}>
@@ -139,6 +141,14 @@ export default function SGOView() {
 
       {nuevo && <NuevoEvento usuario={usuario?.usuario ?? 'sin_usuario'} onClose={() => setNuevo(false)} onCreado={(id) => { setNuevo(false); setSeleccionadoId(id) }} />}
       {configIndicadores && <IndicadoresSGO indicadores={indicadoresResueltos} usuario={usuario?.usuario ?? 'sin_usuario'} onClose={() => setConfigIndicadores(false)} />}
+      {celdaSeleccionada && <FichaCeldaSGO
+        areaId={celdaSeleccionada.area} pilarId={celdaSeleccionada.pilar}
+        indicadores={indicadoresResueltos} eventos={eventos} acciones={acciones}
+        datos={{ tareas, laboratorio, tareasLogistica, eventos, acciones }}
+        onClose={() => setCeldaSeleccionada(undefined)}
+        onFiltrarEventos={() => { setFiltroArea(celdaSeleccionada.area); setFiltroPilar(celdaSeleccionada.pilar); setCeldaSeleccionada(undefined) }}
+        onOpenEvento={(id) => { setCeldaSeleccionada(undefined); setSeleccionadoId(id) }}
+      />}
       {seleccionado && <DetalleEvento evento={seleccionado} acciones={acciones.filter((a) => a.eventoId === seleccionado.id)} usuario={usuario?.usuario ?? 'sin_usuario'} onClose={() => setSeleccionadoId(undefined)} />}
     </div>
   )
