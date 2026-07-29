@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { TareaLaboratorio } from '../../types'
 import {
   buscarDatosTecnicos, campoNum, codigoCorto,
-  NOMINALES_TENSION, NOMINALES_PERDIDAS, NOMINALES_TODOS,
+  NOMINALES_TENSION, NOMINALES_PERDIDAS, NOMINALES_TODOS, NOMINALES_CONTEXTO, NOMINALES_FICHA, campo,
   type DatoTecnico, type CampoNominal,
 } from '../../lib/datosTecnicos'
 
@@ -69,7 +69,7 @@ export default function PanelEnsayo({ tarea, soloLectura = false }: {
   // Valor nominal de un campo (ya normalizado a número).
   const nominal = useMemo(() => {
     const out: Record<string, number | undefined> = {}
-    for (const c of NOMINALES_TODOS) out[c.key] = campoNum(fila, ...c.alias)
+    for (const c of NOMINALES_FICHA) out[c.key] = campoNum(fila, ...c.alias)
     return out
   }, [fila])
 
@@ -145,6 +145,13 @@ export default function PanelEnsayo({ tarea, soloLectura = false }: {
           {tarea.ot ? <> · OT {tarea.ot}</> : null}
           {tarea.cliente ? <> · {tarea.cliente}</> : <> · Stock</>}
         </div>
+        {fila && (
+          <div className="meta" style={{ marginTop: 6 }}>
+            Código técnico <strong>{codigoCorto(tarea.modelo)}</strong>
+            {nominal.sn !== undefined ? <> · {fmt(nominal.sn)} kVA</> : null}
+            {campo(fila, 'iram', 'IRAM') ? <> · IRAM {String(campo(fila, 'iram', 'IRAM'))}</> : null}
+          </div>
+        )}
       </div>
 
       {/* --- Valores nominales garantizados (solo lectura) --- */}
@@ -169,6 +176,9 @@ export default function PanelEnsayo({ tarea, soloLectura = false }: {
           <div className="tot-cards">{NOMINALES_TENSION.map(celda)}</div>
           <div className="meta" style={{ margin: '10px 0 6px' }}>Pérdidas y porcentajes</div>
           <div className="tot-cards">{NOMINALES_PERDIDAS.map(celda)}</div>
+
+          <div className="meta" style={{ margin: '10px 0 6px' }}>Otros valores de referencia</div>
+          <div className="tot-cards">{NOMINALES_CONTEXTO.filter((c) => c.key !== 'sn').map(celda)}</div>
 
           {/* Diagnóstico: si algún parámetro quedó vacío, es que la columna de la
               planilla se llama distinto. Se listan las columnas reales recibidas. */}

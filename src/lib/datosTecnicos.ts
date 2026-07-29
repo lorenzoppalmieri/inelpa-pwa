@@ -67,20 +67,29 @@ export function campoNum(row: DatoTecnico | undefined, ...alias: string[]): numb
 export interface CampoNominal { key: string; label: string; unidad: string; alias: string[] }
 
 export const NOMINALES_TENSION: CampoNominal[] = [
-  { key: 'un1', label: 'Un1', unidad: 'kV', alias: ['Un1', 'Un1 (kV)', 'U1n', 'tension_primaria', 'un1kv'] },
-  { key: 'un2', label: 'Un2', unidad: 'kV', alias: ['Un2', 'Un2 (kV)', 'U2n', 'tension_secundaria', 'un2kv'] },
-  { key: 'i1n', label: 'I1n', unidad: 'A', alias: ['I1n', 'I1n (A)', 'In1', 'corriente_primaria', 'i1na'] },
-  { key: 'i2n', label: 'I2n', unidad: 'A', alias: ['I2n', 'I2n (A)', 'In2', 'corriente_secundaria', 'i2na'] },
+  { key: 'un1', label: 'Un1', unidad: 'kV', alias: ['un1', 'Un1', 'Un1 (kV)', 'U1n'] },
+  { key: 'un2', label: 'Un2', unidad: 'kV', alias: ['un2', 'Un2', 'Un2 (kV)', 'U2n'] },
+  { key: 'i1n', label: 'I1n', unidad: 'A', alias: ['i1n', 'I1n', 'I1n (A)', 'In1'] },
+  { key: 'i2n', label: 'I2n', unidad: 'A', alias: ['i2n', 'I2n', 'I2n (A)', 'In2'] },
 ]
 
 export const NOMINALES_PERDIDAS: CampoNominal[] = [
-  { key: 'po', label: 'Po', unidad: 'W', alias: ['Po', 'Po (W)', 'P0', 'perdidas_vacio', 'pvacio', 'pow'] },
-  { key: 'pcc', label: 'Pcc', unidad: 'W', alias: ['Pcc', 'Pcc (W)', 'Pk', 'perdidas_cortocircuito', 'pccw'] },
-  { key: 'ucc', label: 'Ucc', unidad: '%', alias: ['Ucc', 'Ucc(%)', 'Ucc (%)', 'ucc_pct', 'uk', 'tension_cortocircuito'] },
-  { key: 'io', label: 'Io', unidad: '%', alias: ['Io', 'Io(%)', 'Io (%)', 'I0', 'io_pct', 'corriente_vacio'] },
+  { key: 'po', label: 'Po', unidad: 'W', alias: ['po', 'Po', 'Po (W)', 'P0'] },
+  { key: 'pcc', label: 'Pcc', unidad: 'W', alias: ['pcc', 'Pcc', 'Pcc (W)', 'Pk'] },
+  { key: 'ucc', label: 'Ucc', unidad: '%', alias: ['ucc_pct', 'Ucc(%)', 'Ucc (%)', 'Ucc', 'uk'] },
+  { key: 'io', label: 'Io', unidad: '%', alias: ['io_pct', 'Io(%)', 'Io (%)', 'Io', 'I0'] },
+]
+
+// Datos de contexto que muestra la cabecera (no son valores a medir).
+export const NOMINALES_CONTEXTO: CampoNominal[] = [
+  { key: 'sn', label: 'Potencia', unidad: 'kVA', alias: ['sn', 'Sn', 'potencia'] },
+  { key: 'u1cc', label: 'U1cc (1f)', unidad: 'V', alias: ['u1cc_1f', 'U1cc(1f)', 'U1cc (1f)', 'U1cc'] },
+  { key: 'i2o', label: 'I2o', unidad: 'A', alias: ['i2o', 'I2o'] },
+  { key: 'relacion', label: 'Po/Pcc', unidad: '', alias: ['relacion_po_pcc', 'Relación P0/Pcc', 'Relacion P0/Pcc'] },
 ]
 
 export const NOMINALES_TODOS = [...NOMINALES_TENSION, ...NOMINALES_PERDIDAS]
+export const NOMINALES_FICHA = [...NOMINALES_TODOS, ...NOMINALES_CONTEXTO]
 
 // ------------------------------------------------------------
 // Búsqueda del modelo.
@@ -89,7 +98,23 @@ export const NOMINALES_TODOS = [...NOMINALES_TENSION, ...NOMINALES_PERDIDAS]
 // suele indexar por el código corto ("TBR 100/13"). Por eso: match exacto ->
 // normalizado -> por código (primer tramo antes del guion).
 // ------------------------------------------------------------
+// Familias de transformadores de Inelpa (prefijo del código).
+const RX_CODIGO = /\b(TTD|TTR|TMR|TBR|TTS)\s*(\d+(?:[.,]\d+)?)\s*\/\s*(\d+(?:[.,]\d+)?)/i
+
+/**
+ * Extrae el CÓDIGO CORTO del nombre de un modelo.
+ * Los datos técnicos se definen por código y valen para TODAS las variantes
+ * constructivas (cobre/aluminio, llenado integral/tanque expansión,
+ * monoposte/plataforma). Ejemplos:
+ *   "TTD 160/13 - Tanque Expansion - Monoposte - Cobre" -> "TTD 160/13"
+ *   "TTD 160/13 Al"                                      -> "TTD 160/13"
+ *   "  ttd 160/13  "                                     -> "TTD 160/13"
+ * Se usa una expresión regular en vez de cortar por guiones porque hay nombres
+ * con el material pegado y sin guion ("TTD 100/13 Al").
+ */
 export function codigoCorto(modelo: string): string {
+  const m = RX_CODIGO.exec(modelo ?? '')
+  if (m) return `${m[1].toUpperCase()} ${m[2]}/${m[3]}`
   return (modelo ?? '').split(/\s+-\s+|\s-\s/)[0].trim()
 }
 
