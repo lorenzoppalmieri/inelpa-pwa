@@ -4,6 +4,7 @@ import { db } from '../../db/dexie'
 import { useAuth } from '../../auth/AuthContext'
 import { guardarAccionSGO, guardarEventoSGO } from '../../sync/syncEngine'
 import MatrizSGO from './MatrizSGO'
+import IndicadoresSGO from './IndicadoresSGO'
 import { defectoSGOLabel, defectosParaArea } from '../../sgo/defectos'
 import {
   AREAS_SGO, PILARES_SGO, TIPOS_EVENTO_SGO, areaSGOLabel, codigoEventoSGO, costoNoCalidadTotal,
@@ -39,7 +40,9 @@ export default function SGOView() {
   const { usuario } = useAuth()
   const eventos = useLiveQuery(() => db.eventosSGO.toArray(), []) ?? []
   const acciones = useLiveQuery(() => db.accionesSGO.toArray(), []) ?? []
+  const indicadores = useLiveQuery(() => db.indicadoresSGO.toArray(), []) ?? []
   const [nuevo, setNuevo] = useState(false)
+  const [configIndicadores, setConfigIndicadores] = useState(false)
   const [seleccionadoId, setSeleccionadoId] = useState<string>()
   const [filtroArea, setFiltroArea] = useState('')
   const [filtroPilar, setFiltroPilar] = useState('')
@@ -63,7 +66,7 @@ export default function SGOView() {
             <div className="section-title" style={{ margin: 0 }}>🛡️ SGO INTEGRAL</div>
             <div className="meta">Eventos, no conformidades y acciones de los seis pilares.</div>
           </div>
-          <button className="btn btn-primary" onClick={() => setNuevo(true)}>+ Registrar evento</button>
+          <div className="row-actions"><button className="btn" onClick={() => setConfigIndicadores(true)}>⚙ Indicadores y metas</button><button className="btn btn-primary" onClick={() => setNuevo(true)}>+ Registrar evento</button></div>
         </div>
       </div>
 
@@ -80,7 +83,7 @@ export default function SGOView() {
         </div>
       </div>
 
-      <MatrizSGO eventos={eventos} acciones={acciones} onSelect={(area, pilar) => { setFiltroArea(area); setFiltroPilar(pilar) }} />
+      <MatrizSGO eventos={eventos} acciones={acciones} indicadores={indicadores} onSelect={(area, pilar) => { setFiltroArea(area); setFiltroPilar(pilar) }} />
 
       <div className="card" style={{ marginTop: 18, marginBottom: 10 }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 10 }}>
@@ -130,6 +133,7 @@ export default function SGOView() {
       )}
 
       {nuevo && <NuevoEvento usuario={usuario?.usuario ?? 'sin_usuario'} onClose={() => setNuevo(false)} onCreado={(id) => { setNuevo(false); setSeleccionadoId(id) }} />}
+      {configIndicadores && <IndicadoresSGO indicadores={indicadores} usuario={usuario?.usuario ?? 'sin_usuario'} onClose={() => setConfigIndicadores(false)} />}
       {seleccionado && <DetalleEvento evento={seleccionado} acciones={acciones.filter((a) => a.eventoId === seleccionado.id)} usuario={usuario?.usuario ?? 'sin_usuario'} onClose={() => setSeleccionadoId(undefined)} />}
     </div>
   )

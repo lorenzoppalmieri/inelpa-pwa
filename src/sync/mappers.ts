@@ -19,6 +19,7 @@ import type {
   PlantillaRecurrente,
 } from '../types'
 import type { AccionSGO, EventoSGO } from '../sgo/types'
+import type { IndicadorSGO } from '../sgo/indicadores'
 
 // null -> undefined (Supabase devuelve null; la app usa undefined en opcionales).
 function u<T>(v: T | null | undefined): T | undefined {
@@ -212,6 +213,22 @@ export interface AccionSGORow {
   actualizado_en: string
 }
 
+export interface IndicadorSGORow {
+  id: string
+  area_id: string
+  pilar: string
+  nombre: string
+  unidad: string
+  direccion: string
+  meta: number
+  umbral_amarillo: number
+  valor_actual: number | null
+  periodo: string
+  activo: boolean
+  actualizado_en: string
+  actualizado_por: string
+}
+
 export function eventoSGOFromRow(r: EventoSGORow): EventoSGO {
   return {
     id: r.id, codigo: r.codigo, tipo: r.tipo as EventoSGO['tipo'], pilar: r.pilar as EventoSGO['pilar'],
@@ -264,6 +281,25 @@ export function accionSGOToRow(a: AccionSGO): AccionSGORow {
     verificada_por: a.verificadaPor ?? null, eficaz: a.eficaz ?? null,
     comentario_verificacion: a.comentarioVerificacion ?? null, creado_en: a.creadoEn,
     creado_por: a.creadoPor, actualizado_en: a.actualizadoEn,
+  }
+}
+
+export function indicadorSGOFromRow(r: IndicadorSGORow): IndicadorSGO {
+  return {
+    id: r.id, areaId: r.area_id as IndicadorSGO['areaId'], pilar: r.pilar as IndicadorSGO['pilar'],
+    nombre: r.nombre, unidad: r.unidad, direccion: r.direccion as IndicadorSGO['direccion'],
+    meta: r.meta, umbralAmarillo: r.umbral_amarillo, valorActual: u(r.valor_actual),
+    periodo: r.periodo, activo: r.activo, actualizadoEn: r.actualizado_en,
+    actualizadoPor: r.actualizado_por,
+  }
+}
+
+export function indicadorSGOToRow(i: IndicadorSGO): IndicadorSGORow {
+  return {
+    id: i.id, area_id: i.areaId, pilar: i.pilar, nombre: i.nombre, unidad: i.unidad,
+    direccion: i.direccion, meta: i.meta, umbral_amarillo: i.umbralAmarillo,
+    valor_actual: i.valorActual ?? null, periodo: i.periodo, activo: i.activo,
+    actualizado_en: i.actualizadoEn, actualizado_por: i.actualizadoPor,
   }
 }
 

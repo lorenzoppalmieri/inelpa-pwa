@@ -6,6 +6,7 @@ import type {
   PlantillaRecurrente,
 } from '../types'
 import type { EventoSGO, AccionSGO } from '../sgo/types'
+import type { IndicadorSGO } from '../sgo/indicadores'
 
 // ============================================================
 // Capa offline-first con IndexedDB (via Dexie).
@@ -34,6 +35,7 @@ export class InelpaDB extends Dexie {
   plantillasRecurrentes!: Table<PlantillaRecurrente, string>
   eventosSGO!: Table<EventoSGO, string>
   accionesSGO!: Table<AccionSGO, string>
+  indicadoresSGO!: Table<IndicadorSGO, string>
 
   constructor() {
     super('inelpa_pwa')
@@ -127,6 +129,10 @@ export class InelpaDB extends Dexie {
     // v1.52: vinculacion idempotente con paradas productivas de calidad.
     this.version(19).stores({
       eventosSGO: 'id, codigo, pilar, tipo, estado, severidad, areaId, areaOrigenId, defectoCodigo, sectorId, tareaId, paradaId, laboratorioId, detectadoEn, responsable',
+    })
+    // v1.53: metas y valores KPI por celda Area x Pilar.
+    this.version(20).stores({
+      indicadoresSGO: 'id, areaId, pilar, activo, periodo, [areaId+pilar]',
     })
   }
 }
