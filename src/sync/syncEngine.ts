@@ -115,11 +115,11 @@ export async function fetchInicial(): Promise<void> {
       db.semielaborados.clear(), db.tareas.clear(), db.objetivos.clear(),
       db.tareasLogistica.clear(), db.solicitudesLogistica.clear(), db.feriados.clear(),
       db.mensajes.clear(), db.mensajesLectura.clear(), db.estandares.clear(), db.despachos.clear(), db.fletes.clear(), db.laboratorio.clear(),
-      db.plantillasRecurrentes.clear(),
+      db.plantillasRecurrentes.clear(), db.datosTecnicos.clear(),
       db.eventosSGO.clear(), db.accionesSGO.clear(), db.indicadoresSGO.clear(),
     ])
 
-    const [maqs, usrs, uss, ords, semis, tars, pars, objs, tlog, slog, fers, msgs, lects, ests, desp, flts, labs, plts, eventosSgo, accionesSgo, indicadoresSgo] = await Promise.all([
+    const [maqs, usrs, uss, ords, semis, tars, pars, objs, tlog, slog, fers, msgs, lects, ests, desp, flts, labs, plts, eventosSgo, accionesSgo, indicadoresSgo, dtec] = await Promise.all([
       supabase.from('maquinas').select('*'),
       supabase.from('usuarios').select('id, nombre, usuario, rol, grupo_nomina, activo'),
       supabase.from('usuario_sectores').select('usuario_id, sector_id'),
@@ -141,6 +141,7 @@ export async function fetchInicial(): Promise<void> {
       supabase.from('sgo_eventos').select('*'),
       supabase.from('sgo_acciones').select('*'),
       supabase.from('sgo_indicadores').select('*'),
+      supabase.from('datos_tecnicos').select('*'),
     ])
 
     // Maquinas
@@ -182,6 +183,17 @@ export async function fetchInicial(): Promise<void> {
 
     // Plantillas de tareas recurrentes
     if (plts.data) await db.plantillasRecurrentes.bulkPut((plts.data as PlantillaRecurrenteRow[]).map(plantillaFromRow))
+
+    // v1.49: maestro de datos técnicos (solo lectura; la app nunca lo escribe).
+    // Se guarda tal cual viene: los encabezados los define la planilla migrada.
+    // Si la tabla todavía no existe en Supabase, `error` viene seteado y se ignora.
+    if (dtec.data) {
+      const filas = (dtec.data as Record<string, unknown>[]).map((f, i) => ({
+        ...f,
+        id: String(f.id ?? f.ID ?? f.modelo ?? f.MODELO ?? i),
+      }))
+      await db.datosTecnicos.bulkPut(filas)
+    }
 
     if (eventosSgo.data) await db.eventosSGO.bulkPut((eventosSgo.data as EventoSGORow[]).map(eventoSGOFromRow))
     if (accionesSgo.data) await db.accionesSGO.bulkPut((accionesSgo.data as AccionSGORow[]).map(accionSGOFromRow))

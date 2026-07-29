@@ -5,6 +5,7 @@ import { useAuth } from '../../auth/AuthContext'
 import { guardarLaboratorio } from '../../sync/syncEngine'
 import { guardarDespacho } from '../../sync/syncEngine'
 import { db } from '../../db/dexie'
+import PanelEnsayo from './PanelEnsayo'
 import { fechaCorta, hhmm } from '../../lib/time'
 import { datosModelo, buscarModelo } from '../../lib/modeloTrafo'
 import { subirProtocolo, abrirProtocolo, MAX_PDF_MB } from '../../lib/archivos'
@@ -198,6 +199,10 @@ export default function FichaLaboratorio({ tarea: t, onClose }: { tarea: TareaLa
             <label>N° de serie {t.nroSerie ? '' : '(cargalo si llegó vacío)'}</label>
             <input className="input" value={nroSerie} onChange={(e) => setNroSerie(e.target.value)} onBlur={() => void guardarSerie()} placeholder="ej. 24610" disabled={finalizada} style={{ width: '100%' }} />
           </div>
+
+          {/* v1.54: valores garantizados del modelo + carga de valores medidos.
+              El modelo y la serie ya vienen de Montaje, no se recargan. */}
+          <PanelEnsayo tarea={t} soloLectura={finalizada} />
 
           {seccion('Protocolo de ensayos (marcá solo los que hiciste)')}
           {ENSAYOS_LAB.map((e) => {

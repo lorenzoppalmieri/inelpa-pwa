@@ -33,6 +33,9 @@ export class InelpaDB extends Dexie {
   fletes!: Table<FleteInterno, string>
   laboratorio!: Table<TareaLaboratorio, string>
   plantillasRecurrentes!: Table<PlantillaRecurrente, string>
+  // v1.49: maestro de parámetros normativos por modelo (espejo de datos_tecnicos).
+  // Fila genérica: la tabla salió de un Excel y los encabezados son variables.
+  datosTecnicos!: Table<Record<string, unknown>, string>
   eventosSGO!: Table<EventoSGO, string>
   accionesSGO!: Table<AccionSGO, string>
   indicadoresSGO!: Table<IndicadorSGO, string>
@@ -133,6 +136,11 @@ export class InelpaDB extends Dexie {
     // v1.53: metas y valores KPI por celda Area x Pilar.
     this.version(20).stores({
       indicadoresSGO: 'id, areaId, pilar, activo, periodo, [areaId+pilar]',
+    })
+    // v1.54: espejo local del maestro de datos técnicos, para que el laboratorio
+    // consulte los valores garantizados aunque la tablet quede sin señal.
+    this.version(21).stores({
+      datosTecnicos: 'id',
     })
   }
 }
