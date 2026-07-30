@@ -155,6 +155,7 @@ export default function SGOView() {
         areaId={celdaSeleccionada.area} pilarId={celdaSeleccionada.pilar}
         indicadores={indicadoresResueltos} eventos={eventos} acciones={acciones}
         datos={{ tareas, laboratorio, tareasLogistica, eventos, acciones }}
+        usuario={usuario?.usuario ?? 'sin_usuario'}
         onClose={() => setCeldaSeleccionada(undefined)}
         onFiltrarEventos={() => { setFiltroArea(celdaSeleccionada.area); setFiltroPilar(celdaSeleccionada.pilar); setCeldaSeleccionada(undefined) }}
         onOpenEvento={(id) => { setCeldaSeleccionada(undefined); setSeleccionadoId(id) }}

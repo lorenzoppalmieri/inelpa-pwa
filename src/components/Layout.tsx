@@ -3,6 +3,7 @@ import { useAuth } from '../auth/AuthContext'
 import { ROL_LABEL } from '../auth/roles'
 import { onSync, purgarColaSync, reintentarErroresSync, type EstadoSync } from '../sync/syncEngine'
 import CambiarPassword from './CambiarPassword'
+import BotonFullscreen from './ui/BotonFullscreen'
 
 // ============================================================
 // Semaforo de conexion (header). 4 estados pensados para planta (7.000 m2 con
@@ -79,6 +80,9 @@ export default function Layout({ children }: { children: ReactNode }) {
             <div style={{ fontWeight: 700, fontSize: '.9rem' }}>{usuario?.nombre}</div>
             <span className="rol-badge">{usuario ? ROL_LABEL[usuario.rol] : ''}</span>
           </div>
+          {/* v1.57: pantalla completa. Va antes de "Clave" para que quede a mano
+              en la tablet de planta sin competir con los botones de texto. */}
+          <BotonFullscreen />
           <button className="btn" style={{ minHeight: 44, padding: '0 14px' }} onClick={() => setVerCambioClave(true)} title="Cambiar mi contraseña">🔑 Clave</button>
           <button className="btn" style={{ minHeight: 44, padding: '0 14px' }} onClick={logout}>Salir</button>
         </div>

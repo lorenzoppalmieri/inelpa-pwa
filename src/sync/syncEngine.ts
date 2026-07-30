@@ -458,6 +458,12 @@ async function empujar(op: SyncOp): Promise<EmpujeResultado> {
   try {
     // Borrado fisico (solo gestion, via RLS). La tabla de cada entidad.
     if (op.tipo === 'delete') {
+      if (op.entidad === 'indicador_sgo') {
+        const { data, error } = await supabase.from('sgo_indicadores').delete().eq('id', op.entidadId).select('id')
+        if (error) return fallo('delete indicador_sgo', error.message)
+        if (!data?.length) return fallo('delete indicador_sgo', 'Supabase no eliminó el KPI. Verificar permiso exclusivo de Lorenzo y migración v1.59.')
+        return OK_EMPUJE
+      }
       const tabla = op.entidad === 'tarea' ? 'tareas'
         : op.entidad === 'orden' ? 'ordenes'
         : op.entidad === 'semielaborado' ? 'semielaborados'
@@ -474,7 +480,6 @@ async function empujar(op: SyncOp): Promise<EmpujeResultado> {
         : op.entidad === 'plantilla_recurrente' ? 'plantillas_recurrentes'
         : op.entidad === 'evento_sgo' ? 'sgo_eventos'
         : op.entidad === 'accion_sgo' ? 'sgo_acciones'
-        : op.entidad === 'indicador_sgo' ? 'sgo_indicadores'
         : 'paradas'
       const { error } = await supabase.from(tabla).delete().eq('id', op.entidadId)
       if (error) return fallo(`delete ${op.entidad}`, error.message)

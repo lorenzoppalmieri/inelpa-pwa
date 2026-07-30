@@ -1,6 +1,7 @@
 import { detalleKPIAutomatico, type DatosKPIAutomaticos, type RegistroDetalleKPI } from '../../sgo/kpiAutomaticos'
 import { estadoIndicador, periodoKPILabel, type EstadoSemaforo, type IndicadorSGO } from '../../sgo/indicadores'
 import { AREAS_SGO, PILARES_SGO, type AccionSGO, type AreaSGOId, type EventoSGO, type PilarSGO } from '../../sgo/types'
+import { eliminarIndicadorSGO } from '../../sync/syncEngine'
 
 const PALETA: Record<EstadoSemaforo, { color: string; fondo: string; label: string }> = {
   verde: { color: '#15803d', fondo: '#dcfce7', label: 'Conforme' },
@@ -21,13 +22,14 @@ function accionVencida(a: AccionSGO) {
   return !['verificada', 'cancelada'].includes(a.estado) && a.fechaCompromiso < new Date().toISOString().slice(0, 10)
 }
 
-export default function FichaCeldaSGO({ areaId, pilarId, indicadores, eventos, acciones, datos, onClose, onFiltrarEventos, onOpenEvento }: {
+export default function FichaCeldaSGO({ areaId, pilarId, indicadores, eventos, acciones, datos, usuario, onClose, onFiltrarEventos, onOpenEvento }: {
   areaId: AreaSGOId
   pilarId: PilarSGO
   indicadores: IndicadorSGO[]
   eventos: EventoSGO[]
   acciones: AccionSGO[]
   datos: DatosKPIAutomaticos
+  usuario: string
   onClose: () => void
   onFiltrarEventos: () => void
   onOpenEvento: (id: string) => void
@@ -79,7 +81,7 @@ export default function FichaCeldaSGO({ areaId, pilarId, indicadores, eventos, a
       <div className="section-title">Indicadores y explicación del resultado</div>
       {kpis.length === 0 ? <div className="empty">Esta celda todavía no tiene indicadores configurados. Los eventos y acciones igualmente afectan su semáforo.</div> :
         <div style={{ display: 'grid', gap: 12 }}>
-          {kpis.map((kpi) => <DetalleIndicador key={kpi.id} indicador={kpi} datos={datos} />)}
+          {kpis.map((kpi) => <DetalleIndicador key={kpi.id} indicador={kpi} datos={datos} usuario={usuario} />)}
         </div>}
 
       <div className="card" style={{ marginTop: 16 }}>
@@ -103,17 +105,25 @@ export default function FichaCeldaSGO({ areaId, pilarId, indicadores, eventos, a
   </div>
 }
 
-function DetalleIndicador({ indicador, datos }: { indicador: IndicadorSGO; datos: DatosKPIAutomaticos }) {
+function DetalleIndicador({ indicador, datos, usuario }: { indicador: IndicadorSGO; datos: DatosKPIAutomaticos; usuario: string }) {
   const estado = estadoIndicador(indicador)
   const paleta = PALETA[estado]
   const detalle = detalleKPIAutomatico(indicador, datos)
+  const puedeEliminar = usuario.trim().toLowerCase() === 'lorenzo'
+  async function eliminar() {
+    if (!puedeEliminar || !window.confirm(`¿Eliminar definitivamente el indicador "${indicador.nombre}"?`)) return
+    await eliminarIndicadorSGO(indicador)
+  }
   return <div className="card" style={{ borderLeft: `5px solid ${paleta.color}` }}>
     <div className="card-header">
       <div>
         <strong>{indicador.nombre}</strong>
         <div className="meta">{indicador.origen === 'automatico' ? '⚡ Cálculo automático' : 'Carga manual'} · {periodoKPILabel(indicador.periodo, indicador.frecuencia)}</div>
       </div>
-      <span className="estado-chip" style={{ color: paleta.color, background: paleta.fondo }}>{paleta.label}</span>
+      <div className="row-actions no-print">
+        <span className="estado-chip" style={{ color: paleta.color, background: paleta.fondo }}>{paleta.label}</span>
+        {puedeEliminar && <button className="btn" style={{ color: '#fca5a5', borderColor: '#ef4444' }} onClick={() => void eliminar()}>Eliminar KPI</button>}
+      </div>
     </div>
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(145px,1fr))', gap: 8, marginTop: 10 }}>
       <Dato label="Resultado" valor={formatoValor(indicador.valorActual, indicador.unidad)} destacado />

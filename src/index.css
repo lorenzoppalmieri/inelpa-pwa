@@ -972,3 +972,17 @@ body.admin-mode .content { max-width: none; padding: 12px 18px; }
   /* Grilla de causas de parada: una sola columna, botones grandes. */
   .causa-grid { grid-template-columns: 1fr; }
 }
+
+/* ---------- Botón de pantalla completa (v1.57) ---------- */
+/* Cuadrado, solo icono, alineado con los botones de texto del header. */
+.btn-fs {
+  min-height: 44px; width: 44px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  flex: 0 0 auto;
+}
+.btn-fs.activo { color: var(--azul-claro); border-color: var(--azul-claro); }
+@media (max-width: 768px) {
+  /* En celular el header es angosto: se achica igual que los demás botones. */
+  .btn-fs { min-height: 40px; width: 40px; }
+  .btn-fs svg { width: 18px; height: 18px; }
+}
