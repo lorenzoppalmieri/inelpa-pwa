@@ -43,6 +43,37 @@ export interface CostoNoCalidad {
   terceros: number
 }
 
+export interface DatosSeguridadSGO {
+  fechaHoraHecho: string
+  lugarExacto: string
+  turno?: 'manana' | 'tarde' | 'noche' | 'otro'
+  tareaActividad: string
+  personaAfectada?: string
+  legajoDni?: string
+  puesto?: string
+  personasInvolucradas?: string
+  colaboradorObservado?: string
+  testigos?: string
+  tipoObservacion?: 'segura' | 'insegura'
+  resultadoPersona?: 'sin_lesion' | 'primeros_auxilios' | 'atencion_medica' | 'baja'
+  tipoLesion?: string
+  parteCuerpo?: string
+  atencionBrindada?: string
+  derivadoA?: string
+  denunciaART?: boolean
+  nroSiniestroART?: string
+  diasPerdidos?: number
+  equipoInvolucrado?: string
+  eppRequerido?: string
+  eppUtilizado?: string
+  condicionObservada?: string
+  factoresContribuyentes?: string
+  consecuenciaPotencial?: string
+  accionInmediata?: string
+  sectorAislado?: boolean
+  notificadoA?: string
+}
+
 export function costoNoCalidadTotal(c?: Partial<CostoNoCalidad>): number {
   return (c?.material ?? 0) + (c?.manoObra ?? 0) + (c?.maquina ?? 0) +
     (c?.ensayos ?? 0) + (c?.logistica ?? 0) + (c?.terceros ?? 0)
@@ -77,6 +108,7 @@ export interface EventoSGO {
   cantidadAfectada?: number
   costoEstimado?: number
   costoDetalle?: CostoNoCalidad
+  seguridad?: DatosSeguridadSGO
   causaRaiz?: string
   metodoAnalisis?: '5_porques' | 'ishikawa' | 'a3' | '8d' | 'otro'
   evidenciaUrls?: string[]
@@ -140,9 +172,9 @@ export function areaSGOLabel(id?: string): string {
 
 export const TIPOS_EVENTO_SGO: { id: TipoEventoSGO; label: string; pilar: PilarSGO }[] = [
   { id: 'no_conformidad', label: 'No conformidad', pilar: 'calidad' },
-  { id: 'incidente_seguridad', label: 'Incidente de seguridad', pilar: 'seguridad' },
+  { id: 'incidente_seguridad', label: 'Accidente / incidente de seguridad', pilar: 'seguridad' },
   { id: 'cuasi_accidente', label: 'Cuasi accidente', pilar: 'seguridad' },
-  { id: 'observacion_preventiva', label: 'Observacion preventiva', pilar: 'seguridad' },
+  { id: 'observacion_preventiva', label: 'Observación preventiva', pilar: 'seguridad' },
   { id: 'incidente_ambiental', label: 'Incidente ambiental', pilar: 'ambiente' },
   { id: 'desvio_entrega', label: 'Desvio de entrega', pilar: 'entrega' },
   { id: 'perdida_costo', label: 'Perdida de costo', pilar: 'costos' },

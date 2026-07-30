@@ -682,6 +682,10 @@ export async function guardarIndicadorSGO(i: IndicadorSGO): Promise<void> {
   await db.indicadoresSGO.put(i)
   await encolar({ entidad: 'indicador_sgo', entidadId: i.id, tipo: 'upsert', payload: i })
 }
+export async function eliminarIndicadorSGO(i: IndicadorSGO): Promise<void> {
+  await db.indicadoresSGO.delete(i.id)
+  await encolar({ entidad: 'indicador_sgo', entidadId: i.id, tipo: 'delete', payload: { id: i.id } })
+}
 
 // v1.39: plantillas de tareas recurrentes (las administra Giuliano).
 export async function guardarPlantilla(p: PlantillaRecurrente): Promise<void> {

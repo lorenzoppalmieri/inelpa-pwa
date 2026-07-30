@@ -11,7 +11,7 @@ import { resolverKPIAutomaticos } from '../../sgo/kpiAutomaticos'
 import {
   AREAS_SGO, PILARES_SGO, TIPOS_EVENTO_SGO, areaSGOLabel, codigoEventoSGO, costoNoCalidadTotal,
   type AccionSGO, type EstadoEventoSGO, type EventoSGO,
-  type AreaSGOId, type CostoNoCalidad, type PilarSGO, type SeveridadSGO, type TipoAccionSGO, type TipoEventoSGO,
+  type AreaSGOId, type CostoNoCalidad, type DatosSeguridadSGO, type PilarSGO, type SeveridadSGO, type TipoAccionSGO, type TipoEventoSGO,
 } from '../../sgo/types'
 
 const ESTADOS_EVENTO: { id: EstadoEventoSGO; label: string }[] = [
@@ -26,6 +26,10 @@ const SEVERIDADES: { id: SeveridadSGO; label: string }[] = [
 ]
 
 const hoy = () => new Date().toISOString().slice(0, 10)
+const ahoraLocal = () => {
+  const d = new Date()
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+}
 const fechaMasDias = (dias: number) => {
   const d = new Date(); d.setDate(d.getDate() + dias); return d.toISOString().slice(0, 10)
 }
@@ -167,13 +171,21 @@ function NuevoEvento({ usuario, onClose, onCreado }: { usuario: string; onClose:
   const [defectoCodigo, setDefectoCodigo] = useState('')
   const [cantidad, setCantidad] = useState('1')
   const [costos, setCostos] = useState<CostoNoCalidad>({ material: 0, manoObra: 0, maquina: 0, ensayos: 0, logistica: 0, terceros: 0 })
+  const [seguridad, setSeguridad] = useState<DatosSeguridadSGO>({ fechaHoraHecho: ahoraLocal(), lugarExacto: '', tareaActividad: '' })
   const [guardando, setGuardando] = useState(false)
   const tipoDef = TIPOS_EVENTO_SGO.find((t) => t.id === tipo)!
   const esNC = tipo === 'no_conformidad'
+  const esSeguridad = tipoDef.pilar === 'seguridad'
+  const seguridadValida = !esSeguridad || (
+    Boolean(seguridad.fechaHoraHecho && seguridad.lugarExacto.trim() && seguridad.tareaActividad.trim()) &&
+    (tipo !== 'incidente_seguridad' || Boolean(seguridad.personaAfectada?.trim() && seguridad.resultadoPersona)) &&
+    (tipo !== 'cuasi_accidente' || Boolean(seguridad.consecuenciaPotencial?.trim())) &&
+    (tipo !== 'observacion_preventiva' || Boolean(seguridad.tipoObservacion && seguridad.condicionObservada?.trim()))
+  )
   const defectos = defectosParaArea(areaOrigenId || undefined)
 
   async function guardar() {
-    if (!titulo.trim() || !descripcion.trim() || !areaId || (esNC && (!areaOrigenId || !defectoCodigo))) return
+    if (!titulo.trim() || !descripcion.trim() || !areaId || !seguridadValida || (esNC && (!areaOrigenId || !defectoCodigo))) return
     setGuardando(true)
     const id = crypto.randomUUID(), now = new Date().toISOString()
     const e: EventoSGO = {
@@ -184,6 +196,7 @@ function NuevoEvento({ usuario, onClose, onCreado }: { usuario: string; onClose:
       defectoCodigo: esNC ? defectoCodigo || undefined : undefined,
       cantidadAfectada: esNC ? Number(cantidad) || 1 : undefined,
       costoDetalle: esNC ? costos : undefined, costoEstimado: esNC ? costoNoCalidadTotal(costos) : undefined,
+      seguridad: esSeguridad ? seguridad : undefined,
       detectadoEn: now, detectadoPor: usuario, responsable: responsable.trim() || undefined,
       creadoEn: now, actualizadoEn: now,
     }
@@ -193,14 +206,15 @@ function NuevoEvento({ usuario, onClose, onCreado }: { usuario: string; onClose:
 
   return <Modal titulo="Registrar evento SGO" onClose={onClose}>
     <div className="field"><label>Tipo de evento *</label><select className="input" value={tipo} onChange={(e) => setTipo(e.target.value as TipoEventoSGO)}>{TIPOS_EVENTO_SGO.map((t) => <option key={t.id} value={t.id}>{t.label} · {PILARES_SGO.find((p) => p.id === t.pilar)?.label}</option>)}</select></div>
-    <div className="field"><label>Título *</label><input className="input" value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Ej. Diámetro exterior fuera de tolerancia" /></div>
-    <div className="field"><label>Descripción del hecho *</label><textarea className="input" rows={4} value={descripcion} onChange={(e) => setDescripcion(e.target.value)} placeholder="Qué ocurrió, dónde se detectó y qué producto o proceso está afectado" /></div>
+    <div className="field"><label>Título *</label><input className="input" value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder={esSeguridad ? 'Ej. Caída al mismo nivel en sector Pintura' : 'Ej. Diámetro exterior fuera de tolerancia'} /></div>
+    <div className="field"><label>{esSeguridad ? 'Relato objetivo del hecho *' : 'Descripción del hecho *'}</label><textarea className="input" rows={4} value={descripcion} onChange={(e) => setDescripcion(e.target.value)} placeholder={esSeguridad ? 'Describir hechos comprobables: qué ocurrió, cómo y en qué secuencia, sin asignar culpas' : 'Qué ocurrió, dónde se detectó y qué producto o proceso está afectado'} /></div>
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 10 }}>
-      <div className="field"><label>Severidad</label><select className="input" value={severidad} onChange={(e) => setSeveridad(e.target.value as SeveridadSGO)}>{SEVERIDADES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}</select></div>
+      <div className="field"><label>{esSeguridad ? 'Gravedad real / potencial' : 'Severidad'}</label><select className="input" value={severidad} onChange={(e) => setSeveridad(e.target.value as SeveridadSGO)}>{SEVERIDADES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}</select></div>
       <div className="field"><label>{esNC ? 'Área donde se detectó *' : 'Área *'}</label><select className="input" value={areaId} onChange={(e) => setAreaId(e.target.value as AreaSGOId | '')}><option value="">Seleccionar área</option>{AREAS_SGO.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}</select></div>
-      <div className="field"><label>N° serie / identificación</label><input className="input" value={nroSerie} onChange={(e) => setNroSerie(e.target.value)} /></div>
+      {!esSeguridad && <div className="field"><label>N° serie / identificación</label><input className="input" value={nroSerie} onChange={(e) => setNroSerie(e.target.value)} /></div>}
       <div className="field"><label>Responsable inicial</label><input className="input" value={responsable} onChange={(e) => setResponsable(e.target.value)} placeholder="Nico, Azul, supervisor…" /></div>
     </div>
+    {esSeguridad && <FichaAltaSeguridad tipo={tipo} datos={seguridad} onChange={setSeguridad} />}
     {esNC && <div className="card" style={{ marginTop: 10, borderLeft: '4px solid #2563eb' }}>
       <div className="section-title" style={{ marginTop: 0 }}>Datos de la no conformidad</div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(190px,1fr))', gap: 10 }}>
@@ -211,8 +225,70 @@ function NuevoEvento({ usuario, onClose, onCreado }: { usuario: string; onClose:
       </div>
       <CostosEditor costos={costos} onChange={setCostos} />
     </div>}
-    <div className="row-actions" style={{ justifyContent: 'flex-end', marginTop: 14 }}><button className="btn" onClick={onClose}>Cancelar</button><button className="btn btn-primary" disabled={guardando || !titulo.trim() || !descripcion.trim() || !areaId || (esNC && (!areaOrigenId || !defectoCodigo))} onClick={() => void guardar()}>{guardando ? 'Guardando…' : 'Registrar'}</button></div>
+    <div className="row-actions" style={{ justifyContent: 'flex-end', marginTop: 14 }}><button className="btn" onClick={onClose}>Cancelar</button><button className="btn btn-primary" disabled={guardando || !titulo.trim() || !descripcion.trim() || !areaId || !seguridadValida || (esNC && (!areaOrigenId || !defectoCodigo))} onClick={() => void guardar()}>{guardando ? 'Guardando…' : 'Registrar'}</button></div>
   </Modal>
+}
+
+function FichaAltaSeguridad({ tipo, datos, onChange }: { tipo: TipoEventoSGO; datos: DatosSeguridadSGO; onChange: (d: DatosSeguridadSGO) => void }) {
+  const set = <K extends keyof DatosSeguridadSGO>(campo: K, valor: DatosSeguridadSGO[K]) => onChange({ ...datos, [campo]: valor })
+  return <>
+    <div className="card" style={{ marginTop: 10, borderLeft: '4px solid #dc2626' }}>
+      <div className="section-title" style={{ marginTop: 0 }}>1. Datos del hecho</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(190px,1fr))', gap: 10 }}>
+        <div className="field"><label>Fecha y hora del hecho *</label><input className="input" type="datetime-local" value={datos.fechaHoraHecho} onChange={(e) => set('fechaHoraHecho', e.target.value)} /></div>
+        <div className="field"><label>Lugar exacto *</label><input className="input" value={datos.lugarExacto} onChange={(e) => set('lugarExacto', e.target.value)} placeholder="Máquina, línea, pasillo o puesto" /></div>
+        <div className="field"><label>Turno</label><select className="input" value={datos.turno ?? ''} onChange={(e) => set('turno', (e.target.value || undefined) as DatosSeguridadSGO['turno'])}><option value="">Sin indicar</option><option value="manana">Mañana</option><option value="tarde">Tarde</option><option value="noche">Noche</option><option value="otro">Otro</option></select></div>
+      </div>
+      <div className="field"><label>Tarea / actividad que se realizaba *</label><input className="input" value={datos.tareaActividad} onChange={(e) => set('tareaActividad', e.target.value)} placeholder="Operación concreta en curso al momento del hecho" /></div>
+      <div className="field"><label>Máquina, equipo, herramienta o sustancia involucrada</label><input className="input" value={datos.equipoInvolucrado ?? ''} onChange={(e) => set('equipoInvolucrado', e.target.value)} /></div>
+    </div>
+
+    {tipo === 'incidente_seguridad' && <div className="card" style={{ marginTop: 10, borderLeft: '4px solid #ef4444' }}>
+      <div className="section-title" style={{ marginTop: 0 }}>2. Persona afectada y consecuencia</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(190px,1fr))', gap: 10 }}>
+        <div className="field"><label>Nombre del colaborador afectado *</label><input className="input" value={datos.personaAfectada ?? ''} onChange={(e) => set('personaAfectada', e.target.value)} /></div>
+        <div className="field"><label>Legajo / DNI</label><input className="input" value={datos.legajoDni ?? ''} onChange={(e) => set('legajoDni', e.target.value)} /></div>
+        <div className="field"><label>Puesto habitual</label><input className="input" value={datos.puesto ?? ''} onChange={(e) => set('puesto', e.target.value)} /></div>
+        <div className="field"><label>Resultado para la persona *</label><select className="input" value={datos.resultadoPersona ?? ''} onChange={(e) => set('resultadoPersona', (e.target.value || undefined) as DatosSeguridadSGO['resultadoPersona'])}><option value="">Seleccionar</option><option value="sin_lesion">Sin lesión</option><option value="primeros_auxilios">Primeros auxilios</option><option value="atencion_medica">Atención médica</option><option value="baja">Baja / días perdidos</option></select></div>
+        <div className="field"><label>Tipo de lesión</label><input className="input" value={datos.tipoLesion ?? ''} onChange={(e) => set('tipoLesion', e.target.value)} placeholder="Corte, golpe, quemadura…" /></div>
+        <div className="field"><label>Parte del cuerpo afectada</label><input className="input" value={datos.parteCuerpo ?? ''} onChange={(e) => set('parteCuerpo', e.target.value)} /></div>
+        <div className="field"><label>Atención brindada</label><input className="input" value={datos.atencionBrindada ?? ''} onChange={(e) => set('atencionBrindada', e.target.value)} /></div>
+        <div className="field"><label>Derivado a</label><input className="input" value={datos.derivadoA ?? ''} onChange={(e) => set('derivadoA', e.target.value)} placeholder="Prestador / centro médico" /></div>
+        <div className="field"><label>N° de siniestro ART</label><input className="input" value={datos.nroSiniestroART ?? ''} onChange={(e) => set('nroSiniestroART', e.target.value)} /></div>
+        <div className="field"><label>Días perdidos</label><input className="input" type="number" min="0" value={datos.diasPerdidos ?? ''} onChange={(e) => set('diasPerdidos', e.target.value === '' ? undefined : Math.max(0, Number(e.target.value)))} /></div>
+      </div>
+      <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}><input type="checkbox" checked={datos.denunciaART ?? false} onChange={(e) => set('denunciaART', e.target.checked)} /> Denuncia a la ART realizada</label>
+    </div>}
+
+    {tipo === 'cuasi_accidente' && <div className="card" style={{ marginTop: 10, borderLeft: '4px solid #f59e0b' }}>
+      <div className="section-title" style={{ marginTop: 0 }}>2. Exposición y consecuencia potencial</div>
+      <div className="field"><label>Personas involucradas o expuestas</label><input className="input" value={datos.personasInvolucradas ?? ''} onChange={(e) => set('personasInvolucradas', e.target.value)} /></div>
+      <div className="field"><label>Qué podría haber ocurrido *</label><textarea className="input" rows={2} value={datos.consecuenciaPotencial ?? ''} onChange={(e) => set('consecuenciaPotencial', e.target.value)} placeholder="Lesión o daño potencial si la secuencia hubiera continuado" /></div>
+    </div>}
+
+    {tipo === 'observacion_preventiva' && <div className="card" style={{ marginTop: 10, borderLeft: '4px solid #f59e0b' }}>
+      <div className="section-title" style={{ marginTop: 0 }}>2. Observación preventiva</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(190px,1fr))', gap: 10 }}>
+        <div className="field"><label>Tipo de observación *</label><select className="input" value={datos.tipoObservacion ?? ''} onChange={(e) => set('tipoObservacion', (e.target.value || undefined) as DatosSeguridadSGO['tipoObservacion'])}><option value="">Seleccionar</option><option value="segura">Práctica segura para reconocer</option><option value="insegura">Condición / práctica a corregir</option></select></div>
+        <div className="field"><label>Colaborador / equipo observado</label><input className="input" value={datos.colaboradorObservado ?? ''} onChange={(e) => set('colaboradorObservado', e.target.value)} /></div>
+      </div>
+      <div className="field"><label>Condición o práctica observada *</label><textarea className="input" rows={2} value={datos.condicionObservada ?? ''} onChange={(e) => set('condicionObservada', e.target.value)} /></div>
+      <div className="field"><label>Riesgo o beneficio potencial</label><textarea className="input" rows={2} value={datos.consecuenciaPotencial ?? ''} onChange={(e) => set('consecuenciaPotencial', e.target.value)} /></div>
+    </div>}
+
+    <div className="card" style={{ marginTop: 10, borderLeft: '4px solid #dc2626' }}>
+      <div className="section-title" style={{ marginTop: 0 }}>3. Evidencias y control inmediato</div>
+      <div className="field"><label>Testigos</label><input className="input" value={datos.testigos ?? ''} onChange={(e) => set('testigos', e.target.value)} placeholder="Nombre y contacto interno, si corresponde" /></div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(210px,1fr))', gap: 10 }}>
+        <div className="field"><label>EPP requerido</label><input className="input" value={datos.eppRequerido ?? ''} onChange={(e) => set('eppRequerido', e.target.value)} /></div>
+        <div className="field"><label>EPP efectivamente utilizado</label><input className="input" value={datos.eppUtilizado ?? ''} onChange={(e) => set('eppUtilizado', e.target.value)} /></div>
+      </div>
+      <div className="field"><label>Factores contribuyentes observados</label><textarea className="input" rows={2} value={datos.factoresContribuyentes ?? ''} onChange={(e) => set('factoresContribuyentes', e.target.value)} placeholder="Condiciones, organización, método, equipo o entorno; registrar hechos sin asignar culpas" /></div>
+      <div className="field"><label>Acción inmediata adoptada</label><textarea className="input" rows={2} value={datos.accionInmediata ?? ''} onChange={(e) => set('accionInmediata', e.target.value)} placeholder="Atención, detención, aislamiento, señalización o corrección realizada" /></div>
+      <div className="field"><label>Personas notificadas</label><input className="input" value={datos.notificadoA ?? ''} onChange={(e) => set('notificadoA', e.target.value)} placeholder="Supervisor, HyS, Gerencia, ART…" /></div>
+      <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}><input type="checkbox" checked={datos.sectorAislado ?? false} onChange={(e) => set('sectorAislado', e.target.checked)} /> Sector / equipo aislado o puesto fuera de servicio</label>
+    </div>
+  </>
 }
 
 function DetalleEvento({ evento, acciones, usuario, onClose }: { evento: EventoSGO; acciones: AccionSGO[]; usuario: string; onClose: () => void }) {
@@ -247,6 +323,7 @@ function DetalleEvento({ evento, acciones, usuario, onClose }: { evento: EventoS
       <div className="field"><label>Estado</label><select className="input" value={estado} onChange={(e) => setEstado(e.target.value as EstadoEventoSGO)}>{ESTADOS_EVENTO.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}</select></div>
       <div className="field"><label>Responsable</label><input className="input" value={evento.responsable ?? ''} disabled /></div>
     </div>
+    {evento.pilar === 'seguridad' && <FichaDetalleSeguridad tipo={evento.tipo} datos={evento.seguridad} />}
     {evento.tipo === 'no_conformidad' && <div className="card" style={{ marginBottom: 10, borderLeft: '4px solid #2563eb' }}>
       <div className="section-title" style={{ marginTop: 0 }}>Ficha de no conformidad</div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: 10 }}>
@@ -267,6 +344,62 @@ function DetalleEvento({ evento, acciones, usuario, onClose }: { evento: EventoS
     <button className="btn" style={{ marginTop: 10 }} onClick={() => setNuevaAccion(true)}>+ Agregar acción</button>
     {nuevaAccion && <NuevaAccion evento={evento} usuario={usuario} onClose={() => setNuevaAccion(false)} />}
   </Modal>
+}
+
+function FichaDetalleSeguridad({ tipo, datos }: { tipo: TipoEventoSGO; datos?: DatosSeguridadSGO }) {
+  if (!datos) return <div className="card" style={{ marginBottom: 10, borderLeft: '4px solid #f59e0b' }}>
+    <strong>Evento histórico sin ficha HyS estructurada.</strong>
+    <div className="meta">Fue creado antes de incorporar el nuevo formulario de Seguridad.</div>
+  </div>
+  const resultados: Record<string, string> = { sin_lesion: 'Sin lesión', primeros_auxilios: 'Primeros auxilios', atencion_medica: 'Atención médica', baja: 'Baja / días perdidos' }
+  const turnos: Record<string, string> = { manana: 'Mañana', tarde: 'Tarde', noche: 'Noche', otro: 'Otro' }
+  const resultado = datos.resultadoPersona ? resultados[datos.resultadoPersona] : undefined
+  const turno = datos.turno ? turnos[datos.turno] : undefined
+  const tipoObs = datos.tipoObservacion === 'segura' ? 'Práctica segura' : datos.tipoObservacion === 'insegura' ? 'Condición / práctica a corregir' : undefined
+  return <div className="card" style={{ marginBottom: 10, borderLeft: '4px solid #dc2626' }}>
+    <div className="section-title" style={{ marginTop: 0 }}>Ficha de Higiene y Seguridad</div>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(190px,1fr))', gap: 8 }}>
+      <DatoFicha label="Fecha y hora del hecho" valor={datos.fechaHoraHecho ? fechaHora(datos.fechaHoraHecho) : undefined} />
+      <DatoFicha label="Lugar exacto" valor={datos.lugarExacto} />
+      <DatoFicha label="Turno" valor={turno} />
+      <DatoFicha label="Tarea / actividad" valor={datos.tareaActividad} />
+      <DatoFicha label="Equipo / herramienta / sustancia" valor={datos.equipoInvolucrado} />
+      {tipo === 'incidente_seguridad' && <>
+        <DatoFicha label="Colaborador afectado" valor={datos.personaAfectada} />
+        <DatoFicha label="Legajo / DNI" valor={datos.legajoDni} />
+        <DatoFicha label="Puesto habitual" valor={datos.puesto} />
+        <DatoFicha label="Resultado" valor={resultado} />
+        <DatoFicha label="Tipo de lesión" valor={datos.tipoLesion} />
+        <DatoFicha label="Parte del cuerpo" valor={datos.parteCuerpo} />
+        <DatoFicha label="Atención brindada" valor={datos.atencionBrindada} />
+        <DatoFicha label="Derivado a" valor={datos.derivadoA} />
+        <DatoFicha label="Denuncia ART" valor={datos.denunciaART ? 'Sí' : 'No'} />
+        <DatoFicha label="N° siniestro ART" valor={datos.nroSiniestroART} />
+        <DatoFicha label="Días perdidos" valor={datos.diasPerdidos?.toString()} />
+      </>}
+      {tipo === 'cuasi_accidente' && <DatoFicha label="Personas expuestas" valor={datos.personasInvolucradas} />}
+      {tipo === 'observacion_preventiva' && <>
+        <DatoFicha label="Tipo de observación" valor={tipoObs} />
+        <DatoFicha label="Colaborador / equipo observado" valor={datos.colaboradorObservado} />
+        <DatoFicha label="Condición o práctica" valor={datos.condicionObservada} />
+      </>}
+      <DatoFicha label={tipo === 'observacion_preventiva' ? 'Riesgo / beneficio potencial' : 'Consecuencia potencial'} valor={datos.consecuenciaPotencial} />
+      <DatoFicha label="Testigos" valor={datos.testigos} />
+      <DatoFicha label="EPP requerido" valor={datos.eppRequerido} />
+      <DatoFicha label="EPP utilizado" valor={datos.eppUtilizado} />
+      <DatoFicha label="Factores contribuyentes" valor={datos.factoresContribuyentes} />
+      <DatoFicha label="Acción inmediata" valor={datos.accionInmediata} />
+      <DatoFicha label="Personas notificadas" valor={datos.notificadoA} />
+      <DatoFicha label="Sector / equipo aislado" valor={datos.sectorAislado ? 'Sí' : 'No'} />
+    </div>
+  </div>
+}
+
+function DatoFicha({ label, valor }: { label: string; valor?: string }) {
+  return <div style={{ padding: 9, border: '1px solid var(--borde)', borderRadius: 8 }}>
+    <div className="meta">{label}</div>
+    <div style={{ fontWeight: 750, whiteSpace: 'pre-wrap' }}>{valor?.trim() || 'No informado'}</div>
+  </div>
 }
 
 const CAMPOS_COSTO: { key: keyof CostoNoCalidad; label: string }[] = [

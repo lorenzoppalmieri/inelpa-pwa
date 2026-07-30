@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { guardarIndicadorSGO } from '../../sync/syncEngine'
+import { eliminarIndicadorSGO, guardarIndicadorSGO } from '../../sync/syncEngine'
 import { AREAS_SGO, PILARES_SGO, type AreaSGOId, type PilarSGO } from '../../sgo/types'
-import { KPI_SUGERIDOS, configuracionUmbralValida, estadoIndicador, type DireccionKPI, type IndicadorSGO } from '../../sgo/indicadores'
+import { FRECUENCIAS_KPI, KPI_SUGERIDOS, configuracionUmbralValida, estadoIndicador, normalizarPeriodoKPI, periodoKPILabel, type DireccionKPI, type FrecuenciaKPI, type IndicadorSGO } from '../../sgo/indicadores'
 import { plantillasKPIAutomaticos } from '../../sgo/kpiAutomaticos'
 
 const periodoActual = () => new Date().toISOString().slice(0, 7)
+const esLorenzo = (usuario: string) => usuario.trim().toLowerCase() === 'lorenzo'
 
 export default function IndicadoresSGO({ indicadores, usuario, onClose }: { indicadores: IndicadorSGO[]; usuario: string; onClose: () => void }) {
   const [area, setArea] = useState<AreaSGOId>('bobinado_distribucion')
@@ -16,6 +17,7 @@ export default function IndicadoresSGO({ indicadores, usuario, onClose }: { indi
   const [amarillo, setAmarillo] = useState('90')
   const [valor, setValor] = useState('')
   const [periodo, setPeriodo] = useState(periodoActual())
+  const [frecuencia, setFrecuencia] = useState<FrecuenciaKPI>('mensual')
 
   function aplicarSugerencia(v: string) {
     setNombre(v)
@@ -27,7 +29,7 @@ export default function IndicadoresSGO({ indicadores, usuario, onClose }: { indi
     const i: IndicadorSGO = {
       id: crypto.randomUUID(), areaId: area, pilar, nombre: nombre.trim(), unidad: unidad.trim(), direccion,
       meta: Number(meta), umbralAmarillo: Number(amarillo), valorActual: valor === '' ? undefined : Number(valor),
-      periodo, activo: true, actualizadoEn: new Date().toISOString(), actualizadoPor: usuario,
+      periodo: normalizarPeriodoKPI(periodo, frecuencia), frecuencia, activo: true, actualizadoEn: new Date().toISOString(), actualizadoPor: usuario,
       origen: 'manual',
     }
     if (!i.nombre || !i.unidad || !Number.isFinite(i.meta) || !Number.isFinite(i.umbralAmarillo) || !configuracionUmbralValida(i)) {
@@ -59,7 +61,7 @@ export default function IndicadoresSGO({ indicadores, usuario, onClose }: { indi
     </div>
 
     <div className="section-title">Indicadores configurados ({visibles.length})</div>
-    {visibles.length === 0 ? <div className="empty">Esta celda todavía no tiene KPI. Permanecerá gris.</div> : visibles.map((i) => <IndicadorFila key={i.id} indicador={i} usuario={usuario} />)}
+    {visibles.length === 0 ? <div className="empty">Esta celda todavía no tiene KPI. Permanecerá gris.</div> : visibles.map((i) => <IndicadorFila key={i.id} indicador={i} usuario={usuario} puedeEliminar={esLorenzo(usuario)} />)}
 
     <div className="card" style={{ marginTop: 14, borderLeft: '4px solid #2563eb' }}>
       <div className="section-title" style={{ marginTop: 0 }}>Nuevo indicador</div>
@@ -70,32 +72,41 @@ export default function IndicadoresSGO({ indicadores, usuario, onClose }: { indi
         <div className="field"><label>Meta verde</label><input className="input" type="number" value={meta} onChange={(e) => setMeta(e.target.value)} /></div>
         <div className="field"><label>Umbral amarillo</label><input className="input" type="number" value={amarillo} onChange={(e) => setAmarillo(e.target.value)} /></div>
         <div className="field"><label>Valor actual</label><input className="input" type="number" value={valor} onChange={(e) => setValor(e.target.value)} placeholder="Sin dato" /></div>
-        <div className="field"><label>Período</label><input className="input" type="month" value={periodo} onChange={(e) => setPeriodo(e.target.value)} /></div>
+        <div className="field"><label>Periodicidad</label><select className="input" value={frecuencia} onChange={(e) => setFrecuencia(e.target.value as FrecuenciaKPI)}>{FRECUENCIAS_KPI.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}</select></div>
+        <div className="field"><label>Mes de referencia</label><input className="input" type="month" value={periodo} onChange={(e) => setPeriodo(e.target.value)} /></div>
       </div>
+      <div className="meta" style={{ marginTop: 8 }}>Período que se medirá: <strong>{periodoKPILabel(periodo, frecuencia)}</strong>.</div>
       <div className="row-actions" style={{ justifyContent: 'flex-end' }}><button className="btn btn-primary" onClick={() => void crear()}>Crear indicador</button></div>
     </div>
   </div></div>
 }
 
-function IndicadorFila({ indicador: i, usuario }: { indicador: IndicadorSGO; usuario: string }) {
+function IndicadorFila({ indicador: i, usuario, puedeEliminar }: { indicador: IndicadorSGO; usuario: string; puedeEliminar: boolean }) {
   const [valor, setValor] = useState(i.valorActual?.toString() ?? '')
   const [meta, setMeta] = useState(i.meta.toString())
   const [amarillo, setAmarillo] = useState(i.umbralAmarillo.toString())
   const [periodo, setPeriodo] = useState(i.periodo)
+  const [frecuencia, setFrecuencia] = useState<FrecuenciaKPI>(i.frecuencia ?? 'mensual')
   async function actualizar() {
-    const nuevo = { ...i, valorActual: i.origen === 'automatico' ? undefined : valor === '' ? undefined : Number(valor), meta: Number(meta), umbralAmarillo: Number(amarillo), periodo, actualizadoEn: new Date().toISOString(), actualizadoPor: usuario }
+    const nuevo = { ...i, valorActual: i.origen === 'automatico' ? undefined : valor === '' ? undefined : Number(valor), meta: Number(meta), umbralAmarillo: Number(amarillo), periodo: normalizarPeriodoKPI(periodo, frecuencia), frecuencia, actualizadoEn: new Date().toISOString(), actualizadoPor: usuario }
     if (!configuracionUmbralValida(nuevo)) { window.alert(i.direccion === 'mayor_mejor' ? 'El amarillo debe ser ≤ meta.' : 'El amarillo debe ser ≥ meta.'); return }
     await guardarIndicadorSGO(nuevo)
   }
   async function alternar() { await guardarIndicadorSGO({ ...i, activo: !i.activo, actualizadoEn: new Date().toISOString(), actualizadoPor: usuario }) }
+  async function eliminar() {
+    if (!puedeEliminar || !window.confirm(`¿Eliminar definitivamente el indicador "${i.nombre}"? Esta acción no se puede deshacer.`)) return
+    await eliminarIndicadorSGO(i)
+  }
   return <div className="card" style={{ marginBottom: 8, opacity: i.activo ? 1 : .6 }}>
-    <div className="card-header"><div><strong>{i.nombre}</strong><div className="meta">{i.origen === 'automatico' ? '⚡ Automático' : 'Manual'} · {i.direccion === 'mayor_mejor' ? 'Mayor es mejor' : 'Menor es mejor'} · Estado: {estadoIndicador({ ...i, valorActual: valor === '' ? undefined : Number(valor), meta: Number(meta), umbralAmarillo: Number(amarillo) })}</div></div><button className="btn" onClick={() => void alternar()}>{i.activo ? 'Desactivar' : 'Activar'}</button></div>
+    <div className="card-header"><div><strong>{i.nombre}</strong><div className="meta">{i.origen === 'automatico' ? '⚡ Automático' : 'Manual'} · {i.direccion === 'mayor_mejor' ? 'Mayor es mejor' : 'Menor es mejor'} · Estado: {estadoIndicador({ ...i, valorActual: valor === '' ? undefined : Number(valor), meta: Number(meta), umbralAmarillo: Number(amarillo) })}</div></div><div className="row-actions"><button className="btn" onClick={() => void alternar()}>{i.activo ? 'Desactivar' : 'Activar'}</button>{puedeEliminar && <button className="btn" style={{ color: 'var(--rojo)', borderColor: 'var(--rojo)' }} onClick={() => void eliminar()}>Eliminar</button>}</div></div>
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(120px,1fr))', gap: 8 }}>
       <div className="field"><label>Actual ({i.unidad})</label><input className="input" type="number" value={valor} disabled={i.origen === 'automatico'} onChange={(e) => setValor(e.target.value)} placeholder={i.origen === 'automatico' ? 'Calculado por el sistema' : ''} /></div>
       <div className="field"><label>Meta verde</label><input className="input" type="number" value={meta} onChange={(e) => setMeta(e.target.value)} /></div>
       <div className="field"><label>Umbral amarillo</label><input className="input" type="number" value={amarillo} onChange={(e) => setAmarillo(e.target.value)} /></div>
-      <div className="field"><label>Período</label><input className="input" type="month" value={periodo} onChange={(e) => setPeriodo(e.target.value)} /></div>
+      <div className="field"><label>Periodicidad</label><select className="input" value={frecuencia} onChange={(e) => setFrecuencia(e.target.value as FrecuenciaKPI)}>{FRECUENCIAS_KPI.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}</select></div>
+      <div className="field"><label>Mes de referencia</label><input className="input" type="month" value={periodo} onChange={(e) => setPeriodo(e.target.value)} /></div>
     </div>
+    <div className="meta" style={{ marginTop: 7 }}>Mide: <strong>{periodoKPILabel(periodo, frecuencia)}</strong>.</div>
     <div className="row-actions" style={{ justifyContent: 'flex-end' }}><button className="btn btn-primary" onClick={() => void actualizar()}>Actualizar KPI</button></div>
   </div>
 }

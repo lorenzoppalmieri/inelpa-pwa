@@ -184,6 +184,7 @@ export interface EventoSGORow {
   cantidad_afectada: number | null
   costo_estimado: number | null
   costo_detalle: EventoSGO['costoDetalle'] | null
+  seguridad: EventoSGO['seguridad'] | null
   causa_raiz: string | null
   metodo_analisis: string | null
   evidencia_urls: string[] | null
@@ -226,6 +227,7 @@ export interface IndicadorSGORow {
   origen: string | null
   clave_calculo: string | null
   periodo: string
+  frecuencia: string | null
   activo: boolean
   actualizado_en: string
   actualizado_por: string
@@ -240,7 +242,7 @@ export function eventoSGOFromRow(r: EventoSGORow): EventoSGO {
     despachoId: u(r.despacho_id), nroSerie: u(r.nro_serie), modelo: u(r.modelo), defectoCodigo: u(r.defecto_codigo), detectadoEn: r.detectado_en,
     detectadoPor: r.detectado_por, responsable: u(r.responsable), contencion: u(r.contencion),
     disposicion: u(r.disposicion) as EventoSGO['disposicion'], cantidadAfectada: u(r.cantidad_afectada),
-    costoEstimado: u(r.costo_estimado), costoDetalle: r.costo_detalle ?? undefined, causaRaiz: u(r.causa_raiz),
+    costoEstimado: u(r.costo_estimado), costoDetalle: r.costo_detalle ?? undefined, seguridad: r.seguridad ?? undefined, causaRaiz: u(r.causa_raiz),
     metodoAnalisis: u(r.metodo_analisis) as EventoSGO['metodoAnalisis'],
     evidenciaUrls: r.evidencia_urls ?? undefined, creadoEn: r.creado_en,
     actualizadoEn: r.actualizado_en, cerradoEn: u(r.cerrado_en), cerradoPor: u(r.cerrado_por),
@@ -256,7 +258,7 @@ export function eventoSGOToRow(e: EventoSGO): EventoSGORow {
     nro_serie: e.nroSerie ?? null, modelo: e.modelo ?? null, defecto_codigo: e.defectoCodigo ?? null, detectado_en: e.detectadoEn, detectado_por: e.detectadoPor,
     responsable: e.responsable ?? null, contencion: e.contencion ?? null,
     disposicion: e.disposicion ?? null, cantidad_afectada: e.cantidadAfectada ?? null,
-    costo_estimado: e.costoEstimado ?? null, costo_detalle: e.costoDetalle ?? null, causa_raiz: e.causaRaiz ?? null,
+    costo_estimado: e.costoEstimado ?? null, costo_detalle: e.costoDetalle ?? null, seguridad: e.seguridad ?? null, causa_raiz: e.causaRaiz ?? null,
     metodo_analisis: e.metodoAnalisis ?? null, evidencia_urls: e.evidenciaUrls ?? null,
     creado_en: e.creadoEn, actualizado_en: e.actualizadoEn, cerrado_en: e.cerradoEn ?? null,
     cerrado_por: e.cerradoPor ?? null,
@@ -292,7 +294,7 @@ export function indicadorSGOFromRow(r: IndicadorSGORow): IndicadorSGO {
     nombre: r.nombre, unidad: r.unidad, direccion: r.direccion as IndicadorSGO['direccion'],
     meta: r.meta, umbralAmarillo: r.umbral_amarillo, valorActual: u(r.valor_actual),
     origen: (r.origen as IndicadorSGO['origen']) ?? 'manual', claveCalculo: u(r.clave_calculo) as IndicadorSGO['claveCalculo'],
-    periodo: r.periodo, activo: r.activo, actualizadoEn: r.actualizado_en,
+    periodo: r.periodo, frecuencia: (r.frecuencia as IndicadorSGO['frecuencia']) ?? 'mensual', activo: r.activo, actualizadoEn: r.actualizado_en,
     actualizadoPor: r.actualizado_por,
   }
 }
@@ -302,7 +304,7 @@ export function indicadorSGOToRow(i: IndicadorSGO): IndicadorSGORow {
     id: i.id, area_id: i.areaId, pilar: i.pilar, nombre: i.nombre, unidad: i.unidad,
     direccion: i.direccion, meta: i.meta, umbral_amarillo: i.umbralAmarillo,
     valor_actual: i.origen === 'automatico' ? null : i.valorActual ?? null,
-    origen: i.origen ?? 'manual', clave_calculo: i.claveCalculo ?? null, periodo: i.periodo, activo: i.activo,
+    origen: i.origen ?? 'manual', clave_calculo: i.claveCalculo ?? null, periodo: i.periodo, frecuencia: i.frecuencia ?? 'mensual', activo: i.activo,
     actualizado_en: i.actualizadoEn, actualizado_por: i.actualizadoPor,
   }
 }

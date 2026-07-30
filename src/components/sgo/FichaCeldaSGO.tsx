@@ -1,5 +1,5 @@
 import { detalleKPIAutomatico, type DatosKPIAutomaticos, type RegistroDetalleKPI } from '../../sgo/kpiAutomaticos'
-import { estadoIndicador, type EstadoSemaforo, type IndicadorSGO } from '../../sgo/indicadores'
+import { estadoIndicador, periodoKPILabel, type EstadoSemaforo, type IndicadorSGO } from '../../sgo/indicadores'
 import { AREAS_SGO, PILARES_SGO, type AccionSGO, type AreaSGOId, type EventoSGO, type PilarSGO } from '../../sgo/types'
 
 const PALETA: Record<EstadoSemaforo, { color: string; fondo: string; label: string }> = {
@@ -111,7 +111,7 @@ function DetalleIndicador({ indicador, datos }: { indicador: IndicadorSGO; datos
     <div className="card-header">
       <div>
         <strong>{indicador.nombre}</strong>
-        <div className="meta">{indicador.origen === 'automatico' ? '⚡ Cálculo automático' : 'Carga manual'} · Período {indicador.periodo}</div>
+        <div className="meta">{indicador.origen === 'automatico' ? '⚡ Cálculo automático' : 'Carga manual'} · {periodoKPILabel(indicador.periodo, indicador.frecuencia)}</div>
       </div>
       <span className="estado-chip" style={{ color: paleta.color, background: paleta.fondo }}>{paleta.label}</span>
     </div>
@@ -131,7 +131,7 @@ function Dato({ label, valor, destacado = false }: { label: string; valor: strin
   return <div style={{ padding: 8, border: '1px solid var(--borde)', borderRadius: 7 }}><div className="meta">{label}</div><strong style={{ fontSize: destacado ? '1.2rem' : undefined }}>{valor}</strong></div>
 }
 
-function Evolucion({ valores, unidad, meta }: { valores: { periodo: string; valor?: number }[]; unidad: string; meta: number }) {
+function Evolucion({ valores, unidad, meta }: { valores: { periodo: string; etiqueta: string; valor?: number }[]; unidad: string; meta: number }) {
   const disponibles = valores.flatMap((v) => v.valor === undefined ? [] : [v.valor])
   const maximo = Math.max(1, meta, ...disponibles)
   return <div style={{ marginTop: 12 }}>
@@ -142,7 +142,7 @@ function Evolucion({ valores, unidad, meta }: { valores: { periodo: string; valo
         return <div key={v.periodo} title={`${v.periodo}: ${formatoValor(v.valor, unidad)}`} style={{ flex: 1, minWidth: 42, textAlign: 'center' }}>
           <div className="meta" style={{ fontSize: '.64rem' }}>{v.valor === undefined ? '—' : v.valor.toLocaleString('es-AR', { maximumFractionDigits: 1 })}</div>
           <div style={{ height: alto, maxWidth: 44, margin: '3px auto 0', background: v.valor === undefined ? '#cbd5e1' : '#2563eb', borderRadius: '5px 5px 0 0' }} />
-          <div className="meta" style={{ fontSize: '.61rem', whiteSpace: 'nowrap' }}>{v.periodo.slice(5)}/{v.periodo.slice(2, 4)}</div>
+          <div className="meta" style={{ fontSize: '.61rem', whiteSpace: 'nowrap' }}>{v.etiqueta}</div>
         </div>
       })}
     </div>
