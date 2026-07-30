@@ -20,6 +20,7 @@ import type {
 } from '../types'
 import type { AccionSGO, EventoSGO } from '../sgo/types'
 import type { IndicadorSGO } from '../sgo/indicadores'
+import type { GarantiaISO } from '../sgo/garantias'
 
 // null -> undefined (Supabase devuelve null; la app usa undefined en opcionales).
 function u<T>(v: T | null | undefined): T | undefined {
@@ -1007,5 +1008,65 @@ export function semiToRow(s: Semielaborado): SemiRow {
     tiempo_estimado_min: s.tiempoEstimadoMin ?? null,
     sap_item_code: s.sapItemCode ?? null,
     actualizado_en: s.actualizado,
+  }
+}
+
+export interface GarantiaISORow {
+  id: string
+  codigo: string
+  tipo: string
+  nro_serie: string | null
+  fecha_salida: string | null
+  fecha_deteccion: string
+  ingresado_por: string | null
+  cliente: string | null
+  cliente_original: string | null
+  diagnostico: string
+  causas: string | null
+  cobertura: string
+  categoria: string
+  estado: string
+  responsable: string | null
+  fecha_compromiso: string | null
+  solucion: string | null
+  fecha_resolucion: string | null
+  verificado: boolean
+  verificacion_detalle: string | null
+  costo_estimado: number | null
+  observaciones: string | null
+  fuente_fila: number | null
+  creado_en: string
+  actualizado_en: string
+  actualizado_por: string
+}
+
+export function garantiaISOFromRow(r: GarantiaISORow): GarantiaISO {
+  return {
+    id: r.id, codigo: r.codigo, tipo: r.tipo, nroSerie: u(r.nro_serie),
+    fechaSalida: u(r.fecha_salida), fechaDeteccion: r.fecha_deteccion,
+    ingresadoPor: u(r.ingresado_por), cliente: u(r.cliente), clienteOriginal: u(r.cliente_original),
+    diagnostico: r.diagnostico, causas: u(r.causas), cobertura: r.cobertura as GarantiaISO['cobertura'],
+    categoria: r.categoria as GarantiaISO['categoria'], estado: r.estado as GarantiaISO['estado'],
+    responsable: u(r.responsable), fechaCompromiso: u(r.fecha_compromiso), solucion: u(r.solucion),
+    fechaResolucion: u(r.fecha_resolucion), verificado: r.verificado,
+    verificacionDetalle: u(r.verificacion_detalle), costoEstimado: u(r.costo_estimado),
+    observaciones: u(r.observaciones), fuenteFila: u(r.fuente_fila),
+    creadoEn: r.creado_en, actualizadoEn: r.actualizado_en, actualizadoPor: r.actualizado_por,
+  }
+}
+
+export function garantiaISOToRow(g: GarantiaISO): GarantiaISORow {
+  return {
+    id: g.id, codigo: g.codigo, tipo: g.tipo, nro_serie: g.nroSerie ?? null,
+    fecha_salida: g.fechaSalida ?? null, fecha_deteccion: g.fechaDeteccion,
+    ingresado_por: g.ingresadoPor ?? null, cliente: g.cliente ?? null,
+    cliente_original: g.clienteOriginal ?? null, diagnostico: g.diagnostico,
+    causas: g.causas ?? null, cobertura: g.cobertura, categoria: g.categoria, estado: g.estado,
+    responsable: g.responsable ?? null, fecha_compromiso: g.fechaCompromiso ?? null,
+    solucion: g.solucion ?? null, fecha_resolucion: g.fechaResolucion ?? null,
+    verificado: g.verificado, verificacion_detalle: g.verificacionDetalle ?? null,
+    costo_estimado: g.costoEstimado ?? null, observaciones: g.observaciones ?? null,
+    fuente_fila: g.fuenteFila ?? null, creado_en: g.creadoEn,
+    actualizado_en: g.actualizadoEn, actualizado_por: g.actualizadoPor,
   }
 }

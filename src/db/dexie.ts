@@ -7,6 +7,7 @@ import type {
 } from '../types'
 import type { EventoSGO, AccionSGO } from '../sgo/types'
 import type { IndicadorSGO } from '../sgo/indicadores'
+import type { GarantiaISO } from '../sgo/garantias'
 
 // ============================================================
 // Capa offline-first con IndexedDB (via Dexie).
@@ -39,6 +40,7 @@ export class InelpaDB extends Dexie {
   eventosSGO!: Table<EventoSGO, string>
   accionesSGO!: Table<AccionSGO, string>
   indicadoresSGO!: Table<IndicadorSGO, string>
+  garantiasISO!: Table<GarantiaISO, string>
 
   constructor() {
     super('inelpa_pwa')
@@ -141,6 +143,10 @@ export class InelpaDB extends Dexie {
     // consulte los valores garantizados aunque la tablet quede sin señal.
     this.version(21).stores({
       datosTecnicos: 'id',
+    })
+    // v1.60: registro ISO 9001 de transformadores en garantía.
+    this.version(22).stores({
+      garantiasISO: 'id, codigo, nroSerie, fechaDeteccion, cliente, cobertura, categoria, estado, responsable',
     })
   }
 }

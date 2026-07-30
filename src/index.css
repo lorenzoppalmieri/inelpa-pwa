@@ -160,12 +160,53 @@ button { font-family: inherit; cursor: pointer; border: none; }
 .sgo-dias-edicion { display: grid; grid-template-columns: minmax(100px,140px) auto auto; gap: 8px; align-items: center; }
 .sgo-dias-edicion .input { min-height: 48px; font-size: 1.4rem; font-weight: 900; }
 
+/* Registro ISO 9001 · Transformadores en garantía */
+.sgo-garantias-cabecera { display: flex; align-items: center; justify-content: space-between; gap: 16px; border-left: 5px solid #7c3aed; }
+.garantias-kpis { display: grid; grid-template-columns: repeat(auto-fit,minmax(155px,1fr)); gap: 10px; margin-bottom: 14px; }
+.garantias-graficos { display: grid; grid-template-columns: minmax(320px,1.4fr) repeat(2,minmax(260px,1fr)); gap: 12px; }
+.garantias-graficos .card { min-width: 0; }
+.garantias-filtros { display: grid; grid-template-columns: minmax(260px,2fr) repeat(4,minmax(155px,1fr)); gap: 8px; margin-top: 4px; }
+.garantias-filtros .input { min-height: 48px; font-size: .92rem; }
+.garantias-listado { display: grid; gap: 8px; }
+.garantia-registro { appearance: none; width: 100%; color: var(--texto); text-align: left; cursor: pointer; margin: 0; border-left: 5px solid #7c3aed; font: inherit; }
+.garantia-registro:hover { background: var(--panel-2); border-color: #a78bfa; }
+.garantia-diagnostico { color: #e2e8f0; line-height: 1.45; margin-bottom: 7px; }
+.garantia-chip { display: inline-flex; align-items: center; min-height: 27px; padding: 3px 9px; border-radius: 999px; font-size: .68rem; font-weight: 850; text-transform: uppercase; white-space: nowrap; }
+.cobertura-si { background: #14532d; color: #dcfce7; }
+.cobertura-no { background: #7f1d1d; color: #fee2e2; }
+.cobertura-en_evaluacion, .cobertura-sin_dato { background: #78350f; color: #fef3c7; }
+.estado-abierto { background: #7f1d1d; color: #fee2e2; }
+.estado-en_analisis { background: #1e40af; color: #dbeafe; }
+.estado-pendiente_cliente { background: #78350f; color: #fef3c7; }
+.estado-resuelto { background: #155e75; color: #cffafe; }
+.estado-verificado { background: #14532d; color: #dcfce7; }
+.garantia-barras { display: grid; gap: 8px; }
+.garantia-barra { display: grid; grid-template-columns: minmax(110px,1.2fr) minmax(90px,2fr) 32px; gap: 8px; align-items: center; font-size: .75rem; }
+.garantia-barra-label { color: var(--texto-tenue); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.garantia-barra-pista { height: 11px; border-radius: 999px; background: #0f172a; overflow: hidden; }
+.garantia-barra-pista > div { height: 100%; min-width: 3px; border-radius: inherit; background: linear-gradient(90deg,#2563eb,#60a5fa); }
+.garantia-linea-wrap { width: 100%; overflow: hidden; }
+.garantia-linea-wrap svg { display: block; width: 100%; min-height: 190px; }
+.garantia-form-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(200px,1fr)); gap: 8px 10px; }
+
+@media (max-width: 1050px) {
+  .garantias-graficos { grid-template-columns: 1fr 1fr; }
+  .garantias-graficos .card:first-child { grid-column: 1 / -1; }
+  .garantias-filtros { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .garantias-filtros .input:first-child { grid-column: 1 / -1; }
+}
+
 @media (max-width: 640px) {
   .sgo-dias-cartel { align-items: stretch; flex-direction: column; padding: 16px; }
   .sgo-dias-valor-wrap { justify-content: start; text-align: left; }
   .sgo-dias-editar { justify-self: start; }
   .sgo-dias-edicion { grid-template-columns: 1fr 1fr; }
   .sgo-dias-edicion .input { grid-column: 1 / -1; }
+  .sgo-garantias-cabecera { align-items: stretch; flex-direction: column; }
+  .sgo-garantias-cabecera .row-actions .btn { flex: 1; }
+  .garantias-graficos, .garantias-filtros { grid-template-columns: 1fr; }
+  .garantias-graficos .card:first-child, .garantias-filtros .input:first-child { grid-column: auto; }
+  .garantia-registro .card-header { flex-direction: column; }
 }
 
 /* ---------- Login ---------- */
