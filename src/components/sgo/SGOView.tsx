@@ -2,12 +2,13 @@ import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
 import { useAuth } from '../../auth/AuthContext'
-import { guardarAccionSGO, guardarEventoSGO } from '../../sync/syncEngine'
+import { guardarAccionSGO, guardarEventoSGO, guardarIndicadorSGO } from '../../sync/syncEngine'
 import MatrizSGO from './MatrizSGO'
 import IndicadoresSGO from './IndicadoresSGO'
 import FichaCeldaSGO from './FichaCeldaSGO'
 import { defectoSGOLabel, defectosParaArea } from '../../sgo/defectos'
 import { resolverKPIAutomaticos } from '../../sgo/kpiAutomaticos'
+import type { IndicadorSGO } from '../../sgo/indicadores'
 import {
   AREAS_SGO, PILARES_SGO, TIPOS_EVENTO_SGO, areaSGOLabel, codigoEventoSGO, costoNoCalidadTotal,
   type AccionSGO, type EstadoEventoSGO, type EventoSGO,
@@ -24,6 +25,8 @@ const SEVERIDADES: { id: SeveridadSGO; label: string }[] = [
   { id: 'baja', label: 'Baja' }, { id: 'media', label: 'Media' },
   { id: 'alta', label: 'Alta' }, { id: 'critica', label: 'Crítica' },
 ]
+
+const ID_DIAS_SIN_ACCIDENTES = 'sgo-global-dias-sin-accidentes'
 
 const hoy = () => new Date().toISOString().slice(0, 10)
 const ahoraLocal = () => {
@@ -65,7 +68,8 @@ export default function SGOView() {
     criticos: abiertos.filter((e) => e.pilar === p.id && e.severidad === 'critica').length,
   })), [eventos])
   const vencidas = acciones.filter(vencida).length
-  const indicadoresResueltos = useMemo(() => resolverKPIAutomaticos(indicadores, { tareas, laboratorio, tareasLogistica, eventos, acciones }), [indicadores, tareas, laboratorio, tareasLogistica, eventos, acciones])
+  const ajusteDiasSinAccidentes = indicadores.find((i) => i.id === ID_DIAS_SIN_ACCIDENTES)
+  const indicadoresResueltos = useMemo(() => resolverKPIAutomaticos(indicadores.filter((i) => i.id !== ID_DIAS_SIN_ACCIDENTES), { tareas, laboratorio, tareasLogistica, eventos, acciones }), [indicadores, tareas, laboratorio, tareasLogistica, eventos, acciones])
   const abiertosFiltrados = abiertos.filter((e) =>
     (!filtroArea || (e.areaOrigenId ?? e.areaId) === filtroArea) && (!filtroPilar || e.pilar === filtroPilar))
 
@@ -80,6 +84,8 @@ export default function SGOView() {
           <div className="row-actions"><button className="btn" onClick={() => setConfigIndicadores(true)}>⚙ Indicadores y metas</button><button className="btn btn-primary" onClick={() => setNuevo(true)}>+ Registrar evento</button></div>
         </div>
       </div>
+
+      <DiasSinAccidentes eventos={eventos} ajuste={ajusteDiasSinAccidentes} usuario={usuario?.usuario ?? 'sin_usuario'} />
 
       <div className="logi-kpis" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(145px, 1fr))' }}>
         {resumen.map((p) => (
@@ -156,6 +162,74 @@ export default function SGOView() {
       {seleccionado && <DetalleEvento evento={seleccionado} acciones={acciones.filter((a) => a.eventoId === seleccionado.id)} usuario={usuario?.usuario ?? 'sin_usuario'} onClose={() => setSeleccionadoId(undefined)} />}
     </div>
   )
+}
+
+function inicioDia(valor: string | Date): Date {
+  const d = valor instanceof Date ? new Date(valor) : new Date(valor)
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+function diferenciaDias(desde: Date, hasta = inicioDia(new Date())): number {
+  return Math.max(0, Math.round((hasta.getTime() - desde.getTime()) / 86_400_000))
+}
+
+function estadoDiasSinAccidentes(eventos: EventoSGO[], ajuste?: IndicadorSGO) {
+  const ultimoAccidente = eventos
+    .filter((e) => e.tipo === 'incidente_seguridad' && e.seguridad?.resultadoPersona !== 'sin_lesion')
+    .sort((a, b) => b.detectadoEn.localeCompare(a.detectadoEn))[0]
+  const accidentePosteriorAlAjuste = ultimoAccidente && (!ajuste || new Date(ultimoAccidente.detectadoEn).getTime() > new Date(ajuste.actualizadoEn).getTime())
+  if (accidentePosteriorAlAjuste) {
+    return { dias: diferenciaDias(inicioDia(ultimoAccidente.detectadoEn)), referencia: ultimoAccidente.detectadoEn, motivo: `Reiniciado por ${ultimoAccidente.codigo}` }
+  }
+  if (ajuste) {
+    return { dias: Math.max(0, Math.trunc(ajuste.valorActual ?? 0)) + diferenciaDias(inicioDia(ajuste.actualizadoEn)), referencia: ajuste.actualizadoEn, motivo: `Ajustado por ${ajuste.actualizadoPor}` }
+  }
+  if (ultimoAccidente) {
+    return { dias: diferenciaDias(inicioDia(ultimoAccidente.detectadoEn)), referencia: ultimoAccidente.detectadoEn, motivo: `Reiniciado por ${ultimoAccidente.codigo}` }
+  }
+  return { dias: 0, referencia: undefined, motivo: 'Valor inicial pendiente de configurar' }
+}
+
+function DiasSinAccidentes({ eventos, ajuste, usuario }: { eventos: EventoSGO[]; ajuste?: IndicadorSGO; usuario: string }) {
+  const [editando, setEditando] = useState(false)
+  const estado = estadoDiasSinAccidentes(eventos, ajuste)
+  const [valor, setValor] = useState(String(estado.dias))
+  const [guardando, setGuardando] = useState(false)
+  const puedeEditar = usuario.trim().toLowerCase() === 'lorenzo'
+
+  async function guardar() {
+    const numero = Number(valor)
+    if (!Number.isInteger(numero) || numero < 0) return
+    const ahora = new Date().toISOString()
+    setGuardando(true)
+    await guardarIndicadorSGO({
+      id: ID_DIAS_SIN_ACCIDENTES, areaId: 'gerencia_directorio', pilar: 'seguridad',
+      nombre: 'Días sin accidentes', unidad: 'días', direccion: 'mayor_mejor',
+      meta: 365, umbralAmarillo: 30, valorActual: numero, origen: 'manual',
+      periodo: ahora.slice(0, 7), frecuencia: 'anual', activo: true,
+      actualizadoEn: ahora, actualizadoPor: usuario,
+    })
+    setGuardando(false)
+    setEditando(false)
+  }
+
+  return <section className={`sgo-dias-cartel ${estado.dias === 0 ? 'reiniciado' : ''}`} aria-label={`${estado.dias} días sin accidentes`}>
+    <div>
+      <div className="sgo-dias-etiqueta">DÍAS SIN ACCIDENTES</div>
+      <div className="sgo-dias-recordatorio">La seguridad depende del control diario de nuestros procesos.</div>
+      <div className="sgo-dias-meta">{estado.motivo}{estado.referencia ? ` · ${fechaHora(estado.referencia)}` : ''}</div>
+    </div>
+    {editando ? <div className="sgo-dias-edicion">
+      <input className="input" type="number" min="0" step="1" value={valor} onChange={(e) => setValor(e.target.value)} aria-label="Días sin accidentes" />
+      <button className="btn" onClick={() => setEditando(false)}>Cancelar</button>
+      <button className="btn btn-primary" disabled={guardando || !Number.isInteger(Number(valor)) || Number(valor) < 0} onClick={() => void guardar()}>{guardando ? 'Guardando…' : 'Guardar'}</button>
+    </div> : <div className="sgo-dias-valor-wrap">
+      <div className="sgo-dias-valor">{estado.dias}</div>
+      <div className="sgo-dias-unidad">DÍAS</div>
+      {puedeEditar && <button className="btn sgo-dias-editar" onClick={() => { setValor(String(estado.dias)); setEditando(true) }}>Editar</button>}
+    </div>}
+  </section>
 }
 
 function NuevoEvento({ usuario, onClose, onCreado }: { usuario: string; onClose: () => void; onCreado: (id: string) => void }) {
