@@ -797,6 +797,10 @@ export interface DespachoTrafo {
   patente2?: string
   // --- Fotos (v1.29) ---
   fotos?: string[]               // URLs públicas en Supabase Storage
+  // v1.46: registro de la limpieza automática. Las fotos de un trafo ya
+  // entregado se borran del bucket a los 3 meses para no pagar storage de algo
+  // que nadie va a volver a mirar; esta marca deja constancia de que EXISTIERON.
+  fotosPurgadas?: { fecha: string; cantidad: number }
   // --- Meta ---
   creada: string
   creadaPor?: string

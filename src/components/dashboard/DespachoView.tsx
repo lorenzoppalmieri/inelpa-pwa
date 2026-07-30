@@ -24,6 +24,7 @@ import LogisticaTareas from './LogisticaTareas'
 import { PERIODOS_HISTORIAL, rangoReporte, enRango, type PeriodoReporte } from '../../lib/periodoReporte'
 import { tituloTrafo } from '../../lib/modeloTrafo'
 import StockDepositos from './StockDepositos'
+import { purgarFotosVencidas } from '../../lib/purgaFotosRunner'
 
 // ============================================================
 // TABLERO DE DESPACHO Y EMBALAJE (v1.27) — sector Melany. Fase 1: seguimiento de
@@ -76,6 +77,14 @@ export default function DespachoView({ vista: vistaProp, onVista }: {
   const [ahora, setAhora] = useState(() => Date.now())
   useEffect(() => { const id = setInterval(() => setAhora(Date.now()), 30000); return () => clearInterval(id) }, [])
   const ahoraISO = new Date(ahora).toISOString()
+
+  // v1.46: limpieza de fotos vencidas (3 meses desde la entrega). Corre una vez
+  // por día y solo la dispara un encargado, para que no compitan varias tablets.
+  useEffect(() => {
+    if (!esSupervisora) return
+    void purgarFotosVencidas()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [esSupervisora])
 
   // Alta.
   const [ot, setOt] = useState('')

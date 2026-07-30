@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { DespachoTrafo, ChecklistDespacho } from '../../types'
 import {
   estadoDespachoLabel, ESTADOS_DESPACHO, CHECKLIST_DESPACHO_ITEMS, checklistCompleto,
-  minutosDemoraAcotados,
+  minutosDemoraAcotados, DEPOSITO_PLANTA,
 } from '../../types'
 import { fmtDur, fechaCorta, hhmm } from '../../lib/time'
 import { abrirProtocolo } from '../../lib/archivos'
@@ -10,6 +10,7 @@ import { calcularTiempoProductivo } from '../../lib/calendario'
 import { guardarDespacho } from '../../sync/syncEngine'
 import { supabase } from '../../lib/supabaseClient'
 import { datosModelo, tituloTrafo } from '../../lib/modeloTrafo'
+import { leyendaPurga } from '../../lib/purgaFotos'
 
 // Bucket de Supabase Storage donde viven las fotos de los transformadores.
 export const BUCKET_FOTOS = 'despacho-fotos'
@@ -122,7 +123,7 @@ export default function FichaDespacho({ despacho: d, onClose }: { despacho: Desp
                   label="Ubicación actual"
                   ancho={180}
                   valor={d.deposito
-                    ?? (d.estado === 'despachado' || d.estado === 'entregado' ? 'Ya salió del depósito' : 'INELPA (planta)')}
+                    ?? (d.estado === 'despachado' || d.estado === 'entregado' ? 'Ya salió del depósito' : DEPOSITO_PLANTA)}
                 />
                 <Dato label="Guardado desde" valor={d.fechaDeposito ? `${fechaCorta(d.fechaDeposito)} ${hhmm(d.fechaDeposito)}` : undefined} ancho={170} />
                 <Dato label="Días guardado" valor={d.fechaDeposito ? `${Math.floor((Date.parse(ahoraISO) - Date.parse(d.fechaDeposito)) / 86400000)} día(s)` : undefined} />
@@ -204,8 +205,15 @@ export default function FichaDespacho({ despacho: d, onClose }: { despacho: Desp
                   style={{ position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: '50%', border: 'none', background: 'var(--rojo)', color: '#fff', cursor: 'pointer', fontSize: 12, lineHeight: '20px', padding: 0 }}>✕</button>
               </div>
             ))}
-            {(d.fotos ?? []).length === 0 && <div className="meta">Sin fotos todavía.</div>}
+            {(d.fotos ?? []).length === 0 && !d.fotosPurgadas && <div className="meta">Sin fotos todavía.</div>}
           </div>
+          {/* v1.46: constancia de la limpieza automática, para no confundir un
+              borrado por antigüedad con un embalaje que nunca se fotografió. */}
+          {d.fotosPurgadas && (
+            <div className="meta" style={{ marginBottom: 8, fontStyle: 'italic' }}>
+              🗑 {leyendaPurga(d, (iso) => fechaCorta(iso))}
+            </div>
+          )}
           <label className="btn btn-primary" style={{ display: 'inline-block', cursor: subiendo ? 'default' : 'pointer', opacity: subiendo ? 0.6 : 1 }}>
             {subiendo ? 'Subiendo…' : '📷 Agregar fotos'}
             <input type="file" accept="image/*" multiple disabled={subiendo} style={{ display: 'none' }} onChange={(e) => void subirFotos(e.target.files)} />
