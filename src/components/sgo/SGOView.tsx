@@ -109,16 +109,16 @@ export default function SGOView() {
             const p = PILARES_SGO.find((x) => x.id === e.pilar)
             const acc = acciones.filter((a) => a.eventoId === e.id)
             return (
-              <button key={e.id} className="card" onClick={() => setSeleccionadoId(e.id)}
+              <button key={e.id} className="card sgo-evento-card" onClick={() => setSeleccionadoId(e.id)}
                 style={{ textAlign: 'left', cursor: 'pointer', borderLeft: `5px solid ${p?.color ?? '#64748b'}`, width: '100%' }}>
                 <div className="card-header">
                   <div>
                     <strong>{e.codigo} · {e.titulo}</strong>
                     <div className="meta">Origen: {areaSGOLabel(e.areaOrigenId ?? e.areaId)} · Detectó: {areaSGOLabel(e.areaId)} · {p?.label} · {SEVERIDADES.find((s) => s.id === e.severidad)?.label} · {fechaHora(e.detectadoEn)}</div>
                     {e.defectoCodigo && <div className="meta">Defecto: <strong>{defectoSGOLabel(e.defectoCodigo)}</strong>{e.costoEstimado ? ` · Costo estimado $${e.costoEstimado.toLocaleString('es-AR')}` : ''}</div>}
-                    <div style={{ marginTop: 5 }}>{e.descripcion}</div>
+                    <div className="sgo-evento-descripcion" style={{ marginTop: 5 }}>{e.descripcion}</div>
                   </div>
-                  <span className="estado-chip">{ESTADOS_EVENTO.find((s) => s.id === e.estado)?.label}</span>
+                  <span className={`estado-chip sgo-estado-${e.estado}`}>{ESTADOS_EVENTO.find((s) => s.id === e.estado)?.label}</span>
                 </div>
                 <div className="meta" style={{ marginTop: 6 }}>
                   Responsable: <strong>{e.responsable || 'Sin asignar'}</strong> · Acciones: {acc.length} · Vencidas: {acc.filter(vencida).length}
@@ -134,7 +134,7 @@ export default function SGOView() {
           <summary className="section-title" style={{ cursor: 'pointer' }}>Historial cerrado ({eventos.filter((e) => e.estado === 'cerrado').length})</summary>
           <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
             {eventos.filter((e) => e.estado === 'cerrado').sort((a, b) => (b.cerradoEn ?? '').localeCompare(a.cerradoEn ?? '')).slice(0, 30).map((e) => (
-              <button key={e.id} className="card" onClick={() => setSeleccionadoId(e.id)} style={{ textAlign: 'left', cursor: 'pointer', width: '100%' }}>
+              <button key={e.id} className="card sgo-evento-card" onClick={() => setSeleccionadoId(e.id)} style={{ textAlign: 'left', cursor: 'pointer', width: '100%' }}>
                 <strong>{e.codigo} · {e.titulo}</strong>
                 <div className="meta">{areaSGOLabel(e.areaId)} · {PILARES_SGO.find((p) => p.id === e.pilar)?.label} · cerrado {e.cerradoEn ? fechaHora(e.cerradoEn) : ''}</div>
               </button>

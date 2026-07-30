@@ -120,6 +120,23 @@ button { font-family: inherit; cursor: pointer; border: none; }
 .meta { color: var(--texto-tenue); font-size: .85rem; line-height: 1.5; }
 .meta strong { color: var(--texto); }
 
+/* Tarjetas clickeables del listado SGO: los botones no deben heredar texto negro del navegador. */
+.sgo-evento-card {
+  appearance: none; color: var(--texto); font: inherit;
+}
+.sgo-evento-card > strong,
+.sgo-evento-card .card-header strong { color: #f8fafc; }
+.sgo-evento-card .meta { color: #b8c7db; }
+.sgo-evento-card .meta strong,
+.sgo-evento-descripcion { color: #e2e8f0; }
+.sgo-evento-card:hover { background: var(--panel-2); border-color: #64748b; }
+.sgo-evento-card:focus-visible { outline: 3px solid var(--azul-claro); outline-offset: 2px; }
+.sgo-estado-abierto { background: #7f1d1d; color: #fee2e2; }
+.sgo-estado-contenido { background: #92400e; color: #fef3c7; }
+.sgo-estado-en_analisis { background: #1d4ed8; color: #eff6ff; }
+.sgo-estado-con_acciones { background: #6d28d9; color: #f5f3ff; }
+.sgo-estado-cerrado { background: #475569; color: #f8fafc; }
+
 /* ---------- Login ---------- */
 .login-wrap { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
 .login-card { width: 100%; max-width: 420px; }

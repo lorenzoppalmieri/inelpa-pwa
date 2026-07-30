@@ -91,8 +91,8 @@ export default function FichaCeldaSGO({ areaId, pilarId, indicadores, eventos, a
           <div style={{ display: 'grid', gap: 8, marginTop: 10 }}>
             {[...eventosCelda].sort((a, b) => b.detectadoEn.localeCompare(a.detectadoEn)).map((evento) => {
               const acc = accionesCelda.filter((a) => a.eventoId === evento.id)
-              return <button key={evento.id} className="card" onClick={() => onOpenEvento(evento.id)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', borderLeft: `4px solid ${evento.estado === 'cerrado' ? '#94a3b8' : pilar.color}` }}>
-                <div className="card-header"><strong>{evento.codigo} · {evento.titulo}</strong><span className="estado-chip">{evento.estado.replace('_', ' ')}</span></div>
+              return <button key={evento.id} className="card sgo-evento-card" onClick={() => onOpenEvento(evento.id)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', borderLeft: `4px solid ${evento.estado === 'cerrado' ? '#94a3b8' : pilar.color}` }}>
+                <div className="card-header"><strong>{evento.codigo} · {evento.titulo}</strong><span className={`estado-chip sgo-estado-${evento.estado}`}>{evento.estado.replace('_', ' ')}</span></div>
                 <div className="meta">{formatoFecha(evento.detectadoEn)} · Severidad {evento.severidad} · Responsable: {evento.responsable || 'Sin asignar'} · {acc.length} acción(es), {acc.filter(accionVencida).length} vencida(s)</div>
               </button>
             })}
