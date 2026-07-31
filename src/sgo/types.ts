@@ -138,6 +138,19 @@ export interface AccionSGO {
   actualizadoEn: string
 }
 
+export type EntidadAuditoriaSGO = 'evento' | 'accion' | 'indicador' | 'medicion' | 'garantia'
+
+export interface AuditoriaSGO {
+  id: string
+  entidad: EntidadAuditoriaSGO
+  entidadId: string
+  operacion: 'INSERT' | 'UPDATE' | 'DELETE'
+  datosAnteriores?: Record<string, unknown>
+  datosNuevos?: Record<string, unknown>
+  usuario: string
+  creadoEn: string
+}
+
 export const PILARES_SGO: { id: PilarSGO; label: string; color: string }[] = [
   { id: 'seguridad', label: 'Seguridad', color: '#dc2626' },
   { id: 'calidad', label: 'Calidad', color: '#2563eb' },

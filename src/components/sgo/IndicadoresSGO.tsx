@@ -1,13 +1,14 @@
-import { useState } from 'react'
-import { eliminarIndicadorSGO, guardarIndicadorSGO } from '../../sync/syncEngine'
+import { useEffect, useState } from 'react'
+import { eliminarIndicadorSGO, guardarIndicadorSGO, guardarMedicionIndicadorSGO } from '../../sync/syncEngine'
+import { periodoLocalISO } from '../../lib/time'
 import { AREAS_SGO, PILARES_SGO, type AreaSGOId, type PilarSGO } from '../../sgo/types'
-import { FRECUENCIAS_KPI, KPI_SUGERIDOS, configuracionUmbralValida, estadoIndicador, normalizarPeriodoKPI, periodoKPILabel, type DireccionKPI, type FrecuenciaKPI, type IndicadorSGO } from '../../sgo/indicadores'
+import { FRECUENCIAS_KPI, KPI_SUGERIDOS, configuracionUmbralValida, estadoIndicador, idMedicionIndicador, normalizarPeriodoKPI, periodoKPILabel, type DireccionKPI, type FrecuenciaKPI, type IndicadorSGO, type MedicionIndicadorSGO } from '../../sgo/indicadores'
 import { plantillasKPIAutomaticos } from '../../sgo/kpiAutomaticos'
 
-const periodoActual = () => new Date().toISOString().slice(0, 7)
+const periodoActual = () => periodoLocalISO()
 const esLorenzo = (usuario: string) => usuario.trim().toLowerCase() === 'lorenzo'
 
-export default function IndicadoresSGO({ indicadores, usuario, onClose }: { indicadores: IndicadorSGO[]; usuario: string; onClose: () => void }) {
+export default function IndicadoresSGO({ indicadores, mediciones, usuario, onClose }: { indicadores: IndicadorSGO[]; mediciones: MedicionIndicadorSGO[]; usuario: string; onClose: () => void }) {
   const [area, setArea] = useState<AreaSGOId>('bobinado_distribucion')
   const [pilar, setPilar] = useState<PilarSGO>('calidad')
   const [nombre, setNombre] = useState('')
@@ -41,6 +42,14 @@ export default function IndicadoresSGO({ indicadores, usuario, onClose }: { indi
       return
     }
     await guardarIndicadorSGO(i)
+    if (i.valorActual !== undefined) {
+      const now = new Date().toISOString()
+      await guardarMedicionIndicadorSGO({
+        id: idMedicionIndicador(i.id, i.periodo), indicadorId: i.id, periodo: i.periodo,
+        valor: i.valorActual, cerrado: false, registradoEn: now, registradoPor: usuario,
+        actualizadoEn: now, actualizadoPor: usuario,
+      })
+    }
     setNombre(''); setValor('')
   }
 
@@ -61,7 +70,7 @@ export default function IndicadoresSGO({ indicadores, usuario, onClose }: { indi
     </div>
 
     <div className="section-title">Indicadores configurados ({visibles.length})</div>
-    {visibles.length === 0 ? <div className="empty">Esta celda todavía no tiene KPI. Permanecerá gris.</div> : visibles.map((i) => <IndicadorFila key={i.id} indicador={i} usuario={usuario} puedeEliminar={esLorenzo(usuario)} />)}
+    {visibles.length === 0 ? <div className="empty">Esta celda todavía no tiene KPI. Permanecerá gris.</div> : visibles.map((i) => <IndicadorFila key={i.id} indicador={i} mediciones={mediciones.filter((m) => m.indicadorId === i.id)} usuario={usuario} puedeEliminar={esLorenzo(usuario)} />)}
 
     <div className="card" style={{ marginTop: 14, borderLeft: '4px solid #2563eb' }}>
       <div className="section-title" style={{ marginTop: 0 }}>Nuevo indicador</div>
@@ -81,16 +90,42 @@ export default function IndicadoresSGO({ indicadores, usuario, onClose }: { indi
   </div></div>
 }
 
-function IndicadorFila({ indicador: i, usuario, puedeEliminar }: { indicador: IndicadorSGO; usuario: string; puedeEliminar: boolean }) {
+function IndicadorFila({ indicador: i, mediciones, usuario, puedeEliminar }: { indicador: IndicadorSGO; mediciones: MedicionIndicadorSGO[]; usuario: string; puedeEliminar: boolean }) {
   const [valor, setValor] = useState(i.valorActual?.toString() ?? '')
   const [meta, setMeta] = useState(i.meta.toString())
   const [amarillo, setAmarillo] = useState(i.umbralAmarillo.toString())
   const [periodo, setPeriodo] = useState(i.periodo)
   const [frecuencia, setFrecuencia] = useState<FrecuenciaKPI>(i.frecuencia ?? 'mensual')
+  const periodoNormalizado = normalizarPeriodoKPI(periodo, frecuencia)
+  const medicion = mediciones.find((m) => m.periodo === periodoNormalizado)
+  const [explicacion, setExplicacion] = useState(medicion?.explicacion ?? '')
+  const [evidencia, setEvidencia] = useState(medicion?.evidencia ?? '')
+  const [cerrado, setCerrado] = useState(medicion?.cerrado ?? false)
+  const bloqueado = Boolean(medicion?.cerrado && !puedeEliminar)
+
+  useEffect(() => {
+    if (i.origen === 'automatico') return
+    setValor(medicion?.valor.toString() ?? '')
+    setExplicacion(medicion?.explicacion ?? '')
+    setEvidencia(medicion?.evidencia ?? '')
+    setCerrado(medicion?.cerrado ?? false)
+  }, [i.origen, medicion?.id, medicion?.valor, medicion?.explicacion, medicion?.evidencia, medicion?.cerrado, periodoNormalizado])
+
   async function actualizar() {
-    const nuevo = { ...i, valorActual: i.origen === 'automatico' ? undefined : valor === '' ? undefined : Number(valor), meta: Number(meta), umbralAmarillo: Number(amarillo), periodo: normalizarPeriodoKPI(periodo, frecuencia), frecuencia, actualizadoEn: new Date().toISOString(), actualizadoPor: usuario }
+    const now = new Date().toISOString()
+    const nuevo = { ...i, valorActual: undefined, meta: Number(meta), umbralAmarillo: Number(amarillo), periodo: periodoNormalizado, frecuencia, actualizadoEn: now, actualizadoPor: usuario }
     if (!configuracionUmbralValida(nuevo)) { window.alert(i.direccion === 'mayor_mejor' ? 'El amarillo debe ser ≤ meta.' : 'El amarillo debe ser ≥ meta.'); return }
+    if (i.origen !== 'automatico' && (valor === '' || !Number.isFinite(Number(valor)))) { window.alert('Ingresá un resultado válido para el período.'); return }
+    if (cerrado && !explicacion.trim()) { window.alert('Para cerrar la medición, explicá el resultado.'); return }
     await guardarIndicadorSGO(nuevo)
+    if (i.origen !== 'automatico') {
+      await guardarMedicionIndicadorSGO({
+        id: idMedicionIndicador(i.id, periodoNormalizado), indicadorId: i.id, periodo: periodoNormalizado,
+        valor: Number(valor), explicacion: explicacion.trim() || undefined, evidencia: evidencia.trim() || undefined,
+        cerrado, registradoEn: medicion?.registradoEn ?? now, registradoPor: medicion?.registradoPor ?? usuario,
+        actualizadoEn: now, actualizadoPor: usuario,
+      })
+    }
   }
   async function alternar() { await guardarIndicadorSGO({ ...i, activo: !i.activo, actualizadoEn: new Date().toISOString(), actualizadoPor: usuario }) }
   async function eliminar() {
@@ -100,13 +135,19 @@ function IndicadorFila({ indicador: i, usuario, puedeEliminar }: { indicador: In
   return <div className="card" style={{ marginBottom: 8, opacity: i.activo ? 1 : .6 }}>
     <div className="card-header"><div><strong>{i.nombre}</strong><div className="meta">{i.origen === 'automatico' ? '⚡ Automático' : 'Manual'} · {i.direccion === 'mayor_mejor' ? 'Mayor es mejor' : 'Menor es mejor'} · Estado: {estadoIndicador({ ...i, valorActual: valor === '' ? undefined : Number(valor), meta: Number(meta), umbralAmarillo: Number(amarillo) })}</div></div><div className="row-actions"><button className="btn" onClick={() => void alternar()}>{i.activo ? 'Desactivar' : 'Activar'}</button>{puedeEliminar && <button className="btn" style={{ color: 'var(--rojo)', borderColor: 'var(--rojo)' }} onClick={() => void eliminar()}>Eliminar</button>}</div></div>
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(120px,1fr))', gap: 8 }}>
-      <div className="field"><label>Actual ({i.unidad})</label><input className="input" type="number" value={valor} disabled={i.origen === 'automatico'} onChange={(e) => setValor(e.target.value)} placeholder={i.origen === 'automatico' ? 'Calculado por el sistema' : ''} /></div>
-      <div className="field"><label>Meta verde</label><input className="input" type="number" value={meta} onChange={(e) => setMeta(e.target.value)} /></div>
-      <div className="field"><label>Umbral amarillo</label><input className="input" type="number" value={amarillo} onChange={(e) => setAmarillo(e.target.value)} /></div>
-      <div className="field"><label>Periodicidad</label><select className="input" value={frecuencia} onChange={(e) => setFrecuencia(e.target.value as FrecuenciaKPI)}>{FRECUENCIAS_KPI.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}</select></div>
-      <div className="field"><label>Mes de referencia</label><input className="input" type="month" value={periodo} onChange={(e) => setPeriodo(e.target.value)} /></div>
+      <div className="field"><label>Actual ({i.unidad})</label><input className="input" type="number" value={valor} disabled={i.origen === 'automatico' || bloqueado} onChange={(e) => setValor(e.target.value)} placeholder={i.origen === 'automatico' ? 'Calculado por el sistema' : ''} /></div>
+      <div className="field"><label>Meta verde</label><input className="input" type="number" value={meta} disabled={bloqueado} onChange={(e) => setMeta(e.target.value)} /></div>
+      <div className="field"><label>Umbral amarillo</label><input className="input" type="number" value={amarillo} disabled={bloqueado} onChange={(e) => setAmarillo(e.target.value)} /></div>
+      <div className="field"><label>Periodicidad</label><select className="input" value={frecuencia} disabled={bloqueado} onChange={(e) => setFrecuencia(e.target.value as FrecuenciaKPI)}>{FRECUENCIAS_KPI.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}</select></div>
+      <div className="field"><label>Mes de referencia</label><input className="input" type="month" value={periodo} disabled={bloqueado} onChange={(e) => setPeriodo(e.target.value)} /></div>
     </div>
+    {i.origen !== 'automatico' && <div className="sgo-medicion-grid">
+      <div className="field"><label>Explicación del resultado</label><textarea className="input" rows={2} value={explicacion} disabled={bloqueado} onChange={(e) => setExplicacion(e.target.value)} placeholder="Qué ocurrió y por qué se obtuvo este resultado" /></div>
+      <div className="field"><label>Evidencia / referencia</label><textarea className="input" rows={2} value={evidencia} disabled={bloqueado} onChange={(e) => setEvidencia(e.target.value)} placeholder="Informe, acta, archivo o enlace de respaldo" /></div>
+      <label className="check-inline"><input type="checkbox" checked={cerrado} disabled={bloqueado} onChange={(e) => setCerrado(e.target.checked)} /> Cerrar medición del período</label>
+    </div>}
     <div className="meta" style={{ marginTop: 7 }}>Mide: <strong>{periodoKPILabel(periodo, frecuencia)}</strong>.</div>
-    <div className="row-actions" style={{ justifyContent: 'flex-end' }}><button className="btn btn-primary" onClick={() => void actualizar()}>Actualizar KPI</button></div>
+    <div className="meta">Historial conservado: {mediciones.length} medición(es).</div>
+    <div className="row-actions" style={{ justifyContent: 'flex-end' }}><button className="btn btn-primary" disabled={bloqueado} onClick={() => void actualizar()}>{bloqueado ? 'Período cerrado' : 'Actualizar KPI'}</button></div>
   </div>
 }

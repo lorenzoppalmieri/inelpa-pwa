@@ -18,8 +18,8 @@ import type {
   TareaLaboratorio, EstadoLab, EnsayoEstado,
   PlantillaRecurrente,
 } from '../types'
-import type { AccionSGO, EventoSGO } from '../sgo/types'
-import type { IndicadorSGO } from '../sgo/indicadores'
+import type { AccionSGO, AuditoriaSGO, EventoSGO } from '../sgo/types'
+import type { IndicadorSGO, MedicionIndicadorSGO } from '../sgo/indicadores'
 import type { GarantiaISO } from '../sgo/garantias'
 
 // null -> undefined (Supabase devuelve null; la app usa undefined en opcionales).
@@ -234,6 +234,31 @@ export interface IndicadorSGORow {
   actualizado_por: string
 }
 
+export interface MedicionIndicadorSGORow {
+  id: string
+  indicador_id: string
+  periodo: string
+  valor: number
+  explicacion: string | null
+  evidencia: string | null
+  cerrado: boolean
+  registrado_en: string
+  registrado_por: string
+  actualizado_en: string
+  actualizado_por: string
+}
+
+export interface AuditoriaSGORow {
+  id: string
+  entidad: string
+  entidad_id: string
+  operacion: string
+  datos_anteriores: Record<string, unknown> | null
+  datos_nuevos: Record<string, unknown> | null
+  usuario: string
+  creado_en: string
+}
+
 export function eventoSGOFromRow(r: EventoSGORow): EventoSGO {
   return {
     id: r.id, codigo: r.codigo, tipo: r.tipo as EventoSGO['tipo'], pilar: r.pilar as EventoSGO['pilar'],
@@ -307,6 +332,33 @@ export function indicadorSGOToRow(i: IndicadorSGO): IndicadorSGORow {
     valor_actual: i.origen === 'automatico' ? null : i.valorActual ?? null,
     origen: i.origen ?? 'manual', clave_calculo: i.claveCalculo ?? null, periodo: i.periodo, frecuencia: i.frecuencia ?? 'mensual', activo: i.activo,
     actualizado_en: i.actualizadoEn, actualizado_por: i.actualizadoPor,
+  }
+}
+
+export function medicionIndicadorSGOFromRow(r: MedicionIndicadorSGORow): MedicionIndicadorSGO {
+  return {
+    id: r.id, indicadorId: r.indicador_id, periodo: r.periodo, valor: r.valor,
+    explicacion: u(r.explicacion), evidencia: u(r.evidencia), cerrado: r.cerrado,
+    registradoEn: r.registrado_en, registradoPor: r.registrado_por,
+    actualizadoEn: r.actualizado_en, actualizadoPor: r.actualizado_por,
+  }
+}
+
+export function medicionIndicadorSGOToRow(m: MedicionIndicadorSGO): MedicionIndicadorSGORow {
+  return {
+    id: m.id, indicador_id: m.indicadorId, periodo: m.periodo, valor: m.valor,
+    explicacion: m.explicacion ?? null, evidencia: m.evidencia ?? null, cerrado: m.cerrado,
+    registrado_en: m.registradoEn, registrado_por: m.registradoPor,
+    actualizado_en: m.actualizadoEn, actualizado_por: m.actualizadoPor,
+  }
+}
+
+export function auditoriaSGOFromRow(r: AuditoriaSGORow): AuditoriaSGO {
+  return {
+    id: r.id, entidad: r.entidad as AuditoriaSGO['entidad'], entidadId: r.entidad_id,
+    operacion: r.operacion as AuditoriaSGO['operacion'],
+    datosAnteriores: r.datos_anteriores ?? undefined, datosNuevos: r.datos_nuevos ?? undefined,
+    usuario: r.usuario, creadoEn: r.creado_en,
   }
 }
 
@@ -1026,6 +1078,9 @@ export interface GarantiaISORow {
   cobertura: string
   categoria: string
   estado: string
+  area_responsable_id: string | null
+  defecto_codigo: string | null
+  evento_id: string | null
   responsable: string | null
   fecha_compromiso: string | null
   solucion: string | null
@@ -1047,6 +1102,8 @@ export function garantiaISOFromRow(r: GarantiaISORow): GarantiaISO {
     ingresadoPor: u(r.ingresado_por), cliente: u(r.cliente), clienteOriginal: u(r.cliente_original),
     diagnostico: r.diagnostico, causas: u(r.causas), cobertura: r.cobertura as GarantiaISO['cobertura'],
     categoria: r.categoria as GarantiaISO['categoria'], estado: r.estado as GarantiaISO['estado'],
+    areaResponsableId: u(r.area_responsable_id) as GarantiaISO['areaResponsableId'],
+    defectoCodigo: u(r.defecto_codigo), eventoId: u(r.evento_id),
     responsable: u(r.responsable), fechaCompromiso: u(r.fecha_compromiso), solucion: u(r.solucion),
     fechaResolucion: u(r.fecha_resolucion), verificado: r.verificado,
     verificacionDetalle: u(r.verificacion_detalle), costoEstimado: u(r.costo_estimado),
@@ -1062,6 +1119,8 @@ export function garantiaISOToRow(g: GarantiaISO): GarantiaISORow {
     ingresado_por: g.ingresadoPor ?? null, cliente: g.cliente ?? null,
     cliente_original: g.clienteOriginal ?? null, diagnostico: g.diagnostico,
     causas: g.causas ?? null, cobertura: g.cobertura, categoria: g.categoria, estado: g.estado,
+    area_responsable_id: g.areaResponsableId ?? null, defecto_codigo: g.defectoCodigo ?? null,
+    evento_id: g.eventoId ?? null,
     responsable: g.responsable ?? null, fecha_compromiso: g.fechaCompromiso ?? null,
     solucion: g.solucion ?? null, fecha_resolucion: g.fechaResolucion ?? null,
     verificado: g.verificado, verificacion_detalle: g.verificacionDetalle ?? null,

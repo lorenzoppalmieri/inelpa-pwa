@@ -59,6 +59,20 @@ export const PERMISOS: Record<Rol, Permisos> = {
     configurarEstandares: false, verTodosSectores: true,
     gestionProduccion: false, crearReparacion: false,
   },
+  // v1.62: Mantenimiento (jefe) y tecnicos NO operan los modulos productivos;
+  // su pantalla es el editor de mapa (src/mantenimiento). Solo lectura de planta.
+  mantenimiento: {
+    verTareasPropias: false, cambiarEstadoTarea: false, verDashboard: true,
+    validarDatos: false, reasignarPrioridad: false, cargarProgramacion: false,
+    configurarEstandares: false, verTodosSectores: true,
+    gestionProduccion: false, crearReparacion: false,
+  },
+  mant_tecnico: {
+    verTareasPropias: false, cambiarEstadoTarea: false, verDashboard: false,
+    validarDatos: false, reasignarPrioridad: false, cargarProgramacion: false,
+    configurarEstandares: false, verTodosSectores: false,
+    gestionProduccion: false, crearReparacion: false,
+  },
 }
 
 // ============================================================
@@ -83,4 +97,6 @@ export const ROL_LABEL: Record<Rol, string> = {
   logistica: 'Logística',
   laboratorio: 'Laboratorio',
   sgo: 'SGO Integral',
+  mantenimiento: 'Mantenimiento',
+  mant_tecnico: 'Técnico Mant.',
 }

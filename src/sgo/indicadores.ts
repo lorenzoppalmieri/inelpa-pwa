@@ -30,6 +30,39 @@ export interface IndicadorSGO {
   actualizadoPor: string
 }
 
+export interface MedicionIndicadorSGO {
+  id: string
+  indicadorId: string
+  periodo: string
+  valor: number
+  explicacion?: string
+  evidencia?: string
+  cerrado: boolean
+  registradoEn: string
+  registradoPor: string
+  actualizadoEn: string
+  actualizadoPor: string
+}
+
+export function idMedicionIndicador(indicadorId: string, periodo: string): string {
+  return `${indicadorId}__${periodo}`
+}
+
+export function medicionDelPeriodo(indicador: IndicadorSGO, mediciones: MedicionIndicadorSGO[]): MedicionIndicadorSGO | undefined {
+  const periodo = normalizarPeriodoKPI(indicador.periodo, indicador.frecuencia)
+  return mediciones.find((m) => m.indicadorId === indicador.id && m.periodo === periodo)
+}
+
+export function aplicarMedicionesIndicadores(indicadores: IndicadorSGO[], mediciones: MedicionIndicadorSGO[]): IndicadorSGO[] {
+  return indicadores.map((indicador) => {
+    if (indicador.origen === 'automatico') return indicador
+    const medicion = medicionDelPeriodo(indicador, mediciones)
+    // Compatibilidad con los KPI manuales creados antes de incorporar historial:
+    // si aún no tienen mediciones, se conserva el valor anterior.
+    return { ...indicador, valorActual: medicion?.valor ?? indicador.valorActual }
+  })
+}
+
 export const FRECUENCIAS_KPI: { id: FrecuenciaKPI; label: string; meses: number }[] = [
   { id: 'mensual', label: 'Mensual', meses: 1 },
   { id: 'bimestral', label: 'Bimestral', meses: 2 },

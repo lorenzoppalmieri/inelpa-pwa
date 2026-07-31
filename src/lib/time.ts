@@ -21,6 +21,25 @@ export function fechaCorta(iso?: string): string {
   return new Date(iso).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })
 }
 
+// Fecha calendario local. Evita que `toISOString()` adelante el día o el mes
+// después de las 21:00 en Argentina.
+export function fechaLocalISO(d = new Date()): string {
+  const anio = d.getFullYear()
+  const mes = String(d.getMonth() + 1).padStart(2, '0')
+  const dia = String(d.getDate()).padStart(2, '0')
+  return `${anio}-${mes}-${dia}`
+}
+
+export function periodoLocalISO(d = new Date()): string {
+  return fechaLocalISO(d).slice(0, 7)
+}
+
+export function sumarDiasLocalISO(dias: number, base = new Date()): string {
+  const fecha = new Date(base)
+  fecha.setDate(fecha.getDate() + dias)
+  return fechaLocalISO(fecha)
+}
+
 // Diferencia en minutos entre dos timestamps ISO.
 export function minutosEntre(aIso?: string, bIso?: string): number {
   if (!aIso || !bIso) return 0

@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react'
 // Menú lateral fijo con buscador y navegación por módulos. El contenedor
 // principal (AdminLayout) renderiza el módulo del ítem activo.
 // ============================================================
-export type ModuloAdmin = 'planificacion' | 'logistica' | 'laboratorio' | 'despacho' | 'sgo'
+export type ModuloAdmin = 'planificacion' | 'logistica' | 'laboratorio' | 'despacho' | 'sgo' | 'mantenimiento'
 
 export interface ItemMenu {
   id: ModuloAdmin
@@ -20,6 +20,8 @@ export const MENU_ADMIN: ItemMenu[] = [
   { id: 'laboratorio', label: 'Laboratorio', icono: '🔬', sub: 'Ensayos y protocolos' },
   { id: 'despacho', label: 'Despacho', icono: '📦', sub: 'Embalaje, fletes y entregas' },
   { id: 'sgo', label: 'SGO INTEGRAL', icono: '🛡️', sub: 'Seis pilares, eventos y acciones' },
+  // v1.62: editor de mapa de activos de mantenimiento (mismo componente que ve el jefe).
+  { id: 'mantenimiento', label: 'Mantenimiento', icono: '🛠️', sub: 'Mapa de activos y editor de plano' },
 ]
 
 export default function Sidebar({ activo, onSelect, colapsado, onToggle }: {

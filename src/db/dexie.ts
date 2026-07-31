@@ -5,8 +5,8 @@ import type {
   Mensaje, MensajeLectura, TiempoEstandar, DespachoTrafo, FleteInterno, TareaLaboratorio,
   PlantillaRecurrente,
 } from '../types'
-import type { EventoSGO, AccionSGO } from '../sgo/types'
-import type { IndicadorSGO } from '../sgo/indicadores'
+import type { EventoSGO, AccionSGO, AuditoriaSGO } from '../sgo/types'
+import type { IndicadorSGO, MedicionIndicadorSGO } from '../sgo/indicadores'
 import type { GarantiaISO } from '../sgo/garantias'
 
 // ============================================================
@@ -40,6 +40,8 @@ export class InelpaDB extends Dexie {
   eventosSGO!: Table<EventoSGO, string>
   accionesSGO!: Table<AccionSGO, string>
   indicadoresSGO!: Table<IndicadorSGO, string>
+  medicionesIndicadoresSGO!: Table<MedicionIndicadorSGO, string>
+  auditoriaSGO!: Table<AuditoriaSGO, string>
   garantiasISO!: Table<GarantiaISO, string>
 
   constructor() {
@@ -147,6 +149,12 @@ export class InelpaDB extends Dexie {
     // v1.60: registro ISO 9001 de transformadores en garantía.
     this.version(22).stores({
       garantiasISO: 'id, codigo, nroSerie, fechaDeteccion, cliente, cobertura, categoria, estado, responsable',
+    })
+    // v1.64: historial de mediciones KPI y bitácora de auditoría generada en Supabase.
+    this.version(23).stores({
+      medicionesIndicadoresSGO: 'id, indicadorId, periodo, cerrado, [indicadorId+periodo]',
+      auditoriaSGO: 'id, entidad, entidadId, creadoEn, [entidad+entidadId]',
+      garantiasISO: 'id, codigo, nroSerie, fechaDeteccion, cliente, cobertura, categoria, estado, responsable, areaResponsableId, eventoId',
     })
   }
 }

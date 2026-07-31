@@ -2,6 +2,7 @@ import { detalleKPIAutomatico, type DatosKPIAutomaticos, type RegistroDetalleKPI
 import { estadoIndicador, periodoKPILabel, type EstadoSemaforo, type IndicadorSGO } from '../../sgo/indicadores'
 import { AREAS_SGO, PILARES_SGO, type AccionSGO, type AreaSGOId, type EventoSGO, type PilarSGO } from '../../sgo/types'
 import { eliminarIndicadorSGO } from '../../sync/syncEngine'
+import { fechaLocalISO } from '../../lib/time'
 
 const PALETA: Record<EstadoSemaforo, { color: string; fondo: string; label: string }> = {
   verde: { color: '#15803d', fondo: '#dcfce7', label: 'Conforme' },
@@ -19,7 +20,7 @@ const formatoFecha = (fecha?: string) => fecha
   : '—'
 
 function accionVencida(a: AccionSGO) {
-  return !['verificada', 'cancelada'].includes(a.estado) && a.fechaCompromiso < new Date().toISOString().slice(0, 10)
+  return !['verificada', 'cancelada'].includes(a.estado) && a.fechaCompromiso < fechaLocalISO()
 }
 
 export default function FichaCeldaSGO({ areaId, pilarId, indicadores, eventos, acciones, datos, usuario, onClose, onFiltrarEventos, onOpenEvento }: {
@@ -145,7 +146,7 @@ function Evolucion({ valores, unidad, meta }: { valores: { periodo: string; etiq
   const disponibles = valores.flatMap((v) => v.valor === undefined ? [] : [v.valor])
   const maximo = Math.max(1, meta, ...disponibles)
   return <div style={{ marginTop: 12 }}>
-    <strong>Evolución mensual</strong>
+    <strong>Evolución histórica</strong>
     <div style={{ display: 'flex', alignItems: 'end', gap: 8, height: 120, marginTop: 8, borderBottom: '1px solid var(--borde)', padding: '0 6px' }}>
       {valores.map((v) => {
         const alto = v.valor === undefined ? 4 : Math.max(6, Math.round(v.valor / maximo * 85))

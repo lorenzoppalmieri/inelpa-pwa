@@ -25,6 +25,9 @@ export interface GarantiaISO {
   cobertura: CoberturaGarantia
   categoria: CategoriaGarantia
   estado: EstadoGarantia
+  areaResponsableId?: import('./types').AreaSGOId
+  defectoCodigo?: string
+  eventoId?: string
   responsable?: string
   fechaCompromiso?: string
   solucion?: string
@@ -79,4 +82,15 @@ export function diasEntreGarantia(desde?: string, hasta?: string): number | unde
   const b = new Date(`${hasta.slice(0, 10)}T12:00:00`).getTime()
   if (!Number.isFinite(a) || !Number.isFinite(b) || b < a) return undefined
   return Math.round((b - a) / 86_400_000)
+}
+
+export function erroresConsistenciaGarantia(g: GarantiaISO): string[] {
+  const errores: string[] = []
+  if (g.fechaSalida && g.fechaDeteccion < g.fechaSalida) errores.push('La detección no puede ser anterior a la salida.')
+  if (g.fechaResolucion && g.fechaResolucion < g.fechaDeteccion) errores.push('La resolución no puede ser anterior a la detección.')
+  if (g.estado === 'resuelto' && !g.fechaResolucion) errores.push('Un reclamo resuelto debe tener fecha de resolución.')
+  if ((g.estado === 'verificado' || g.verificado) && !g.fechaResolucion) errores.push('La verificación requiere fecha de resolución.')
+  if ((g.estado === 'verificado' || g.verificado) && !g.verificacionDetalle?.trim()) errores.push('La verificación requiere una explicación.')
+  if (g.estado === 'verificado' && !g.verificado) errores.push('El estado Verificado requiere marcar la solución como verificada.')
+  return errores
 }

@@ -2,14 +2,14 @@ import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/
 import { db } from '../db/dexie'
 import { supabase, SUPABASE_HABILITADO } from '../lib/supabaseClient'
 import type { SyncOp, Tarea, OrdenProduccion, Semielaborado, SectorId, Objetivo, TareaLogistica, SolicitudLogistica, Feriado, Mensaje, MensajeLectura, TiempoEstandar, DespachoTrafo, FleteInterno, TareaLaboratorio, PlantillaRecurrente } from '../types'
-import type { EventoSGO, AccionSGO } from '../sgo/types'
-import type { IndicadorSGO } from '../sgo/indicadores'
+import type { EventoSGO, AccionSGO, AuditoriaSGO } from '../sgo/types'
+import type { IndicadorSGO, MedicionIndicadorSGO } from '../sgo/indicadores'
 import type { GarantiaISO } from '../sgo/garantias'
 import { setFeriados } from '../lib/calendario'
 import {
-  tareaFromRow, paradaFromRow, ordenFromRow, semiFromRow, maquinaFromRow, usuarioFromRow, objetivoFromRow, tareaLogFromRow, solicitudLogFromRow, feriadoFromRow, mensajeFromRow, lecturaFromRow, estandarFromRow, despachoFromRow, fleteFromRow, laboratorioFromRow, plantillaFromRow, eventoSGOFromRow, accionSGOFromRow, indicadorSGOFromRow, garantiaISOFromRow,
-  tareaToRow, paradaToRow, ordenToRow, semiToRow, objetivoToRow, tareaLogToRow, solicitudLogToRow, feriadoToRow, mensajeToRow, lecturaToRow, estandarToRow, despachoToRow, fleteToRow, laboratorioToRow, plantillaToRow, eventoSGOToRow, accionSGOToRow, indicadorSGOToRow, garantiaISOToRow,
-  type TareaRow, type ParadaRow, type OrdenRow, type SemiRow, type MaquinaRow, type UsuarioRow, type ObjetivoRow, type TareaLogisticaRow, type SolicitudLogisticaRow, type FeriadoRow, type MensajeRow, type MensajeLecturaRow, type TiempoEstandarRow, type DespachoRow, type FleteRow, type LaboratorioRow, type PlantillaRecurrenteRow, type EventoSGORow, type AccionSGORow, type IndicadorSGORow, type GarantiaISORow,
+  tareaFromRow, paradaFromRow, ordenFromRow, semiFromRow, maquinaFromRow, usuarioFromRow, objetivoFromRow, tareaLogFromRow, solicitudLogFromRow, feriadoFromRow, mensajeFromRow, lecturaFromRow, estandarFromRow, despachoFromRow, fleteFromRow, laboratorioFromRow, plantillaFromRow, eventoSGOFromRow, accionSGOFromRow, indicadorSGOFromRow, medicionIndicadorSGOFromRow, auditoriaSGOFromRow, garantiaISOFromRow,
+  tareaToRow, paradaToRow, ordenToRow, semiToRow, objetivoToRow, tareaLogToRow, solicitudLogToRow, feriadoToRow, mensajeToRow, lecturaToRow, estandarToRow, despachoToRow, fleteToRow, laboratorioToRow, plantillaToRow, eventoSGOToRow, accionSGOToRow, indicadorSGOToRow, medicionIndicadorSGOToRow, garantiaISOToRow,
+  type TareaRow, type ParadaRow, type OrdenRow, type SemiRow, type MaquinaRow, type UsuarioRow, type ObjetivoRow, type TareaLogisticaRow, type SolicitudLogisticaRow, type FeriadoRow, type MensajeRow, type MensajeLecturaRow, type TiempoEstandarRow, type DespachoRow, type FleteRow, type LaboratorioRow, type PlantillaRecurrenteRow, type EventoSGORow, type AccionSGORow, type IndicadorSGORow, type MedicionIndicadorSGORow, type AuditoriaSGORow, type GarantiaISORow,
 } from './mappers'
 
 // ============================================================
@@ -117,10 +117,9 @@ export async function fetchInicial(): Promise<void> {
       db.tareasLogistica.clear(), db.solicitudesLogistica.clear(), db.feriados.clear(),
       db.mensajes.clear(), db.mensajesLectura.clear(), db.estandares.clear(), db.despachos.clear(), db.fletes.clear(), db.laboratorio.clear(),
       db.plantillasRecurrentes.clear(), db.datosTecnicos.clear(),
-      db.eventosSGO.clear(), db.accionesSGO.clear(), db.indicadoresSGO.clear(), db.garantiasISO.clear(),
     ])
 
-    const [maqs, usrs, uss, ords, semis, tars, pars, objs, tlog, slog, fers, msgs, lects, ests, desp, flts, labs, plts, eventosSgo, accionesSgo, indicadoresSgo, garantiasIso, dtec] = await Promise.all([
+    const [maqs, usrs, uss, ords, semis, tars, pars, objs, tlog, slog, fers, msgs, lects, ests, desp, flts, labs, plts, eventosSgo, accionesSgo, indicadoresSgo, medicionesSgo, auditoriaSgo, garantiasIso, dtec] = await Promise.all([
       supabase.from('maquinas').select('*'),
       supabase.from('usuarios').select('id, nombre, usuario, rol, grupo_nomina, activo'),
       supabase.from('usuario_sectores').select('usuario_id, sector_id'),
@@ -142,6 +141,8 @@ export async function fetchInicial(): Promise<void> {
       supabase.from('sgo_eventos').select('*'),
       supabase.from('sgo_acciones').select('*'),
       supabase.from('sgo_indicadores').select('*'),
+      supabase.from('sgo_indicador_mediciones').select('*'),
+      supabase.from('sgo_auditoria').select('*').order('creado_en', { ascending: false }).limit(1000),
       supabase.from('sgo_garantias_iso').select('*'),
       supabase.from('datos_tecnicos').select('*'),
     ])
@@ -197,10 +198,14 @@ export async function fetchInicial(): Promise<void> {
       await db.datosTecnicos.bulkPut(filas)
     }
 
-    if (eventosSgo.data) await db.eventosSGO.bulkPut((eventosSgo.data as EventoSGORow[]).map(eventoSGOFromRow))
-    if (accionesSgo.data) await db.accionesSGO.bulkPut((accionesSgo.data as AccionSGORow[]).map(accionSGOFromRow))
-    if (indicadoresSgo.data) await db.indicadoresSGO.bulkPut((indicadoresSgo.data as IndicadorSGORow[]).map(indicadorSGOFromRow))
-    if (garantiasIso.data) await db.garantiasISO.bulkPut((garantiasIso.data as GarantiaISORow[]).map(garantiaISOFromRow))
+    // Las tablas SGO se reemplazan solamente cuando su consulta respondió bien.
+    // Así una migración faltante o un error de RLS no borra el espejo offline.
+    if (eventosSgo.data) { await db.eventosSGO.clear(); await db.eventosSGO.bulkPut((eventosSgo.data as EventoSGORow[]).map(eventoSGOFromRow)) }
+    if (accionesSgo.data) { await db.accionesSGO.clear(); await db.accionesSGO.bulkPut((accionesSgo.data as AccionSGORow[]).map(accionSGOFromRow)) }
+    if (indicadoresSgo.data) { await db.indicadoresSGO.clear(); await db.indicadoresSGO.bulkPut((indicadoresSgo.data as IndicadorSGORow[]).map(indicadorSGOFromRow)) }
+    if (medicionesSgo.data) { await db.medicionesIndicadoresSGO.clear(); await db.medicionesIndicadoresSGO.bulkPut((medicionesSgo.data as MedicionIndicadorSGORow[]).map(medicionIndicadorSGOFromRow)) }
+    if (auditoriaSgo.data) { await db.auditoriaSGO.clear(); await db.auditoriaSGO.bulkPut((auditoriaSgo.data as AuditoriaSGORow[]).map(auditoriaSGOFromRow)) }
+    if (garantiasIso.data) { await db.garantiasISO.clear(); await db.garantiasISO.bulkPut((garantiasIso.data as GarantiaISORow[]).map(garantiaISOFromRow)) }
 
     // Tareas logisticas
     if (tlog.data) await db.tareasLogistica.bulkPut((tlog.data as TareaLogisticaRow[]).map(tareaLogFromRow))
@@ -346,6 +351,14 @@ async function onIndicadorSGOChange(payload: Payload) {
   if (payload.eventType === 'DELETE') { await db.indicadoresSGO.delete((payload.old as { id: string }).id); return }
   await db.indicadoresSGO.put(indicadorSGOFromRow(payload.new as unknown as IndicadorSGORow))
 }
+async function onMedicionIndicadorSGOChange(payload: Payload) {
+  if (payload.eventType === 'DELETE') { await db.medicionesIndicadoresSGO.delete((payload.old as { id: string }).id); return }
+  await db.medicionesIndicadoresSGO.put(medicionIndicadorSGOFromRow(payload.new as unknown as MedicionIndicadorSGORow))
+}
+async function onAuditoriaSGOChange(payload: Payload) {
+  if (payload.eventType === 'DELETE') { await db.auditoriaSGO.delete((payload.old as { id: string }).id); return }
+  await db.auditoriaSGO.put(auditoriaSGOFromRow(payload.new as unknown as AuditoriaSGORow))
+}
 async function onGarantiaISOChange(payload: Payload) {
   if (payload.eventType === 'DELETE') { await db.garantiasISO.delete((payload.old as { id: string }).id); return }
   await db.garantiasISO.put(garantiaISOFromRow(payload.new as unknown as GarantiaISORow))
@@ -374,6 +387,8 @@ function suscribirRealtime() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'sgo_eventos' }, onEventoSGOChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'sgo_acciones' }, onAccionSGOChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'sgo_indicadores' }, onIndicadorSGOChange)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'sgo_indicador_mediciones' }, onMedicionIndicadorSGOChange)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'sgo_auditoria' }, onAuditoriaSGOChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'sgo_garantias_iso' }, onGarantiaISOChange)
     .subscribe()
 }
@@ -488,6 +503,7 @@ async function empujar(op: SyncOp): Promise<EmpujeResultado> {
         : op.entidad === 'plantilla_recurrente' ? 'plantillas_recurrentes'
         : op.entidad === 'evento_sgo' ? 'sgo_eventos'
         : op.entidad === 'accion_sgo' ? 'sgo_acciones'
+        : op.entidad === 'medicion_indicador_sgo' ? 'sgo_indicador_mediciones'
         : op.entidad === 'garantia_iso' ? 'sgo_garantias_iso'
         : 'paradas'
       const { error } = await supabase.from(tabla).delete().eq('id', op.entidadId)
@@ -562,6 +578,10 @@ async function empujar(op: SyncOp): Promise<EmpujeResultado> {
       case 'indicador_sgo': {
         const { error } = await supabase.from('sgo_indicadores').upsert(indicadorSGOToRow(op.payload as IndicadorSGO), { onConflict: 'id' })
         return error ? fallo('upsert indicador_sgo', error.message) : OK_EMPUJE
+      }
+      case 'medicion_indicador_sgo': {
+        const { error } = await supabase.from('sgo_indicador_mediciones').upsert(medicionIndicadorSGOToRow(op.payload as MedicionIndicadorSGO), { onConflict: 'id' })
+        return error ? fallo('upsert medicion_indicador_sgo', error.message) : OK_EMPUJE
       }
       case 'garantia_iso': {
         const { error } = await supabase.from('sgo_garantias_iso').upsert(garantiaISOToRow(op.payload as GarantiaISO), { onConflict: 'id' })
@@ -701,8 +721,13 @@ export async function guardarIndicadorSGO(i: IndicadorSGO): Promise<void> {
   await encolar({ entidad: 'indicador_sgo', entidadId: i.id, tipo: 'upsert', payload: i })
 }
 export async function eliminarIndicadorSGO(i: IndicadorSGO): Promise<void> {
+  await db.medicionesIndicadoresSGO.where('indicadorId').equals(i.id).delete()
   await db.indicadoresSGO.delete(i.id)
   await encolar({ entidad: 'indicador_sgo', entidadId: i.id, tipo: 'delete', payload: { id: i.id } })
+}
+export async function guardarMedicionIndicadorSGO(m: MedicionIndicadorSGO): Promise<void> {
+  await db.medicionesIndicadoresSGO.put(m)
+  await encolar({ entidad: 'medicion_indicador_sgo', entidadId: m.id, tipo: 'upsert', payload: m })
 }
 export async function guardarGarantiaISO(g: GarantiaISO): Promise<void> {
   await db.garantiasISO.put(g)

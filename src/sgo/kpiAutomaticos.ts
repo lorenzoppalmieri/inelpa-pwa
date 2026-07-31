@@ -1,6 +1,8 @@
 import { CAUSAS_PARADA, SECTORES, type SectorId, type Tarea, type TareaLaboratorio, type TareaLogistica } from '../types'
+import { sumarMinutosLaborables } from '../lib/calendario'
+import { fechaLocalISO, periodoLocalISO } from '../lib/time'
 import type { AccionSGO, AreaSGOId, EventoSGO } from './types'
-import { mesesFrecuenciaKPI, normalizarPeriodoKPI, periodoKPIEtiquetaCorta, rangoPeriodoKPI, type ClaveCalculoKPI, type FrecuenciaKPI, type IndicadorSGO } from './indicadores'
+import { mesesFrecuenciaKPI, normalizarPeriodoKPI, periodoKPIEtiquetaCorta, rangoPeriodoKPI, type ClaveCalculoKPI, type FrecuenciaKPI, type IndicadorSGO, type MedicionIndicadorSGO } from './indicadores'
 
 export interface DatosKPIAutomaticos {
   tareas: Tarea[]
@@ -8,6 +10,7 @@ export interface DatosKPIAutomaticos {
   tareasLogistica: TareaLogistica[]
   eventos: EventoSGO[]
   acciones: AccionSGO[]
+  mediciones?: MedicionIndicadorSGO[]
 }
 
 export interface RegistroDetalleKPI {
@@ -57,34 +60,41 @@ function periodosHasta(periodo: string, frecuencia: FrecuenciaKPI = 'mensual', c
 }
 
 function calcular(clave: ClaveCalculoKPI, area: AreaSGOId, periodo: string, d: DatosKPIAutomaticos, frecuencia: FrecuenciaKPI = 'mensual'): number | undefined {
-  const hoy = new Date().toISOString()
+  const ahora = new Date().toISOString()
   if (clave === 'produccion_cumplimiento') {
-    const base = d.tareas.filter((t) => SECTOR_A_AREA[t.sectorId] === area && t.tipo !== 'reparacion' && enPeriodo(t.inicioPlanificado, periodo, frecuencia) && (t.inicioPlanificado ?? '') <= hoy)
-    return base.length ? redondear(base.filter((t) => t.estado === 'finalizada').length / base.length * 100) : undefined
+    const finPlanificado = (t: Tarea) => t.inicioPlanificado ? sumarMinutosLaborables(t.inicioPlanificado, Math.max(0, t.tiempoEstandarMin)) : undefined
+    const base = d.tareas.filter((t) => {
+      const fin = finPlanificado(t)
+      return SECTOR_A_AREA[t.sectorId] === area && t.tipo !== 'reparacion' &&
+        enPeriodo(t.inicioPlanificado, periodo, frecuencia) && !!fin && fin <= ahora
+    })
+    const enFecha = base.filter((t) => t.estado === 'finalizada' && !!t.finReal && t.finReal <= (finPlanificado(t) ?? '')).length
+    return base.length ? redondear(enFecha / base.length * 100) : undefined
   }
   if (clave === 'produccion_retrabajos') {
     const tareasArea = d.tareas.filter((t) => SECTOR_A_AREA[t.sectorId] === area)
-    const reparaciones = tareasArea.filter((t) => t.tipo === 'reparacion' && enPeriodo(t.finReal ?? t.inicioReal ?? t.creada, periodo, frecuencia)).length
-    const paradasCalidad = tareasArea.reduce((n, t) => n + t.paradas.filter((p) => enPeriodo(p.inicio, periodo, frecuencia) && CAUSAS_PARADA.find((c) => c.id === p.causa)?.categoria === 'calidad').length, 0)
-    return reparaciones + paradasCalidad
+    return new Set(tareasArea.filter((t) =>
+      (t.tipo === 'reparacion' && enPeriodo(t.finReal ?? t.inicioReal ?? t.creada, periodo, frecuencia)) ||
+      t.paradas.some((p) => enPeriodo(p.inicio, periodo, frecuencia) && CAUSAS_PARADA.find((c) => c.id === p.causa)?.categoria === 'calidad'),
+    ).map((t) => t.id)).size
   }
   if (clave === 'laboratorio_fpy') {
     const base = d.laboratorio.filter((t) => t.estado === 'finalizada' && enPeriodo(t.finalizada, periodo, frecuencia))
-    return base.length ? redondear(base.filter((t) => t.resultado === 'aprobado').length / base.length * 100) : undefined
+    return base.length ? redondear(base.filter((t) => t.resultado === 'aprobado' && !(t.reaperturas?.length)).length / base.length * 100) : undefined
   }
   if (clave === 'logistica_cumplimiento') {
-    const hoyDia = hoy.slice(0, 10)
+    const hoyDia = fechaLocalISO()
     const base = d.tareasLogistica.filter((t) => t.origen !== 'despacho' && enPeriodo(t.fechaProgramada, periodo, frecuencia) && (t.fechaProgramada ?? '') <= hoyDia)
     const aTiempo = base.filter((t) => t.estado === 'finalizada' && !!t.finalizada && t.finalizada.slice(0, 10) <= (t.fechaProgramada ?? '')).length
     return base.length ? redondear(aTiempo / base.length * 100) : undefined
   }
   if (clave === 'costo_no_calidad') {
     const base = d.eventos.filter((e) => (e.areaOrigenId ?? e.areaId) === area && enPeriodo(e.detectadoEn, periodo, frecuencia))
-    return base.length ? redondear(base.reduce((s, e) => s + (e.costoEstimado ?? 0), 0)) : undefined
+    return redondear(base.reduce((s, e) => s + (e.costoEstimado ?? 0), 0))
   }
   if (clave === 'acciones_en_fecha') {
     const eventosArea = new Set(d.eventos.filter((e) => (e.areaOrigenId ?? e.areaId) === area).map((e) => e.id))
-    const hoyDia = hoy.slice(0, 10)
+    const hoyDia = fechaLocalISO()
     const base = d.acciones.filter((a) => eventosArea.has(a.eventoId) && enPeriodo(a.fechaCompromiso, periodo, frecuencia) && a.fechaCompromiso <= hoyDia)
     const aTiempo = base.filter((a) => {
       const cierre = a.completadaEn ?? a.verificadaEn
@@ -106,42 +116,53 @@ export function detalleKPIAutomatico(indicador: IndicadorSGO, d: DatosKPIAutomat
   const frecuencia = indicador.frecuencia ?? 'mensual'
   const evolucion = periodosHasta(periodo, frecuencia).map((p) => ({ periodo: p, etiqueta: periodoKPIEtiquetaCorta(p, frecuencia), valor: clave ? calcular(clave, area, p, d, frecuencia) : undefined }))
   if (indicador.origen !== 'automatico' || !clave) {
-    return { formula: 'Valor ingresado manualmente por el responsable del indicador.', registros: [], evolucion: [{ periodo, etiqueta: periodoKPIEtiquetaCorta(periodo, frecuencia), valor: indicador.valorActual }] }
+    const historico = (d.mediciones ?? []).filter((m) => m.indicadorId === indicador.id)
+      .sort((a, b) => a.periodo.localeCompare(b.periodo)).slice(-6)
+      .map((m) => ({ periodo: m.periodo, etiqueta: periodoKPIEtiquetaCorta(m.periodo, frecuencia), valor: m.valor }))
+    return { formula: 'Valor ingresado manualmente por el responsable del indicador.', registros: [], evolucion: historico.length ? historico : [{ periodo, etiqueta: periodoKPIEtiquetaCorta(periodo, frecuencia), valor: indicador.valorActual }] }
   }
-  const hoy = new Date().toISOString()
+  const ahora = new Date().toISOString()
   if (clave === 'produccion_cumplimiento') {
-    const base = d.tareas.filter((t) => SECTOR_A_AREA[t.sectorId] === area && t.tipo !== 'reparacion' && enPeriodo(t.inicioPlanificado, periodo, frecuencia) && (t.inicioPlanificado ?? '') <= hoy)
-    const cumplidas = base.filter((t) => t.estado === 'finalizada').length
+    const finPlanificado = (t: Tarea) => t.inicioPlanificado ? sumarMinutosLaborables(t.inicioPlanificado, Math.max(0, t.tiempoEstandarMin)) : undefined
+    const base = d.tareas.filter((t) => {
+      const fin = finPlanificado(t)
+      return SECTOR_A_AREA[t.sectorId] === area && t.tipo !== 'reparacion' &&
+        enPeriodo(t.inicioPlanificado, periodo, frecuencia) && !!fin && fin <= ahora
+    })
+    const cumple = (t: Tarea) => t.estado === 'finalizada' && !!t.finReal && t.finReal <= (finPlanificado(t) ?? '')
+    const cumplidas = base.filter(cumple).length
     return {
-      formula: 'Tareas finalizadas ÷ tareas planificadas cuyo inicio ya debía ocurrir × 100.', numerador: cumplidas, denominador: base.length, evolucion,
+      formula: 'Tareas finalizadas antes del fin planificado ÷ tareas cuyo fin planificado ya venció × 100.', numerador: cumplidas, denominador: base.length, evolucion,
       registros: base.map((t) => ({ id: t.id, fecha: t.inicioPlanificado, referencia: t.nroTransformador || t.modelo || t.id,
-        detalle: `${sectorLabel(t.sectorId)} · ${t.estado.replace('_', ' ')}`, resultado: t.estado === 'finalizada' ? 'cumple' : 'no_cumple' })),
+        detalle: `${sectorLabel(t.sectorId)} · ${t.estado.replace('_', ' ')}`, resultado: cumple(t) ? 'cumple' : 'no_cumple' })),
     }
   }
   if (clave === 'produccion_retrabajos') {
     const tareasArea = d.tareas.filter((t) => SECTOR_A_AREA[t.sectorId] === area)
-    const reparaciones: RegistroDetalleKPI[] = tareasArea.filter((t) => t.tipo === 'reparacion' && enPeriodo(t.finReal ?? t.inicioReal ?? t.creada, periodo, frecuencia)).map((t) => ({
-      id: t.id, fecha: t.finReal ?? t.inicioReal ?? t.creada, referencia: t.nroTransformador || t.modelo || t.id,
-      detalle: `Reparación · ${sectorLabel(t.sectorId)}`, resultado: 'no_cumple',
-    }))
-    const paradas: RegistroDetalleKPI[] = tareasArea.flatMap((t) => t.paradas.filter((p) => enPeriodo(p.inicio, periodo, frecuencia) && CAUSAS_PARADA.find((c) => c.id === p.causa)?.categoria === 'calidad').map((p) => ({
-      id: p.id, fecha: p.inicio, referencia: t.nroTransformador || t.modelo || t.id,
-      detalle: `Parada: ${CAUSAS_PARADA.find((c) => c.id === p.causa)?.label ?? p.causa}${p.observacion ? ` · ${p.observacion}` : ''}`, resultado: 'no_cumple' as const,
-    })))
-    const registros = [...reparaciones, ...paradas]
-    return { formula: 'Cantidad de tareas de reparación + paradas categorizadas como Calidad.', numerador: registros.length, registros, evolucion }
+    const registros: RegistroDetalleKPI[] = tareasArea.flatMap((t) => {
+      const esReparacion = t.tipo === 'reparacion' && enPeriodo(t.finReal ?? t.inicioReal ?? t.creada, periodo, frecuencia)
+      const paradas = t.paradas.filter((p) => enPeriodo(p.inicio, periodo, frecuencia) && CAUSAS_PARADA.find((c) => c.id === p.causa)?.categoria === 'calidad')
+      if (!esReparacion && paradas.length === 0) return []
+      return [{
+        id: t.id, fecha: paradas[0]?.inicio ?? t.finReal ?? t.inicioReal ?? t.creada,
+        referencia: t.nroTransformador || t.modelo || t.id,
+        detalle: `${esReparacion ? 'Reparación' : 'Desvío de calidad'} · ${sectorLabel(t.sectorId)}${paradas.length ? ` · ${paradas.length} parada(s)` : ''}`,
+        resultado: 'no_cumple' as const,
+      }]
+    })
+    return { formula: 'Cantidad de tareas únicas con reparación o al menos una parada de Calidad.', numerador: registros.length, registros, evolucion }
   }
   if (clave === 'laboratorio_fpy') {
     const base = d.laboratorio.filter((t) => t.estado === 'finalizada' && enPeriodo(t.finalizada, periodo, frecuencia))
-    const aprobados = base.filter((t) => t.resultado === 'aprobado').length
+    const aprobados = base.filter((t) => t.resultado === 'aprobado' && !(t.reaperturas?.length)).length
     return {
       formula: 'Ensayos aprobados a primera pasada ÷ ensayos finalizados × 100.', numerador: aprobados, denominador: base.length, evolucion,
       registros: base.map((t) => ({ id: t.id, fecha: t.finalizada, referencia: t.nroSerie || t.ot || t.modelo,
-        detalle: `${t.modelo} · ${t.resultado === 'aprobado' ? 'Aprobado' : 'Retrabajo'}`, resultado: t.resultado === 'aprobado' ? 'cumple' : 'no_cumple' })),
+        detalle: `${t.modelo} · ${t.resultado === 'aprobado' && !(t.reaperturas?.length) ? 'Aprobado a primera pasada' : 'Con retrabajo/reapertura'}`, resultado: t.resultado === 'aprobado' && !(t.reaperturas?.length) ? 'cumple' : 'no_cumple' })),
     }
   }
   if (clave === 'logistica_cumplimiento') {
-    const hoyDia = hoy.slice(0, 10)
+    const hoyDia = fechaLocalISO()
     const base = d.tareasLogistica.filter((t) => t.origen !== 'despacho' && enPeriodo(t.fechaProgramada, periodo, frecuencia) && (t.fechaProgramada ?? '') <= hoyDia)
     const cumple = (t: TareaLogistica) => t.estado === 'finalizada' && !!t.finalizada && t.finalizada.slice(0, 10) <= (t.fechaProgramada ?? '')
     return {
@@ -154,13 +175,13 @@ export function detalleKPIAutomatico(indicador: IndicadorSGO, d: DatosKPIAutomat
     const base = d.eventos.filter((e) => (e.areaOrigenId ?? e.areaId) === area && enPeriodo(e.detectadoEn, periodo, frecuencia))
     const total = redondear(base.reduce((s, e) => s + (e.costoEstimado ?? 0), 0))
     return {
-      formula: 'Suma del costo estimado de los eventos SGO originados en el área durante el período.', numerador: base.length ? total : undefined, evolucion,
+      formula: 'Suma del costo estimado de los eventos SGO originados en el área durante el período.', numerador: total, evolucion,
       registros: base.map((e) => ({ id: e.id, fecha: e.detectadoEn, referencia: `${e.codigo} · ${e.titulo}`,
         detalle: `$${(e.costoEstimado ?? 0).toLocaleString('es-AR')} · ${e.estado.replace('_', ' ')}`, resultado: 'informativo' })),
     }
   }
   const eventosArea = new Map(d.eventos.filter((e) => (e.areaOrigenId ?? e.areaId) === area).map((e) => [e.id, e]))
-  const hoyDia = hoy.slice(0, 10)
+  const hoyDia = fechaLocalISO()
   const base = d.acciones.filter((a) => eventosArea.has(a.eventoId) && enPeriodo(a.fechaCompromiso, periodo, frecuencia) && a.fechaCompromiso <= hoyDia)
   const cumple = (a: AccionSGO) => {
     const cierre = a.completadaEn ?? a.verificadaEn
@@ -175,7 +196,7 @@ export function detalleKPIAutomatico(indicador: IndicadorSGO, d: DatosKPIAutomat
 
 function plantilla(areaId: AreaSGOId, clave: ClaveCalculoKPI, nombre: string, pilar: IndicadorSGO['pilar'], unidad: string, direccion: IndicadorSGO['direccion'], meta: number, amarillo: number, usuario: string): IndicadorSGO {
   return { id: `auto_${areaId}_${clave}`, areaId, pilar, nombre, unidad, direccion, meta, umbralAmarillo: amarillo,
-    origen: 'automatico', claveCalculo: clave, periodo: new Date().toISOString().slice(0, 7), frecuencia: 'mensual', activo: true,
+    origen: 'automatico', claveCalculo: clave, periodo: periodoLocalISO(), frecuencia: 'mensual', activo: true,
     actualizadoEn: new Date().toISOString(), actualizadoPor: usuario }
 }
 
@@ -183,8 +204,8 @@ export function plantillasKPIAutomaticos(usuario: string): IndicadorSGO[] {
   const areasProduccion: AreaSGOId[] = ['bobinado_rural', 'bobinado_distribucion', 'montaje_distribucion', 'montaje_rural', 'herreria_pintura']
   const out: IndicadorSGO[] = []
   for (const area of areasProduccion) {
-    out.push(plantilla(area, 'produccion_cumplimiento', 'Cumplimiento de tareas planificadas', 'entrega', '%', 'mayor_mejor', 90, 75, usuario))
-    out.push(plantilla(area, 'produccion_retrabajos', 'Retrabajos registrados', 'calidad', 'cantidad', 'menor_mejor', 0, 2, usuario))
+    out.push(plantilla(area, 'produccion_cumplimiento', 'Cumplimiento del fin planificado', 'entrega', '%', 'mayor_mejor', 90, 75, usuario))
+    out.push(plantilla(area, 'produccion_retrabajos', 'Tareas con retrabajo o desvío de calidad', 'calidad', 'cantidad', 'menor_mejor', 0, 2, usuario))
   }
   out.push(plantilla('laboratorio', 'laboratorio_fpy', 'Aprobación de ensayos a primera pasada', 'calidad', '%', 'mayor_mejor', 95, 85, usuario))
   out.push(plantilla('logistica_operativa', 'logistica_cumplimiento', 'Tareas logísticas completadas en fecha', 'entrega', '%', 'mayor_mejor', 90, 75, usuario))

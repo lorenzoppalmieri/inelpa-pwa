@@ -3,16 +3,18 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
 import { useAuth } from '../../auth/AuthContext'
 import { guardarAccionSGO, guardarEventoSGO, guardarIndicadorSGO } from '../../sync/syncEngine'
+import { fechaLocalISO, sumarDiasLocalISO } from '../../lib/time'
 import MatrizSGO from './MatrizSGO'
 import IndicadoresSGO from './IndicadoresSGO'
 import FichaCeldaSGO from './FichaCeldaSGO'
 import GarantiasISOView from './GarantiasISOView'
 import { defectoSGOLabel, defectosParaArea } from '../../sgo/defectos'
 import { resolverKPIAutomaticos } from '../../sgo/kpiAutomaticos'
-import type { IndicadorSGO } from '../../sgo/indicadores'
+import { aplicarMedicionesIndicadores, type IndicadorSGO } from '../../sgo/indicadores'
+import { validarCierreEvento } from '../../sgo/cierre'
 import {
   AREAS_SGO, PILARES_SGO, TIPOS_EVENTO_SGO, areaSGOLabel, codigoEventoSGO, costoNoCalidadTotal,
-  type AccionSGO, type EstadoEventoSGO, type EventoSGO,
+  type AccionSGO, type AuditoriaSGO, type EstadoEventoSGO, type EventoSGO,
   type AreaSGOId, type CostoNoCalidad, type DatosSeguridadSGO, type PilarSGO, type SeveridadSGO, type TipoAccionSGO, type TipoEventoSGO,
 } from '../../sgo/types'
 
@@ -29,21 +31,16 @@ const SEVERIDADES: { id: SeveridadSGO; label: string }[] = [
 
 const ID_DIAS_SIN_ACCIDENTES = 'sgo-global-dias-sin-accidentes'
 
-const hoy = () => new Date().toISOString().slice(0, 10)
 const ahoraLocal = () => {
   const d = new Date()
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
 }
-const fechaMasDias = (dias: number) => {
-  const d = new Date(); d.setDate(d.getDate() + dias); return d.toISOString().slice(0, 10)
-}
-
 function fechaHora(iso: string) {
   return new Intl.DateTimeFormat('es-AR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(iso))
 }
 
 function vencida(a: AccionSGO) {
-  return !['verificada', 'cancelada'].includes(a.estado) && a.fechaCompromiso < hoy()
+  return !['verificada', 'cancelada'].includes(a.estado) && a.fechaCompromiso < fechaLocalISO()
 }
 
 export default function SGOView() {
@@ -51,6 +48,8 @@ export default function SGOView() {
   const eventos = useLiveQuery(() => db.eventosSGO.toArray(), []) ?? []
   const acciones = useLiveQuery(() => db.accionesSGO.toArray(), []) ?? []
   const indicadores = useLiveQuery(() => db.indicadoresSGO.toArray(), []) ?? []
+  const mediciones = useLiveQuery(() => db.medicionesIndicadoresSGO.toArray(), []) ?? []
+  const auditoria = useLiveQuery(() => db.auditoriaSGO.toArray(), []) ?? []
   const tareas = useLiveQuery(() => db.tareas.toArray(), []) ?? []
   const laboratorio = useLiveQuery(() => db.laboratorio.toArray(), []) ?? []
   const tareasLogistica = useLiveQuery(() => db.tareasLogistica.toArray(), []) ?? []
@@ -71,7 +70,10 @@ export default function SGOView() {
   })), [eventos])
   const vencidas = acciones.filter(vencida).length
   const ajusteDiasSinAccidentes = indicadores.find((i) => i.id === ID_DIAS_SIN_ACCIDENTES)
-  const indicadoresResueltos = useMemo(() => resolverKPIAutomaticos(indicadores.filter((i) => i.id !== ID_DIAS_SIN_ACCIDENTES), { tareas, laboratorio, tareasLogistica, eventos, acciones }), [indicadores, tareas, laboratorio, tareasLogistica, eventos, acciones])
+  const indicadoresResueltos = useMemo(() => resolverKPIAutomaticos(
+    aplicarMedicionesIndicadores(indicadores.filter((i) => i.id !== ID_DIAS_SIN_ACCIDENTES), mediciones),
+    { tareas, laboratorio, tareasLogistica, eventos, acciones, mediciones },
+  ), [indicadores, mediciones, tareas, laboratorio, tareasLogistica, eventos, acciones])
   const abiertosFiltrados = abiertos.filter((e) =>
     (!filtroArea || (e.areaOrigenId ?? e.areaId) === filtroArea) && (!filtroPilar || e.pilar === filtroPilar))
 
@@ -81,7 +83,7 @@ export default function SGOView() {
         <button className={`tab ${pestana === 'tablero' ? 'active' : ''}`} onClick={() => setPestana('tablero')}>Tablero integral</button>
         <button className={`tab ${pestana === 'garantias' ? 'active' : ''}`} onClick={() => setPestana('garantias')}>Garantías ISO 9001</button>
       </div>
-      {pestana === 'garantias' ? <GarantiasISOView usuario={usuario?.usuario ?? 'sin_usuario'} /> : <>
+      {pestana === 'garantias' ? <GarantiasISOView usuario={usuario?.usuario ?? 'sin_usuario'} onOpenEvento={(id) => { setPestana('tablero'); setSeleccionadoId(id) }} /> : <>
       <div className="card" style={{ marginBottom: 14, borderLeft: '5px solid #2563eb' }}>
         <div className="card-header">
           <div>
@@ -157,17 +159,17 @@ export default function SGOView() {
       )}
 
       {nuevo && <NuevoEvento usuario={usuario?.usuario ?? 'sin_usuario'} onClose={() => setNuevo(false)} onCreado={(id) => { setNuevo(false); setSeleccionadoId(id) }} />}
-      {configIndicadores && <IndicadoresSGO indicadores={indicadoresResueltos} usuario={usuario?.usuario ?? 'sin_usuario'} onClose={() => setConfigIndicadores(false)} />}
+      {configIndicadores && <IndicadoresSGO indicadores={indicadoresResueltos} mediciones={mediciones} usuario={usuario?.usuario ?? 'sin_usuario'} onClose={() => setConfigIndicadores(false)} />}
       {celdaSeleccionada && <FichaCeldaSGO
         areaId={celdaSeleccionada.area} pilarId={celdaSeleccionada.pilar}
         indicadores={indicadoresResueltos} eventos={eventos} acciones={acciones}
-        datos={{ tareas, laboratorio, tareasLogistica, eventos, acciones }}
+        datos={{ tareas, laboratorio, tareasLogistica, eventos, acciones, mediciones }}
         usuario={usuario?.usuario ?? 'sin_usuario'}
         onClose={() => setCeldaSeleccionada(undefined)}
         onFiltrarEventos={() => { setFiltroArea(celdaSeleccionada.area); setFiltroPilar(celdaSeleccionada.pilar); setCeldaSeleccionada(undefined) }}
         onOpenEvento={(id) => { setCeldaSeleccionada(undefined); setSeleccionadoId(id) }}
       />}
-      {seleccionado && <DetalleEvento evento={seleccionado} acciones={acciones.filter((a) => a.eventoId === seleccionado.id)} usuario={usuario?.usuario ?? 'sin_usuario'} onClose={() => setSeleccionadoId(undefined)} />}
+      {seleccionado && <DetalleEvento evento={seleccionado} acciones={acciones.filter((a) => a.eventoId === seleccionado.id)} auditoria={auditoria.filter((r) => r.entidadId === seleccionado.id || acciones.some((a) => a.eventoId === seleccionado.id && a.id === r.entidadId))} usuario={usuario?.usuario ?? 'sin_usuario'} onClose={() => setSeleccionadoId(undefined)} />}
       </>}
     </div>
   )
@@ -186,16 +188,17 @@ function diferenciaDias(desde: Date, hasta = inicioDia(new Date())): number {
 function estadoDiasSinAccidentes(eventos: EventoSGO[], ajuste?: IndicadorSGO) {
   const ultimoAccidente = eventos
     .filter((e) => e.tipo === 'incidente_seguridad' && e.seguridad?.resultadoPersona !== 'sin_lesion')
-    .sort((a, b) => b.detectadoEn.localeCompare(a.detectadoEn))[0]
-  const accidentePosteriorAlAjuste = ultimoAccidente && (!ajuste || new Date(ultimoAccidente.detectadoEn).getTime() > new Date(ajuste.actualizadoEn).getTime())
+    .sort((a, b) => (b.seguridad?.fechaHoraHecho ?? b.detectadoEn).localeCompare(a.seguridad?.fechaHoraHecho ?? a.detectadoEn))[0]
+  const fechaAccidente = ultimoAccidente ? (ultimoAccidente.seguridad?.fechaHoraHecho ?? ultimoAccidente.detectadoEn) : undefined
+  const accidentePosteriorAlAjuste = ultimoAccidente && fechaAccidente && (!ajuste || new Date(fechaAccidente).getTime() > new Date(ajuste.actualizadoEn).getTime())
   if (accidentePosteriorAlAjuste) {
-    return { dias: diferenciaDias(inicioDia(ultimoAccidente.detectadoEn)), referencia: ultimoAccidente.detectadoEn, motivo: `Reiniciado por ${ultimoAccidente.codigo}` }
+    return { dias: diferenciaDias(inicioDia(fechaAccidente)), referencia: fechaAccidente, motivo: `Reiniciado por ${ultimoAccidente.codigo}` }
   }
   if (ajuste) {
     return { dias: Math.max(0, Math.trunc(ajuste.valorActual ?? 0)) + diferenciaDias(inicioDia(ajuste.actualizadoEn)), referencia: ajuste.actualizadoEn, motivo: `Ajustado por ${ajuste.actualizadoPor}` }
   }
   if (ultimoAccidente) {
-    return { dias: diferenciaDias(inicioDia(ultimoAccidente.detectadoEn)), referencia: ultimoAccidente.detectadoEn, motivo: `Reiniciado por ${ultimoAccidente.codigo}` }
+    return { dias: diferenciaDias(inicioDia(fechaAccidente!)), referencia: fechaAccidente, motivo: `Reiniciado por ${ultimoAccidente.codigo}` }
   }
   return { dias: 0, referencia: undefined, motivo: 'Valor inicial pendiente de configurar' }
 }
@@ -280,7 +283,8 @@ function NuevoEvento({ usuario, onClose, onCreado }: { usuario: string; onClose:
       cantidadAfectada: esNC ? Number(cantidad) || 1 : undefined,
       costoDetalle: esNC ? costos : undefined, costoEstimado: esNC ? costoNoCalidadTotal(costos) : undefined,
       seguridad: esSeguridad ? seguridad : undefined,
-      detectadoEn: now, detectadoPor: usuario, responsable: responsable.trim() || undefined,
+      detectadoEn: esSeguridad && seguridad.fechaHoraHecho ? new Date(seguridad.fechaHoraHecho).toISOString() : now,
+      detectadoPor: usuario, responsable: responsable.trim() || undefined,
       creadoEn: now, actualizadoEn: now,
     }
     await guardarEventoSGO(e)
@@ -374,9 +378,12 @@ function FichaAltaSeguridad({ tipo, datos, onChange }: { tipo: TipoEventoSGO; da
   </>
 }
 
-function DetalleEvento({ evento, acciones, usuario, onClose }: { evento: EventoSGO; acciones: AccionSGO[]; usuario: string; onClose: () => void }) {
+function DetalleEvento({ evento, acciones, auditoria, usuario, onClose }: { evento: EventoSGO; acciones: AccionSGO[]; auditoria: AuditoriaSGO[]; usuario: string; onClose: () => void }) {
   const [contencion, setContencion] = useState(evento.contencion ?? '')
   const [causaRaiz, setCausaRaiz] = useState(evento.causaRaiz ?? '')
+  const [responsable, setResponsable] = useState(evento.responsable ?? '')
+  const [metodoAnalisis, setMetodoAnalisis] = useState<EventoSGO['metodoAnalisis']>(evento.metodoAnalisis)
+  const [evidencias, setEvidencias] = useState((evento.evidenciaUrls ?? []).join('\n'))
   const [estado, setEstado] = useState(evento.estado)
   const [areaOrigenId, setAreaOrigenId] = useState<AreaSGOId | ''>(evento.areaOrigenId ?? '')
   const [areaDeteccionId, setAreaDeteccionId] = useState<AreaSGOId | ''>(evento.areaId ?? '')
@@ -386,17 +393,21 @@ function DetalleEvento({ evento, acciones, usuario, onClose }: { evento: EventoS
   const [nuevaAccion, setNuevaAccion] = useState(false)
 
   async function actualizar() {
-    const pendientes = acciones.filter((a) => !['verificada', 'cancelada'].includes(a.estado))
-    if (estado === 'cerrado' && pendientes.length > 0) {
-      window.alert(`No se puede cerrar: quedan ${pendientes.length} acción(es) sin verificar.`)
-      return
-    }
     const now = new Date().toISOString()
-    await guardarEventoSGO({ ...evento, areaId: areaDeteccionId || undefined, areaOrigenId: areaOrigenId || undefined,
+    const actualizado: EventoSGO = { ...evento, areaId: areaDeteccionId || undefined, areaOrigenId: areaOrigenId || undefined,
       defectoCodigo: defectoCodigo || undefined, disposicion, costoDetalle: costos,
       costoEstimado: costoNoCalidadTotal(costos), contencion: contencion.trim() || undefined,
-      causaRaiz: causaRaiz.trim() || undefined, estado, actualizadoEn: now,
-      cerradoEn: estado === 'cerrado' ? now : undefined, cerradoPor: estado === 'cerrado' ? usuario : undefined })
+      causaRaiz: causaRaiz.trim() || undefined, responsable: responsable.trim() || undefined,
+      metodoAnalisis, evidenciaUrls: evidencias.split(/\r?\n/).map((v) => v.trim()).filter(Boolean),
+      estado, actualizadoEn: now,
+      cerradoEn: estado === 'cerrado' ? (evento.cerradoEn ?? now) : undefined,
+      cerradoPor: estado === 'cerrado' ? (evento.cerradoPor ?? usuario) : undefined }
+    const errores = validarCierreEvento(actualizado, acciones)
+    if (errores.length) {
+      window.alert(`No se puede cerrar el expediente:\n\n• ${errores.join('\n• ')}`)
+      return
+    }
+    await guardarEventoSGO(actualizado)
   }
 
   return <Modal titulo={`${evento.codigo} · ${evento.titulo}`} onClose={onClose} ancho={780}>
@@ -404,7 +415,7 @@ function DetalleEvento({ evento, acciones, usuario, onClose }: { evento: EventoS
     <p>{evento.descripcion}</p>
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(210px,1fr))', gap: 10 }}>
       <div className="field"><label>Estado</label><select className="input" value={estado} onChange={(e) => setEstado(e.target.value as EstadoEventoSGO)}>{ESTADOS_EVENTO.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}</select></div>
-      <div className="field"><label>Responsable</label><input className="input" value={evento.responsable ?? ''} disabled /></div>
+      <div className="field"><label>Responsable</label><input className="input" value={responsable} onChange={(e) => setResponsable(e.target.value)} /></div>
     </div>
     {evento.pilar === 'seguridad' && <FichaDetalleSeguridad tipo={evento.tipo} datos={evento.seguridad} />}
     {evento.tipo === 'no_conformidad' && <div className="card" style={{ marginBottom: 10, borderLeft: '4px solid #2563eb' }}>
@@ -420,12 +431,15 @@ function DetalleEvento({ evento, acciones, usuario, onClose }: { evento: EventoS
     </div>}
     <div className="field"><label>Contención inmediata</label><textarea className="input" rows={3} value={contencion} onChange={(e) => setContencion(e.target.value)} placeholder="Qué se hizo para proteger personas, producto, cliente o ambiente" /></div>
     <div className="field"><label>Causa raíz</label><textarea className="input" rows={3} value={causaRaiz} onChange={(e) => setCausaRaiz(e.target.value)} placeholder="Completar después del análisis; no confundir con el síntoma" /></div>
+    <div className="field"><label>Método de análisis</label><select className="input" value={metodoAnalisis ?? ''} onChange={(e) => setMetodoAnalisis((e.target.value || undefined) as EventoSGO['metodoAnalisis'])}><option value="">Sin seleccionar</option><option value="5_porques">5 porqués</option><option value="ishikawa">Ishikawa</option><option value="a3">A3</option><option value="8d">8D</option><option value="otro">Otro</option></select></div>
+    <div className="field"><label>Evidencias / referencias</label><textarea className="input" rows={3} value={evidencias} onChange={(e) => setEvidencias(e.target.value)} placeholder="Una referencia o enlace por línea" /></div>
     <div className="row-actions" style={{ justifyContent: 'flex-end' }}><button className="btn btn-primary" onClick={() => void actualizar()}>Guardar expediente</button></div>
 
     <div className="section-title" style={{ marginTop: 18 }}>Acciones ({acciones.length})</div>
     {acciones.length === 0 ? <div className="empty">Sin acciones asignadas.</div> : acciones.map((a) => <AccionCard key={a.id} accion={a} usuario={usuario} />)}
     <button className="btn" style={{ marginTop: 10 }} onClick={() => setNuevaAccion(true)}>+ Agregar acción</button>
     {nuevaAccion && <NuevaAccion evento={evento} usuario={usuario} onClose={() => setNuevaAccion(false)} />}
+    <HistorialAuditoria registros={auditoria} />
   </Modal>
 }
 
@@ -505,7 +519,7 @@ function NuevaAccion({ evento, usuario, onClose }: { evento: EventoSGO; usuario:
   const [tipo, setTipo] = useState<TipoAccionSGO>('correctiva')
   const [descripcion, setDescripcion] = useState('')
   const [responsable, setResponsable] = useState(evento.responsable ?? '')
-  const [fecha, setFecha] = useState(fechaMasDias(7))
+  const [fecha, setFecha] = useState(sumarDiasLocalISO(7))
   async function guardar() {
     if (!descripcion.trim() || !responsable.trim() || !fecha) return
     const now = new Date().toISOString()
@@ -525,19 +539,54 @@ function NuevaAccion({ evento, usuario, onClose }: { evento: EventoSGO; usuario:
 }
 
 function AccionCard({ accion: a, usuario }: { accion: AccionSGO; usuario: string }) {
+  const [evidencia, setEvidencia] = useState(a.evidencia ?? '')
+  const [comentario, setComentario] = useState(a.comentarioVerificacion ?? '')
   async function completar() {
-    const now = new Date().toISOString(); await guardarAccionSGO({ ...a, estado: 'completada', completadaEn: now, completadaPor: usuario, actualizadoEn: now })
+    if (!evidencia.trim()) { window.alert('Indicá la evidencia o referencia de implementación.'); return }
+    const now = new Date().toISOString()
+    await guardarAccionSGO({ ...a, evidencia: evidencia.trim(), estado: 'completada', completadaEn: now, completadaPor: usuario, actualizadoEn: now })
   }
   async function verificar(eficaz: boolean) {
-    const now = new Date().toISOString(); await guardarAccionSGO({ ...a, estado: eficaz ? 'verificada' : 'en_curso', verificadaEn: now, verificadaPor: usuario, eficaz, actualizadoEn: now })
+    if (!comentario.trim()) { window.alert('Documentá el resultado de la verificación.'); return }
+    const now = new Date().toISOString()
+    await guardarAccionSGO({ ...a, evidencia: evidencia.trim() || a.evidencia, comentarioVerificacion: comentario.trim(),
+      estado: eficaz ? 'verificada' : 'en_curso', verificadaEn: now, verificadaPor: usuario, eficaz, actualizadoEn: now })
   }
   return <div className="card" style={{ marginBottom: 8, borderLeft: vencida(a) ? '4px solid var(--rojo)' : undefined }}>
     <strong>{a.descripcion}</strong><div className="meta">{a.tipo} · {a.responsable} · vence {a.fechaCompromiso} · {a.estado}{vencida(a) ? ' · VENCIDA' : ''}</div>
+    <div className="sgo-accion-seguimiento">
+      <div className="field"><label>Evidencia / referencia</label><input className="input" value={evidencia} disabled={a.estado === 'verificada'} onChange={(e) => setEvidencia(e.target.value)} placeholder="Acta, foto, documento o enlace" /></div>
+      {a.estado === 'completada' && <div className="field"><label>Resultado de la verificación</label><input className="input" value={comentario} onChange={(e) => setComentario(e.target.value)} placeholder="Cómo se comprobó la eficacia" /></div>}
+    </div>
     <div className="row-actions" style={{ marginTop: 7 }}>
       {['pendiente', 'en_curso'].includes(a.estado) && <button className="btn" onClick={() => void completar()}>Marcar completada</button>}
       {a.estado === 'completada' && <><button className="btn btn-verde" onClick={() => void verificar(true)}>Verificar eficaz</button><button className="btn btn-rojo" onClick={() => void verificar(false)}>No eficaz</button></>}
     </div>
   </div>
+}
+
+function HistorialAuditoria({ registros }: { registros: AuditoriaSGO[] }) {
+  if (!registros.length) return null
+  const etiquetaOperacion = { INSERT: 'Creación', UPDATE: 'Actualización', DELETE: 'Eliminación' }
+  const cambios = (r: AuditoriaSGO) => {
+    if (r.operacion !== 'UPDATE') return []
+    const anterior = r.datosAnteriores ?? {}
+    const nuevo = r.datosNuevos ?? {}
+    return [...new Set([...Object.keys(anterior), ...Object.keys(nuevo)])]
+      .filter((campo) => JSON.stringify(anterior[campo]) !== JSON.stringify(nuevo[campo]))
+      .filter((campo) => !['actualizado_en'].includes(campo))
+  }
+  return <details className="sgo-auditoria">
+    <summary>Historial de auditoría ({registros.length})</summary>
+    <div className="sgo-auditoria-lista">{[...registros].sort((a, b) => b.creadoEn.localeCompare(a.creadoEn)).slice(0, 50).map((r) => {
+      const campos = cambios(r)
+      return <div key={r.id} className="sgo-auditoria-item">
+        <strong>{etiquetaOperacion[r.operacion]}</strong>
+        <span>{fechaHora(r.creadoEn)} · {r.usuario}</span>
+        {campos.length > 0 && <span>Campos: {campos.join(', ')}</span>}
+      </div>
+    })}</div>
+  </details>
 }
 
 function Modal({ titulo, onClose, ancho = 680, children }: { titulo: string; onClose: () => void; ancho?: number; children: React.ReactNode }) {

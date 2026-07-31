@@ -1,19 +1,22 @@
 import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
-import { eliminarGarantiaISO, guardarGarantiaISO } from '../../sync/syncEngine'
+import { eliminarGarantiaISO, guardarEventoSGO, guardarGarantiaISO } from '../../sync/syncEngine'
+import { fechaLocalISO } from '../../lib/time'
+import { AREAS_SGO, codigoEventoSGO, type AreaSGOId, type EventoSGO } from '../../sgo/types'
+import { defectoSGOLabel, defectosParaArea } from '../../sgo/defectos'
 import {
   CATEGORIAS_GARANTIA, COBERTURAS_GARANTIA, ESTADOS_GARANTIA,
-  categoriaGarantiaLabel, diasEntreGarantia, estadoGarantiaLabel,
+  categoriaGarantiaLabel, diasEntreGarantia, erroresConsistenciaGarantia, estadoGarantiaLabel,
   type CategoriaGarantia, type CoberturaGarantia, type EstadoGarantia, type GarantiaISO,
 } from '../../sgo/garantias'
 
-const hoy = () => new Date().toISOString().slice(0, 10)
+const hoy = () => fechaLocalISO()
 const coberturaLabel = (id: CoberturaGarantia) => COBERTURAS_GARANTIA.find((x) => x.id === id)?.label ?? id
 const fechaAR = (fecha?: string) => fecha ? new Intl.DateTimeFormat('es-AR').format(new Date(`${fecha.slice(0, 10)}T12:00:00`)) : '—'
 const cerrado = (g: GarantiaISO) => g.estado === 'resuelto' || g.estado === 'verificado'
 
-export default function GarantiasISOView({ usuario }: { usuario: string }) {
+export default function GarantiasISOView({ usuario, onOpenEvento }: { usuario: string; onOpenEvento: (id: string) => void }) {
   const registros = useLiveQuery(() => db.garantiasISO.toArray(), []) ?? []
   const [busqueda, setBusqueda] = useState('')
   const [anio, setAnio] = useState('todos')
@@ -39,15 +42,17 @@ export default function GarantiasISOView({ usuario }: { usuario: string }) {
   const duraciones = resueltas.flatMap((r) => { const d = diasEntreGarantia(r.fechaDeteccion, r.fechaResolucion); return d === undefined ? [] : [d] })
   const promedioResolucion = duraciones.length ? Math.round(duraciones.reduce((a, b) => a + b, 0) / duraciones.length) : undefined
   const verificacionPct = resueltas.length ? Math.round(resueltas.filter((r) => r.verificado).length / resueltas.length * 100) : undefined
-  const reincidentes = new Set(registros.filter((r) => r.nroSerie).filter((r, _, arr) => arr.filter((x) => x.nroSerie === r.nroSerie).length > 1).map((r) => r.nroSerie)).size
+  const conteoSeries = new Map<string, number>()
+  filtrados.filter((r) => r.nroSerie).forEach((r) => conteoSeries.set(r.nroSerie!, (conteoSeries.get(r.nroSerie!) ?? 0) + 1))
+  const reincidentes = [...conteoSeries.values()].filter((cantidad) => cantidad > 1).length
 
   const categorias = agrupar(filtrados, (r) => categoriaGarantiaLabel(r.categoria)).slice(0, 8)
   const clientes = agrupar(filtrados.filter((r) => r.cliente), (r) => r.cliente || 'Sin cliente').slice(0, 8)
   const evolucion = agruparMes(filtrados)
 
   function exportarCSV() {
-    const encabezados = ['Código','Tipo','N° serie','Fecha salida','Fecha detección','Cliente','Diagnóstico','Causas','Cobertura','Categoría','Estado','Responsable','Solución','Fecha resolución','Verificado']
-    const filas = filtrados.map((r) => [r.codigo,r.tipo,r.nroSerie ?? '',r.fechaSalida ?? '',r.fechaDeteccion,r.cliente ?? '',r.diagnostico,r.causas ?? '',coberturaLabel(r.cobertura),categoriaGarantiaLabel(r.categoria),estadoGarantiaLabel(r.estado),r.responsable ?? '',r.solucion ?? '',r.fechaResolucion ?? '',r.verificado ? 'Sí' : 'No'])
+    const encabezados = ['Código','Tipo','N° serie','Fecha salida','Fecha detección','Cliente normalizado','Cliente original','Ingresado por','Diagnóstico','Causas','Cobertura','Categoría','Estado','Área responsable','Defecto','Responsable','Fecha compromiso','Solución','Fecha resolución','Verificado','Detalle verificación','Costo estimado','Observaciones','Evento SGO']
+    const filas = filtrados.map((r) => [r.codigo,r.tipo,r.nroSerie ?? '',r.fechaSalida ?? '',r.fechaDeteccion,r.cliente ?? '',r.clienteOriginal ?? '',r.ingresadoPor ?? '',r.diagnostico,r.causas ?? '',coberturaLabel(r.cobertura),categoriaGarantiaLabel(r.categoria),estadoGarantiaLabel(r.estado),AREAS_SGO.find((a) => a.id === r.areaResponsableId)?.label ?? '',defectoSGOLabel(r.defectoCodigo),r.responsable ?? '',r.fechaCompromiso ?? '',r.solucion ?? '',r.fechaResolucion ?? '',r.verificado ? 'Sí' : 'No',r.verificacionDetalle ?? '',r.costoEstimado ?? '',r.observaciones ?? '',r.eventoId ?? ''])
     const csv = [encabezados, ...filas].map((fila) => fila.map((v) => `"${String(v).replaceAll('"', '""')}"`).join(';')).join('\r\n')
     const url = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' }))
     const a = document.createElement('a'); a.href = url; a.download = `RIT_9.1.2_02_garantias_${hoy()}.csv`; a.click(); URL.revokeObjectURL(url)
@@ -93,11 +98,11 @@ export default function GarantiasISOView({ usuario }: { usuario: string }) {
           <div className="row-actions"><span className={`garantia-chip cobertura-${g.cobertura}`}>{coberturaLabel(g.cobertura)}</span><span className={`garantia-chip estado-${g.estado}`}>{estadoGarantiaLabel(g.estado)}</span></div>
         </div>
         <div className="garantia-diagnostico">{g.diagnostico || 'Diagnóstico pendiente'}</div>
-        <div className="meta">Responsable: {g.responsable || 'Sin asignar'}{g.fechaResolucion ? ` · Resuelto ${fechaAR(g.fechaResolucion)}` : ''}</div>
+        <div className="meta">Responsable: {g.responsable || 'Sin asignar'}{g.fechaResolucion ? ` · Resuelto ${fechaAR(g.fechaResolucion)}` : ''}{g.eventoId ? ' · Vinculado a expediente SGO' : ''}</div>
       </button>)}
       {filtrados.length === 0 && <div className="empty">No hay reclamos que coincidan con los filtros.</div>}
     </div>
-    {editando !== undefined && <EditorGarantia registro={editando} usuario={usuario} onClose={() => setEditando(undefined)} />}
+    {editando !== undefined && <EditorGarantia registro={editando} usuario={usuario} onOpenEvento={onOpenEvento} onClose={() => setEditando(undefined)} />}
   </div>
 }
 
@@ -134,23 +139,52 @@ function LineaMensual({ datos }: { datos: { label: string; valor: number }[] }) 
   </svg></div>
 }
 
-function EditorGarantia({ registro, usuario, onClose }: { registro: GarantiaISO | null; usuario: string; onClose: () => void }) {
+function EditorGarantia({ registro, usuario, onOpenEvento, onClose }: { registro: GarantiaISO | null; usuario: string; onOpenEvento: (id: string) => void; onClose: () => void }) {
   const ahora = new Date().toISOString()
   const [dato, setDato] = useState<GarantiaISO>(registro ?? {
     id: crypto.randomUUID(), codigo: '', tipo: '', fechaDeteccion: hoy(), diagnostico: '', cobertura: 'en_evaluacion', categoria: 'otro', estado: 'abierto', verificado: false,
     creadoEn: ahora, actualizadoEn: ahora, actualizadoPor: usuario,
   })
   const [guardando, setGuardando] = useState(false)
+  const [generarNC, setGenerarNC] = useState(false)
   const set = <K extends keyof GarantiaISO>(campo: K, valor: GarantiaISO[K]) => setDato({ ...dato, [campo]: valor })
   const valido = dato.tipo.trim() && dato.fechaDeteccion && dato.diagnostico.trim()
 
   async function guardar() {
     if (!valido) return
-    setGuardando(true)
     const codigo = dato.codigo || `GAR-${dato.fechaDeteccion.slice(0, 4)}-${dato.id.replaceAll('-', '').slice(0, 6).toUpperCase()}`
-    await guardarGarantiaISO({ ...dato, codigo, actualizadoEn: new Date().toISOString(), actualizadoPor: usuario,
-      estado: dato.verificado ? 'verificado' : dato.estado, fechaResolucion: dato.fechaResolucion || undefined })
-    setGuardando(false); onClose()
+    const now = new Date().toISOString()
+    let actualizado: GarantiaISO = { ...dato, codigo, actualizadoEn: now, actualizadoPor: usuario,
+      estado: dato.verificado ? 'verificado' : dato.estado === 'verificado' ? 'resuelto' : dato.estado,
+      fechaResolucion: dato.fechaResolucion || undefined }
+    const errores = erroresConsistenciaGarantia(actualizado)
+    if (generarNC && actualizado.eventoId) errores.push('El reclamo ya está vinculado a un expediente SGO.')
+    if (generarNC && actualizado.cobertura !== 'si') errores.push('Para generar la no conformidad, la garantía debe estar confirmada.')
+    if (generarNC && !actualizado.areaResponsableId) errores.push('Seleccioná el área responsable antes de generar la no conformidad.')
+    if (errores.length) { window.alert(`Revisá el registro:\n\n• ${errores.join('\n• ')}`); return }
+    setGuardando(true)
+    try {
+      if (generarNC && actualizado.areaResponsableId) {
+        const id = crypto.randomUUID()
+        const evento: EventoSGO = {
+          id, codigo: codigoEventoSGO(new Date(), id), tipo: 'no_conformidad', pilar: 'calidad',
+          titulo: `Reclamo de garantía ${actualizado.codigo}${actualizado.nroSerie ? ` · Serie ${actualizado.nroSerie}` : ''}`,
+          descripcion: `${actualizado.diagnostico}${actualizado.causas ? ` Causas informadas: ${actualizado.causas}` : ''}`,
+          severidad: 'alta', estado: 'abierto', areaId: 'administracion', areaOrigenId: actualizado.areaResponsableId,
+          nroSerie: actualizado.nroSerie, modelo: actualizado.tipo, defectoCodigo: actualizado.defectoCodigo ?? 'OTRO',
+          detectadoEn: new Date(`${actualizado.fechaDeteccion}T12:00:00`).toISOString(), detectadoPor: usuario,
+          responsable: actualizado.responsable, costoEstimado: actualizado.costoEstimado,
+          costoDetalle: { material: 0, manoObra: 0, maquina: 0, ensayos: 0, logistica: 0, terceros: actualizado.costoEstimado ?? 0 },
+          cantidadAfectada: 1, creadoEn: now, actualizadoEn: now,
+        }
+        await guardarEventoSGO(evento)
+        actualizado = { ...actualizado, eventoId: id }
+      }
+      await guardarGarantiaISO(actualizado)
+      onClose()
+    } finally {
+      setGuardando(false)
+    }
   }
   async function eliminar() {
     if (!registro || usuario.trim().toLowerCase() !== 'lorenzo' || !window.confirm(`¿Eliminar ${registro.codigo}?`)) return
@@ -168,7 +202,9 @@ function EditorGarantia({ registro, usuario, onClose }: { registro: GarantiaISO 
       <Campo label="Ingresado por"><input className="input" value={dato.ingresadoPor ?? ''} onChange={(e) => set('ingresadoPor', e.target.value || undefined)} /></Campo>
       <Campo label="Cobertura"><select className="input" value={dato.cobertura} onChange={(e) => set('cobertura', e.target.value as CoberturaGarantia)}>{COBERTURAS_GARANTIA.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}</select></Campo>
       <Campo label="Categoría"><select className="input" value={dato.categoria} onChange={(e) => set('categoria', e.target.value as CategoriaGarantia)}>{CATEGORIAS_GARANTIA.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}</select></Campo>
-      <Campo label="Estado"><select className="input" value={dato.estado} onChange={(e) => set('estado', e.target.value as EstadoGarantia)}>{ESTADOS_GARANTIA.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}</select></Campo>
+      <Campo label="Área responsable"><select className="input" value={dato.areaResponsableId ?? ''} onChange={(e) => setDato({ ...dato, areaResponsableId: (e.target.value || undefined) as AreaSGOId | undefined, defectoCodigo: undefined })}><option value="">Sin determinar</option>{AREAS_SGO.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}</select></Campo>
+      <Campo label="Defecto relacionado"><select className="input" value={dato.defectoCodigo ?? ''} onChange={(e) => set('defectoCodigo', e.target.value || undefined)}><option value="">Sin clasificar</option>{defectosParaArea(dato.areaResponsableId).map((d) => <option key={d.codigo} value={d.codigo}>{d.label}</option>)}</select></Campo>
+      <Campo label="Estado"><select className="input" value={dato.estado} onChange={(e) => { const valor = e.target.value as EstadoGarantia; setDato({ ...dato, estado: valor, verificado: valor === 'verificado' ? true : dato.verificado && valor === 'resuelto' }) }}>{ESTADOS_GARANTIA.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}</select></Campo>
       <Campo label="Responsable"><input className="input" value={dato.responsable ?? ''} onChange={(e) => set('responsable', e.target.value || undefined)} /></Campo>
       <Campo label="Fecha compromiso"><input className="input" type="date" value={dato.fechaCompromiso ?? ''} onChange={(e) => set('fechaCompromiso', e.target.value || undefined)} /></Campo>
       <Campo label="Costo estimado"><input className="input" type="number" min="0" value={dato.costoEstimado ?? ''} onChange={(e) => set('costoEstimado', e.target.value === '' ? undefined : Math.max(0, Number(e.target.value)))} /></Campo>
@@ -178,10 +214,16 @@ function EditorGarantia({ registro, usuario, onClose }: { registro: GarantiaISO 
     <Campo label="Solución / tratamiento"><textarea className="input" rows={3} value={dato.solucion ?? ''} onChange={(e) => set('solucion', e.target.value || undefined)} /></Campo>
     <div className="garantia-form-grid">
       <Campo label="Fecha resolución"><input className="input" type="date" value={dato.fechaResolucion ?? ''} onChange={(e) => set('fechaResolucion', e.target.value || undefined)} /></Campo>
-      <Campo label="Verificación"><label className="check-inline" style={{ minHeight: 56 }}><input type="checkbox" checked={dato.verificado} onChange={(e) => set('verificado', e.target.checked)} /> Solución verificada</label></Campo>
+      <Campo label="Verificación"><label className="check-inline" style={{ minHeight: 56 }}><input type="checkbox" checked={dato.verificado} onChange={(e) => setDato({ ...dato, verificado: e.target.checked, estado: e.target.checked ? 'verificado' : dato.estado === 'verificado' ? 'resuelto' : dato.estado })} /> Solución verificada</label></Campo>
     </div>
     <Campo label="Detalle de verificación"><textarea className="input" rows={2} value={dato.verificacionDetalle ?? ''} onChange={(e) => set('verificacionDetalle', e.target.value || undefined)} /></Campo>
     <Campo label="Observaciones"><textarea className="input" rows={2} value={dato.observaciones ?? ''} onChange={(e) => set('observaciones', e.target.value || undefined)} /></Campo>
+    <div className="card garantia-vinculo-sgo">
+      <div><strong>Expediente SGO</strong><div className="meta">{dato.eventoId ? 'Este reclamo ya impacta la matriz de Calidad, Costos y Mejora.' : 'Podés convertir una garantía confirmada en una no conformidad trazable.'}</div></div>
+      {dato.eventoId
+        ? <button className="btn" onClick={() => onOpenEvento(dato.eventoId!)}>Abrir expediente SGO</button>
+        : <label className="check-inline"><input type="checkbox" checked={generarNC} onChange={(e) => setGenerarNC(e.target.checked)} /> Generar no conformidad al guardar</label>}
+    </div>
     <div className="row-actions" style={{ justifyContent: 'space-between' }}>
       <div>{registro && usuario.trim().toLowerCase() === 'lorenzo' && <button className="btn" style={{ color: '#fca5a5', borderColor: '#ef4444' }} onClick={() => void eliminar()}>Eliminar</button>}</div>
       <div className="row-actions"><button className="btn" onClick={onClose}>Cancelar</button><button className="btn btn-primary" disabled={!valido || guardando} onClick={() => void guardar()}>{guardando ? 'Guardando…' : 'Guardar registro'}</button></div>

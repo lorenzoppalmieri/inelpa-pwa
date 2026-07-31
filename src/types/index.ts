@@ -4,7 +4,8 @@
 // (ver src/sap/sapMapping.ts)
 // ============================================================
 
-export type Rol = 'operario' | 'encargado' | 'planificador' | 'logistica' | 'laboratorio' | 'sgo'
+// v1.62: roles del modulo de mantenimiento (jefe/planificador y tecnicos).
+export type Rol = 'operario' | 'encargado' | 'planificador' | 'logistica' | 'laboratorio' | 'sgo' | 'mantenimiento' | 'mant_tecnico'
 
 export type LineaProduccion = 'distribucion' | 'rural' | 'general'
 
@@ -901,7 +902,7 @@ export function mensajeEsPara(m: Mensaje, u: { id: string; rol: Rol; sectores: S
 // Cola de sincronizacion: cada cambio offline se encola y se empuja al backend.
 export interface SyncOp {
   id: string
-  entidad: 'tarea' | 'parada' | 'orden' | 'semielaborado' | 'objetivo' | 'tarea_logistica' | 'solicitud_logistica' | 'feriado' | 'mensaje' | 'mensaje_lectura' | 'estandar' | 'despacho' | 'flete' | 'laboratorio' | 'plantilla_recurrente' | 'evento_sgo' | 'accion_sgo' | 'indicador_sgo' | 'garantia_iso'
+  entidad: 'tarea' | 'parada' | 'orden' | 'semielaborado' | 'objetivo' | 'tarea_logistica' | 'solicitud_logistica' | 'feriado' | 'mensaje' | 'mensaje_lectura' | 'estandar' | 'despacho' | 'flete' | 'laboratorio' | 'plantilla_recurrente' | 'evento_sgo' | 'accion_sgo' | 'indicador_sgo' | 'medicion_indicador_sgo' | 'garantia_iso'
   entidadId: string
   tipo: 'upsert' | 'delete'
   payload: unknown
