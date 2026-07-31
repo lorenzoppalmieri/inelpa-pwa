@@ -125,6 +125,29 @@ export interface MantOT {
   creado_en: string
 }
 
+// Bloque del layout SCADA (el plano es 100% dato). Coords en % del plano.
+export type BloqueTipo = 'muro' | 'maquina' | 'estanteria' | 'zona'
+export interface MantBloque {
+  id: string
+  planta_id: string
+  tipo: BloqueTipo
+  nombre: string
+  x: number; y: number; w: number; h: number   // %
+  orden: number
+}
+
+// Anotacion de dibujo libre (linea/circulo/texto). Coords en unidades 0..2800 / 0..780.
+export type AnotacionTipo = 'linea' | 'circulo' | 'texto'
+export interface MantAnotacion {
+  id: string
+  planta_id: string
+  tipo: AnotacionTipo
+  color: string
+  x1: number | null; y1: number | null; x2: number | null; y2: number | null
+  cx: number | null; cy: number | null; r: number | null
+  x: number | null; y: number | null; texto: string | null; tam: number | null
+}
+
 // Aviso de falla (boton del operario). Realtime -> el mapa se pone rojo.
 export interface MantAviso {
   id: string                    // uuid
