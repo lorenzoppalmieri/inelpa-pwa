@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import MapaScada from './MapaScada'
 import MapaEditor from './MapaEditor'
 import ActivosLista from './ActivosLista'
 import FichaEquipo from './FichaEquipo'
@@ -10,18 +9,16 @@ import PanelKPIs from './PanelKPIs'
 // VISTA DEL MODULO DE MANTENIMIENTO (v1.62/v1.63)
 // Contenedor con navegacion INTERNA por estado (la app no usa router;
 // sigue el mismo patron de vistas por estado del resto de los modulos):
-//   - Solapas "SCADA | Mapa | Tablero OT | Activos | KPIs". La solapa por
-//     defecto es SCADA: la vista operativa en vivo del estado de planta.
+//   - Solapas "Mapa | Activos".
 //   - fichaId != null -> FichaEquipo a pantalla completa con "Volver".
-//     Se llega desde el pin del mapa ("Ver ficha completa"), desde el
-//     panel SCADA, desde una fila del listado o desde un chip de
-//     dependencia dentro de otra ficha. Al volver se conserva la solapa.
+//     Se llega desde el pin del mapa ("Ver ficha completa"), desde una
+//     fila del listado, o desde un chip de dependencia dentro de otra
+//     ficha. Al volver se conserva la solapa de origen.
 // ============================================================
 
-type Solapa = 'scada' | 'mapa' | 'tablero' | 'activos' | 'kpis'
+type Solapa = 'mapa' | 'tablero' | 'activos' | 'kpis'
 
 const SOLAPAS: { id: Solapa; label: string }[] = [
-  { id: 'scada', label: '🛰️ SCADA' },
   { id: 'mapa', label: '🗺️ Mapa' },
   { id: 'tablero', label: '📝 Tablero OT' },
   { id: 'activos', label: '⚙️ Activos' },
@@ -29,7 +26,7 @@ const SOLAPAS: { id: Solapa; label: string }[] = [
 ]
 
 export default function MantenimientoView() {
-  const [solapa, setSolapa] = useState<Solapa>('scada')
+  const [solapa, setSolapa] = useState<Solapa>('mapa')
   const [fichaId, setFichaId] = useState<string | null>(null)
 
   if (fichaId) {
@@ -56,7 +53,6 @@ export default function MantenimientoView() {
           >{s.label}</button>
         ))}
       </div>
-      {solapa === 'scada' && <MapaScada onVerFicha={verFicha} />}
       {solapa === 'mapa' && <MapaEditor onVerFicha={verFicha} />}
       {solapa === 'tablero' && <TableroOT onVerFicha={verFicha} />}
       {solapa === 'activos' && <ActivosLista onVerFicha={verFicha} />}
