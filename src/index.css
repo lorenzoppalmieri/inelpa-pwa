@@ -1380,3 +1380,166 @@ body.admin-mode .content { max-width: none; padding: 12px 18px; }
 @media (max-width: 768px) {
   .mant-kanban { grid-template-columns: 1fr; }
 }
+
+/* ============================================================
+   MANTENIMIENTO - Mapa SCADA (vista operativa en tiempo real)
+   Tema oscuro industrial acotado a esta vista (.mant-scada).
+   ============================================================ */
+.mant-scada {
+  display: flex; flex-direction: column; gap: 10px;
+  height: calc(100dvh - 184px); min-height: 520px;
+}
+.mant-scada-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.mant-scada-top .select { min-height: 48px; }
+
+/* Resumen por estado: chips clicables que filtran/atenuan el resto. */
+.mant-scada-resumen { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+.mant-scada-chip {
+  display: inline-flex; align-items: center; gap: 7px;
+  min-height: 40px; padding: 0 14px; border-radius: 999px;
+  background: var(--panel-2); color: var(--texto);
+  border: 1px solid var(--borde); font-size: .85rem; font-weight: 700;
+}
+.mant-scada-chip i {
+  width: 12px; height: 12px; border-radius: 50%; flex: none;
+  background: var(--c); box-shadow: 0 0 8px 1px var(--c);
+}
+.mant-scada-chip.activo { border-color: var(--c); box-shadow: 0 0 0 1px var(--c) inset; }
+
+/* ---------- Escenario ---------- */
+.mant-scada-stage {
+  position: relative; flex: 1; min-height: 0; overflow: hidden;
+  background: #0b0e14;
+  border: 1px solid #1c2333; border-radius: var(--radio);
+  touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none;
+}
+.mant-scada-stage:active { cursor: grabbing; }
+.mant-scada-capa { position: absolute; top: 0; left: 0; transform-origin: 0 0; }
+/* El plano queda atenuado para que los indicadores luminosos dominen. */
+.mant-scada-capa img {
+  display: block; pointer-events: none; user-select: none; -webkit-user-drag: none;
+  filter: brightness(.55) contrast(1.12) saturate(.85);
+}
+
+/* ---------- Indicadores ---------- */
+.mant-scada-dot {
+  position: absolute; z-index: 3;
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  transform-origin: 50% 50%;
+  cursor: pointer; touch-action: none;
+}
+.mant-scada-punto {
+  width: 16px; height: 16px; border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, .85);
+}
+.mant-scada-dot.n-rojo .mant-scada-punto { background: #ef4444; box-shadow: 0 0 12px 4px rgba(239, 68, 68, .75); }
+.mant-scada-dot.n-amarillo .mant-scada-punto { background: #f59e0b; box-shadow: 0 0 12px 4px rgba(245, 158, 11, .7); }
+.mant-scada-dot.n-verde .mant-scada-punto { background: #22c55e; box-shadow: 0 0 10px 3px rgba(34, 197, 94, .65); }
+/* El rojo pulsa (falla activa). Respeta prefers-reduced-motion. */
+.mant-scada-dot.pulsa .mant-scada-punto { animation: mant-scada-pulso 1.6s ease-in-out infinite; }
+@keyframes mant-scada-pulso {
+  0%, 100% { box-shadow: 0 0 12px 4px rgba(239, 68, 68, .75); transform: scale(1); }
+  50% { box-shadow: 0 0 22px 9px rgba(239, 68, 68, .9); transform: scale(1.25); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mant-scada-dot.pulsa .mant-scada-punto { animation: none; }
+}
+.mant-scada-dot.sel .mant-scada-punto { outline: 3px solid #60a5fa; outline-offset: 2px; }
+.mant-scada-dot.apagado { opacity: .14; }
+.mant-scada-label {
+  padding: 1px 6px; border-radius: 6px;
+  background: rgba(0, 0, 0, .72); color: #e2e8f0;
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 10px; font-weight: 700; letter-spacing: .3px; white-space: nowrap;
+}
+
+/* ---------- Tira "Sin ubicar" ---------- */
+.mant-scada-strip {
+  position: absolute; left: 10px; bottom: 10px; z-index: 6;
+  max-width: min(420px, 70%);
+  background: rgba(13, 18, 30, .92); border: 1px solid #263050; border-radius: 12px;
+}
+.mant-scada-strip-cab {
+  width: 100%; text-align: left; padding: 8px 12px;
+  background: none; color: #cbd5e1; font-size: .82rem; font-weight: 700;
+}
+.mant-scada-strip-items {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  padding: 0 12px 10px; max-height: 130px; overflow-y: auto;
+}
+.mant-scada-strip-item {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: 999px;
+  background: #1a2236; color: #e2e8f0; border: 1px solid #2a3550;
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: .72rem; font-weight: 700;
+}
+.mant-scada-strip-item i { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.mant-scada-strip-item:hover { border-color: #60a5fa; }
+
+/* ---------- Panel flotante del activo ---------- */
+.mant-scada-panel {
+  position: absolute; top: 10px; right: 10px; bottom: 10px; z-index: 10;
+  width: min(350px, 88%);
+  overflow-y: auto; overscroll-behavior: contain;
+  background: rgba(15, 20, 32, .97);
+  border: 1px solid #2a3550; border-radius: 14px;
+  padding: 14px; color: #e2e8f0;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, .55);
+  cursor: default; touch-action: pan-y;
+}
+.mant-scada-panel-cab { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 8px; }
+.mant-scada-panel-simbolo {
+  flex: none; width: 44px; height: 44px; border-radius: 11px;
+  display: grid; place-items: center;
+  background: rgba(0, 0, 0, .5); border: 2px solid currentColor;
+}
+.mant-scada-panel-codigo {
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 1.05rem; font-weight: 800; letter-spacing: .4px;
+}
+.mant-scada-panel-nombre { font-size: .9rem; color: #cbd5e1; }
+.mant-scada-panel-cerrar {
+  flex: none; width: 34px; height: 34px; border-radius: 9px;
+  background: #1a2236; color: #cbd5e1; border: 1px solid #2a3550; font-size: .9rem;
+}
+.mant-scada-panel-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+
+/* Cartel de estado actual con su color. */
+.mant-scada-estado {
+  display: flex; align-items: center; gap: 10px;
+  border-radius: 11px; padding: 10px 12px; margin-bottom: 12px;
+  border: 1px solid;
+}
+.mant-scada-estado i {
+  width: 14px; height: 14px; border-radius: 50%; flex: none;
+  box-shadow: 0 0 10px 2px currentColor;
+}
+.mant-scada-estado.e-rojo { border-color: rgba(239, 68, 68, .55); background: rgba(239, 68, 68, .12); color: #fca5a5; }
+.mant-scada-estado.e-rojo i { background: #ef4444; }
+.mant-scada-estado.e-amarillo { border-color: rgba(245, 158, 11, .5); background: rgba(245, 158, 11, .1); color: #fcd34d; }
+.mant-scada-estado.e-amarillo i { background: #f59e0b; }
+.mant-scada-estado.e-verde { border-color: rgba(34, 197, 94, .5); background: rgba(34, 197, 94, .1); color: #86efac; }
+.mant-scada-estado.e-verde i { background: #22c55e; }
+.mant-scada-estado-motivo { font-size: .8rem; margin-top: 1px; }
+
+.mant-scada-panel-sec {
+  font-size: .82rem; font-weight: 800; letter-spacing: .3px;
+  color: #94a3b8; text-transform: uppercase;
+  margin: 12px 0 7px;
+}
+.mant-scada-item {
+  border-left: 3px solid #2a3550;
+  background: rgba(255, 255, 255, .03);
+  border-radius: 8px; padding: 8px 10px; margin-bottom: 6px;
+  font-size: .84rem; line-height: 1.4;
+}
+.mant-scada-item-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+.mant-scada-item .meta { color: #94a3b8; }
+.mant-scada-item-trabajo { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+
+@media (max-width: 720px) {
+  .mant-scada { height: auto; min-height: 0; }
+  .mant-scada-stage { min-height: 62dvh; }
+  .mant-scada-panel { left: 10px; width: auto; }
+}
