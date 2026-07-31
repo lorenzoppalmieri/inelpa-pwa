@@ -3,7 +3,10 @@ import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../auth/AuthContext'
 import { esSuperAdmin } from '../auth/roles'
 import { SIMBOLOS, SimboloActivo, simboloLabel, simboloValido } from './simbolos'
-import type { Criticidad, MantActivo, MantPlanta, MantSector } from './types'
+import type { Criticidad, MantActivo, MantAviso, MantOT, MantPlanta, MantSector } from './types'
+import { OT_ABIERTAS } from './types'
+import { ESTADOS, ESTADO_ORDEN, mapaDeEstados, type Estado } from './estado'
+import AvisoFalla from './AvisoFalla'
 
 // ============================================================
 // EDITOR DE MAPA DE ACTIVOS — MANTENIMIENTO (v1.62)
@@ -19,7 +22,10 @@ import type { Criticidad, MantActivo, MantPlanta, MantSector } from './types'
 // Plano local de respaldo cuando la planta no tiene plano_url en la base
 // (el PNG viaja en el bundle de la PWA, carpeta public/mantenimiento/planos).
 const PLANO_FALLBACK: Record<string, string> = {
-  cerdan_n1: '/mantenimiento/planos/cerdan_n1.png',
+  // Versión atenuada del plano CAD: el dibujo va en gris claro para que los
+  // pins de estado (rojo/amarillo/verde) resalten. El original queda como
+  // cerdan_n1.png por si se quiere volver atrás.
+  cerdan_n1: '/mantenimiento/planos/cerdan_n1_faded.png',
 }
 
 const CRITICIDADES: { id: Criticidad; label: string }[] = [
@@ -56,6 +62,10 @@ export default function MapaEditor({ onVerFicha }: { onVerFicha?: (id: string) =
   const [plantas, setPlantas] = useState<MantPlanta[]>([])
   const [sectores, setSectores] = useState<MantSector[]>([])
   const [activos, setActivos] = useState<MantActivo[]>([])
+  // Estado en vivo: avisos nuevos + OT abiertas (se cruzan con los activos de la planta).
+  const [avisos, setAvisos] = useState<MantAviso[]>([])
+  const [ots, setOts] = useState<MantOT[]>([])
+  const [avisoPara, setAvisoPara] = useState<{ id: string; nombre: string } | null>(null)
   const [plantaId, setPlantaId] = useState<string>('')
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')
@@ -98,6 +108,16 @@ export default function MapaEditor({ onVerFicha }: { onVerFicha?: (id: string) =
     [activos],
   )
   const seleccion = useMemo(() => activos.find((a) => a.id === seleccionId) ?? null, [activos, seleccionId])
+
+  // Estado (semaforo) por activo, cruzando avisos + OT con los activos de la planta.
+  const estadoPorActivo = useMemo(() => {
+    const ids = new Set(activos.map((a) => a.id))
+    return mapaDeEstados(
+      avisos.filter((a) => ids.has(a.activo_id)),
+      ots.filter((o) => ids.has(o.activo_id)),
+    )
+  }, [avisos, ots, activos])
+  const estadoDe = useCallback((id: string): Estado => estadoPorActivo.get(id) ?? 'ok', [estadoPorActivo])
 
   // ------------------------------------------------------------
   // Carga inicial: plantas activas + sectores (catalogos chicos).
@@ -145,6 +165,19 @@ export default function MapaEditor({ onVerFicha }: { onVerFicha?: (id: string) =
     void cargarActivos(plantaId).finally(() => setCargando(false))
   }, [plantaId, cargarActivos])
 
+  // Avisos nuevos + OT abiertas (globales; se cruzan con la planta en el memo).
+  const cargarEstados = useCallback(async () => {
+    if (!supabase) return
+    const [{ data: av }, { data: ot }] = await Promise.all([
+      supabase.from('mant_avisos').select('*').eq('estado', 'nuevo'),
+      supabase.from('mant_ordenes_trabajo').select('*').in('estado', OT_ABIERTAS),
+    ])
+    setAvisos((av ?? []) as MantAviso[])
+    setOts((ot ?? []) as MantOT[])
+  }, [])
+
+  useEffect(() => { void cargarEstados() }, [cargarEstados, plantaId])
+
   // ------------------------------------------------------------
   // Realtime: posiciones/fichas actualizadas en vivo entre usuarios.
   // (mant_activos esta en la publication supabase_realtime, ver v1.62.)
@@ -173,9 +206,12 @@ export default function MapaEditor({ onVerFicha }: { onVerFicha?: (id: string) =
           return copia
         })
       })
+      // Semaforo en vivo: cualquier cambio en avisos u OT recalcula los estados.
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'mant_avisos' }, () => { void cargarEstados() })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'mant_ordenes_trabajo' }, () => { void cargarEstados() })
       .subscribe()
     return () => { void sb.removeChannel(canal) }
-  }, [plantaId])
+  }, [plantaId, cargarEstados])
 
   // ------------------------------------------------------------
   // Vista: zoom al cursor (rueda, listener no-pasivo), botones y ajuste.
@@ -534,7 +570,8 @@ export default function MapaEditor({ onVerFicha }: { onVerFicha?: (id: string) =
               {ubicados.map((a) => {
                 const sec = sectorPorId.get(a.sector_id)
                 const pos = borrador && borrador.id === a.id ? borrador : { x: a.x_pct ?? 0, y: a.y_pct ?? 0 }
-                const clases = ['mant-pin']
+                const est = estadoDe(a.id)
+                const clases = ['mant-pin', `mant-estado-${est}`]
                 if (a.criticidad === 'A') clases.push('mant-pin-crit-a')
                 if (a.id === seleccionId) clases.push('mant-pin-sel')
                 if (editando) clases.push('mant-pin-editable')
@@ -543,14 +580,15 @@ export default function MapaEditor({ onVerFicha }: { onVerFicha?: (id: string) =
                     key={a.id}
                     className={clases.join(' ')}
                     style={{ left: `${pos.x}%`, top: `${pos.y}%`, color: sec?.color ?? '#94a3b8', transform: `translate(-50%, -50%) scale(${1 / vista.k})` }}
-                    title={`${a.id} · ${a.nombre}`}
+                    title={`${a.id} · ${a.nombre} · ${ESTADOS[est].label}`}
                     onPointerDown={(e) => downPin(e, a)}
                     onPointerMove={(e) => movePin(e, a)}
                     onPointerUp={(e) => upPin(e, a)}
                     onPointerCancel={(e) => upPin(e, a)}
                   >
-                    <div className="mant-pin-caja">
+                    <div className="mant-pin-caja" style={{ ['--est-color' as string]: ESTADOS[est].color }}>
                       <SimboloActivo simbolo={a.simbolo} size={26} />
+                      <span className="mant-pin-estado" style={{ background: ESTADOS[est].color }} />
                     </div>
                     {vista.k >= ZOOM_ETIQUETAS && <span className="mant-pin-label">{a.id}</span>}
                   </div>
@@ -619,6 +657,7 @@ export default function MapaEditor({ onVerFicha }: { onVerFicha?: (id: string) =
               ) : (
                 <div className="meta" style={{ lineHeight: 1.7 }}>
                   <div><strong>{seleccion.nombre}</strong></div>
+                  <div>Estado: <span className="mant-estado-tag" style={{ background: ESTADOS[estadoDe(seleccion.id)].color }}>{ESTADOS[estadoDe(seleccion.id)].label}</span></div>
                   {seleccion.tipo && <div>Tipo: <strong>{seleccion.tipo}</strong></div>}
                   <div>Criticidad: <strong>{CRITICIDADES.find((c) => c.id === seleccion.criticidad)?.label ?? seleccion.criticidad}</strong></div>
                   <div>Símbolo: <strong>{simboloLabel(seleccion.simbolo)}</strong></div>
@@ -628,14 +667,28 @@ export default function MapaEditor({ onVerFicha }: { onVerFicha?: (id: string) =
                   {seleccion.actualizado_por && <div style={{ marginTop: 6 }}>Última edición: {seleccion.actualizado_por}</div>}
                 </div>
               )}
-              {onVerFicha && (
-                <div className="row-actions" style={{ marginTop: 10 }}>
-                  <button className="btn btn-primary btn-bloque" style={{ minHeight: 44 }} onClick={() => onVerFicha(seleccion.id)}>📄 Ver ficha completa</button>
-                </div>
-              )}
+              <div className="row-actions" style={{ marginTop: 10 }}>
+                <button className="btn btn-rojo" style={{ flex: 1, minHeight: 44 }} onClick={() => setAvisoPara({ id: seleccion.id, nombre: seleccion.nombre })}>🔴 Avisar falla</button>
+                {onVerFicha && (
+                  <button className="btn btn-primary" style={{ flex: 1, minHeight: 44 }} onClick={() => onVerFicha(seleccion.id)}>📄 Ficha</button>
+                )}
+              </div>
             </div>
           ) : (
             <div className="mant-ficha">
+              <div className="section-title" style={{ margin: '0 0 8px', fontSize: '1rem' }}>Estado en vivo</div>
+              <div className="mant-leyenda" style={{ marginBottom: 12 }}>
+                {ESTADO_ORDEN.map((id) => {
+                  const n = [...estadoPorActivo.values()].filter((e) => e === id).length
+                    + (id === 'ok' ? ubicados.filter((a) => !estadoPorActivo.has(a.id)).length : 0)
+                  return (
+                    <span key={id} className="mant-chip" title={ESTADOS[id].label}>
+                      <i style={{ background: ESTADOS[id].color }} />
+                      {ESTADOS[id].label} · {n}
+                    </span>
+                  )
+                })}
+              </div>
               <div className="section-title" style={{ margin: '0 0 8px', fontSize: '1rem' }}>Sectores</div>
               <div className="mant-leyenda">
                 {leyenda.map(({ sector, total, ubicados: ub }) => (
@@ -750,6 +803,15 @@ export default function MapaEditor({ onVerFicha }: { onVerFicha?: (id: string) =
             <div className="meta" style={{ marginTop: 10 }}>El activo se crea sin posición: aparece en la bandeja "Sin ubicar".</div>
           </div>
         </div>
+      )}
+
+      {/* ---------- Modal: aviso de falla ---------- */}
+      {avisoPara && (
+        <AvisoFalla
+          activoPreset={avisoPara}
+          onCerrar={() => setAvisoPara(null)}
+          onCreado={() => { setAviso(`Aviso enviado para ${avisoPara.id}.`); void cargarEstados() }}
+        />
       )}
     </div>
   )

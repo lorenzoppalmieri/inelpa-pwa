@@ -91,18 +91,50 @@ export interface MantGama {
   activa: boolean
 }
 
-// Orden de trabajo (Pilar 4). La tabla existe pero hoy esta vacia.
+export type OtEstado = 'creada' | 'planificada' | 'en_ejecucion' | 'en_espera' | 'cerrada' | 'cancelada'
+export type OtTipo = 'preventiva' | 'correctiva' | 'emergencia'
+export type OtPrioridad = 'alta' | 'media' | 'baja'
+
+// Estados abiertos (los que pesan en el mapa y el backlog).
+export const OT_ABIERTAS: OtEstado[] = ['creada', 'planificada', 'en_ejecucion', 'en_espera']
+
+// Orden de trabajo (Pilar 4).
 export interface MantOT {
   id: string                    // uuid
   numero: number
-  tipo: 'preventiva' | 'correctiva' | 'emergencia'
-  estado: 'creada' | 'planificada' | 'en_ejecucion' | 'en_espera' | 'cerrada' | 'cancelada'
-  prioridad: 'alta' | 'media' | 'baja'
+  tipo: OtTipo
+  estado: OtEstado
+  prioridad: OtPrioridad
   activo_id: string
+  origen: 'automatica' | 'aviso' | 'manual'
+  aviso_id: string | null
+  gama_id: string | null
   descripcion: string
   responsable: string | null
   fecha_objetivo: string | null // date ISO
+  fecha_inicio: string | null
+  fecha_cierre: string | null
+  cierre_trabajo: string | null
+  cierre_causa: string | null
+  cierre_repuestos: unknown[]
+  horas_hombre: number | null
+  tiempo_parada_min: number | null
+  loto_requerido: boolean
+  loto_checklist: unknown[]
+  creado_por: string | null
   creado_en: string
+}
+
+// Aviso de falla (boton del operario). Realtime -> el mapa se pone rojo.
+export interface MantAviso {
+  id: string                    // uuid
+  activo_id: string
+  emisor: string
+  sintoma: string
+  estado: 'nuevo' | 'en_ot' | 'resuelto' | 'cancelado'
+  ot_id: string | null
+  creado_en: string
+  atendido_en: string | null
 }
 
 // ------------------------------------------------------------

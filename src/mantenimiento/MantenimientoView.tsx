@@ -2,6 +2,8 @@ import { useState } from 'react'
 import MapaEditor from './MapaEditor'
 import ActivosLista from './ActivosLista'
 import FichaEquipo from './FichaEquipo'
+import TableroOT from './TableroOT'
+import PanelKPIs from './PanelKPIs'
 
 // ============================================================
 // VISTA DEL MODULO DE MANTENIMIENTO (v1.62/v1.63)
@@ -14,7 +16,14 @@ import FichaEquipo from './FichaEquipo'
 //     ficha. Al volver se conserva la solapa de origen.
 // ============================================================
 
-type Solapa = 'mapa' | 'activos'
+type Solapa = 'mapa' | 'tablero' | 'activos' | 'kpis'
+
+const SOLAPAS: { id: Solapa; label: string }[] = [
+  { id: 'mapa', label: '🗺️ Mapa' },
+  { id: 'tablero', label: '📝 Tablero OT' },
+  { id: 'activos', label: '⚙️ Activos' },
+  { id: 'kpis', label: '📊 KPIs' },
+]
 
 export default function MantenimientoView() {
   const [solapa, setSolapa] = useState<Solapa>('mapa')
@@ -30,23 +39,24 @@ export default function MantenimientoView() {
     )
   }
 
+  const verFicha = (id: string) => setFichaId(id)
+
   return (
     <div className="mant-modulo">
       <div className="tabs no-print" style={{ marginBottom: 10 }}>
-        <button
-          className={'tab' + (solapa === 'mapa' ? ' active' : '')}
-          onClick={() => setSolapa('mapa')}
-          aria-current={solapa === 'mapa' ? 'page' : undefined}
-        >🗺️ Mapa</button>
-        <button
-          className={'tab' + (solapa === 'activos' ? ' active' : '')}
-          onClick={() => setSolapa('activos')}
-          aria-current={solapa === 'activos' ? 'page' : undefined}
-        >⚙️ Activos</button>
+        {SOLAPAS.map((s) => (
+          <button
+            key={s.id}
+            className={'tab' + (solapa === s.id ? ' active' : '')}
+            onClick={() => setSolapa(s.id)}
+            aria-current={solapa === s.id ? 'page' : undefined}
+          >{s.label}</button>
+        ))}
       </div>
-      {solapa === 'mapa'
-        ? <MapaEditor onVerFicha={(id) => setFichaId(id)} />
-        : <ActivosLista onVerFicha={(id) => setFichaId(id)} />}
+      {solapa === 'mapa' && <MapaEditor onVerFicha={verFicha} />}
+      {solapa === 'tablero' && <TableroOT onVerFicha={verFicha} />}
+      {solapa === 'activos' && <ActivosLista onVerFicha={verFicha} />}
+      {solapa === 'kpis' && <PanelKPIs onVerFicha={verFicha} />}
     </div>
   )
 }
