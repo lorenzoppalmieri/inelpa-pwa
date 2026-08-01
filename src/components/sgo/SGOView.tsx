@@ -8,6 +8,7 @@ import MatrizSGO from './MatrizSGO'
 import IndicadoresSGO from './IndicadoresSGO'
 import FichaCeldaSGO from './FichaCeldaSGO'
 import GarantiasISOView from './GarantiasISOView'
+import ControlesProgramadosView from './ControlesProgramadosView'
 import { defectoSGOLabel, defectosParaArea } from '../../sgo/defectos'
 import { resolverKPIAutomaticos } from '../../sgo/kpiAutomaticos'
 import { aplicarMedicionesIndicadores, type IndicadorSGO } from '../../sgo/indicadores'
@@ -50,6 +51,7 @@ export default function SGOView() {
   const indicadores = useLiveQuery(() => db.indicadoresSGO.toArray(), []) ?? []
   const mediciones = useLiveQuery(() => db.medicionesIndicadoresSGO.toArray(), []) ?? []
   const auditoria = useLiveQuery(() => db.auditoriaSGO.toArray(), []) ?? []
+  const controles = useLiveQuery(() => db.controlesProgramadosSGO.toArray(), []) ?? []
   const tareas = useLiveQuery(() => db.tareas.toArray(), []) ?? []
   const laboratorio = useLiveQuery(() => db.laboratorio.toArray(), []) ?? []
   const tareasLogistica = useLiveQuery(() => db.tareasLogistica.toArray(), []) ?? []
@@ -59,7 +61,7 @@ export default function SGOView() {
   const [celdaSeleccionada, setCeldaSeleccionada] = useState<{ area: AreaSGOId; pilar: PilarSGO }>()
   const [filtroArea, setFiltroArea] = useState('')
   const [filtroPilar, setFiltroPilar] = useState('')
-  const [pestana, setPestana] = useState<'tablero' | 'garantias'>('tablero')
+  const [pestana, setPestana] = useState<'tablero' | 'controles' | 'garantias'>('tablero')
   const seleccionado = eventos.find((e) => e.id === seleccionadoId)
 
   const abiertos = eventos.filter((e) => e.estado !== 'cerrado')
@@ -81,9 +83,11 @@ export default function SGOView() {
     <div>
       <div className="tabs" role="tablist" aria-label="Secciones SGO">
         <button className={`tab ${pestana === 'tablero' ? 'active' : ''}`} onClick={() => setPestana('tablero')}>Tablero integral</button>
+        <button className={`tab ${pestana === 'controles' ? 'active' : ''}`} onClick={() => setPestana('controles')}>Controles programados</button>
         <button className={`tab ${pestana === 'garantias' ? 'active' : ''}`} onClick={() => setPestana('garantias')}>Garantías ISO 9001</button>
       </div>
-      {pestana === 'garantias' ? <GarantiasISOView usuario={usuario?.usuario ?? 'sin_usuario'} onOpenEvento={(id) => { setPestana('tablero'); setSeleccionadoId(id) }} /> : <>
+      {pestana === 'garantias' ? <GarantiasISOView usuario={usuario?.usuario ?? 'sin_usuario'} onOpenEvento={(id) => { setPestana('tablero'); setSeleccionadoId(id) }} />
+        : pestana === 'controles' ? <ControlesProgramadosView usuario={usuario?.usuario ?? 'sin_usuario'} onOpenEvento={(id) => { setPestana('tablero'); setSeleccionadoId(id) }} /> : <>
       <div className="card" style={{ marginBottom: 14, borderLeft: '5px solid #2563eb' }}>
         <div className="card-header">
           <div>
@@ -109,7 +113,7 @@ export default function SGOView() {
         </div>
       </div>
 
-      <MatrizSGO eventos={eventos} acciones={acciones} indicadores={indicadoresResueltos} onSelect={(area, pilar) => setCeldaSeleccionada({ area, pilar })} />
+      <MatrizSGO eventos={eventos} acciones={acciones} indicadores={indicadoresResueltos} controles={controles} onSelect={(area, pilar) => setCeldaSeleccionada({ area, pilar })} />
 
       <div className="card" style={{ marginTop: 18, marginBottom: 10 }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 10 }}>
@@ -163,6 +167,7 @@ export default function SGOView() {
       {celdaSeleccionada && <FichaCeldaSGO
         areaId={celdaSeleccionada.area} pilarId={celdaSeleccionada.pilar}
         indicadores={indicadoresResueltos} eventos={eventos} acciones={acciones}
+        controles={controles}
         datos={{ tareas, laboratorio, tareasLogistica, eventos, acciones, mediciones }}
         usuario={usuario?.usuario ?? 'sin_usuario'}
         onClose={() => setCeldaSeleccionada(undefined)}

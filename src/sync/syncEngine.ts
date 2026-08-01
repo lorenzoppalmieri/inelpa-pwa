@@ -5,11 +5,12 @@ import type { SyncOp, Tarea, OrdenProduccion, Semielaborado, SectorId, Objetivo,
 import type { EventoSGO, AccionSGO, AuditoriaSGO } from '../sgo/types'
 import type { IndicadorSGO, MedicionIndicadorSGO } from '../sgo/indicadores'
 import type { GarantiaISO } from '../sgo/garantias'
+import type { ControlProgramadoSGO, EjecucionControlSGO } from '../sgo/controles'
 import { setFeriados } from '../lib/calendario'
 import {
-  tareaFromRow, paradaFromRow, ordenFromRow, semiFromRow, maquinaFromRow, usuarioFromRow, objetivoFromRow, tareaLogFromRow, solicitudLogFromRow, feriadoFromRow, mensajeFromRow, lecturaFromRow, estandarFromRow, despachoFromRow, fleteFromRow, laboratorioFromRow, plantillaFromRow, eventoSGOFromRow, accionSGOFromRow, indicadorSGOFromRow, medicionIndicadorSGOFromRow, auditoriaSGOFromRow, garantiaISOFromRow,
-  tareaToRow, paradaToRow, ordenToRow, semiToRow, objetivoToRow, tareaLogToRow, solicitudLogToRow, feriadoToRow, mensajeToRow, lecturaToRow, estandarToRow, despachoToRow, fleteToRow, laboratorioToRow, plantillaToRow, eventoSGOToRow, accionSGOToRow, indicadorSGOToRow, medicionIndicadorSGOToRow, garantiaISOToRow,
-  type TareaRow, type ParadaRow, type OrdenRow, type SemiRow, type MaquinaRow, type UsuarioRow, type ObjetivoRow, type TareaLogisticaRow, type SolicitudLogisticaRow, type FeriadoRow, type MensajeRow, type MensajeLecturaRow, type TiempoEstandarRow, type DespachoRow, type FleteRow, type LaboratorioRow, type PlantillaRecurrenteRow, type EventoSGORow, type AccionSGORow, type IndicadorSGORow, type MedicionIndicadorSGORow, type AuditoriaSGORow, type GarantiaISORow,
+  tareaFromRow, paradaFromRow, ordenFromRow, semiFromRow, maquinaFromRow, usuarioFromRow, objetivoFromRow, tareaLogFromRow, solicitudLogFromRow, feriadoFromRow, mensajeFromRow, lecturaFromRow, estandarFromRow, despachoFromRow, fleteFromRow, laboratorioFromRow, plantillaFromRow, eventoSGOFromRow, accionSGOFromRow, indicadorSGOFromRow, medicionIndicadorSGOFromRow, auditoriaSGOFromRow, garantiaISOFromRow, controlProgramadoSGOFromRow, ejecucionControlSGOFromRow,
+  tareaToRow, paradaToRow, ordenToRow, semiToRow, objetivoToRow, tareaLogToRow, solicitudLogToRow, feriadoToRow, mensajeToRow, lecturaToRow, estandarToRow, despachoToRow, fleteToRow, laboratorioToRow, plantillaToRow, eventoSGOToRow, accionSGOToRow, indicadorSGOToRow, medicionIndicadorSGOToRow, garantiaISOToRow, controlProgramadoSGOToRow, ejecucionControlSGOToRow,
+  type TareaRow, type ParadaRow, type OrdenRow, type SemiRow, type MaquinaRow, type UsuarioRow, type ObjetivoRow, type TareaLogisticaRow, type SolicitudLogisticaRow, type FeriadoRow, type MensajeRow, type MensajeLecturaRow, type TiempoEstandarRow, type DespachoRow, type FleteRow, type LaboratorioRow, type PlantillaRecurrenteRow, type EventoSGORow, type AccionSGORow, type IndicadorSGORow, type MedicionIndicadorSGORow, type AuditoriaSGORow, type GarantiaISORow, type ControlProgramadoSGORow, type EjecucionControlSGORow,
 } from './mappers'
 
 // ============================================================
@@ -119,7 +120,7 @@ export async function fetchInicial(): Promise<void> {
       db.plantillasRecurrentes.clear(), db.datosTecnicos.clear(),
     ])
 
-    const [maqs, usrs, uss, ords, semis, tars, pars, objs, tlog, slog, fers, msgs, lects, ests, desp, flts, labs, plts, eventosSgo, accionesSgo, indicadoresSgo, medicionesSgo, auditoriaSgo, garantiasIso, dtec] = await Promise.all([
+    const [maqs, usrs, uss, ords, semis, tars, pars, objs, tlog, slog, fers, msgs, lects, ests, desp, flts, labs, plts, eventosSgo, accionesSgo, indicadoresSgo, medicionesSgo, auditoriaSgo, garantiasIso, controlesSgo, ejecucionesSgo, dtec] = await Promise.all([
       supabase.from('maquinas').select('*'),
       supabase.from('usuarios').select('id, nombre, usuario, rol, grupo_nomina, activo'),
       supabase.from('usuario_sectores').select('usuario_id, sector_id'),
@@ -144,6 +145,8 @@ export async function fetchInicial(): Promise<void> {
       supabase.from('sgo_indicador_mediciones').select('*'),
       supabase.from('sgo_auditoria').select('*').order('creado_en', { ascending: false }).limit(1000),
       supabase.from('sgo_garantias_iso').select('*'),
+      supabase.from('sgo_controles_programados').select('*'),
+      supabase.from('sgo_control_ejecuciones').select('*').order('ejecutado_en', { ascending: false }).limit(2000),
       supabase.from('datos_tecnicos').select('*'),
     ])
 
@@ -206,6 +209,8 @@ export async function fetchInicial(): Promise<void> {
     if (medicionesSgo.data) { await db.medicionesIndicadoresSGO.clear(); await db.medicionesIndicadoresSGO.bulkPut((medicionesSgo.data as MedicionIndicadorSGORow[]).map(medicionIndicadorSGOFromRow)) }
     if (auditoriaSgo.data) { await db.auditoriaSGO.clear(); await db.auditoriaSGO.bulkPut((auditoriaSgo.data as AuditoriaSGORow[]).map(auditoriaSGOFromRow)) }
     if (garantiasIso.data) { await db.garantiasISO.clear(); await db.garantiasISO.bulkPut((garantiasIso.data as GarantiaISORow[]).map(garantiaISOFromRow)) }
+    if (controlesSgo.data) { await db.controlesProgramadosSGO.clear(); await db.controlesProgramadosSGO.bulkPut((controlesSgo.data as ControlProgramadoSGORow[]).map(controlProgramadoSGOFromRow)) }
+    if (ejecucionesSgo.data) { await db.ejecucionesControlesSGO.clear(); await db.ejecucionesControlesSGO.bulkPut((ejecucionesSgo.data as EjecucionControlSGORow[]).map(ejecucionControlSGOFromRow)) }
 
     // Tareas logisticas
     if (tlog.data) await db.tareasLogistica.bulkPut((tlog.data as TareaLogisticaRow[]).map(tareaLogFromRow))
@@ -363,6 +368,14 @@ async function onGarantiaISOChange(payload: Payload) {
   if (payload.eventType === 'DELETE') { await db.garantiasISO.delete((payload.old as { id: string }).id); return }
   await db.garantiasISO.put(garantiaISOFromRow(payload.new as unknown as GarantiaISORow))
 }
+async function onControlProgramadoSGOChange(payload: Payload) {
+  if (payload.eventType === 'DELETE') { await db.controlesProgramadosSGO.delete((payload.old as { id: string }).id); return }
+  await db.controlesProgramadosSGO.put(controlProgramadoSGOFromRow(payload.new as unknown as ControlProgramadoSGORow))
+}
+async function onEjecucionControlSGOChange(payload: Payload) {
+  if (payload.eventType === 'DELETE') { await db.ejecucionesControlesSGO.delete((payload.old as { id: string }).id); return }
+  await db.ejecucionesControlesSGO.put(ejecucionControlSGOFromRow(payload.new as unknown as EjecucionControlSGORow))
+}
 
 function suscribirRealtime() {
   if (!supabase || canal) return
@@ -390,6 +403,8 @@ function suscribirRealtime() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'sgo_indicador_mediciones' }, onMedicionIndicadorSGOChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'sgo_auditoria' }, onAuditoriaSGOChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'sgo_garantias_iso' }, onGarantiaISOChange)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'sgo_controles_programados' }, onControlProgramadoSGOChange)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'sgo_control_ejecuciones' }, onEjecucionControlSGOChange)
     .subscribe()
 }
 
@@ -505,6 +520,8 @@ async function empujar(op: SyncOp): Promise<EmpujeResultado> {
         : op.entidad === 'accion_sgo' ? 'sgo_acciones'
         : op.entidad === 'medicion_indicador_sgo' ? 'sgo_indicador_mediciones'
         : op.entidad === 'garantia_iso' ? 'sgo_garantias_iso'
+        : op.entidad === 'control_programado_sgo' ? 'sgo_controles_programados'
+        : op.entidad === 'ejecucion_control_sgo' ? 'sgo_control_ejecuciones'
         : 'paradas'
       const { error } = await supabase.from(tabla).delete().eq('id', op.entidadId)
       if (error) return fallo(`delete ${op.entidad}`, error.message)
@@ -586,6 +603,14 @@ async function empujar(op: SyncOp): Promise<EmpujeResultado> {
       case 'garantia_iso': {
         const { error } = await supabase.from('sgo_garantias_iso').upsert(garantiaISOToRow(op.payload as GarantiaISO), { onConflict: 'id' })
         return error ? fallo('upsert garantia_iso', error.message) : OK_EMPUJE
+      }
+      case 'control_programado_sgo': {
+        const { error } = await supabase.from('sgo_controles_programados').upsert(controlProgramadoSGOToRow(op.payload as ControlProgramadoSGO), { onConflict: 'id' })
+        return error ? fallo('upsert control_programado_sgo', error.message) : OK_EMPUJE
+      }
+      case 'ejecucion_control_sgo': {
+        const { error } = await supabase.from('sgo_control_ejecuciones').upsert(ejecucionControlSGOToRow(op.payload as EjecucionControlSGO), { onConflict: 'id', ignoreDuplicates: true })
+        return error ? fallo('upsert ejecucion_control_sgo', error.message) : OK_EMPUJE
       }
       case 'tarea_logistica': {
         const { error } = await supabase.from('tareas_logistica').upsert(tareaLogToRow(op.payload as TareaLogistica), { onConflict: 'id' })
@@ -736,6 +761,14 @@ export async function guardarGarantiaISO(g: GarantiaISO): Promise<void> {
 export async function eliminarGarantiaISO(g: GarantiaISO): Promise<void> {
   await db.garantiasISO.delete(g.id)
   await encolar({ entidad: 'garantia_iso', entidadId: g.id, tipo: 'delete', payload: { id: g.id } })
+}
+export async function guardarControlProgramadoSGO(c: ControlProgramadoSGO): Promise<void> {
+  await db.controlesProgramadosSGO.put(c)
+  await encolar({ entidad: 'control_programado_sgo', entidadId: c.id, tipo: 'upsert', payload: c })
+}
+export async function guardarEjecucionControlSGO(e: EjecucionControlSGO): Promise<void> {
+  await db.ejecucionesControlesSGO.put(e)
+  await encolar({ entidad: 'ejecucion_control_sgo', entidadId: e.id, tipo: 'upsert', payload: e })
 }
 
 // v1.39: plantillas de tareas recurrentes (las administra Giuliano).

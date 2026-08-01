@@ -21,6 +21,7 @@ import type {
 import type { AccionSGO, AuditoriaSGO, EventoSGO } from '../sgo/types'
 import type { IndicadorSGO, MedicionIndicadorSGO } from '../sgo/indicadores'
 import type { GarantiaISO } from '../sgo/garantias'
+import type { ControlProgramadoSGO, EjecucionControlSGO } from '../sgo/controles'
 
 // null -> undefined (Supabase devuelve null; la app usa undefined en opcionales).
 function u<T>(v: T | null | undefined): T | undefined {
@@ -174,6 +175,7 @@ export interface EventoSGORow {
   parada_id: string | null
   laboratorio_id: string | null
   despacho_id: string | null
+  control_id: string | null
   nro_serie: string | null
   modelo: string | null
   defecto_codigo: string | null
@@ -265,7 +267,7 @@ export function eventoSGOFromRow(r: EventoSGORow): EventoSGO {
     titulo: r.titulo, descripcion: r.descripcion, severidad: r.severidad as EventoSGO['severidad'],
     estado: r.estado as EventoSGO['estado'], areaId: u(r.area_id) as EventoSGO['areaId'], areaOrigenId: u(r.area_origen_id) as EventoSGO['areaOrigenId'], sectorId: u(r.sector_id), maquinaId: u(r.maquina_id),
     ordenId: u(r.orden_id), tareaId: u(r.tarea_id), paradaId: u(r.parada_id), laboratorioId: u(r.laboratorio_id),
-    despachoId: u(r.despacho_id), nroSerie: u(r.nro_serie), modelo: u(r.modelo), defectoCodigo: u(r.defecto_codigo), detectadoEn: r.detectado_en,
+    despachoId: u(r.despacho_id), controlId: u(r.control_id), nroSerie: u(r.nro_serie), modelo: u(r.modelo), defectoCodigo: u(r.defecto_codigo), detectadoEn: r.detectado_en,
     detectadoPor: r.detectado_por, responsable: u(r.responsable), contencion: u(r.contencion),
     disposicion: u(r.disposicion) as EventoSGO['disposicion'], cantidadAfectada: u(r.cantidad_afectada),
     costoEstimado: u(r.costo_estimado), costoDetalle: r.costo_detalle ?? undefined, seguridad: r.seguridad ?? undefined, causaRaiz: u(r.causa_raiz),
@@ -280,7 +282,7 @@ export function eventoSGOToRow(e: EventoSGO): EventoSGORow {
     id: e.id, codigo: e.codigo, tipo: e.tipo, pilar: e.pilar, titulo: e.titulo,
     descripcion: e.descripcion, severidad: e.severidad, estado: e.estado, area_id: e.areaId ?? null, area_origen_id: e.areaOrigenId ?? null,
     sector_id: e.sectorId ?? null, maquina_id: e.maquinaId ?? null, orden_id: e.ordenId ?? null,
-    tarea_id: e.tareaId ?? null, parada_id: e.paradaId ?? null, laboratorio_id: e.laboratorioId ?? null, despacho_id: e.despachoId ?? null,
+    tarea_id: e.tareaId ?? null, parada_id: e.paradaId ?? null, laboratorio_id: e.laboratorioId ?? null, despacho_id: e.despachoId ?? null, control_id: e.controlId ?? null,
     nro_serie: e.nroSerie ?? null, modelo: e.modelo ?? null, defecto_codigo: e.defectoCodigo ?? null, detectado_en: e.detectadoEn, detectado_por: e.detectadoPor,
     responsable: e.responsable ?? null, contencion: e.contencion ?? null,
     disposicion: e.disposicion ?? null, cantidad_afectada: e.cantidadAfectada ?? null,
@@ -359,6 +361,84 @@ export function auditoriaSGOFromRow(r: AuditoriaSGORow): AuditoriaSGO {
     operacion: r.operacion as AuditoriaSGO['operacion'],
     datosAnteriores: r.datos_anteriores ?? undefined, datosNuevos: r.datos_nuevos ?? undefined,
     usuario: r.usuario, creadoEn: r.creado_en,
+  }
+}
+
+export interface ControlProgramadoSGORow {
+  id: string
+  titulo: string
+  tipo: string
+  area_id: string
+  pilar: string
+  norma: string | null
+  requisito: string | null
+  instrucciones: string
+  responsable: string
+  frecuencia: string
+  proxima_fecha: string
+  tolerancia_dias: number
+  activo: boolean
+  creado_en: string
+  creado_por: string
+  actualizado_en: string
+  actualizado_por: string
+}
+
+export interface EjecucionControlSGORow {
+  id: string
+  control_id: string
+  fecha_programada: string
+  ejecutado_en: string
+  ejecutado_por: string
+  resultado: string
+  detalle: string
+  evidencia: string | null
+  orden_id: string | null
+  nro_serie: string | null
+  semielaborado_codigo: string | null
+  valor_esperado: string | null
+  valor_encontrado: string | null
+  unidad: string | null
+  evento_id: string | null
+}
+
+export function controlProgramadoSGOFromRow(r: ControlProgramadoSGORow): ControlProgramadoSGO {
+  return {
+    id: r.id, titulo: r.titulo, tipo: r.tipo as ControlProgramadoSGO['tipo'],
+    areaId: r.area_id as ControlProgramadoSGO['areaId'], pilar: r.pilar as ControlProgramadoSGO['pilar'],
+    norma: u(r.norma) as ControlProgramadoSGO['norma'], requisito: u(r.requisito), instrucciones: r.instrucciones,
+    responsable: r.responsable, frecuencia: r.frecuencia as ControlProgramadoSGO['frecuencia'],
+    proximaFecha: r.proxima_fecha, toleranciaDias: r.tolerancia_dias, activo: r.activo,
+    creadoEn: r.creado_en, creadoPor: r.creado_por, actualizadoEn: r.actualizado_en, actualizadoPor: r.actualizado_por,
+  }
+}
+
+export function controlProgramadoSGOToRow(c: ControlProgramadoSGO): ControlProgramadoSGORow {
+  return {
+    id: c.id, titulo: c.titulo, tipo: c.tipo, area_id: c.areaId, pilar: c.pilar,
+    norma: c.norma ?? null, requisito: c.requisito ?? null, instrucciones: c.instrucciones,
+    responsable: c.responsable, frecuencia: c.frecuencia, proxima_fecha: c.proximaFecha,
+    tolerancia_dias: c.toleranciaDias, activo: c.activo, creado_en: c.creadoEn,
+    creado_por: c.creadoPor, actualizado_en: c.actualizadoEn, actualizado_por: c.actualizadoPor,
+  }
+}
+
+export function ejecucionControlSGOFromRow(r: EjecucionControlSGORow): EjecucionControlSGO {
+  return {
+    id: r.id, controlId: r.control_id, fechaProgramada: r.fecha_programada, ejecutadoEn: r.ejecutado_en,
+    ejecutadoPor: r.ejecutado_por, resultado: r.resultado as EjecucionControlSGO['resultado'], detalle: r.detalle,
+    evidencia: u(r.evidencia), ordenId: u(r.orden_id), nroSerie: u(r.nro_serie), semielaboradoCodigo: u(r.semielaborado_codigo),
+    valorEsperado: u(r.valor_esperado), valorEncontrado: u(r.valor_encontrado), unidad: u(r.unidad), eventoId: u(r.evento_id),
+  }
+}
+
+export function ejecucionControlSGOToRow(e: EjecucionControlSGO): EjecucionControlSGORow {
+  return {
+    id: e.id, control_id: e.controlId, fecha_programada: e.fechaProgramada, ejecutado_en: e.ejecutadoEn,
+    ejecutado_por: e.ejecutadoPor, resultado: e.resultado, detalle: e.detalle, evidencia: e.evidencia ?? null,
+    orden_id: e.ordenId ?? null, nro_serie: e.nroSerie ?? null, semielaborado_codigo: e.semielaboradoCodigo ?? null,
+    valor_esperado: e.valorEsperado ?? null, valor_encontrado: e.valorEncontrado ?? null, unidad: e.unidad ?? null,
+    evento_id: e.eventoId ?? null,
   }
 }
 

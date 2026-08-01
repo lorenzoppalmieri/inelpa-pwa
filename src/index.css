@@ -1440,3 +1440,30 @@ body.admin-mode .content { max-width: none; padding: 12px 18px; }
 .scada-badge{ display:inline-flex; align-items:center; gap:6px; font-weight:800; font-size:.82rem; margin-top:6px; }
 .scada-badge i{ width:9px; height:9px; border-radius:50%; }
 @media (max-width:768px){ .scada-dibujo{ gap:6px; } }
+
+/* ============================================================
+   SGO v1.65 · Controles programados
+   ============================================================ */
+.sgo-controles-cabecera{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:12px;border-left:5px solid #2563eb}
+.sgo-controles-cabecera .section-title{margin:0 0 3px}
+.sgo-controles-resumen{display:grid;grid-template-columns:repeat(5,minmax(125px,1fr));gap:10px;margin-bottom:14px}
+.sgo-control-resumen{display:flex;flex-direction:column;gap:3px;padding:14px 16px;border-top:4px solid #64748b}
+.sgo-control-resumen strong{font-size:1.65rem;line-height:1}.sgo-control-resumen span{font-size:.76rem;color:var(--texto-sec,#94a3b8);font-weight:700}
+.sgo-control-resumen.tono-rojo{border-top-color:#ef4444}.sgo-control-resumen.tono-amarillo{border-top-color:#f59e0b}.sgo-control-resumen.tono-azul{border-top-color:#3b82f6}.sgo-control-resumen.tono-verde{border-top-color:#22c55e}
+.sgo-controles-filtros{display:grid;grid-template-columns:minmax(220px,2fr) minmax(190px,1fr) minmax(165px,1fr);gap:10px;margin-bottom:16px}
+.sgo-controles-lista{display:grid;gap:10px}.sgo-control-card{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:16px;border-left:5px solid #64748b}
+.sgo-control-card.control-vencido{border-left-color:#ef4444;background:color-mix(in srgb,var(--panel,#172235) 92%,#ef4444 8%)}
+.sgo-control-card.control-hoy{border-left-color:#f59e0b}.sgo-control-card.control-proximo{border-left-color:#3b82f6}.sgo-control-card.control-inactivo{opacity:.62}
+.sgo-control-card-principal{display:grid;grid-template-columns:58px minmax(0,1fr);gap:14px;align-items:start}.sgo-control-card-principal p{margin:7px 0;white-space:pre-wrap}
+.sgo-control-fecha{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:58px;border:1px solid var(--borde,#334155);border-radius:11px;background:var(--bg,#0f172a);text-transform:uppercase}
+.sgo-control-fecha strong{font-size:1.45rem;line-height:1}.sgo-control-fecha span{font-size:.68rem;margin-top:5px;font-weight:800}
+.sgo-control-titulo{display:flex;align-items:center;gap:9px;flex-wrap:wrap}.sgo-control-titulo>strong{font-size:1.02rem}
+.control-chip-vencido{color:#fecaca;background:rgba(239,68,68,.16)}.control-chip-hoy{color:#fde68a;background:rgba(245,158,11,.15)}.control-chip-proximo{color:#bfdbfe;background:rgba(59,130,246,.15)}.control-chip-programado{color:#cbd5e1;background:rgba(100,116,139,.14)}
+.sgo-controles-historial{padding:0;overflow:hidden}.sgo-control-historial-fila{display:grid;grid-template-columns:12px minmax(0,1fr) auto;align-items:center;gap:12px;padding:13px 15px;border-bottom:1px solid var(--borde,#334155)}
+.sgo-control-historial-fila:last-child{border-bottom:0}.sgo-resultado-dot{width:10px;height:10px;border-radius:50%;background:#64748b}.resultado-conforme{background:#22c55e}.resultado-observacion{background:#f59e0b}.resultado-no-conforme{background:#ef4444}.resultado-no-aplica{background:#64748b}
+.sgo-control-form-grid{display:grid;grid-template-columns:repeat(3,minmax(150px,1fr));gap:9px}.sgo-control-contexto{display:grid;gap:4px;padding:12px 14px;margin-bottom:12px;border-left:4px solid #3b82f6;border-radius:8px;background:var(--bg,#0f172a)}
+.sgo-resultados-selector{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.sgo-resultados-selector .btn{border-width:2px}.sgo-resultados-selector .btn.activo{box-shadow:0 0 0 2px rgba(255,255,255,.25) inset;transform:translateY(-1px)}
+.sgo-resultados-selector .resultado-conforme{color:#86efac;border-color:#22c55e;background:rgba(34,197,94,.09)}.sgo-resultados-selector .resultado-observacion{color:#fde68a;border-color:#f59e0b;background:rgba(245,158,11,.09)}.sgo-resultados-selector .resultado-no-conforme{color:#fecaca;border-color:#ef4444;background:rgba(239,68,68,.09)}.sgo-resultados-selector .resultado-no-aplica{color:#cbd5e1;border-color:#64748b;background:rgba(100,116,139,.09)}
+.sgo-control-aviso{padding:10px 12px;border-radius:8px;margin:8px 0 12px;font-weight:700}.sgo-control-aviso.error{color:#fecaca;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.45)}
+@media(max-width:900px){.sgo-controles-resumen{grid-template-columns:repeat(3,1fr)}.sgo-control-form-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:640px){.sgo-controles-cabecera,.sgo-control-card{grid-template-columns:1fr;display:grid}.sgo-controles-resumen{grid-template-columns:repeat(2,1fr)}.sgo-controles-filtros,.sgo-control-form-grid{grid-template-columns:1fr}.sgo-control-card-principal{grid-template-columns:48px minmax(0,1fr)}.sgo-control-historial-fila{grid-template-columns:10px minmax(0,1fr)}.sgo-control-historial-fila .btn{grid-column:2}.sgo-resultados-selector{grid-template-columns:repeat(2,1fr)}}

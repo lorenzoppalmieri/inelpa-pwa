@@ -8,6 +8,7 @@ import type {
 import type { EventoSGO, AccionSGO, AuditoriaSGO } from '../sgo/types'
 import type { IndicadorSGO, MedicionIndicadorSGO } from '../sgo/indicadores'
 import type { GarantiaISO } from '../sgo/garantias'
+import type { ControlProgramadoSGO, EjecucionControlSGO } from '../sgo/controles'
 
 // ============================================================
 // Capa offline-first con IndexedDB (via Dexie).
@@ -43,6 +44,8 @@ export class InelpaDB extends Dexie {
   medicionesIndicadoresSGO!: Table<MedicionIndicadorSGO, string>
   auditoriaSGO!: Table<AuditoriaSGO, string>
   garantiasISO!: Table<GarantiaISO, string>
+  controlesProgramadosSGO!: Table<ControlProgramadoSGO, string>
+  ejecucionesControlesSGO!: Table<EjecucionControlSGO, string>
 
   constructor() {
     super('inelpa_pwa')
@@ -155,6 +158,12 @@ export class InelpaDB extends Dexie {
       medicionesIndicadoresSGO: 'id, indicadorId, periodo, cerrado, [indicadorId+periodo]',
       auditoriaSGO: 'id, entidad, entidadId, creadoEn, [entidad+entidadId]',
       garantiasISO: 'id, codigo, nroSerie, fechaDeteccion, cliente, cobertura, categoria, estado, responsable, areaResponsableId, eventoId',
+    })
+    // v1.65: agenda recurrente de controles y registro inmutable de ejecuciones.
+    this.version(24).stores({
+      controlesProgramadosSGO: 'id, tipo, areaId, pilar, responsable, proximaFecha, activo, [areaId+pilar]',
+      ejecucionesControlesSGO: 'id, controlId, fechaProgramada, ejecutadoEn, resultado, eventoId, [controlId+fechaProgramada]',
+      eventosSGO: 'id, codigo, pilar, tipo, estado, severidad, areaId, areaOrigenId, defectoCodigo, sectorId, tareaId, paradaId, laboratorioId, controlId, detectadoEn, responsable',
     })
   }
 }

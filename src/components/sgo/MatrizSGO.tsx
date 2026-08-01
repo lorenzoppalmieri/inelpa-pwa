@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { fechaLocalISO } from '../../lib/time'
 import { estadoIndicador, type EstadoSemaforo, type IndicadorSGO } from '../../sgo/indicadores'
+import { estadoProgramacionControl, type ControlProgramadoSGO } from '../../sgo/controles'
 import { AREAS_SGO, PILARES_SGO, type AccionSGO, type AreaSGOId, type EventoSGO, type PilarSGO } from '../../sgo/types'
 
 type EstadoCelda = EstadoSemaforo
@@ -14,6 +15,8 @@ interface CeldaMatriz {
   criticos: number
   kpis: IndicadorSGO[]
   principal?: IndicadorSGO
+  controlesVencidos: number
+  controlesHoy: number
 }
 
 const ESTADOS: Record<EstadoCelda, { label: string; corto: string; icono: string }> = {
@@ -33,7 +36,7 @@ function accionVencida(a: AccionSGO) {
   return !['verificada', 'cancelada'].includes(a.estado) && a.fechaCompromiso < fechaLocalISO()
 }
 
-export function construirCelda(areaId: AreaSGOId, pilarId: PilarSGO, eventos: EventoSGO[], acciones: AccionSGO[], indicadores: IndicadorSGO[]): CeldaMatriz {
+export function construirCelda(areaId: AreaSGOId, pilarId: PilarSGO, eventos: EventoSGO[], acciones: AccionSGO[], indicadores: IndicadorSGO[], controles: ControlProgramadoSGO[] = []): CeldaMatriz {
   const abiertos = eventos.filter((e) => e.estado !== 'cerrado' && (e.areaOrigenId ?? e.areaId) === areaId && e.pilar === pilarId)
   const ids = new Set(abiertos.map((e) => e.id))
   const vencidas = acciones.filter((a) => ids.has(a.eventoId) && accionVencida(a)).length
@@ -43,18 +46,22 @@ export function construirCelda(areaId: AreaSGOId, pilarId: PilarSGO, eventos: Ev
   const kpiRojo = estados.includes('rojo')
   const kpiAmarillo = estados.includes('amarillo')
   const kpiSinDato = kpis.length === 0 || estados.includes('sin_dato')
-  const estado: EstadoCelda = vencidas || criticos || kpiRojo ? 'rojo'
-    : abiertos.length || kpiAmarillo ? 'amarillo'
+  const controlesCelda = controles.filter((c) => c.activo && c.areaId === areaId && c.pilar === pilarId)
+  const controlesVencidos = controlesCelda.filter((c) => estadoProgramacionControl(c) === 'vencido').length
+  const controlesHoy = controlesCelda.filter((c) => estadoProgramacionControl(c) === 'hoy').length
+  const estado: EstadoCelda = vencidas || criticos || kpiRojo || controlesVencidos ? 'rojo'
+    : abiertos.length || kpiAmarillo || controlesHoy ? 'amarillo'
       : kpiSinDato ? 'sin_dato' : 'verde'
   const rango: Record<EstadoCelda, number> = { rojo: 3, amarillo: 2, sin_dato: 1, verde: 0 }
   const principal = [...kpis].sort((a, b) => rango[estadoIndicador(b)] - rango[estadoIndicador(a)])[0]
-  return { areaId, pilarId, estado, eventos: abiertos, vencidas, criticos, kpis, principal }
+  return { areaId, pilarId, estado, eventos: abiertos, vencidas, criticos, kpis, principal, controlesVencidos, controlesHoy }
 }
 
-export default function MatrizSGO({ eventos, acciones, indicadores, onSelect }: {
+export default function MatrizSGO({ eventos, acciones, indicadores, controles = [], onSelect }: {
   eventos: EventoSGO[]
   acciones: AccionSGO[]
   indicadores: IndicadorSGO[]
+  controles?: ControlProgramadoSGO[]
   onSelect: (area: AreaSGOId, pilar: PilarSGO) => void
 }) {
   const [buscar, setBuscar] = useState('')
@@ -62,8 +69,8 @@ export default function MatrizSGO({ eventos, acciones, indicadores, onSelect }: 
   const [estadoVisible, setEstadoVisible] = useState<EstadoCelda | 'todos'>('todos')
 
   const celdas = useMemo(() => AREAS_SGO.flatMap((area) =>
-    PILARES_SGO.map((pilar) => construirCelda(area.id, pilar.id, eventos, acciones, indicadores)),
-  ), [eventos, acciones, indicadores])
+    PILARES_SGO.map((pilar) => construirCelda(area.id, pilar.id, eventos, acciones, indicadores, controles)),
+  ), [eventos, acciones, indicadores, controles])
 
   const resumen = useMemo(() => ({
     rojo: celdas.filter((c) => c.estado === 'rojo').length,
@@ -133,14 +140,16 @@ export default function MatrizSGO({ eventos, acciones, indicadores, onSelect }: 
                   const atenuada = estadoVisible !== 'todos' && celda.estado !== estadoVisible
                   return <td key={pilar.id} className={atenuada ? 'sgo-celda-atenuada' : undefined}>
                     <button className={`sgo-celda estado-${celda.estado}`} onClick={() => onSelect(areaId, pilar.id)}
-                      aria-label={`${area.label}, ${pilar.label}: ${info.label}. ${celda.kpis.length} KPI y ${celda.eventos.length} eventos abiertos.`}>
+                      aria-label={`${area.label}, ${pilar.label}: ${info.label}. ${celda.kpis.length} KPI, ${celda.eventos.length} eventos abiertos y ${celda.controlesVencidos} controles vencidos.`}>
                       <span className="sgo-celda-superior"><span className="sgo-celda-estado"><i>{info.icono}</i>{info.corto}</span>{celda.kpis.length > 1 && <b>{celda.kpis.length} KPI</b>}</span>
                       {celda.principal?.valorActual !== undefined
                         ? <span className="sgo-celda-kpi"><strong>{celda.principal.valorActual.toLocaleString('es-AR', { maximumFractionDigits: 1 })}</strong><small>{celda.principal.unidad} · meta {celda.principal.meta.toLocaleString('es-AR')}</small></span>
                         : <span className="sgo-celda-vacia">{celda.kpis.length ? 'Pendiente de medición' : 'Configurar KPI'}</span>}
-                      {(celda.eventos.length > 0 || celda.vencidas > 0) && <span className="sgo-celda-alertas">
+                      {(celda.eventos.length > 0 || celda.vencidas > 0 || celda.controlesVencidos > 0 || celda.controlesHoy > 0) && <span className="sgo-celda-alertas">
                         {celda.eventos.length > 0 && <em>{celda.eventos.length} evento(s)</em>}
                         {celda.vencidas > 0 && <em className="vencida">{celda.vencidas} vencida(s)</em>}
+                        {celda.controlesVencidos > 0 && <em className="vencida">{celda.controlesVencidos} control(es) vencido(s)</em>}
+                        {celda.controlesHoy > 0 && <em>{celda.controlesHoy} control(es) hoy</em>}
                       </span>}
                     </button>
                   </td>

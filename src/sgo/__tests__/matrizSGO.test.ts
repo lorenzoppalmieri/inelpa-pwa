@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { construirCelda } from '../../components/sgo/MatrizSGO'
 import type { AccionSGO, EventoSGO } from '../types'
 import type { IndicadorSGO } from '../indicadores'
+import type { ControlProgramadoSGO } from '../controles'
 
 const kpi: IndicadorSGO = {
   id: 'k', areaId: 'bobinado_rural', pilar: 'calidad', nombre: 'FPY', unidad: '%',
@@ -20,6 +21,12 @@ const accion: AccionSGO = {
   fechaCompromiso: '2020-01-01', estado: 'pendiente', creadoEn: '', creadoPor: 'Azul', actualizadoEn: '',
 }
 
+const controlVencido: ControlProgramadoSGO = {
+  id: 'c', titulo: 'Control dimensional', tipo: 'proceso_productivo', areaId: 'bobinado_rural', pilar: 'calidad',
+  instrucciones: 'Medir', responsable: 'Lara', frecuencia: 'mensual', proximaFecha: '2020-01-01',
+  toleranciaDias: 0, activo: true, creadoEn: '', creadoPor: 'Azul', actualizadoEn: '', actualizadoPor: 'Azul',
+}
+
 describe('prioridad del semáforo de matriz', () => {
   it('muestra verde con KPI conforme y sin desvíos', () => {
     expect(construirCelda('bobinado_rural', 'calidad', [], [], [kpi]).estado).toBe('verde')
@@ -31,5 +38,9 @@ describe('prioridad del semáforo de matriz', () => {
 
   it('prioriza una acción vencida', () => {
     expect(construirCelda('bobinado_rural', 'calidad', [{ ...evento, severidad: 'baja' }], [accion], [kpi]).estado).toBe('rojo')
+  })
+
+  it('prioriza un control programado vencido', () => {
+    expect(construirCelda('bobinado_rural', 'calidad', [], [], [kpi], [controlVencido]).estado).toBe('rojo')
   })
 })

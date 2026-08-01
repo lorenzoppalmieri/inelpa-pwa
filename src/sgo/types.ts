@@ -97,6 +97,7 @@ export interface EventoSGO {
   paradaId?: string
   laboratorioId?: string
   despachoId?: string
+  controlId?: string
   nroSerie?: string
   modelo?: string
   defectoCodigo?: string
@@ -138,7 +139,7 @@ export interface AccionSGO {
   actualizadoEn: string
 }
 
-export type EntidadAuditoriaSGO = 'evento' | 'accion' | 'indicador' | 'medicion' | 'garantia'
+export type EntidadAuditoriaSGO = 'evento' | 'accion' | 'indicador' | 'medicion' | 'garantia' | 'control' | 'ejecucion_control'
 
 export interface AuditoriaSGO {
   id: string
@@ -195,6 +196,6 @@ export const TIPOS_EVENTO_SGO: { id: TipoEventoSGO; label: string; pilar: PilarS
   { id: 'hallazgo_auditoria', label: 'Hallazgo de auditoria', pilar: 'mejora' },
 ]
 
-export function codigoEventoSGO(fecha = new Date(), id = crypto.randomUUID()): string {
+export function codigoEventoSGO(fecha = new Date(), id: string = crypto.randomUUID()): string {
   return `SGO-${fecha.getFullYear()}-${id.replace(/-/g, '').slice(0, 6).toUpperCase()}`
 }

@@ -3,6 +3,7 @@ import { estadoIndicador, periodoKPILabel, type EstadoSemaforo, type IndicadorSG
 import { AREAS_SGO, PILARES_SGO, type AccionSGO, type AreaSGOId, type EventoSGO, type PilarSGO } from '../../sgo/types'
 import { eliminarIndicadorSGO } from '../../sync/syncEngine'
 import { fechaLocalISO } from '../../lib/time'
+import { estadoProgramacionControl, FRECUENCIAS_CONTROL_SGO, type ControlProgramadoSGO } from '../../sgo/controles'
 
 const PALETA: Record<EstadoSemaforo, { color: string; fondo: string; label: string }> = {
   verde: { color: '#15803d', fondo: '#dcfce7', label: 'Conforme' },
@@ -23,12 +24,13 @@ function accionVencida(a: AccionSGO) {
   return !['verificada', 'cancelada'].includes(a.estado) && a.fechaCompromiso < fechaLocalISO()
 }
 
-export default function FichaCeldaSGO({ areaId, pilarId, indicadores, eventos, acciones, datos, usuario, onClose, onFiltrarEventos, onOpenEvento }: {
+export default function FichaCeldaSGO({ areaId, pilarId, indicadores, eventos, acciones, controles, datos, usuario, onClose, onFiltrarEventos, onOpenEvento }: {
   areaId: AreaSGOId
   pilarId: PilarSGO
   indicadores: IndicadorSGO[]
   eventos: EventoSGO[]
   acciones: AccionSGO[]
+  controles: ControlProgramadoSGO[]
   datos: DatosKPIAutomaticos
   usuario: string
   onClose: () => void
@@ -43,6 +45,8 @@ export default function FichaCeldaSGO({ areaId, pilarId, indicadores, eventos, a
   const ids = new Set(eventosCelda.map((e) => e.id))
   const accionesCelda = acciones.filter((a) => ids.has(a.eventoId))
   const vencidas = accionesCelda.filter(accionVencida)
+  const controlesCelda = controles.filter((c) => c.activo && c.areaId === areaId && c.pilar === pilarId)
+  const controlesVencidos = controlesCelda.filter((c) => estadoProgramacionControl(c) === 'vencido')
   const emitidoEn = new Intl.DateTimeFormat('es-AR', { dateStyle: 'long', timeStyle: 'short' }).format(new Date())
 
   function exportarPDF() {
@@ -77,6 +81,20 @@ export default function FichaCeldaSGO({ areaId, pilarId, indicadores, eventos, a
         <div className="logi-kpi"><div className="n">{abiertos.length}</div><div className="l">Eventos abiertos</div></div>
         <div className="logi-kpi"><div className="n">{accionesCelda.length}</div><div className="l">Acciones</div></div>
         <div className="logi-kpi" style={{ borderTop: vencidas.length ? '4px solid #dc2626' : undefined }}><div className="n">{vencidas.length}</div><div className="l">Acciones vencidas</div></div>
+        <div className="logi-kpi" style={{ borderTop: controlesVencidos.length ? '4px solid #dc2626' : undefined }}><div className="n">{controlesVencidos.length}</div><div className="l">Controles vencidos</div></div>
+      </div>
+
+      <div className="card" style={{ marginTop: 16 }}>
+        <div className="section-title" style={{ marginTop: 0 }}>Controles programados de la celda</div>
+        {controlesCelda.length === 0 ? <div className="empty">No existen controles activos para esta área y pilar.</div> : <div style={{ display: 'grid', gap: 8 }}>
+          {[...controlesCelda].sort((a, b) => a.proximaFecha.localeCompare(b.proximaFecha)).map((control) => {
+            const estado = estadoProgramacionControl(control)
+            return <div className="card" key={control.id} style={{ borderLeft: `4px solid ${estado === 'vencido' ? '#dc2626' : estado === 'hoy' ? '#d97706' : '#2563eb'}` }}>
+              <div className="card-header"><strong>{control.titulo}</strong><span className="estado-chip">{estado === 'vencido' ? 'Vencido' : estado === 'hoy' ? 'Para hoy' : 'Programado'}</span></div>
+              <div className="meta">Próximo: {formatoFecha(control.proximaFecha)} · {FRECUENCIAS_CONTROL_SGO.find((f) => f.id === control.frecuencia)?.label} · {control.responsable}</div>
+            </div>
+          })}
+        </div>}
       </div>
 
       <div className="section-title">Indicadores y explicación del resultado</div>
