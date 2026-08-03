@@ -1467,3 +1467,125 @@ body.admin-mode .content { max-width: none; padding: 12px 18px; }
 .sgo-control-aviso{padding:10px 12px;border-radius:8px;margin:8px 0 12px;font-weight:700}.sgo-control-aviso.error{color:#fecaca;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.45)}
 @media(max-width:900px){.sgo-controles-resumen{grid-template-columns:repeat(3,1fr)}.sgo-control-form-grid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:640px){.sgo-controles-cabecera,.sgo-control-card{grid-template-columns:1fr;display:grid}.sgo-controles-resumen{grid-template-columns:repeat(2,1fr)}.sgo-controles-filtros,.sgo-control-form-grid{grid-template-columns:1fr}.sgo-control-card-principal{grid-template-columns:48px minmax(0,1fr)}.sgo-control-historial-fila{grid-template-columns:10px minmax(0,1fr)}.sgo-control-historial-fila .btn{grid-column:2}.sgo-resultados-selector{grid-template-columns:repeat(2,1fr)}}
+
+
+/* ============================================================
+   MANTENIMIENTO · SPRINT 2 (P3/P4) — Tablero OT tactil para tablet
+   Botones >= 48 px, tipografia industrial de alto contraste,
+   cronometro vivo, feedback optimista y responsive real
+   (tablet 10" landscape -> 2 columnas, portrait -> 1 columna).
+   ============================================================ */
+.mant-kanban-cab { font-size: 1rem; }
+.mant-kanban-col.col-planificada .mant-kanban-cab { color: var(--azul-claro); }
+.mant-kanban-col.col-en_ejecucion .mant-kanban-cab { color: var(--naranja); }
+.mant-kanban-col.col-en_espera .mant-kanban-cab { color: #a78bfa; }
+
+.mant-ot-card { position: relative; padding: 12px; }
+.mant-ot-card.ocupada { outline: 2px solid var(--azul-claro); }
+.mant-ot-activo { font-size: 1rem; font-weight: 800; padding: 4px 0; }
+.mant-ot-desc { font-size: .95rem; }
+.mant-ot-crono {
+  display: inline-block; margin: 5px 0 2px; padding: 5px 12px;
+  background: rgba(245, 158, 11, .14); border: 1px solid var(--naranja);
+  border-radius: 8px; color: var(--naranja);
+  font-size: 1.25rem; font-weight: 900; letter-spacing: .5px;
+  font-variant-numeric: tabular-nums;
+}
+.mant-ot-tec { margin-top: 4px; font-size: .88rem; font-weight: 600; color: var(--texto-tenue); }
+.mant-ot-prio-chip {
+  font-size: .66rem; font-weight: 800; padding: 2px 8px; border-radius: 999px;
+  text-transform: uppercase; letter-spacing: .4px;
+}
+.mant-ot-prio-chip.p-alta { background: rgba(239, 68, 68, .22); color: #fca5a5; }
+.mant-ot-prio-chip.p-media { background: rgba(245, 158, 11, .2); color: #fcd34d; }
+.mant-ot-prio-chip.p-baja { background: rgba(34, 197, 94, .18); color: #86efac; }
+
+/* Accion principal por tap + secundarias >= 44 px */
+.mant-ot-acciones { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.mant-ot-btn-main { min-height: 52px; width: 100%; font-size: 1.05rem; font-weight: 900; letter-spacing: .4px; }
+.mant-ot-sec { display: flex; flex-wrap: wrap; gap: 6px; }
+.mant-ot-sec .btn { flex: 1 1 auto; min-height: 44px; padding: 0 12px; font-size: .82rem; }
+
+/* Feedback optimista: overlay mientras viaja el update */
+.mant-ot-overlay {
+  position: absolute; inset: 0; z-index: 2; border-radius: 10px;
+  background: rgba(10, 15, 28, .72); display: grid; place-items: center;
+  font-weight: 800; font-size: .95rem; color: var(--azul-claro);
+}
+
+/* Avisos: targets tactiles tambien */
+.mant-avisos-bloque .btn { font-size: .95rem; }
+
+/* Cierre rapido (P3): texto grande + boton de 56 px */
+.mant-cierre-texto { min-height: 96px; padding: 12px 14px; font-size: 1rem; }
+.mant-cierre-mas {
+  background: none; border: none; cursor: pointer; text-align: left;
+  color: var(--azul-claro); font-size: .9rem; font-weight: 700;
+  min-height: 44px; padding: 0 2px;
+}
+.mant-cierre-mas:hover { text-decoration: underline; }
+.mant-btn-cierre { flex: 1; min-height: 56px; font-size: 1.1rem; font-weight: 900; }
+
+/* Responsive real: >1400 px 4 col; 901-1400 px (tablet landscape) 2 col;
+   <=900 px (tablet portrait / angosto) 1 col. */
+@media (max-width: 1400px) { .mant-kanban { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 900px) { .mant-kanban { grid-template-columns: 1fr; } }
+
+
+/* ============================================================
+   MANTENIMIENTO · SPRINT 3 (P5/P6) — Linea de tiempo unificada
+   por activo + badge de alerta temprana (amarillo preventivo).
+   ============================================================ */
+.mant-tl-item {
+  display: flex; gap: 10px; align-items: flex-start;
+  padding: 10px 12px; margin-bottom: 8px;
+  background: var(--panel-2); border: 1px solid var(--borde, #2a3550);
+  border-left: 4px solid var(--borde, #2a3550); border-radius: 10px;
+}
+.mant-tl-ico {
+  flex: none; width: 32px; height: 32px; display: grid; place-items: center;
+  font-size: 1.15rem; border-radius: 8px; background: rgba(255, 255, 255, .06);
+}
+.mant-tl-body { flex: 1; min-width: 0; }
+.mant-tl-top { display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; margin-bottom: 3px; }
+
+.mant-alerta-badge {
+  display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+  margin-bottom: 12px; padding: 12px 14px;
+  background: rgba(245, 158, 11, .12); border: 1px solid var(--naranja);
+  border-radius: 12px;
+}
+.mant-alerta-badge .t { font-weight: 800; color: var(--naranja); font-size: 1.02rem; }
+
+
+/* ============================================================
+   MANTENIMIENTO · SPRINT 4 — OT preventivas desde gamas,
+   estado de gamas (al dia/proxima/vencida) y badge de alerta
+   en tarjetas del TableroOT.
+   ============================================================ */
+.mant-gama-chip { font-size: .72rem; font-weight: 800; padding: 2px 9px; border-radius: 999px; }
+.mant-gama-chip.g-vencida { background: rgba(239, 68, 68, .2); color: #fca5a5; }
+.mant-gama-chip.g-proxima { background: rgba(245, 158, 11, .18); color: #fcd34d; }
+.mant-gama-chip.g-aldia { background: rgba(34, 197, 94, .16); color: #86efac; }
+.mant-gama-chip.g-abierta { background: rgba(30, 111, 184, .22); color: #93c5fd; }
+
+.mant-ot-alerta { font-size: .95rem; line-height: 1; cursor: help; }
+
+
+/* ============================================================
+   MANTENIMIENTO · SPRINT 5 (P9) — Semaforo canonico unificado.
+   Los hex viven tambien en estado.ts (ESTADOS) como fuente unica
+   para inline styles; estas vars son el espejo para clases CSS.
+   ============================================================ */
+:root {
+  --mant-falla: #ef4444;        /* rojo: rota esperando */
+  --mant-intervencion: #8b5cf6; /* violeta: siendo reparada (= reparacion Produccion) */
+  --mant-atencion: #f59e0b;     /* amarillo: advertencia / preventivo */
+  --mant-ok: #22c55e;           /* verde: operativo */
+}
+
+.mant-leyenda-semaforo { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 2px 0; }
+
+/* Coherencia P9: la gama vencida es una advertencia -> amarillo canonico
+   (antes rojo suave, confundia con falla). */
+.mant-gama-chip.g-vencida { background: var(--mant-atencion); color: #1a1206; }

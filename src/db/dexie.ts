@@ -9,6 +9,7 @@ import type { EventoSGO, AccionSGO, AuditoriaSGO } from '../sgo/types'
 import type { IndicadorSGO, MedicionIndicadorSGO } from '../sgo/indicadores'
 import type { GarantiaISO } from '../sgo/garantias'
 import type { ControlProgramadoSGO, EjecucionControlSGO } from '../sgo/controles'
+import type { AvisoMantPendiente } from '../mantenimiento/types'
 
 // ============================================================
 // Capa offline-first con IndexedDB (via Dexie).
@@ -46,6 +47,9 @@ export class InelpaDB extends Dexie {
   garantiasISO!: Table<GarantiaISO, string>
   controlesProgramadosSGO!: Table<ControlProgramadoSGO, string>
   ejecucionesControlesSGO!: Table<EjecucionControlSGO, string>
+  // v1.66: cola offline de avisos de mantenimiento (paradas de produccion ->
+  // mant_avisos). El flush lo hace src/mantenimiento/avisos.ts.
+  avisosMant!: Table<AvisoMantPendiente, string>
 
   constructor() {
     super('inelpa_pwa')
@@ -164,6 +168,12 @@ export class InelpaDB extends Dexie {
       controlesProgramadosSGO: 'id, tipo, areaId, pilar, responsable, proximaFecha, activo, [areaId+pilar]',
       ejecucionesControlesSGO: 'id, controlId, fechaProgramada, ejecutadoEn, resultado, eventoId, [controlId+fechaProgramada]',
       eventosSGO: 'id, codigo, pilar, tipo, estado, severidad, areaId, areaOrigenId, defectoCodigo, sectorId, tareaId, paradaId, laboratorioId, controlId, detectadoEn, responsable',
+    })
+    // v1.66: cola offline de avisos de mantenimiento. paradaId es la clave
+    // anti-duplicado (un aviso por parada). "sincronizado" se filtra en memoria
+    // (Dexie no indexa booleanos de forma fiable, igual que en syncQueue).
+    this.version(25).stores({
+      avisosMant: 'id, paradaId',
     })
   }
 }

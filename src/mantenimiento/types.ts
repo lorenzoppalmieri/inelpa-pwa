@@ -161,6 +161,28 @@ export interface MantAviso {
 }
 
 // ------------------------------------------------------------
+// Cola OFFLINE de avisos de mantenimiento (tabla Dexie `avisosMant`).
+// Un aviso se guarda primero local y se empuja a mant_avisos cuando hay
+// red (ver src/mantenimiento/avisos.ts). El id es uuid de CLIENTE y viaja
+// como PK del aviso en Supabase -> el reenvio es idempotente.
+// ------------------------------------------------------------
+export interface AvisoMantPendiente {
+  id: string                    // uuid cliente = mant_avisos.id al subir
+  paradaId?: string             // parada de produccion origen (clave anti-duplicado)
+  pwaMachineKey?: string        // maquina de produccion ('m_bob_07'); se resuelve
+                                // a activo_id RECIEN al enviar (online) via pwa_machine_key
+  activoId?: string             // activo ya resuelto (aviso manual desde el modulo)
+  emisor: string                // usuario que genero el aviso
+  sintoma: string
+  origen: 'parada' | 'manual'
+  creadoEn: string              // ISO (se conserva al subir: el aviso offline
+                                // registra la hora real de la falla, no la de la subida)
+  sincronizado: boolean         // false = pendiente de envio
+  intentos?: number             // reintentos de envio (transitorios)
+  error?: string                // descartado definitivo (sin activo / errores agotados)
+}
+
+// ------------------------------------------------------------
 // Normaliza un jsonb de fichaje (componentes / puntos_loto) a lineas
 // { titulo, detalle } renderizables. Tolera strings, objetos con
 // nombre/punto/titulo y primitivos; descarta entradas vacias.

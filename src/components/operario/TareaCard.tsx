@@ -11,6 +11,7 @@ import { calcularTiempoNetoProductivo, calcularTiempoProductivo } from '../../li
 import { componentePorCodigo } from '../../data/catalogo'
 import { tiempoNetoMin } from '../../lib/kpi'
 import ModalParada from './ModalParada'
+import { generarAvisoDesdeParada, esCausaMantenimiento } from '../../mantenimiento/avisos'
 
 const ESTADO_CHIP: Record<string, string> = {
   pendiente: 'e-pendiente', en_proceso: 'e-proceso', pausada: 'e-pausa', finalizada: 'e-finalizado',
@@ -75,6 +76,11 @@ export default function TareaCard({ tarea, onIniciar }: { tarea: Tarea; onInicia
     setModal(false)
     const p = { id: crypto.randomUUID(), tareaId: tarea.id, causa, inicio: new Date().toISOString(), observacion: obs || undefined }
     await guardarTarea({ ...tarea, estado: 'pausada', paradas: [...tarea.paradas, p] })
+    // v1.66: puente Produccion -> Mantenimiento. La parada con causa mant_*
+    // genera SOLA el aviso de falla (cola offline; nunca bloquea el registro).
+    if (esCausaMantenimiento(causa)) {
+      void generarAvisoDesdeParada(tarea, p, usuario?.usuario ?? '')
+    }
   }
   // v1.18: cierra SOLO la parada primaria (la más reciente). Si quedan otras
   // abiertas (ej. material), la tarea SIGUE pausada mostrando ese motivo; recién

@@ -6,7 +6,8 @@ import { OT_ABIERTAS } from './types'
 import type {
   MantActivo, MantAnotacion, MantAviso, MantBloque, MantOT, MantPlanta, BloqueTipo,
 } from './types'
-import { ESTADOS, mapaDeEstados, type Estado } from './estado'
+import { ESTADOS, ESTADO_ORDEN, mapaDeEstados, type Estado } from './estado'
+import { cargarAlertasTempranas } from './alertas'
 
 // ============================================================
 // MAPA SCADA · LAYOUT EDITABLE (v1.65)
@@ -44,6 +45,8 @@ export default function MapaScadaEditor({ onVerFicha }: { onVerFicha?: (id: stri
   const [activos, setActivos] = useState<MantActivo[]>([])
   const [avisos, setAvisos] = useState<MantAviso[]>([])
   const [ots, setOts] = useState<MantOT[]>([])
+  // P6: ids de activos con alerta temprana (amarillo por paradas repetidas).
+  const [alertas, setAlertas] = useState<Set<string>>(new Set())
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')
 
@@ -65,8 +68,8 @@ export default function MapaScadaEditor({ onVerFicha }: { onVerFicha?: (id: stri
   const ubicados = useMemo(() => activos.filter((a) => a.activo && a.x_pct != null && a.y_pct != null), [activos])
   const estadoPorActivo = useMemo(() => {
     const ids = new Set(activos.map((a) => a.id))
-    return mapaDeEstados(avisos.filter((a) => ids.has(a.activo_id)), ots.filter((o) => ids.has(o.activo_id)))
-  }, [avisos, ots, activos])
+    return mapaDeEstados(avisos.filter((a) => ids.has(a.activo_id)), ots.filter((o) => ids.has(o.activo_id)), alertas)
+  }, [avisos, ots, activos, alertas])
   const estadoDe = useCallback((id: string): Estado => estadoPorActivo.get(id) ?? 'ok', [estadoPorActivo])
 
   const edB = modo === 'edicion' && capa === 'bloques' && puedeEditar
@@ -113,20 +116,27 @@ export default function MapaScadaEditor({ onVerFicha }: { onVerFicha?: (id: stri
     setOts((ot ?? []) as MantOT[])
   }, [sb])
 
+  // P6: alertas tempranas (una query agrupada de paradas; nunca rompe).
+  const cargarAlertas = useCallback(async () => {
+    const m = await cargarAlertasTempranas()
+    setAlertas(new Set(m.keys()))
+  }, [])
+
   useEffect(() => {
     if (!plantaId) return
     setSelBloque(null); setSelMaquina(null); setSelAnot(null)
-    void cargarPlanta(plantaId); void cargarEstados()
-  }, [plantaId, cargarPlanta, cargarEstados])
+    void cargarPlanta(plantaId); void cargarEstados(); void cargarAlertas()
+  }, [plantaId, cargarPlanta, cargarEstados, cargarAlertas])
 
   useEffect(() => {
     if (!sb || !plantaId) return
     const canal = sb.channel('mant-scada-vivo')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'mant_avisos' }, () => { void cargarEstados() })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'mant_ordenes_trabajo' }, () => { void cargarEstados() })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'paradas' }, () => { void cargarAlertas() })
       .subscribe()
     return () => { void sb.removeChannel(canal) }
-  }, [sb, plantaId, cargarEstados])
+  }, [sb, plantaId, cargarEstados, cargarAlertas])
 
   // ---------- Helpers de coordenadas ----------
   function rect() { return stageRef.current?.getBoundingClientRect() ?? new DOMRect(0, 0, 1, 1) }
@@ -326,8 +336,8 @@ export default function MapaScadaEditor({ onVerFicha }: { onVerFicha?: (id: stri
 
   if (!sb) return <div className="empty">Supabase no está configurado (faltan credenciales en .env).</div>
 
-  const resumen = (['aviso', 'preventivo', 'ok'] as Estado[]).map((id) => ({
-    id, n: ubicados.filter((a) => estadoDe(a.id) === id).length + (id === 'ok' ? 0 : 0),
+  const resumen = ESTADO_ORDEN.map((id) => ({
+    id, n: ubicados.filter((a) => estadoDe(a.id) === id).length,
   }))
 
   return (

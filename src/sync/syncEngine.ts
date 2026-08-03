@@ -7,6 +7,7 @@ import type { IndicadorSGO, MedicionIndicadorSGO } from '../sgo/indicadores'
 import type { GarantiaISO } from '../sgo/garantias'
 import type { ControlProgramadoSGO, EjecucionControlSGO } from '../sgo/controles'
 import { setFeriados } from '../lib/calendario'
+import { procesarColaAvisosMant } from '../mantenimiento/avisos'
 import {
   tareaFromRow, paradaFromRow, ordenFromRow, semiFromRow, maquinaFromRow, usuarioFromRow, objetivoFromRow, tareaLogFromRow, solicitudLogFromRow, feriadoFromRow, mensajeFromRow, lecturaFromRow, estandarFromRow, despachoFromRow, fleteFromRow, laboratorioFromRow, plantillaFromRow, eventoSGOFromRow, accionSGOFromRow, indicadorSGOFromRow, medicionIndicadorSGOFromRow, auditoriaSGOFromRow, garantiaISOFromRow, controlProgramadoSGOFromRow, ejecucionControlSGOFromRow,
   tareaToRow, paradaToRow, ordenToRow, semiToRow, objetivoToRow, tareaLogToRow, solicitudLogToRow, feriadoToRow, mensajeToRow, lecturaToRow, estandarToRow, despachoToRow, fleteToRow, laboratorioToRow, plantillaToRow, eventoSGOToRow, accionSGOToRow, indicadorSGOToRow, medicionIndicadorSGOToRow, garantiaISOToRow, controlProgramadoSGOToRow, ejecucionControlSGOToRow,
@@ -473,6 +474,9 @@ export async function procesarCola(): Promise<void> {
       await db.syncQueue.update(op.id, { intentos })
       break // probablemente sin red; cortar el ciclo y reintentar en el proximo
     }
+    // v1.66: misma pasada para la cola offline de avisos de mantenimiento
+    // (online garantizado aqui; la funcion tiene su propio guard y nunca lanza).
+    await procesarColaAvisosMant()
     estado = { ...estado, ultimaSync: new Date().toISOString() }
   } finally {
     procesando = false

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../auth/AuthContext'
+import { generarAvisoManual } from './avisos'
 import type { MantActivo } from './types'
 
 // ============================================================
@@ -57,13 +58,16 @@ export default function AvisoFalla({ activoPreset, onCerrar, onCreado }: {
     if (!sintoma.trim()) { setError('Escribí qué le pasa (aunque sea corto).'); return }
     setGuardando(true)
     setError('')
-    const { error: e } = await supabase.from('mant_avisos').insert({
-      activo_id: activoId,
-      emisor: usuario?.usuario ?? 'desconocido',
-      sintoma: sintoma.trim(),
-    })
+    // v1.66: pasa por la cola offline (avisosMant). Online sale en el momento;
+    // offline queda encolado y se sube solo al volver la red.
+    try {
+      await generarAvisoManual(activoId, sintoma, usuario?.usuario ?? 'desconocido')
+    } catch {
+      setError('No se pudo registrar el aviso en este equipo. Probá de nuevo.')
+      setGuardando(false)
+      return
+    }
     setGuardando(false)
-    if (e) { setError(`No se pudo enviar el aviso: ${e.message}`); return }
     onCreado?.(activoId)
     onCerrar()
   }
@@ -125,7 +129,10 @@ export default function AvisoFalla({ activoPreset, onCerrar, onCreado }: {
           </button>
           <button className="btn" style={{ minHeight: 48 }} onClick={onCerrar}>Cancelar</button>
         </div>
-        <div className="meta" style={{ marginTop: 10 }}>Mantenimiento lo verá al instante en el mapa y en el tablero.</div>
+        <div className="meta" style={{ marginTop: 10 }}>
+          Mantenimiento lo verá al instante en el mapa y en el tablero.
+          {!navigator.onLine && ' Estás sin señal: queda guardado en este equipo y se envía solo al volver la red.'}
+        </div>
       </div>
     </div>
   )

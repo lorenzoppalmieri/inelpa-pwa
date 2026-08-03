@@ -6,6 +6,7 @@ import { isoWeek } from '../../lib/time'
 import type { EstadoTarea, Tarea, CausaParada } from '../../types'
 import { sectorById, TIPO_ESTACION_LABEL, maquinaSirveSector, esSectorBobinado, causaLabel, areaDemora, compararFifo } from '../../types'
 import { guardarTarea } from '../../sync/syncEngine'
+import { generarAvisoDesdeParada, esCausaMantenimiento } from '../../mantenimiento/avisos'
 import TareaCard from './TareaCard'
 import ModalParada from './ModalParada'
 import AndonView from '../dashboard/AndonView'
@@ -89,9 +90,17 @@ export default function OperarioView() {
     setModalGlobal(false)
     const ahoraISO = new Date().toISOString()
     const activas = (tareas ?? []).filter((t) => t.estado === 'en_proceso' || t.estado === 'pausada')
+    const nuevas: { tarea: (typeof activas)[number]; parada: { id: string; tareaId: string; causa: CausaParada; inicio: string; observacion?: string } }[] = []
     for (const t of activas) {
       const p = { id: crypto.randomUUID(), tareaId: t.id, causa, inicio: ahoraISO, observacion: obs || undefined }
+      nuevas.push({ tarea: t, parada: p })
       await guardarTarea({ ...t, estado: 'pausada', paradas: [...t.paradas, p] })
+    }
+    // v1.66: pausa de estacion con causa mant_* -> UN SOLO aviso a mantenimiento
+    // (la maquina fallo, no cada tarea). Se usa la primera parada como clave
+    // anti-duplicado; el resto queda cubierta por el mismo evento.
+    if (esCausaMantenimiento(causa) && nuevas.length > 0) {
+      void generarAvisoDesdeParada(nuevas[0].tarea, nuevas[0].parada, usuario?.usuario ?? '')
     }
     if (pgKey) localStorage.setItem(pgKey, causa)
     setPausaGlobal(causa)
