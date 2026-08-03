@@ -400,6 +400,7 @@ export interface EjecucionControlSGORow {
   valor_encontrado: string | null
   unidad: string | null
   evento_id: string | null
+  auditoria_logistica: EjecucionControlSGO['auditoriaLogistica'] | null
 }
 
 export function controlProgramadoSGOFromRow(r: ControlProgramadoSGORow): ControlProgramadoSGO {
@@ -429,6 +430,7 @@ export function ejecucionControlSGOFromRow(r: EjecucionControlSGORow): Ejecucion
     ejecutadoPor: r.ejecutado_por, resultado: r.resultado as EjecucionControlSGO['resultado'], detalle: r.detalle,
     evidencia: u(r.evidencia), ordenId: u(r.orden_id), nroSerie: u(r.nro_serie), semielaboradoCodigo: u(r.semielaborado_codigo),
     valorEsperado: u(r.valor_esperado), valorEncontrado: u(r.valor_encontrado), unidad: u(r.unidad), eventoId: u(r.evento_id),
+    auditoriaLogistica: u(r.auditoria_logistica),
   }
 }
 
@@ -438,7 +440,7 @@ export function ejecucionControlSGOToRow(e: EjecucionControlSGO): EjecucionContr
     ejecutado_por: e.ejecutadoPor, resultado: e.resultado, detalle: e.detalle, evidencia: e.evidencia ?? null,
     orden_id: e.ordenId ?? null, nro_serie: e.nroSerie ?? null, semielaborado_codigo: e.semielaboradoCodigo ?? null,
     valor_esperado: e.valorEsperado ?? null, valor_encontrado: e.valorEncontrado ?? null, unidad: e.unidad ?? null,
-    evento_id: e.eventoId ?? null,
+    evento_id: e.eventoId ?? null, auditoria_logistica: e.auditoriaLogistica ?? null,
   }
 }
 

@@ -1,11 +1,13 @@
 import { fechaLocalISO, sumarDiasLocalISO } from '../lib/time'
 import type { AreaSGOId, PilarSGO, TipoEventoSGO } from './types'
+import type { DatosAuditoriaLogistica } from './logistica'
 
 export type TipoControlSGO =
   | 'proceso_productivo'
   | 'semielaborado'
   | 'administrativo'
   | 'auditoria_iso'
+  | 'auditoria_logistica'
   | 'seguridad'
   | 'ambiente'
 
@@ -50,6 +52,7 @@ export interface EjecucionControlSGO {
   valorEncontrado?: string
   unidad?: string
   eventoId?: string
+  auditoriaLogistica?: DatosAuditoriaLogistica
 }
 
 export const TIPOS_CONTROL_SGO: { id: TipoControlSGO; label: string }[] = [
@@ -57,6 +60,7 @@ export const TIPOS_CONTROL_SGO: { id: TipoControlSGO; label: string }[] = [
   { id: 'semielaborado', label: 'Semielaborado / trazabilidad' },
   { id: 'administrativo', label: 'Proceso administrativo' },
   { id: 'auditoria_iso', label: 'Auditoría ISO' },
+  { id: 'auditoria_logistica', label: 'Auditoría logística' },
   { id: 'seguridad', label: 'Seguridad e higiene' },
   { id: 'ambiente', label: 'Medio ambiente' },
 ]
