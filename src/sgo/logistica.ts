@@ -119,9 +119,30 @@ export function auditoriaCompleta(puntos: PuntoAuditoriaLogistica[]): boolean {
   return puntos.every((p) => p.estado !== 'pendiente')
 }
 
+export type TarimaInelpaId = 'F1' | 'F2' | 'F3' | 'F4'
+
+export interface TarimaInelpa {
+  id: TarimaInelpaId
+  nombre: string
+  rangoTransformador: string
+  largoM: number
+  anchoM: number
+  hojaPlano: number
+}
+
+// Fuente: PLANOS DE TARIMAS, Diseño y Desarrollo INELPA, 29/01/2026.
+// Las dimensiones corresponden a la huella exterior usada para planificar la carga.
+export const TARIMAS_INELPA: TarimaInelpa[] = [
+  { id: 'F1', nombre: 'F1 - Chicos', rangoTransformador: 'TTD16 a TTD40', largoM: 1.2, anchoM: 0.6, hojaPlano: 1 },
+  { id: 'F2', nombre: 'F2 - Chicos', rangoTransformador: 'TTD63 a TTD200', largoM: 1.3, anchoM: 0.8, hojaPlano: 2 },
+  { id: 'F3', nombre: 'F3 - Chicos', rangoTransformador: 'TTD250 a TTD500', largoM: 1.5, anchoM: 1, hojaPlano: 3 },
+  { id: 'F4', nombre: 'F4', rangoTransformador: 'TTD630 a TTD1000', largoM: 1.95, anchoM: 1.1, hojaPlano: 4 },
+]
+
 export interface ItemCarga {
   id: string
   descripcion: string
+  tarimaId?: TarimaInelpaId | 'personalizada'
   cantidad: number
   largoM: number
   anchoM: number
@@ -163,21 +184,28 @@ export interface ResultadoCubicaje {
   unidadesTotales: number
   unidadesNoUbicadas: number
   ubicaciones: PiezaUbicada[]
+  pendientesUbicacion: PiezaUbicada[]
   advertencias: string[]
+}
+
+export interface EvaluacionDistribucion {
+  valida: boolean
+  fueraDeLimites: string[]
+  superpuestos: string[]
 }
 
 const redondear = (valor: number, decimales = 2) => Number(valor.toFixed(decimales))
 const numeroValido = (valor: number) => Number.isFinite(valor) && valor > 0
 
 export function calcularCubicaje(items: ItemCarga[], espacio: EspacioCarga): ResultadoCubicaje {
-  const validos = items.filter((i) => i.descripcion.trim() && i.cantidad > 0 && [i.largoM, i.anchoM, i.altoM, i.pesoKg].every(numeroValido))
-  const volumenCarga = validos.reduce((t, i) => t + i.cantidad * i.largoM * i.anchoM * i.altoM, 0)
-  const pesoTotal = validos.reduce((t, i) => t + i.cantidad * i.pesoKg, 0)
+  const validos = items.filter((i) => i.descripcion.trim() && i.cantidad > 0 && [i.largoM, i.anchoM].every(numeroValido))
+  const volumenCarga = validos.reduce((t, i) => t + (numeroValido(i.altoM) ? i.cantidad * i.largoM * i.anchoM * i.altoM : 0), 0)
+  const pesoTotal = validos.reduce((t, i) => t + (numeroValido(i.pesoKg) ? i.cantidad * i.pesoKg : 0), 0)
   const volumenEspacio = numeroValido(espacio.largoM) && numeroValido(espacio.anchoM) && numeroValido(espacio.altoM)
     ? espacio.largoM * espacio.anchoM * espacio.altoM : 0
   const piso = numeroValido(espacio.largoM) && numeroValido(espacio.anchoM) ? espacio.largoM * espacio.anchoM : 0
   const slots = validos.flatMap((item) => {
-    const capas = item.apilable ? Math.max(1, Math.floor(espacio.altoM / item.altoM)) : 1
+    const capas = item.apilable && numeroValido(item.altoM) ? Math.max(1, Math.floor(espacio.altoM / item.altoM)) : 1
     const resultado: { item: ItemCarga; unidades: number }[] = []
     let faltan = item.cantidad
     while (faltan > 0 && resultado.length < 500) {
@@ -189,6 +217,7 @@ export function calcularCubicaje(items: ItemCarga[], espacio: EspacioCarga): Res
   }).sort((a, b) => (b.item.largoM * b.item.anchoM) - (a.item.largoM * a.item.anchoM))
 
   const ubicaciones: PiezaUbicada[] = []
+  const pendientesUbicacion: PiezaUbicada[] = []
   let x = 0
   let y = 0
   let profundidadFila = 0
@@ -205,8 +234,14 @@ export function calcularCubicaje(items: ItemCarga[], espacio: EspacioCarga): Res
       profundidadFila = 0
       orientacion = opciones.find((o) => o.largo <= espacio.largoM && y + o.ancho <= espacio.anchoM)
     }
-    if (!orientacion || slot.unidades * i.altoM > espacio.altoM) {
+    if (!orientacion || (numeroValido(i.altoM) && slot.unidades * i.altoM > espacio.altoM)) {
       unidadesNoUbicadas += slot.unidades
+      const huella = opciones[0]
+      pendientesUbicacion.push({
+        id: `${i.id}-pendiente-${pendientesUbicacion.length}`, itemId: i.id, descripcion: i.descripcion,
+        xM: 0, yM: 0, largoM: huella.largo, anchoM: huella.ancho,
+        altoM: i.altoM, unidades: slot.unidades, color: i.color,
+      })
       continue
     }
     ubicaciones.push({
@@ -222,7 +257,8 @@ export function calcularCubicaje(items: ItemCarga[], espacio: EspacioCarga): Res
   const usoVolumen = volumenEspacio ? (volumenCarga / volumenEspacio) * 100 : 0
   const usoPeso = espacio.cargaMaxKg > 0 ? (pesoTotal / espacio.cargaMaxKg) * 100 : 0
   const advertencias: string[] = []
-  if (items.length !== validos.length) advertencias.push('Hay renglones incompletos que no fueron incluidos.')
+  if (items.length !== validos.length) advertencias.push('Hay renglones sin descripción o huella válida que no fueron incluidos.')
+  if (validos.some((i) => !numeroValido(i.altoM) || !numeroValido(i.pesoKg))) advertencias.push('Completá altura y peso: los pallets ya se ubican, pero volumen y peso son parciales.')
   if (usoVolumen > 100) advertencias.push('El volumen total supera el volumen geométrico del vehículo.')
   if (usoPeso > 100) advertencias.push('El peso total supera la carga máxima informada.')
   if (unidadesNoUbicadas > 0) advertencias.push(`${unidadesNoUbicadas} unidad(es) no entran en la disposición orientativa.`)
@@ -232,6 +268,34 @@ export function calcularCubicaje(items: ItemCarga[], espacio: EspacioCarga): Res
   return {
     volumenCargaM3: redondear(volumenCarga), volumenEspacioM3: redondear(volumenEspacio), pesoTotalKg: redondear(pesoTotal, 0),
     usoVolumenPct: redondear(usoVolumen, 1), usoPesoPct: redondear(usoPeso, 1), usoPisoPct: redondear(piso ? (pisoUsado / piso) * 100 : 0, 1),
-    unidadesTotales: validos.reduce((t, i) => t + i.cantidad, 0), unidadesNoUbicadas, ubicaciones, advertencias,
+    unidadesTotales: validos.reduce((t, i) => t + i.cantidad, 0), unidadesNoUbicadas, ubicaciones, pendientesUbicacion, advertencias,
+  }
+}
+
+export function evaluarDistribucion(ubicaciones: PiezaUbicada[], espacio: EspacioCarga): EvaluacionDistribucion {
+  const tolerancia = 0.0001
+  const fueraDeLimites = ubicaciones.filter((p) =>
+    p.xM < -tolerancia || p.yM < -tolerancia ||
+    p.xM + p.largoM > espacio.largoM + tolerancia || p.yM + p.anchoM > espacio.anchoM + tolerancia,
+  ).map((p) => p.id)
+  const superpuestos = new Set<string>()
+  for (let i = 0; i < ubicaciones.length; i += 1) {
+    for (let j = i + 1; j < ubicaciones.length; j += 1) {
+      const a = ubicaciones[i]
+      const b = ubicaciones[j]
+      const seSuperponen = a.xM < b.xM + b.largoM - tolerancia &&
+        a.xM + a.largoM > b.xM + tolerancia &&
+        a.yM < b.yM + b.anchoM - tolerancia &&
+        a.yM + a.anchoM > b.yM + tolerancia
+      if (seSuperponen) {
+        superpuestos.add(a.id)
+        superpuestos.add(b.id)
+      }
+    }
+  }
+  return {
+    valida: fueraDeLimites.length === 0 && superpuestos.size === 0,
+    fueraDeLimites,
+    superpuestos: [...superpuestos],
   }
 }
