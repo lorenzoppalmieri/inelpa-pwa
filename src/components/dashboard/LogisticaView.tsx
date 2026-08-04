@@ -10,30 +10,33 @@ import LogisticaTareas from './LogisticaTareas'
 import LogisticaReportes from './LogisticaReportes'
 import DespachoView, { TABS_DESPACHO, esEncargadoDespacho, type VistaDespacho } from './DespachoView'
 import { esSuperAdmin } from '../../auth/roles'
+import CubicajeCarga from '../logistica/CubicajeCarga'
 
 // ============================================================
-// Vista LOGISTICA (v1.45) — el área se divide en DOS bloques con su propio título:
+// Vista LOGISTICA (v1.47) — UN SOLO módulo, "Logística", a cargo de Giuliano.
 //
-//   · LOGÍSTICA OPERATIVA (Giuliano)      — pañol, planta, pedidos de material.
-//       Gantt de planta · Tareas logísticas · Reportes
-//   · LOGÍSTICA ADMINISTRATIVA (Melany)   — salida del producto terminado.
-//       Despacho y embalaje (con sus propias sub-pestañas: operativo, tareas,
-//       reportes, fletes y stock de depósitos)
+// En v1.45 el área estaba partida en "Logística Operativa" y "Logística
+// Administrativa". El organigrama cambió: la administrativa desaparece y todo
+// queda bajo Logística. Adentro siguen conviviendo los dos frentes de trabajo,
+// pero ya como agrupación visual de pestañas, no como áreas distintas:
 //
-// AMBOS encargados ven los DOS bloques: si uno se toma vacaciones o falta, el
-// otro lo cubre sin depender de que alguien le habilite permisos. Lo único que
-// cambia según quién entra es en qué bloque arranca parado.
+//   · Pañol y planta       — Gantt · Tareas logísticas · Reportes · Cubicaje
+//   · Despacho y embalaje  — Operativo · Tareas · Reportes · Fletes · Stock
+//
+// Todos los encargados ven todo: si uno falta, el otro lo cubre sin que nadie
+// tenga que habilitar permisos. Lo único que cambia según quién entra es en qué
+// pestaña arranca parado.
 // ============================================================
-type PestaniaLog = 'gantt' | 'tareas' | 'reportes' | 'despacho'
+type PestaniaLog = 'gantt' | 'tareas' | 'reportes' | 'cubicaje' | 'despacho'
 
 export default function LogisticaView() {
   const { usuario } = useAuth()
   // El equipo de logística (cuenta 'logistica_equipo') no ve Reportes ni Despacho.
   const esEquipoLog = usuario?.usuario === 'logistica_equipo'
-  // Melany arranca en su bloque; el resto, en el operativo. Ninguno queda excluido.
+  // Melany arranca en despacho, que es su frente; el resto en el pañol.
   const esMelany = usuario?.usuario === 'melany'
   const [pestania, setPestania] = useState<PestaniaLog>(esMelany && !esEquipoLog ? 'despacho' : 'gantt')
-  const enAdministrativa = pestania === 'despacho'
+  const enDespacho = pestania === 'despacho'
   // Sub-vista del módulo de despacho, controlada desde acá (ver TABS_DESPACHO).
   const [vistaDespacho, setVistaDespacho] = useState<VistaDespacho>('operativo')
   const esEncargado = esEncargadoDespacho(usuario?.usuario, esSuperAdmin(usuario))
@@ -49,37 +52,39 @@ export default function LogisticaView() {
     )
   }
 
-  // Título de bloque. Se atenúa el que no está activo para que se vea de un
-  // vistazo en cuál de las dos áreas está parado el usuario.
-  const Titulo = ({ activo, icono, texto, sub }: { activo: boolean; icono: string; texto: string; sub: string }) => (
-    <div className="section-title" style={{ margin: '18px 0 8px', opacity: activo ? 1 : 0.6 }}>
-      {icono} {texto}
-      <span className="meta" style={{ fontWeight: 400 }}> · {sub}</span>
-    </div>
+  // Etiqueta chica para separar los dos frentes dentro del mismo módulo. No es
+  // un título de área: el área es una sola, "Logística".
+  const Grupo = ({ texto }: { texto: string }) => (
+    <div className="meta" style={{ margin: '14px 0 6px', textTransform: 'uppercase', letterSpacing: '.04em' }}>{texto}</div>
   )
 
   return (
     <div>
-      {/* ---------- BLOQUE 1: LOGÍSTICA OPERATIVA (Giuliano) ---------- */}
-      <Titulo activo={!enAdministrativa} icono="🏭" texto="Logística Operativa" sub="pañol, planta y pedidos de material" />
+      <div className="section-title" style={{ margin: '4px 0 2px' }}>
+        🚚 Logística
+        <span className="meta" style={{ fontWeight: 400 }}> · pañol, planta, despacho, embalaje, fletes y carga</span>
+      </div>
+
+      {/* Frente 1: el pañol y la planta */}
+      <Grupo texto="Pañol y planta" />
       <div className="tabs no-print">
         <button className={'tab' + (pestania === 'gantt' ? ' active' : '')} onClick={() => setPestania('gantt')}>Gantt de planta</button>
         <button className={'tab' + (pestania === 'tareas' ? ' active' : '')} onClick={() => setPestania('tareas')}>📋 Tareas logísticas</button>
         {!esEquipoLog && <button className={'tab' + (pestania === 'reportes' ? ' active' : '')} onClick={() => setPestania('reportes')}>📊 Reportes</button>}
+        {/* v1.47: llegó desde el módulo SGO. Es una herramienta operativa de
+            carga, no una auditoría. */}
+        <button className={'tab' + (pestania === 'cubicaje' ? ' active' : '')} onClick={() => setPestania('cubicaje')}>📐 Cubicaje y carga</button>
       </div>
 
-      {/* ---------- BLOQUE 2: LOGÍSTICA ADMINISTRATIVA (Melany) ----------
-          v1.45: las sub-pestañas del módulo de despacho se pintan acá directamente.
-          Antes había que pasar por una pestaña intermedia "Despacho y embalaje"
-          que no hacía más que revelar esta misma barra. */}
+      {/* Frente 2: la salida del producto terminado */}
       {!esEquipoLog && (
         <>
-          <Titulo activo={enAdministrativa} icono="📦" texto="Logística Administrativa" sub="despacho, embalaje, fletes y stock de depósitos" />
+          <Grupo texto="Despacho y embalaje" />
           <div className="tabs no-print">
             {TABS_DESPACHO.filter((t) => !t.soloSupervisora || esEncargado).map((t) => (
               <button
                 key={t.id}
-                className={'tab' + (enAdministrativa && vistaDespacho === t.id ? ' active' : '')}
+                className={'tab' + (enDespacho && vistaDespacho === t.id ? ' active' : '')}
                 onClick={() => { setVistaDespacho(t.id); setPestania('despacho') }}
               >{t.label}</button>
             ))}
@@ -88,9 +93,9 @@ export default function LogisticaView() {
       )}
 
       <div style={{ marginTop: 16 }}>
-        {/* La cola de pedidos de material es del bloque operativo: no tiene por
+        {/* La cola de pedidos de material es del frente del pañol: no tiene por
             qué aparecer arriba de todo cuando se está mirando Despacho. */}
-        {!enAdministrativa && (
+        {!enDespacho && pestania !== 'cubicaje' && (
           <>
             <div className="section-title" style={{ marginTop: 0 }}>Cola de pedidos de material</div>
             <ColaMaterial />
@@ -99,6 +104,7 @@ export default function LogisticaView() {
 
         {pestania === 'gantt' ? <LogisticaGantt />
           : pestania === 'tareas' ? <LogisticaTareas />
+          : pestania === 'cubicaje' ? <CubicajeCarga />
           : (!esEquipoLog && pestania === 'reportes') ? <LogisticaReportes />
           : (!esEquipoLog && pestania === 'despacho') ? <DespachoView vista={vistaDespacho} onVista={setVistaDespacho} />
           : <LogisticaGantt />}
