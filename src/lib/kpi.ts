@@ -118,6 +118,32 @@ export function tiempoRealMin(t: Tarea): number { return tiempoDisponible(t) }
 export function totalDemoradoMin(t: Tarea): number { return minutosParada(t) }
 export function tiempoNetoMin(t: Tarea): number { return Math.max(0, tiempoRealMin(t) - totalDemoradoMin(t)) }
 /**
+ * Tiempo Real hasta un instante de corte. Para tareas EN CURSO el corte es
+ * "ahora"; para finalizadas, su fin real. Antes el Gantt tenia su PROPIA copia
+ * de esta cuenta (y podia contradecir al dashboard); ahora los dos llaman aca.
+ */
+export function tiempoRealHasta(t: Tarea, hastaISO?: string): number {
+  const fin = hastaISO ?? t.finReal
+  if (!t.inicioReal || !fin) return 0
+  const wall = calcularTiempoNetoProductivo(new Date(t.inicioReal), new Date(fin), {
+    recupMin: minutosRecupTarea(t), sinAlmuerzo: true,
+  })
+  return Math.max(0, wall - minutosNoProductivos(t, fin))
+}
+
+/**
+ * DEMORA SIN JUSTIFICAR hasta un instante de corte. FUENTE DE VERDAD UNICA:
+ * la usan el Gantt (para tareas en curso, con corte = ahora) y el dashboard.
+ */
+export function demoraSinJustificarHasta(t: Tarea, hastaISO?: string): number {
+  if (esReparacion(t)) return 0
+  const fin = hastaISO ?? t.finReal
+  if (!t.inicioReal || !fin) return 0
+  const exceso = tiempoRealHasta(t, fin) - tiempoEstimadoMin(t)
+  return Math.max(0, Math.round(exceso - minutosParada(t, fin)))
+}
+
+/**
  * DEMORA SIN JUSTIFICAR = (Tiempo Real Neto - Tiempo Estimado) - Demora Justificada
  *
  * Escrita tal cual la definió dirección. Nota: es la MISMA cuenta que

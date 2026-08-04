@@ -5,7 +5,7 @@ import { componentePorCodigo } from '../../data/catalogo'
 import { hhmm, fmtDur, isoWeek, fechaCorta } from '../../lib/time'
 import { proximoInstanteLaborable, tramosLaborables, calcularTiempoNetoProductivo, calcularTiempoProductivo, type GrupoAlmuerzo } from '../../lib/calendario'
 import { programar, type Plan } from '../../lib/programacion'
-import { minutosNoProductivos, minutosParada, desglosePausas, type TramoPausa } from '../../lib/kpi'
+import { desglosePausas, demoraSinJustificarHasta, type TramoPausa } from '../../lib/kpi'
 import { guardarTarea } from '../../sync/syncEngine'
 
 // Ventana horaria visible de cada dia (turno de planta: 07:00 - 17:00 reloj
@@ -309,17 +309,16 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
   // v1.16: DEMORA SIN JUSTIFICAR = Tiempo Real - Tiempo Estimado (definicion
   // exacta de direccion; el Tiempo Real ya descuenta planta cerrada/almuerzo
   // pero NO las paradas). Se evalua en tareas finalizadas y en curso.
+  // v1.66: NO se recalcula acá. El Gantt tenía su propia copia de esta cuenta y
+  // podía contradecir al dashboard (era uno de los síntomas reportados). Ahora
+  // los dos llaman a la MISMA función de kpi.ts; lo único propio del Gantt es
+  // el corte: una tarea en curso se evalúa hasta AHORA.
   function demoraSinJustificarMin(t: Tarea): number {
-    if (t.tipo === 'reparacion' || !t.inicioReal) return 0
-    let endRef: string | undefined
-    if (t.estado === 'finalizada') endRef = t.finReal
-    else if (t.estado === 'en_proceso') endRef = ahoraISO
-    else return 0 // pendiente / pausada: no se evalua
-    if (!endRef) return 0
-    const real = calcularTiempoNetoProductivo(new Date(t.inicioReal), new Date(endRef), { recupMin: minutosRecupTarea(t), sinAlmuerzo: true }) - minutosNoProductivos(t)
-    const neto = real - minutosParada(t) // v1.18: Neto = Real - demoras justificadas
-    return Math.max(0, Math.round(neto - t.tiempoEstandarMin))
+    if (t.estado === 'finalizada') return demoraSinJustificarHasta(t, t.finReal)
+    if (t.estado === 'en_proceso') return demoraSinJustificarHasta(t, ahoraISO)
+    return 0 // pendiente / pausada: no se evalúa
   }
+ }
 
   const horas = Array.from({ length: H_FIN - H_INI }, (_, i) => H_INI + i)
   const innerStyle = escala === 'dia' ? { width: 200 + (H_FIN - H_INI) * PX_HORA[bloque] } : undefined
@@ -462,8 +461,14 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
                       }),
                     ),
                   )}
-                  {/* v1.16: DEMORA SIN JUSTIFICAR (negra) en la cola de la barra:
-                      tiempo productivo por encima del estandar sin parada reportada. */}
+                  {/* v1.66: DEMORA SIN JUSTIFICAR (negra) — REESCRITO.
+                      ANTES: se pintaba un rango continuo hacia atrás desde el fin
+                      y, al tener z-index mayor, TAPABA las pausas justificadas.
+                      Visualmente parecía que el operario no había justificado nada
+                      (era el bug reportado con las ~7h de Juan).
+                      AHORA: se recorre el tramo real de la tarea de atrás hacia
+                      adelante, SALTEANDO los intervalos ya cubiertos por pausas,
+                      y se pinta solo el tiempo realmente no justificado. */}
                   {(() => {
                     const planDe = new Map(segs.map((s) => [s.tarea.id, s.plan]))
                     const tareasU = [...new Map(segs.map((s) => [s.tarea.id, s.tarea])).values()]
@@ -471,20 +476,50 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
                       const p = planDe.get(t.id)
                       const dMin = demoraSinJustificarMin(t)
                       if (!p || dMin <= 0) return []
-                      const blackEnd = new Date(p.endISO)
-                      const blackStart = new Date(blackEnd.getTime() - dMin * 60000)
-                      return segmentosPorDia(blackStart.toISOString(), p.endISO, dias).map((sg, j) => {
-                        const left = ((sg.idx + (sg.ini - H_INI * 60) / DAY_MIN) / N) * 100
-                        const width = Math.max(0.4, ((sg.fin - sg.ini) / DAY_MIN / N) * 100)
-                        return (
-                          <div
-                            key={`dsj-${t.id}-${j}`}
-                            className="gantt-demora-sj"
-                            style={{ left: `${left}%`, width: `${width}%`, top: topDeFila(rowDe.get(t.id) ?? 0) }}
-                            title={`Demora sin justificar · ${fmtDur(dMin)} por encima del estándar (sin parada reportada)`}
-                          />
-                        )
-                      })
+
+                      // Intervalos ocupados por pausas (de cualquier tipo): ese
+                      // tiempo YA está explicado, nunca es "sin justificar".
+                      const pausas = desglosePausas(t, ahoraISO)
+                        .map((x) => ({ ini: new Date(x.inicio).getTime(), fin: new Date(x.fin).getTime() }))
+                        .sort((a, b) => a.ini - b.ini)
+                      const enPausa = (ms: number) => pausas.some((q) => ms >= q.ini && ms < q.fin)
+
+                      // Recorrido hacia atrás en pasos de 5 min, contando SOLO
+                      // minutos de planta abierta y fuera de pausa, hasta juntar dMin.
+                      const PASO = 5
+                      const ini = new Date(t.inicioReal ?? p.startISO).getTime()
+                      let cursor = new Date(p.endISO).getTime()
+                      let acumulado = 0
+                      const bloques: { desde: number; hasta: number }[] = []
+                      let guard = 0
+                      while (acumulado < dMin && cursor > ini && guard++ < 4000) {
+                        const desde = cursor - PASO * 60000
+                        const medio = desde + PASO * 30000
+                        const dentroDeTurno = tramosLaborables(new Date(medio), almuerzo, minutosRecupTarea(t), true)
+                          .some((tr) => { const m = minClock(new Date(medio)); return m >= tr.iniMin && m < tr.finMin })
+                        if (dentroDeTurno && !enPausa(medio)) {
+                          acumulado += PASO
+                          const ult = bloques[0]
+                          if (ult && ult.desde === cursor) ult.desde = desde
+                          else bloques.unshift({ desde, hasta: cursor })
+                        }
+                        cursor = desde
+                      }
+
+                      return bloques.flatMap((b, k) =>
+                        segmentosPorDia(new Date(b.desde).toISOString(), new Date(b.hasta).toISOString(), dias).map((sg, j) => {
+                          const left = ((sg.idx + (sg.ini - H_INI * 60) / DAY_MIN) / N) * 100
+                          const width = Math.max(0.4, ((sg.fin - sg.ini) / DAY_MIN / N) * 100)
+                          return (
+                            <div
+                              key={`dsj-${t.id}-${k}-${j}`}
+                              className="gantt-demora-sj"
+                              style={{ left: `${left}%`, width: `${width}%`, top: topDeFila(rowDe.get(t.id) ?? 0) }}
+                              title={`Demora SIN justificar · ${fmtDur(dMin)} en total · tiempo por encima del estándar sin parada reportada`}
+                            />
+                          )
+                        }),
+                      )
                     })
                   })()}
                 </div>
