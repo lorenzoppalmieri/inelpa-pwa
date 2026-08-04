@@ -1,6 +1,7 @@
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import { db } from '../db/dexie'
 import { supabase, SUPABASE_HABILITADO } from '../lib/supabaseClient'
+import { traerTabla } from '../lib/supabaseFetch'
 import type { SyncOp, Tarea, OrdenProduccion, Semielaborado, SectorId, Objetivo, TareaLogistica, SolicitudLogistica, Feriado, Mensaje, MensajeLectura, TiempoEstandar, DespachoTrafo, FleteInterno, TareaLaboratorio, PlantillaRecurrente } from '../types'
 import type { EventoSGO, AccionSGO, AuditoriaSGO } from '../sgo/types'
 import type { IndicadorSGO, MedicionIndicadorSGO } from '../sgo/indicadores'
@@ -107,39 +108,10 @@ export async function recargarFeriadosCalendario(): Promise<void> {
 // ============================================================
 // LECTURA: fetch inicial (nube -> Dexie)
 // ============================================================
-// ============================================================
-// LECTURA PAGINADA (v1.69) — BUG CRITICO CORREGIDO
-//
-// Supabase corta `select('*')` en 1000 filas POR DEFECTO. Cuando la tabla
-// `paradas` superó ese número (cada tarea genera varias), la app se bajaba
-// las 1000 primeras y las paradas RECIENTES nunca llegaban: en el tablero
-// TODAS las tareas del mes aparecían con "Demora justificada = 0" aunque el
-// operario las hubiera cargado bien. Lo mismo aplica a cualquier tabla que
-// crece con el tiempo (tareas, mensajes, despachos...).
-//
-// `traerTodo` pide de a 1000 hasta que la tabla se acaba. Se ordena por `id`
-// porque sin un orden estable Postgres puede repetir o saltear filas entre
-// páginas. Para tablas chicas es una sola request, igual que antes.
-// ============================================================
-const PAGINA = 1000
-const TOPE_FILAS = 200000   // guarda contra un bucle infinito
-
+// La paginación vive en lib/supabaseFetch.ts para que TODOS los módulos usen la
+// misma (mantenimiento, SGO, laboratorio...). Ver el porqué en ese archivo.
 async function traerTodo<T>(tabla: string): Promise<{ data: T[] | null }> {
-  if (!supabase) return { data: null }
-  const filas: T[] = []
-  for (let desde = 0; desde < TOPE_FILAS; desde += PAGINA) {
-    const { data, error } = await supabase
-      .from(tabla).select('*').order('id', { ascending: true })
-      .range(desde, desde + PAGINA - 1)
-    if (error) {
-      console.warn(`[sync] ${tabla}: fallo la pagina ${desde}`, error.message)
-      return { data: filas.length ? filas : null }
-    }
-    const lote = (data ?? []) as T[]
-    filas.push(...lote)
-    if (lote.length < PAGINA) break     // ultima pagina
-  }
-  return { data: filas }
+  return { data: await traerTabla<T>(tabla) }
 }
 
 export async function fetchInicial(): Promise<void> {

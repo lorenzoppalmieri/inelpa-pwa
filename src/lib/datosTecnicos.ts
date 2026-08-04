@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient'
+import { traerTabla } from './supabaseFetch'
 import { db } from '../db/dexie'
 
 // ============================================================
@@ -151,9 +152,8 @@ export async function buscarDatosTecnicos(modelo: string): Promise<ResultadoDato
   if (!navigator.onLine) {
     return { origen: 'ninguno', error: `Estás sin conexión y "${m}" todavía no está descargado en este equipo.` }
   }
-  const { data, error } = await supabase.from('datos_tecnicos').select('*')
-  if (error) return { origen: 'ninguno', error: `No se pudieron leer los datos técnicos: ${error.message}` }
-  const filas = (data ?? []) as DatoTecnico[]
+  // Paginado: si el maestro crece por encima de 1000 filas no se corta.
+  const filas = await traerTabla<DatoTecnico>('datos_tecnicos')
   const hit = filas.find((f) => coincideModelo(f, m))
   if (!hit) {
     return { origen: 'ninguno', error: `El modelo "${m}" no está cargado en la tabla de datos técnicos.` }

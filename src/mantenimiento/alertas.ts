@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabaseClient'
+import { traerTodoDe, type ConsultaPaginable } from '../lib/supabaseFetch'
 import { OT_ABIERTAS } from './types'
 import type { MantGama, MantOT } from './types'
 
@@ -111,12 +112,16 @@ export async function cargarAlertasTempranas(): Promise<Map<string, AlertaTempra
   // --- Senal 1 y 2: paradas correctivas repetidas (Sprint 3) ---
   try {
     const desde = new Date(Date.now() - ALERTA_VENTANA_DIAS * 86400000).toISOString()
-    const [{ data: acts, error: e1 }, { data: pars, error: e2 }] = await Promise.all([
-      supabase.from('mant_activos').select('id, pwa_machine_key').not('pwa_machine_key', 'is', null),
-      supabase.from('paradas').select('inicio, tareas!inner(maquina_id)')
-        .eq('causa', 'mant_correctivo').gte('inicio', desde),
+    // v1.70: paginado. `paradas` ya pasó las 1000 filas y sin esto las alertas
+    // se calculaban con datos incompletos (ver lib/supabaseFetch.ts).
+    const [acts, pars] = await Promise.all([
+      traerTodoDe<{ id: string; pwa_machine_key: string | null }>('mant_activos', () =>
+        supabase!.from('mant_activos').select('id, pwa_machine_key')
+          .not('pwa_machine_key', 'is', null).order('id') as unknown as ConsultaPaginable<{ id: string; pwa_machine_key: string | null }>),
+      traerTodoDe<{ inicio: string; tareas: { maquina_id: string } }>('paradas', () =>
+        supabase!.from('paradas').select('inicio, tareas!inner(maquina_id)')
+          .eq('causa', 'mant_correctivo').gte('inicio', desde).order('inicio') as unknown as ConsultaPaginable<{ inicio: string; tareas: { maquina_id: string } }>),
     ])
-    if (e1 || e2) throw new Error(e1?.message ?? e2?.message)
     const activoPorMaquina = new Map<string, string>()
     for (const a of (acts ?? []) as { id: string; pwa_machine_key: string | null }[]) {
       if (a.pwa_machine_key) activoPorMaquina.set(a.pwa_machine_key, a.id)
@@ -146,11 +151,15 @@ export async function cargarAlertasTempranas(): Promise<Map<string, AlertaTempra
 
   // --- Senal 3: gama preventiva vencida (Sprint 4) ---
   try {
-    const [{ data: gs, error: e1 }, { data: ots, error: e2 }] = await Promise.all([
-      supabase.from('mant_gamas').select('*').eq('activa', true).not('activo_id', 'is', null),
-      supabase.from('mant_ordenes_trabajo').select('gama_id, estado, fecha_cierre').not('gama_id', 'is', null),
+    // v1.70: las órdenes de trabajo crecen con el tiempo -> paginado.
+    const [gs, ots] = await Promise.all([
+      traerTodoDe<MantGama>('mant_gamas', () =>
+        supabase!.from('mant_gamas').select('*').eq('activa', true)
+          .not('activo_id', 'is', null).order('id') as unknown as ConsultaPaginable<MantGama>),
+      traerTodoDe<Pick<MantOT, 'gama_id' | 'estado' | 'fecha_cierre'>>('mant_ordenes_trabajo', () =>
+        supabase!.from('mant_ordenes_trabajo').select('gama_id, estado, fecha_cierre')
+          .not('gama_id', 'is', null).order('id') as unknown as ConsultaPaginable<Pick<MantOT, 'gama_id' | 'estado' | 'fecha_cierre'>>),
     ])
-    if (e1 || e2) throw new Error(e1?.message ?? e2?.message)
     const resumen = resumenPorGama((ots ?? []) as Pick<MantOT, 'gama_id' | 'estado' | 'fecha_cierre'>[])
     const ahora = Date.now()
     for (const g of (gs ?? []) as MantGama[]) {
