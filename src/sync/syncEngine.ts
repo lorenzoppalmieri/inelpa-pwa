@@ -65,12 +65,26 @@ async function refreshPendientes() {
   emit()
 }
 
-// v1.18: clasifica un error de sync. 'retry' = transitorio (red, sesion, 5xx/429)
-// -> conviene reintentar mas tarde. 'fatal' = definitivo (400/403/RLS/constraint)
-// -> reintentar el MISMO payload nunca va a funcionar; se descarta para no trabar.
-function clasificarErrorSync(msg: string): 'retry' | 'fatal' {
-  return /jwt|token|expired|refresh|failed to fetch|networkerror|network request failed|load failed|fetch|timeout|temporarily|503|502|500|429/i.test(msg)
-    ? 'retry' : 'fatal'
+// Clasifica un error de sync (v1.71).
+//   'red'   -> no se llegó al servidor. NO cuenta como intento: el trabajo del
+//              operario NUNCA se descarta por falta de señal.
+//   'retry' -> se llegó al servidor pero falló algo transitorio (sesión, 5xx,
+//              429) o una clave foránea: el "padre" puede llegar después, así
+//              que se reintenta.
+//   'fatal' -> definitivo (RLS, columna inexistente, dato inválido). Reintentar
+//              el mismo payload nunca va a funcionar.
+export type ClaseError = 'red' | 'retry' | 'fatal'
+
+const RX_RED = /failed to fetch|networkerror|network request failed|load failed|err_internet|err_network|err_connection|timeout|aborted|socket/i
+const RX_TRANSITORIO = /jwt|token|expired|refresh|temporarily|503|502|504|500|429|rate limit|conflict|deadlock/i
+// Clave foránea: la fila padre todavía no llegó (ej. la parada antes que su
+// tarea). Es transitorio por definición: hay que esperar y reintentar.
+const RX_FK = /foreign key|violates foreign key constraint|23503/i
+
+function clasificarErrorSync(msg: string): ClaseError {
+  if (RX_RED.test(msg)) return 'red'
+  if (RX_FK.test(msg) || RX_TRANSITORIO.test(msg)) return 'retry'
+  return 'fatal'
 }
 
 // ¿El error es por falta de red (transitorio)?
@@ -444,13 +458,27 @@ export async function encolar(op: Omit<SyncOp, 'id' | 'ts' | 'sincronizado'>) {
   void procesarCola()
 }
 
-const MAX_INTENTOS = 5 // reintentos por op antes de descartarla (evita loop infinito)
+// v1.71: los reintentos SOLO cuentan cuando se llegó al servidor. Un corte de
+// Wi-Fi puede durar horas y no debe costar ni una operación.
+const MAX_INTENTOS = 25
+// Cada cuánto se limpian las operaciones ya subidas (la cola crecía sin fin).
+const RETENCION_OK_MS = 24 * 3600 * 1000
 
 let procesando = false
+
+/** Ordena la cola CRONOLÓGICAMENTE. Es imprescindible: el id es un UUID
+ *  aleatorio, así que sin esto las operaciones se subían en orden arbitrario y
+ *  una parada podía llegar antes que su tarea (violación de clave foránea). */
+function porFecha(a: SyncOp, b: SyncOp): number {
+  return a.ts < b.ts ? -1 : a.ts > b.ts ? 1 : 0
+}
+
 export async function procesarCola(): Promise<void> {
-  if (procesando || !navigator.onLine) return
+  if (procesando) return
   procesando = true
   try {
+    if (!navigator.onLine) return          // sin red: se reintenta solo más tarde
+
     // v1.18: renovar/validar la sesion ANTES de vaciar la cola. Si esta vencida y
     // no se puede renovar, se pausa (no se loopea) y se pide re-login via estado.
     if (!(await asegurarSesion())) {
@@ -459,31 +487,45 @@ export async function procesarCola(): Promise<void> {
     }
     if (estado.sesionInvalida) { estado = { ...estado, sesionInvalida: false }; emit() }
 
-    // Solo ops sin sincronizar y sin error definitivo (las parkeadas se saltean).
-    const pend = await db.syncQueue.filter((op) => !op.sincronizado && !op.errorSync).toArray()
+    // Solo ops sin sincronizar y sin error definitivo, EN ORDEN DE CREACIÓN.
+    const pend = (await db.syncQueue.filter((op) => !op.sincronizado && !op.errorSync).toArray())
+      .sort(porFecha)
+
     for (const op of pend) {
       const r = await empujar(op)
-      if (r.estado === 'ok') { await db.syncQueue.update(op.id, { sincronizado: true }); continue }
+      if (r.estado === 'ok') {
+        await db.syncQueue.update(op.id, { sincronizado: true })
+        continue
+      }
+
+      if (r.estado === 'red') {
+        // No se llegó al servidor. NO se incrementa el contador: cortamos y
+        // reintentamos entero en el próximo ciclo, cuando vuelva la señal.
+        console.warn(`[sync] sin conexión al subir ${op.entidad}/${op.entidadId}. Queda en cola.`)
+        break
+      }
 
       const intentos = (op.intentos ?? 0) + 1
       if (r.estado === 'fatal') {
-        // Error DEFINITIVO (400/403/RLS/constraint): descartar y SEGUIR con el resto.
         console.error(`[sync] ⛔ DESCARTADA ${op.entidad}/${op.entidadId} (${op.tipo}) — error definitivo: ${r.msg}`, op.payload)
         await db.syncQueue.update(op.id, { errorSync: r.msg ?? 'error definitivo', intentos })
         continue
       }
-      // Transitorio (red/sesion/5xx): reintentar. Si se agotan los intentos, descartar.
+      // Transitorio (sesión, 5xx, clave foránea): se reintenta muchas veces antes
+      // de rendirse. La clave foránea se resuelve sola cuando sube la fila padre.
       if (intentos >= MAX_INTENTOS) {
-        console.error(`[sync] ⛔ DESCARTADA ${op.entidad}/${op.entidadId} — ${intentos} reintentos fallidos: ${r.msg}`, op.payload)
+        console.error(`[sync] ⛔ DESCARTADA ${op.entidad}/${op.entidadId} — ${intentos} intentos: ${r.msg}`, op.payload)
         await db.syncQueue.update(op.id, { errorSync: `reintentos agotados: ${r.msg ?? ''}`, intentos })
         continue
       }
       await db.syncQueue.update(op.id, { intentos })
-      break // probablemente sin red; cortar el ciclo y reintentar en el proximo
+      // Se sigue con las demás: una op trabada no debe frenar a las que sí pueden subir.
     }
+
     // v1.66: misma pasada para la cola offline de avisos de mantenimiento
     // (online garantizado aqui; la funcion tiene su propio guard y nunca lanza).
     await procesarColaAvisosMant()
+    await limpiarColaVieja()
     estado = { ...estado, ultimaSync: new Date().toISOString() }
   } finally {
     procesando = false
@@ -491,7 +533,15 @@ export async function procesarCola(): Promise<void> {
   }
 }
 
-type EmpujeResultado = { estado: 'ok' | 'retry' | 'fatal'; msg?: string }
+/** Borra las operaciones ya subidas hace más de un día. Antes la cola crecía
+ *  para siempre y cada ciclo tenía que recorrerla entera. */
+async function limpiarColaVieja(): Promise<void> {
+  const limite = new Date(Date.now() - RETENCION_OK_MS).toISOString()
+  const viejas = await db.syncQueue.filter((op) => !!op.sincronizado && op.ts < limite).toArray()
+  if (viejas.length) await db.syncQueue.bulkDelete(viejas.map((o) => o.id))
+}
+
+type EmpujeResultado = { estado: 'ok' | 'red' | 'retry' | 'fatal'; msg?: string }
 const OK_EMPUJE: EmpujeResultado = { estado: 'ok' }
 // Traduce un error de Supabase a resultado clasificado (retry vs fatal).
 function fallo(contexto: string, msg: string): EmpujeResultado {
@@ -643,9 +693,10 @@ async function empujar(op: SyncOp): Promise<EmpujeResultado> {
         return OK_EMPUJE
     }
   } catch (e) {
-    // Excepcion (tipicamente red): transitorio -> reintentar luego.
+    // Excepción (típicamente red). v1.71: si fue de red se marca como 'red' para
+    // que NO consuma un intento — un corte largo no puede costar trabajo cargado.
     const msg = e instanceof Error ? e.message : String(e)
-    return { estado: esErrorDeRed(e) ? 'retry' : 'fatal', msg: `excepcion: ${msg}` }
+    return { estado: esErrorDeRed(e) ? 'red' : clasificarErrorSync(msg), msg: `excepcion: ${msg}` }
   }
 }
 
@@ -838,10 +889,35 @@ export async function marcarMensajeLeido(mensajeId: string, usuarioId: string): 
   await encolar({ entidad: 'mensaje_lectura', entidadId: id, tipo: 'upsert', payload: l })
 }
 
-// Auto-disparo al recuperar conexion.
+// ============================================================
+// DISPARADORES DE SINCRONIZACIÓN (v1.71)
+//
+// El Wi-Fi de la planta (7.000 m²) se cae y vuelve seguido, y `navigator.onLine`
+// miente: da `true` con solo estar asociado a un AP, aunque ese AP no tenga
+// salida. Por eso no alcanza con escuchar el evento 'online': se reintenta
+// también de forma periódica y en los momentos en que el operario vuelve a la
+// app, que es cuando más importa que su trabajo suba.
+// ============================================================
 if (typeof window !== 'undefined') {
-  window.addEventListener('online', () => { estado = { ...estado, online: true }; emit(); void procesarCola() })
-  window.addEventListener('offline', () => { estado = { ...estado, online: false }; emit() })
+  window.addEventListener('online', () => {
+    estado = { ...estado, online: true }; emit()
+    void procesarCola()
+  })
+  window.addEventListener('offline', () => {
+    estado = { ...estado, online: false }; emit()
+  })
+
+  // La tablet vuelve del bloqueo de pantalla o el operario cambia de app:
+  // momento ideal para intentar subir lo pendiente.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') void procesarCola()
+  })
+  window.addEventListener('focus', () => void procesarCola())
+
+  // Último intento antes de que se cierre la app. `keepalive` no aplica acá,
+  // pero dispara la cola si el navegador todavía da tiempo.
+  window.addEventListener('pagehide', () => { void procesarCola() })
+
   void refreshPendientes()
-  setInterval(() => void procesarCola(), 30000) // reintento periodico
+  setInterval(() => void procesarCola(), 20000)   // reintento periódico
 }
