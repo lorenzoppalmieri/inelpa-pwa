@@ -19,6 +19,8 @@ import type {
   PlantillaRecurrente,
 } from '../types'
 import type { AccionSGO, AuditoriaSGO, EventoSGO } from '../sgo/types'
+// v1.47: remapea el área retirada 'logistica_administrativa' al leer de la base.
+import { normalizarAreaSGO } from '../sgo/types'
 import type { IndicadorSGO, MedicionIndicadorSGO } from '../sgo/indicadores'
 import type { GarantiaISO } from '../sgo/garantias'
 import type { ControlProgramadoSGO, EjecucionControlSGO } from '../sgo/controles'
@@ -265,7 +267,7 @@ export function eventoSGOFromRow(r: EventoSGORow): EventoSGO {
   return {
     id: r.id, codigo: r.codigo, tipo: r.tipo as EventoSGO['tipo'], pilar: r.pilar as EventoSGO['pilar'],
     titulo: r.titulo, descripcion: r.descripcion, severidad: r.severidad as EventoSGO['severidad'],
-    estado: r.estado as EventoSGO['estado'], areaId: u(r.area_id) as EventoSGO['areaId'], areaOrigenId: u(r.area_origen_id) as EventoSGO['areaOrigenId'], sectorId: u(r.sector_id), maquinaId: u(r.maquina_id),
+    estado: r.estado as EventoSGO['estado'], areaId: normalizarAreaSGO(u(r.area_id)) as EventoSGO['areaId'], areaOrigenId: normalizarAreaSGO(u(r.area_origen_id)) as EventoSGO['areaOrigenId'], sectorId: u(r.sector_id), maquinaId: u(r.maquina_id),
     ordenId: u(r.orden_id), tareaId: u(r.tarea_id), paradaId: u(r.parada_id), laboratorioId: u(r.laboratorio_id),
     despachoId: u(r.despacho_id), controlId: u(r.control_id), nroSerie: u(r.nro_serie), modelo: u(r.modelo), defectoCodigo: u(r.defecto_codigo), detectadoEn: r.detectado_en,
     detectadoPor: r.detectado_por, responsable: u(r.responsable), contencion: u(r.contencion),
@@ -318,7 +320,7 @@ export function accionSGOToRow(a: AccionSGO): AccionSGORow {
 
 export function indicadorSGOFromRow(r: IndicadorSGORow): IndicadorSGO {
   return {
-    id: r.id, areaId: r.area_id as IndicadorSGO['areaId'], pilar: r.pilar as IndicadorSGO['pilar'],
+    id: r.id, areaId: normalizarAreaSGO(r.area_id) as IndicadorSGO['areaId'], pilar: r.pilar as IndicadorSGO['pilar'],
     nombre: r.nombre, unidad: r.unidad, direccion: r.direccion as IndicadorSGO['direccion'],
     meta: r.meta, umbralAmarillo: r.umbral_amarillo, valorActual: u(r.valor_actual),
     origen: (r.origen as IndicadorSGO['origen']) ?? 'manual', claveCalculo: u(r.clave_calculo) as IndicadorSGO['claveCalculo'],

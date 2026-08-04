@@ -28,7 +28,7 @@ const ESTADOS: Record<EstadoCelda, { label: string; corto: string; icono: string
 
 const GRUPOS: { id: string; label: string; areas: AreaSGOId[] }[] = [
   { id: 'operacion', label: 'Operación productiva', areas: ['bobinado_rural','bobinado_distribucion','montaje_distribucion','montaje_rural','herreria_pintura','laminado','laboratorio'] },
-  { id: 'soporte', label: 'Servicios y soporte', areas: ['logistica_operativa','logistica_administrativa','mantenimiento','automatismo','it'] },
+  { id: 'soporte', label: 'Servicios y soporte', areas: ['logistica_operativa','mantenimiento','automatismo','it'] },
   { id: 'gestion', label: 'Gestión y dirección', areas: ['administracion','planificacion_produccion','diseno','gerencia_directorio'] },
 ]
 

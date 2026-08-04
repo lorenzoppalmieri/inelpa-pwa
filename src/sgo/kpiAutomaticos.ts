@@ -209,7 +209,7 @@ export function plantillasKPIAutomaticos(usuario: string): IndicadorSGO[] {
   }
   out.push(plantilla('laboratorio', 'laboratorio_fpy', 'Aprobación de ensayos a primera pasada', 'calidad', '%', 'mayor_mejor', 95, 85, usuario))
   out.push(plantilla('logistica_operativa', 'logistica_cumplimiento', 'Tareas logísticas completadas en fecha', 'entrega', '%', 'mayor_mejor', 90, 75, usuario))
-  const todas: AreaSGOId[] = ['bobinado_rural','bobinado_distribucion','montaje_distribucion','montaje_rural','herreria_pintura','laminado','administracion','logistica_operativa','logistica_administrativa','mantenimiento','automatismo','it','planificacion_produccion','laboratorio','gerencia_directorio','diseno']
+  const todas: AreaSGOId[] = ['bobinado_rural','bobinado_distribucion','montaje_distribucion','montaje_rural','herreria_pintura','laminado','administracion','logistica_operativa','mantenimiento','automatismo','it','planificacion_produccion','laboratorio','gerencia_directorio','diseno']
   for (const area of todas) {
     out.push(plantilla(area, 'costo_no_calidad', 'Costo de no calidad registrado', 'costos', '$', 'menor_mejor', 0, 100000, usuario))
     out.push(plantilla(area, 'acciones_en_fecha', 'Acciones cerradas en fecha', 'mejora', '%', 'mayor_mejor', 90, 75, usuario))

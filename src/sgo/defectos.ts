@@ -29,7 +29,7 @@ export const DEFECTOS_SGO: DefectoSGO[] = [
   { codigo: 'LAB_TENSION_APLICADA', label: 'Falla en tensión aplicada', categoria: 'Laboratorio', areas: ['laboratorio'] },
   { codigo: 'LAB_TENSION_INDUCIDA', label: 'Falla en tensión inducida', categoria: 'Laboratorio', areas: ['laboratorio'] },
   { codigo: 'LAB_CALENTAMIENTO', label: 'Falla en ensayo de calentamiento', categoria: 'Laboratorio', areas: ['laboratorio'] },
-  { codigo: 'LOG_MATERIAL', label: 'Material incorrecto, faltante o entregado tarde', categoria: 'Logística', areas: ['logistica_operativa', 'logistica_administrativa'] },
+  { codigo: 'LOG_MATERIAL', label: 'Material incorrecto, faltante o entregado tarde', categoria: 'Logística', areas: ['logistica_operativa'] },
   { codigo: 'DOC_ERROR', label: 'Error de documentación o información', categoria: 'Gestión', areas: ['administracion', 'planificacion_produccion', 'diseno', 'it'] },
   { codigo: 'PLAN_ERROR', label: 'Error de planificación o programación', categoria: 'Planificación', areas: ['planificacion_produccion'] },
   { codigo: 'MANT_FALLA', label: 'Falla o intervención de mantenimiento', categoria: 'Mantenimiento', areas: ['mantenimiento', 'automatismo'] },

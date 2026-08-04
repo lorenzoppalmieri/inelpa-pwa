@@ -25,7 +25,6 @@ export type AreaSGOId =
   | 'laminado'
   | 'administracion'
   | 'logistica_operativa'
-  | 'logistica_administrativa'
   | 'mantenimiento'
   | 'automatismo'
   | 'it'
@@ -169,8 +168,7 @@ export const AREAS_SGO: { id: AreaSGOId; label: string }[] = [
   { id: 'herreria_pintura', label: 'HERRERÍA Y PINTURA' },
   { id: 'laminado', label: 'LAMINADO' },
   { id: 'administracion', label: 'ADMINISTRACIÓN' },
-  { id: 'logistica_operativa', label: 'LOGÍSTICA OPERATIVA' },
-  { id: 'logistica_administrativa', label: 'LOGÍSTICA ADMINISTRATIVA' },
+  { id: 'logistica_operativa', label: 'LOGÍSTICA' },
   { id: 'mantenimiento', label: 'MANTENIMIENTO' },
   { id: 'automatismo', label: 'AUTOMATISMO' },
   { id: 'it', label: 'IT' },
@@ -180,8 +178,23 @@ export const AREAS_SGO: { id: AreaSGOId; label: string }[] = [
   { id: 'diseno', label: 'DISEÑO' },
 ]
 
+// v1.47: el organigrama unificó logística. Desapareció "Logística Administrativa"
+// y "Logística Operativa" pasó a llamarse simplemente "LOGÍSTICA". El id
+// 'logistica_operativa' se conserva para no invalidar los expedientes, KPIs e
+// indicadores ya cargados; el id viejo se remapea al leer.
+const ALIAS_AREA_SGO: Record<string, AreaSGOId> = {
+  logistica_administrativa: 'logistica_operativa',
+}
+
+/** Normaliza un areaId que puede venir de la base con un id ya retirado. */
+export function normalizarAreaSGO<T extends string | undefined>(id: T): T | AreaSGOId {
+  if (!id) return id
+  return ALIAS_AREA_SGO[id] ?? id
+}
+
 export function areaSGOLabel(id?: string): string {
-  return AREAS_SGO.find((a) => a.id === id)?.label ?? 'Sin área'
+  const norm = normalizarAreaSGO(id)
+  return AREAS_SGO.find((a) => a.id === norm)?.label ?? 'Sin área'
 }
 
 export const TIPOS_EVENTO_SGO: { id: TipoEventoSGO; label: string; pilar: PilarSGO }[] = [
