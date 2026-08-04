@@ -107,6 +107,41 @@ export async function recargarFeriadosCalendario(): Promise<void> {
 // ============================================================
 // LECTURA: fetch inicial (nube -> Dexie)
 // ============================================================
+// ============================================================
+// LECTURA PAGINADA (v1.69) — BUG CRITICO CORREGIDO
+//
+// Supabase corta `select('*')` en 1000 filas POR DEFECTO. Cuando la tabla
+// `paradas` superó ese número (cada tarea genera varias), la app se bajaba
+// las 1000 primeras y las paradas RECIENTES nunca llegaban: en el tablero
+// TODAS las tareas del mes aparecían con "Demora justificada = 0" aunque el
+// operario las hubiera cargado bien. Lo mismo aplica a cualquier tabla que
+// crece con el tiempo (tareas, mensajes, despachos...).
+//
+// `traerTodo` pide de a 1000 hasta que la tabla se acaba. Se ordena por `id`
+// porque sin un orden estable Postgres puede repetir o saltear filas entre
+// páginas. Para tablas chicas es una sola request, igual que antes.
+// ============================================================
+const PAGINA = 1000
+const TOPE_FILAS = 200000   // guarda contra un bucle infinito
+
+async function traerTodo<T>(tabla: string): Promise<{ data: T[] | null }> {
+  if (!supabase) return { data: null }
+  const filas: T[] = []
+  for (let desde = 0; desde < TOPE_FILAS; desde += PAGINA) {
+    const { data, error } = await supabase
+      .from(tabla).select('*').order('id', { ascending: true })
+      .range(desde, desde + PAGINA - 1)
+    if (error) {
+      console.warn(`[sync] ${tabla}: fallo la pagina ${desde}`, error.message)
+      return { data: filas.length ? filas : null }
+    }
+    const lote = (data ?? []) as T[]
+    filas.push(...lote)
+    if (lote.length < PAGINA) break     // ultima pagina
+  }
+  return { data: filas }
+}
+
 export async function fetchInicial(): Promise<void> {
   if (!supabase) return
   estado = { ...estado, sincronizando: true }; emit()
@@ -122,33 +157,33 @@ export async function fetchInicial(): Promise<void> {
     ])
 
     const [maqs, usrs, uss, ords, semis, tars, pars, objs, tlog, slog, fers, msgs, lects, ests, desp, flts, labs, plts, eventosSgo, accionesSgo, indicadoresSgo, medicionesSgo, auditoriaSgo, garantiasIso, controlesSgo, ejecucionesSgo, dtec] = await Promise.all([
-      supabase.from('maquinas').select('*'),
+      traerTodo('maquinas'),
       supabase.from('usuarios').select('id, nombre, usuario, rol, grupo_nomina, activo'),
       supabase.from('usuario_sectores').select('usuario_id, sector_id'),
-      supabase.from('ordenes').select('*'),
-      supabase.from('semielaborados').select('*'),
-      supabase.from('tareas').select('*'),
-      supabase.from('paradas').select('*'),
-      supabase.from('objetivos').select('*'),
-      supabase.from('tareas_logistica').select('*'),
-      supabase.from('solicitudes_logistica').select('*'),
-      supabase.from('feriados').select('*'),
-      supabase.from('mensajes').select('*'),
-      supabase.from('mensajes_lectura').select('*'),
-      supabase.from('tiempos_estandar').select('*'),
-      supabase.from('despachos').select('*'),
-      supabase.from('fletes_internos').select('*'),
-      supabase.from('laboratorio').select('*'),
-      supabase.from('plantillas_recurrentes').select('*'),
-      supabase.from('sgo_eventos').select('*'),
-      supabase.from('sgo_acciones').select('*'),
-      supabase.from('sgo_indicadores').select('*'),
-      supabase.from('sgo_indicador_mediciones').select('*'),
+      traerTodo('ordenes'),
+      traerTodo('semielaborados'),
+      traerTodo('tareas'),
+      traerTodo('paradas'),
+      traerTodo('objetivos'),
+      traerTodo('tareas_logistica'),
+      traerTodo('solicitudes_logistica'),
+      traerTodo('feriados'),
+      traerTodo('mensajes'),
+      traerTodo('mensajes_lectura'),
+      traerTodo('tiempos_estandar'),
+      traerTodo('despachos'),
+      traerTodo('fletes_internos'),
+      traerTodo('laboratorio'),
+      traerTodo('plantillas_recurrentes'),
+      traerTodo('sgo_eventos'),
+      traerTodo('sgo_acciones'),
+      traerTodo('sgo_indicadores'),
+      traerTodo('sgo_indicador_mediciones'),
       supabase.from('sgo_auditoria').select('*').order('creado_en', { ascending: false }).limit(1000),
-      supabase.from('sgo_garantias_iso').select('*'),
-      supabase.from('sgo_controles_programados').select('*'),
+      traerTodo('sgo_garantias_iso'),
+      traerTodo('sgo_controles_programados'),
       supabase.from('sgo_control_ejecuciones').select('*').order('ejecutado_en', { ascending: false }).limit(2000),
-      supabase.from('datos_tecnicos').select('*'),
+      traerTodo('datos_tecnicos'),
     ])
 
     // Maquinas
