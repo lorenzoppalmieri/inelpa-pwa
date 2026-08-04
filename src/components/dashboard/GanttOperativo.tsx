@@ -318,7 +318,6 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
     if (t.estado === 'en_proceso') return demoraSinJustificarHasta(t, ahoraISO)
     return 0 // pendiente / pausada: no se evalúa
   }
- }
 
   const horas = Array.from({ length: H_FIN - H_INI }, (_, i) => H_INI + i)
   const innerStyle = escala === 'dia' ? { width: 200 + (H_FIN - H_INI) * PX_HORA[bloque] } : undefined
