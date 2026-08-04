@@ -4,6 +4,7 @@ import { fmtDur } from '../../lib/time'
 import ParetoDemoras from './ParetoDemoras'
 import EstimadoVsRealizado from './EstimadoVsRealizado'
 import DetalleTareas from './DetalleTareas'
+import DiagnosticoTiempos from './DiagnosticoTiempos'
 
 function barColor(v: number): string {
   if (v >= 0.85) return 'var(--estado-fin)'
@@ -73,6 +74,10 @@ export default function KpiPanel({ tareas, nombreOperario, nombreMaquina }: {
 
       {/* v1.16: detalle por tarea con las 5 metricas canonicas (filtrable). */}
       <div className="section-title">Detalle por tarea (Estimado · Real · Demorado · Demora justificada · Demora sin justificar)</div>
+      {/* v1.68: herramienta de diagnóstico. Muestra, tarea por tarea, las paradas
+          que la app tiene guardadas y cómo se arma la demora sin justificar. */}
+      <DiagnosticoTiempos tareas={tareas} nombreOperario={nombreOperario} />
+
       <DetalleTareas tareas={tareas} nombreOperario={nombreOperario} nombreMaquina={nombreMaquina} />
 
       {/* Pareto de demoras */}
