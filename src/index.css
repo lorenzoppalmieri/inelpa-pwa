@@ -361,9 +361,24 @@ button { font-family: inherit; cursor: pointer; border: none; }
 .gantt-rep-tag { flex: none; margin-right: 5px; font-size: .8rem; line-height: 1; }
 /* Sub-bloque de PARADA: se superpone a la barra en el tramo real no productivo. */
 .gantt-parada-sub {
-  position: absolute; top: 11px; height: 28px; border-radius: 4px; z-index: 4; pointer-events: none;
+  position: absolute; top: 11px; height: 28px; border-radius: 4px; z-index: 4;
+  /* v1.66: ANTES era pointer-events:none y el tooltip del segmento NUNCA se
+     mostraba (se comía el hover la barra de abajo). Ahora cada tramo de pausa
+     tiene su propio tooltip con causa, horario y duracion. */
+  pointer-events: auto; cursor: help;
   background: repeating-linear-gradient(45deg, var(--rojo), var(--rojo) 4px, rgba(239,68,68,.45) 4px, rgba(239,68,68,.45) 8px);
   box-shadow: inset 0 0 0 1px rgba(239,68,68,.85);
+}
+/* Pausa NO productiva (almuerzo): se VE, pero en gris — no es una demora.
+   El operario la marca todos los dias y tiene que poder verla en el Gantt. */
+.gantt-parada-sub.no-productiva {
+  background: repeating-linear-gradient(45deg, var(--texto-tenue), var(--texto-tenue) 4px, rgba(148,163,184,.35) 4px, rgba(148,163,184,.35) 8px);
+  box-shadow: inset 0 0 0 1px rgba(148,163,184,.8);
+}
+/* Pausa que el operario NUNCA cerro: se midio hasta el fin de la tarea / ahora.
+   Borde punteado para que se note que es un dato estimado, no un cierre real. */
+.gantt-parada-sub.abierta {
+  outline: 2px dashed var(--naranja); outline-offset: -2px;
 }
 /* Sub-bloque de DEMORA SIN JUSTIFICAR: cola negra sobre la barra (excede el
    estandar sin parada reportada). Borde claro para contraste en dark mode. */

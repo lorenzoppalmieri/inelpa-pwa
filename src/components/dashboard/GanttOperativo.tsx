@@ -5,7 +5,7 @@ import { componentePorCodigo } from '../../data/catalogo'
 import { hhmm, fmtDur, isoWeek, fechaCorta } from '../../lib/time'
 import { proximoInstanteLaborable, tramosLaborables, calcularTiempoNetoProductivo, calcularTiempoProductivo, type GrupoAlmuerzo } from '../../lib/calendario'
 import { programar, type Plan } from '../../lib/programacion'
-import { minutosNoProductivos, minutosParada } from '../../lib/kpi'
+import { minutosNoProductivos, minutosParada, desglosePausas, type TramoPausa } from '../../lib/kpi'
 import { guardarTarea } from '../../sync/syncEngine'
 
 // Ventana horaria visible de cada dia (turno de planta: 07:00 - 17:00 reloj
@@ -43,15 +43,20 @@ function rangoFechaHora(aIso: string, bIso: string): string {
 // restaba fechas crudas, asi que una parada de 11:16 a 07:45 del dia siguiente
 // figuraba como "20h 30m" contando la fabrica cerrada.
 function resumenParadas(t: Tarea): string {
-  if (!t.paradas?.length) return ''
-  const recup = minutosRecupTarea(t)
-  const lineas = t.paradas.map((p) => {
-    const etq = causaLabel(p.causa) + (esParadaNoProductiva(p.causa) ? ' (almuerzo/pausa)' : '')
-    return p.fin
-      ? `• ${etq}: ${hhmm(p.inicio)}–${hhmm(p.fin)} (${fmtDur(calcularTiempoProductivo(p.inicio, p.fin, recup))})`
-      : `• ${etq}: desde ${hhmm(p.inicio)} · en curso`
+  const tramos = desglosePausas(t)
+  if (tramos.length === 0) return ''
+  const just = tramos.filter((x) => x.productiva).reduce((a, x) => a + x.minutos, 0)
+  const noProd = tramos.filter((x) => !x.productiva).reduce((a, x) => a + x.minutos, 0)
+  const lineas = tramos.map((x) => {
+    const etq = x.label + (x.productiva ? '' : ' (no cuenta como demora)')
+    const rango = x.abierta ? `desde ${hhmm(x.inicio)} · SIN CERRAR` : `${hhmm(x.inicio)}–${hhmm(x.fin)}`
+    return `• ${etq}: ${rango} (${fmtDur(x.minutos)})`
   })
-  return `\n— Paradas —\n${lineas.join('\n')}`
+  const totales = [
+    `Demora justificada: ${fmtDur(just)}`,
+    noProd > 0 ? `Almuerzo / pausas: ${fmtDur(noProd)} (descontado del tiempo real)` : '',
+  ].filter(Boolean).join('\n')
+  return `\n— Paradas —\n${lineas.join('\n')}\n${totales}`
 }
 
 function lunesDeSemana(d: Date): Date {
@@ -430,25 +435,32 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
                       </div>
                     )
                   })}
-                  {/* Sub-bloques de PARADA (tiempo no productivo registrado por el
-                      operario) superpuestos sobre la barra, en su tramo real. */}
+                  {/* Sub-bloques de PAUSA sobre la barra, en su tramo real.
+                      v1.66: se dibujan TODAS —incluidas las no productivas
+                      (almuerzo) y las que quedaron SIN CERRAR—, cada una con su
+                      trama. Antes solo se veían las productivas cerradas, así que
+                      la barra mentía: parecía trabajo continuo. */}
                   {[...new Map(segs.map((s) => [s.tarea.id, s.tarea])).values()].flatMap((t) =>
-                    t.paradas
-                      .filter((p) => p.fin && !esParadaNoProductiva(p.causa))
-                      .flatMap((p, k) =>
-                        segmentosPorDia(p.inicio, p.fin as string, dias).map((sg, j) => {
-                          const left = ((sg.idx + (sg.ini - H_INI * 60) / DAY_MIN) / N) * 100
-                          const width = Math.max(0.4, ((sg.fin - sg.ini) / DAY_MIN / N) * 100)
-                          return (
-                            <div
-                              key={`par-${t.id}-${k}-${j}`}
-                              className="gantt-parada-sub"
-                              style={{ left: `${left}%`, width: `${width}%`, top: topDeFila(rowDe.get(t.id) ?? 0) }}
-                              title={`Parada · ${causaLabel(p.causa)} · ${hhmm(p.inicio)}–${hhmm(p.fin as string)}`}
-                            />
-                          )
-                        }),
-                      ),
+                    desglosePausas(t, ahoraISO).flatMap((x: TramoPausa, k: number) =>
+                      segmentosPorDia(x.inicio, x.fin, dias).map((sg, j) => {
+                        const left = ((sg.idx + (sg.ini - H_INI * 60) / DAY_MIN) / N) * 100
+                        const width = Math.max(0.4, ((sg.fin - sg.ini) / DAY_MIN / N) * 100)
+                        const cls = 'gantt-parada-sub'
+                          + (x.productiva ? '' : ' no-productiva')
+                          + (x.abierta ? ' abierta' : '')
+                        const detalle = x.productiva
+                          ? 'demora justificada'
+                          : 'no cuenta como demora (se descuenta del tiempo real)'
+                        return (
+                          <div
+                            key={`par-${t.id}-${k}-${j}`}
+                            className={cls}
+                            style={{ left: `${left}%`, width: `${width}%`, top: topDeFila(rowDe.get(t.id) ?? 0) }}
+                            title={`${x.label} · ${x.abierta ? `desde ${hhmm(x.inicio)} · SIN CERRAR` : `${hhmm(x.inicio)}–${hhmm(x.fin)}`} · ${fmtDur(x.minutos)} · ${detalle}`}
+                          />
+                        )
+                      }),
+                    ),
                   )}
                   {/* v1.16: DEMORA SIN JUSTIFICAR (negra) en la cola de la barra:
                       tiempo productivo por encima del estandar sin parada reportada. */}

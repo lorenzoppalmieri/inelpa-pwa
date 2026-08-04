@@ -1,4 +1,4 @@
-import type { Tarea, CausaParada } from '../types'
+import type { Tarea, Parada, CausaParada } from '../types'
 import { minutosEntre } from './time'
 import { calcularTiempoNetoProductivo } from './calendario'
 import { causaLabel, esParadaNoProductiva, esReparacion, minutosRecupTarea } from '../types'
@@ -7,25 +7,73 @@ import { causaLabel, esParadaNoProductiva, esReparacion, minutosRecupTarea } fro
 // Calculo de KPIs de planta (OEE simplificado, desvios, Pareto).
 // ============================================================
 
-// Minutos de parada PRODUCTIVA (demoras reales). Excluye pausas programadas
-// como el almuerzo, que no deben penalizar el OEE (v1.4).
-// v1.17: se miden en minutos LABORABLES (no crudos): una demora que cruza la noche
-// o el fin de semana NO suma esas horas de planta cerrada. Solo cuenta si tiene fin.
-export function minutosParada(t: Tarea): number {
-  return t.paradas
-    .filter((p) => !esParadaNoProductiva(p.causa) && p.fin)
-    .reduce((acc, p) => acc + calcularTiempoNetoProductivo(new Date(p.inicio), new Date(p.fin as string), { recupMin: minutosRecupTarea(t), sinAlmuerzo: true }), 0)
+// ============================================================
+// PAUSAS: fin efectivo y desglose UNIFICADO (v1.66)
+//
+// BUG CORREGIDO: antes las paradas SIN cerrar se descartaban (`filter(p => p.fin)`).
+// Si el operario marcaba "rotura de herramienta" y nunca apretaba Reanudar, esa
+// justificación DESAPARECÍA de los totales y la demora sin justificar se
+// inflaba. Ahora una parada abierta se cierra en el fin de la tarea (si ya
+// terminó) o en "ahora" (si sigue en curso), que es lo que realmente pasó.
+// ============================================================
+
+/** Fin efectivo de una parada: el registrado, o el cierre de la tarea, o ahora. */
+export function finEfectivoParada(t: Tarea, p: Parada, ahoraISO?: string): string {
+  return p.fin ?? t.finReal ?? ahoraISO ?? new Date().toISOString()
 }
 
-// Minutos de paradas NO productivas (almuerzo, pausas programadas, lapso de
-// reapertura). Se restan del tiempo disponible: es como si esa franja no existiera.
-// v1.17: se miden en minutos LABORABLES (no crudos), para que un lapso que cruza
-// noches/fines de semana —ej. una reapertura al día siguiente— descuente solo las
-// horas de planta y no de más.
-export function minutosNoProductivos(t: Tarea): number {
-  return t.paradas
-    .filter((p) => esParadaNoProductiva(p.causa) && p.fin)
-    .reduce((acc, p) => acc + calcularTiempoNetoProductivo(new Date(p.inicio), new Date(p.fin as string), { recupMin: minutosRecupTarea(t), sinAlmuerzo: true }), 0)
+/** Un tramo de pausa ya medido. Es lo que consumen el Gantt y el dashboard. */
+export interface TramoPausa {
+  id: string
+  causa: CausaParada
+  label: string
+  inicio: string
+  fin: string
+  /** Minutos en horario de planta (nunca cuenta noches ni fines de semana). */
+  minutos: number
+  /** true = demora justificada (cuenta como justificación). false = almuerzo/pausa programada. */
+  productiva: boolean
+  /** true = el operario no la cerró; se midió hasta el cierre de la tarea o hasta ahora. */
+  abierta: boolean
+}
+
+/**
+ * DESGLOSE ÚNICO de las pausas de una tarea. Fuente de verdad compartida: el
+ * tooltip del Gantt y la tabla de totales leen de acá, así no pueden
+ * contradecirse (era uno de los síntomas reportados).
+ */
+export function desglosePausas(t: Tarea, ahoraISO?: string): TramoPausa[] {
+  const recupMin = minutosRecupTarea(t)
+  return (t.paradas ?? []).map((p) => {
+    const fin = finEfectivoParada(t, p, ahoraISO)
+    return {
+      id: p.id,
+      causa: p.causa,
+      label: causaLabel(p.causa),
+      inicio: p.inicio,
+      fin,
+      minutos: calcularTiempoNetoProductivo(new Date(p.inicio), new Date(fin), { recupMin, sinAlmuerzo: true }),
+      productiva: !esParadaNoProductiva(p.causa),
+      abierta: !p.fin,
+    }
+  })
+}
+
+// DEMORA JUSTIFICADA = suma de las pausas PRODUCTIVAS (rotura, falta de
+// material, espera de máquina...). Medida en minutos de planta abierta.
+export function minutosParada(t: Tarea, ahoraISO?: string): number {
+  return desglosePausas(t, ahoraISO)
+    .filter((x) => x.productiva)
+    .reduce((acc, x) => acc + x.minutos, 0)
+}
+
+// PAUSAS NO PRODUCTIVAS (almuerzo, reapertura). NO son demora: se descuentan del
+// Tiempo Real como si esa franja no existiera, pero se muestran en el detalle
+// (el operario las marca todos los días y tiene que poder verlas).
+export function minutosNoProductivos(t: Tarea, ahoraISO?: string): number {
+  return desglosePausas(t, ahoraISO)
+    .filter((x) => !x.productiva)
+    .reduce((acc, x) => acc + x.minutos, 0)
 }
 
 // Tiempo real de ejecucion BRUTO (resta cruda de timestamps). Solo informativo
@@ -69,7 +117,19 @@ export function tiempoEstimadoMin(t: Tarea): number { return Math.max(0, t.tiemp
 export function tiempoRealMin(t: Tarea): number { return tiempoDisponible(t) }
 export function totalDemoradoMin(t: Tarea): number { return minutosParada(t) }
 export function tiempoNetoMin(t: Tarea): number { return Math.max(0, tiempoRealMin(t) - totalDemoradoMin(t)) }
-export function demoraSinJustificarMin(t: Tarea): number { return Math.max(0, tiempoNetoMin(t) - tiempoEstimadoMin(t)) }
+/**
+ * DEMORA SIN JUSTIFICAR = (Tiempo Real Neto - Tiempo Estimado) - Demora Justificada
+ *
+ * Escrita tal cual la definió dirección. Nota: es la MISMA cuenta que
+ * (Neto - Estimado), porque Neto ya tiene la justificada descontada
+ * — se deja en la forma explícita para que se lea igual que la regla de negocio.
+ *
+ * Si el operario justificó TODO su exceso con pausas válidas, da 0.
+ */
+export function demoraSinJustificarMin(t: Tarea): number {
+  const exceso = tiempoRealMin(t) - tiempoEstimadoMin(t)
+  return Math.max(0, exceso - totalDemoradoMin(t))
+}
 
 // Filtra tareas cuyo trabajo cae dentro de [desdeISO, hastaISO) segun su
 // inicio real (o planificado). Base del filtro de periodo del Dashboard (v1.4).
