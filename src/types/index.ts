@@ -751,6 +751,7 @@ export interface DespachoTrafo {
   cliente: string
   nroSerie: string               // legacy / visualización: join de numerosSerie
   numerosSerie?: string[]        // v1.30: N° de serie de cada trafo del viaje (1+)
+  nroInterno?: string            // v1.72: identificación histórica para stock sin serie oficial
   cargados?: string[]            // series ya cargadas al camión (tildadas)
   cut?: string                   // v1.31: N° CUT (solo trafos tipo EPE; opcional)
   // v1.43: descripción completa del modelo heredada de Laboratorio
@@ -813,6 +814,17 @@ export interface DespachoTrafo {
 export function seriesDespacho(d: DespachoTrafo): string[] {
   if (d.numerosSerie && d.numerosSerie.length) return d.numerosSerie
   return d.nroSerie ? d.nroSerie.split(',').map((s) => s.trim()).filter(Boolean) : []
+}
+
+/** Clave comparable de un número de serie: ignora puntos, guiones, espacios y mayúsculas. */
+export function normalizarNumeroSerie(serie: string | undefined): string {
+  return (serie ?? '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
+}
+
+/** Indica si un despacho ya contiene el número de serie indicado. */
+export function despachoTieneSerie(d: DespachoTrafo, serie: string | undefined): boolean {
+  const buscada = normalizarNumeroSerie(serie)
+  return !!buscada && seriesDespacho(d).some((s) => normalizarNumeroSerie(s) === buscada)
 }
 
 // v1.28 (Fase 3) — umbrales de las alertas automáticas del sector despacho.

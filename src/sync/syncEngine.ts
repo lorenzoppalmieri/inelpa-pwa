@@ -1,8 +1,8 @@
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import { db } from '../db/dexie'
 import { supabase, SUPABASE_HABILITADO } from '../lib/supabaseClient'
-import { traerTabla } from '../lib/supabaseFetch'
-import type { SyncOp, Tarea, OrdenProduccion, Semielaborado, SectorId, Objetivo, TareaLogistica, SolicitudLogistica, Feriado, Mensaje, MensajeLectura, TiempoEstandar, DespachoTrafo, FleteInterno, TareaLaboratorio, PlantillaRecurrente } from '../types'
+import { traerTabla, traerTodoDe, type ConsultaPaginable } from '../lib/supabaseFetch'
+import type { Rol, SyncOp, Tarea, OrdenProduccion, Semielaborado, SectorId, Objetivo, TareaLogistica, SolicitudLogistica, Feriado, Mensaje, MensajeLectura, TiempoEstandar, DespachoTrafo, FleteInterno, TareaLaboratorio, PlantillaRecurrente } from '../types'
 import type { EventoSGO, AccionSGO, AuditoriaSGO } from '../sgo/types'
 import type { IndicadorSGO, MedicionIndicadorSGO } from '../sgo/indicadores'
 import type { GarantiaISO } from '../sgo/garantias'
@@ -128,7 +128,46 @@ async function traerTodo<T>(tabla: string): Promise<{ data: T[] | null }> {
   return { data: await traerTabla<T>(tabla) }
 }
 
-export async function fetchInicial(): Promise<void> {
+// ============================================================
+// VENTANA DE SINCRONIZACIÓN (v1.72)
+//
+// PROBLEMA A FUTURO: cada tablet espeja TODAS las tareas y paradas de la
+// historia. Con 2000 transformadores/año eso crece sin techo y un día la tablet
+// tarda demasiado en abrir.
+//
+// SOLUCIÓN: la TABLET del operario solo necesita su trabajo reciente. Se le
+// traen las tareas de los últimos 90 días MÁS todas las que sigan abiertas sin
+// importar la antigüedad (una tarea pendiente de hace 6 meses tiene que
+// aparecer igual). El resto de los roles —planificación, gerencia, logística,
+// despacho, laboratorio— siguen bajando TODO, porque sus tableros comparan
+// contra el mes anterior y el acumulado anual.
+//
+// Si `ventanaDias` es null el comportamiento es EXACTAMENTE el de antes.
+// ============================================================
+const VENTANA_OPERARIO_DIAS = 90
+
+export function ventanaDiasPara(rol?: Rol): number | null {
+  return rol === 'operario' ? VENTANA_OPERARIO_DIAS : null
+}
+
+/** Paradas de un conjunto de tareas, pedidas de a tandas para no armar una URL
+ *  gigante. Se traen POR ID (no por fecha) para no perder nunca la parada de una
+ *  tarea vieja que sigue abierta. */
+async function traerParadasDe(ids: string[]): Promise<ParadaRow[]> {
+  if (!supabase || ids.length === 0) return []
+  const sb = supabase
+  const TANDA = 200
+  const out: ParadaRow[] = []
+  for (let i = 0; i < ids.length; i += TANDA) {
+    const lote = ids.slice(i, i + TANDA)
+    const filas = await traerTodoDe<ParadaRow>('paradas', () =>
+      sb.from('paradas').select('*').in('tarea_id', lote).order('id') as unknown as ConsultaPaginable<ParadaRow>)
+    out.push(...filas)
+  }
+  return out
+}
+
+export async function fetchInicial(rol?: Rol): Promise<void> {
   if (!supabase) return
   estado = { ...estado, sincronizando: true }; emit()
   try {
@@ -142,14 +181,33 @@ export async function fetchInicial(): Promise<void> {
       db.plantillasRecurrentes.clear(), db.datosTecnicos.clear(),
     ])
 
-    const [maqs, usrs, uss, ords, semis, tars, pars, objs, tlog, slog, fers, msgs, lects, ests, desp, flts, labs, plts, eventosSgo, accionesSgo, indicadoresSgo, medicionesSgo, auditoriaSgo, garantiasIso, controlesSgo, ejecucionesSgo, dtec] = await Promise.all([
+    // ---- TAREAS + PARADAS (las únicas que se acotan por ventana) ----
+    // Se piden aparte porque las paradas dependen de qué tareas se trajeron.
+    const dias = ventanaDiasPara(rol)
+    const sb = supabase
+    let tareasRows: TareaRow[]
+    if (dias == null) {
+      tareasRows = await traerTabla<TareaRow>('tareas')          // igual que siempre
+    } else {
+      // Tablet: últimos N días + TODO lo que siga abierto (sin importar antigüedad).
+      const corte = new Date(Date.now() - dias * 86400000).toISOString()
+      tareasRows = await traerTodoDe<TareaRow>('tareas', () =>
+        sb.from('tareas').select('*')
+          .or(`estado.neq.finalizada,inicio_real.gte.${corte},inicio_planificado.gte.${corte}`)
+          .order('id') as unknown as ConsultaPaginable<TareaRow>)
+    }
+    // Las paradas se traen POR ID DE TAREA: así nunca se pierde la parada de una
+    // tarea vieja que sigue abierta (fue la causa del bug de "justificada = 0").
+    const paradasRows = dias == null
+      ? await traerTabla<ParadaRow>('paradas')
+      : await traerParadasDe(tareasRows.map((t) => t.id))
+
+    const [maqs, usrs, uss, ords, semis, objs, tlog, slog, fers, msgs, lects, ests, desp, flts, labs, plts, eventosSgo, accionesSgo, indicadoresSgo, medicionesSgo, auditoriaSgo, garantiasIso, controlesSgo, ejecucionesSgo, dtec] = await Promise.all([
       traerTodo('maquinas'),
       supabase.from('usuarios').select('id, nombre, usuario, rol, grupo_nomina, activo'),
       supabase.from('usuario_sectores').select('usuario_id, sector_id'),
       traerTodo('ordenes'),
       traerTodo('semielaborados'),
-      traerTodo('tareas'),
-      traerTodo('paradas'),
       traerTodo('objetivos'),
       traerTodo('tareas_logistica'),
       traerTodo('solicitudes_logistica'),
@@ -249,17 +307,19 @@ export async function fetchInicial(): Promise<void> {
     if (lects.data) await db.mensajesLectura.bulkPut((lects.data as MensajeLecturaRow[]).map(lecturaFromRow))
 
     // Tareas (+ paradas anidadas)
-    if (tars.data) {
+    {
       const porTarea = new Map<string, ReturnType<typeof paradaFromRow>[]>()
-      for (const pr of (pars.data ?? []) as ParadaRow[]) {
+      for (const pr of paradasRows) {
         const p = paradaFromRow(pr)
         const arr = porTarea.get(p.tareaId) ?? []
         arr.push(p)
         porTarea.set(p.tareaId, arr)
       }
       await db.tareas.bulkPut(
-        (tars.data as TareaRow[]).map((r) => tareaFromRow(r, porTarea.get(r.id) ?? [])),
+        tareasRows.map((r) => tareaFromRow(r, porTarea.get(r.id) ?? [])),
       )
+      console.info(`[sync] ${tareasRows.length} tarea(s) y ${paradasRows.length} parada(s)` +
+        (dias == null ? ' (histórico completo)' : ` (últimos ${dias} días + abiertas)`))
     }
 
     estado = { ...estado, ultimaSync: new Date().toISOString() }
@@ -433,10 +493,10 @@ function suscribirRealtime() {
 // Arranca la sincronizacion al haber sesion (lo llama AuthContext).
 // Idempotente: ignora llamadas repetidas (ej. refresh de token) si ya esta activa.
 let syncActiva = false
-export async function iniciarSync(): Promise<void> {
+export async function iniciarSync(rol?: Rol): Promise<void> {
   if (!BACKEND_ACTIVO || syncActiva) return
   syncActiva = true
-  await fetchInicial()
+  await fetchInicial(rol)
   suscribirRealtime()
   void procesarCola() // vaciar cualquier cambio offline pendiente
 }

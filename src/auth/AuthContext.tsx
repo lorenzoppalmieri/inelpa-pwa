@@ -93,7 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (perfil) {
           guardarCache(perfil)
           setUsuario(perfil)
-          if (navigator.onLine) void iniciarSync()
+          if (navigator.onLine) void iniciarSync(perfil.rol)
         } else {
           borrarCache() // perfil real inexistente/inactivo
           setUsuario(null)
@@ -134,7 +134,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
 
     // 3) Al recuperar conexion: arrancar/reintentar sync sin volver al Login.
-    const onOnline = () => { if (usuarioRef.current) void iniciarSync() }
+    const onOnline = () => { if (usuarioRef.current) void iniciarSync(usuarioRef.current.rol) }
     window.addEventListener('online', onOnline)
 
     return () => {
@@ -169,7 +169,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       guardarCache(perfil)
       setUsuario(perfil)
-      void iniciarSync() // online garantizado aqui
+      void iniciarSync(perfil.rol) // online garantizado aqui
       return { ok: true }
     } catch (e) {
       // signIn o cargarPerfil lanzaron por falta de red.

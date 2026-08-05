@@ -578,6 +578,7 @@ export interface DespachoRow {
   cliente: string
   nro_serie: string
   numeros_serie: string[] | null
+  nro_interno?: string | null      // v1.72: stock histórico sin serie oficial
   cargados: string[] | null
   cut: string | null
   modelo?: string | null           // v1.43: descripción completa heredada de Laboratorio
@@ -624,6 +625,7 @@ export function despachoFromRow(r: DespachoRow): DespachoTrafo {
     cliente: r.cliente,
     nroSerie: r.nro_serie,
     numerosSerie: r.numeros_serie ?? undefined,
+    nroInterno: u(r.nro_interno ?? null),
     cargados: r.cargados ?? undefined,
     cut: u(r.cut),
     modelo: u(r.modelo ?? null),
@@ -670,6 +672,7 @@ export function despachoToRow(d: DespachoTrafo): DespachoRow {
     cliente: d.cliente,
     nro_serie: d.nroSerie,
     numeros_serie: d.numerosSerie ?? null,
+    nro_interno: d.nroInterno ?? null,
     cargados: d.cargados ?? null,
     cut: d.cut ?? null,
     modelo: d.modelo ?? null,

@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import type { TareaLaboratorio, EnsayoEstado, DespachoTrafo } from '../../types'
-import { ENSAYOS_LAB, estadoEnsayo, tieneRechazo, idDespachoDeLab } from '../../types'
+import { ENSAYOS_LAB, estadoEnsayo, tieneRechazo, idDespachoDeLab, despachoTieneSerie } from '../../types'
 import { useAuth } from '../../auth/AuthContext'
 import { guardarLaboratorio } from '../../sync/syncEngine'
 import { guardarDespacho } from '../../sync/syncEngine'
@@ -86,18 +86,30 @@ export default function FichaLaboratorio({ tarea: t, onClose }: { tarea: TareaLa
 
   const retrabajo = tieneRechazo(t)
   const faltaComentario = retrabajo && !comentario.trim()
+  // v1.72: un transformador aprobado no puede salir de Laboratorio sin serie.
+  // La serie es la identidad transversal que evita volver a embalar una unidad
+  // que ya está en planta o guardada en otro depósito.
+  const serieParaLiberar = nroSerie.trim() || t.nroSerie?.trim() || ''
+  const faltaSerie = !retrabajo && !serieParaLiberar
   // Solo se exige el PDF cuando el trafo APRUEBA (es lo que se libera a despacho).
   // En retrabajo no se pide: el trafo no sale del sector.
   const faltaProtocolo = !retrabajo && !t.protocoloPath
-  const noPuedeFinalizar = guardando || subiendo || faltaComentario || faltaProtocolo || finalizada
+  const noPuedeFinalizar = guardando || subiendo || faltaComentario || faltaSerie || faltaProtocolo || finalizada
 
   // Handler de finalización: evalúa el checklist y rutea el transformador.
   async function finalizarEnsayo() {
-    if (faltaComentario || faltaProtocolo) return
+    if (faltaComentario || faltaSerie || faltaProtocolo) return
     if (finalizada) return   // ya se liberó: no se vuelve a procesar
     setGuardando(true)
     const now = new Date().toISOString()
-    const serie = nroSerie.trim() || t.nroSerie
+    const serie = serieParaLiberar || undefined
+
+    // v1.72: además de la idempotencia por laboratorioId, se busca la unidad por
+    // N° de serie. Si ya fue embalada o movida a un depósito, se vincula este
+    // ensayo a ESA misma fila y se conserva todo su estado e historial.
+    const existentePorSerie = !retrabajo && serie
+      ? (await db.despachos.toArray()).find((d) => despachoTieneSerie(d, serie))
+      : undefined
     await guardarLaboratorio({
       ...t,
       nroSerie: serie,
@@ -119,18 +131,25 @@ export default function FichaLaboratorio({ tarea: t, onClose }: { tarea: TareaLa
       // chequea antes si ya existe (por id o por vínculo) y, si existe, no se
       // pisa el trabajo que Melany ya haya hecho sobre él.
       const despId = idDespachoDeLab(t.id)
-      const yaExiste = (await db.despachos.get(despId))
-        ?? (await db.despachos.where('laboratorioId').equals(t.id).first())
+      const existentePorId = await db.despachos.get(despId)
+      const existentePorVinculo = await db.despachos.where('laboratorioId').equals(t.id).first()
+      const vinculadoPorSerie = !existentePorId && !existentePorVinculo && !!existentePorSerie
+      const yaExiste = existentePorId ?? existentePorVinculo ?? existentePorSerie
       if (yaExiste) {
         // Solo se refrescan los datos que puede haber corregido el laboratorio.
         await guardarDespacho({
           ...yaExiste,
-          nroSerie: serie ?? yaExiste.nroSerie,
-          numerosSerie: serie ? [serie] : yaExiste.numerosSerie,
+          // Si se encontró por serie, no se reemplaza un eventual viaje con más
+          // de una unidad: únicamente se vincula el ensayo a la fila existente.
+          nroSerie: vinculadoPorSerie ? yaExiste.nroSerie : (serie ?? yaExiste.nroSerie),
+          numerosSerie: vinculadoPorSerie ? yaExiste.numerosSerie : (serie ? [serie] : yaExiste.numerosSerie),
           protocoloPath: t.protocoloPath ?? yaExiste.protocoloPath,
           protocoloNombre: t.protocoloNombre ?? yaExiste.protocoloNombre,
           laboratorioId: t.id,
         })
+        if (vinculadoPorSerie) {
+          window.alert(`La serie ${serie} ya estaba en Despacho (${yaExiste.estado}). Se vinculó el ensayo al registro existente sin crear otro transformador ni modificar su depósito.`)
+        }
         setGuardando(false)
         onClose()
         return
@@ -196,8 +215,9 @@ export default function FichaLaboratorio({ tarea: t, onClose }: { tarea: TareaLa
           <div className="meta">Modelo <strong>{t.modelo}</strong>{t.linea ? ` · ${t.linea === 'rural' ? 'Rural' : 'Distribución'}` : ''}</div>
           <div className="meta">Cliente <strong>{t.cliente || 'Stock'}</strong>{t.ot ? ` · OT ${t.ot}` : ''}</div>
           <div className="field" style={{ marginTop: 8, maxWidth: 260 }}>
-            <label>N° de serie {t.nroSerie ? '' : '(cargalo si llegó vacío)'}</label>
+            <label>N° de serie {retrabajo ? '(opcional mientras está en retrabajo)' : '(obligatorio para liberar)'}</label>
             <input className="input" value={nroSerie} onChange={(e) => setNroSerie(e.target.value)} onBlur={() => void guardarSerie()} placeholder="ej. 24610" disabled={finalizada} style={{ width: '100%' }} />
+            {!finalizada && faltaSerie && <div className="meta" style={{ marginTop: 5, color: 'var(--rojo)', fontWeight: 700 }}>⚠ Completá el N° de serie antes de liberar.</div>}
           </div>
 
           {/* v1.54: valores garantizados del modelo + carga de valores medidos.
@@ -273,9 +293,11 @@ export default function FichaLaboratorio({ tarea: t, onClose }: { tarea: TareaLa
             </>
           )}
 
-          {!finalizada && <div className="meta" style={{ marginTop: 8, color: retrabajo ? 'var(--rojo)' : faltaProtocolo ? 'var(--naranja)' : 'var(--estado-fin)' }}>
+          {!finalizada && <div className="meta" style={{ marginTop: 8, color: retrabajo || faltaSerie ? 'var(--rojo)' : faltaProtocolo ? 'var(--naranja)' : 'var(--estado-fin)' }}>
             {retrabajo
               ? '⚠ Hay ensayos rechazados → al finalizar va a RETRABAJO (no se despacha).'
+              : faltaSerie
+                ? '🔢 Cargá el N° de serie para poder liberar el transformador a despacho.'
               : faltaProtocolo
                 ? '📎 Adjuntá el protocolo para poder liberar el transformador a despacho.'
                 : '✓ Sin rechazos y con protocolo → al finalizar se crea la tarea de despacho.'}
@@ -291,8 +313,8 @@ export default function FichaLaboratorio({ tarea: t, onClose }: { tarea: TareaLa
             </button>
           ) : (
             <button className={'btn ' + (retrabajo ? 'btn-rojo' : 'btn-verde')} disabled={noPuedeFinalizar} onClick={() => void finalizarEnsayo()}
-              title={faltaProtocolo ? 'Falta adjuntar el protocolo de ensayo (PDF)' : undefined}>
-              {retrabajo ? '⚠ Finalizar → Retrabajo' : faltaProtocolo ? '🔒 Falta el protocolo' : '✓ Finalizar → Despacho'}
+              title={faltaSerie ? 'Falta completar el número de serie' : faltaProtocolo ? 'Falta adjuntar el protocolo de ensayo (PDF)' : undefined}>
+              {retrabajo ? '⚠ Finalizar → Retrabajo' : faltaSerie ? '🔒 Falta N° de serie' : faltaProtocolo ? '🔒 Falta el protocolo' : '✓ Finalizar → Despacho'}
             </button>
           )}
         </div>

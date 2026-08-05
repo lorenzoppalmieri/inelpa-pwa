@@ -243,7 +243,7 @@ export default function DespachoView({ vista: vistaProp, onVista }: {
   // --- agrupamiento por estado (las secciones se filtran por la búsqueda) ---
   const g = useMemo(() => {
     const q = busqueda.trim().toLowerCase()
-    const match = (d: DespachoTrafo) => !q || `${d.nroSerie} ${d.ot} ${d.cliente}`.toLowerCase().includes(q)
+    const match = (d: DespachoTrafo) => !q || `${d.nroSerie} ${d.nroInterno ?? ''} ${d.ot} ${d.cliente}`.toLowerCase().includes(q)
     const by = (e: EstadoDespacho | EstadoDespacho[]) => {
       const arr = Array.isArray(e) ? e : [e]
       return despachos.filter((d) => arr.includes(d.estado) && match(d)).sort((a, b) => (a.fechaIngreso < b.fechaIngreso ? -1 : 1))
@@ -380,12 +380,12 @@ export default function DespachoView({ vista: vistaProp, onVista }: {
         ? <LogisticaTareas origen="despacho" roster={RESPONSABLES_DESPACHO} esEncargado={esSupervisora} tituloAlta="Nueva tarea de despacho" />
         : esSupervisora && vista === 'reportes' ? <DespachoReportes despachos={despachos} />
         : esSupervisora && vista === 'fletes' ? <FletesInternos esSupervisora={esSupervisora} />
-        : vista === 'stock' ? <StockDepositos despachos={despachos} /> : (
+        : vista === 'stock' ? <StockDepositos despachos={despachos} onDelete={esSupervisora ? borrar : undefined} /> : (
       <>
-      {/* Búsqueda rápida por N° de serie / OT / cliente */}
+      {/* Búsqueda rápida por N° de serie / N° interno / OT / cliente */}
       <input
         className="input" value={busqueda} onChange={(e) => setBusqueda(e.target.value)}
-        placeholder="🔍 Buscar por N° de serie, OT o cliente…" style={{ marginBottom: 12 }}
+        placeholder="🔍 Buscar por N° de serie, N° interno, OT o cliente…" style={{ marginBottom: 12 }}
       />
 
       {/* Alertas automáticas (arriba de todo, visibles para el equipo) */}

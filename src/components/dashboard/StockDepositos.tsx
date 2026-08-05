@@ -24,14 +24,17 @@ function refFecha(d: DespachoTrafo): string {
   return d.fechaDeposito ?? d.embalajeFin ?? ''
 }
 
-export default function StockDepositos({ despachos }: { despachos: DespachoTrafo[] }) {
+export default function StockDepositos({ despachos, onDelete }: {
+  despachos: DespachoTrafo[]
+  onDelete?: (despacho: DespachoTrafo) => void | Promise<void>
+}) {
   const [buscar, setBuscar] = useState('')
   const ahora = Date.now()
 
   const grupos = useMemo(() => {
     const q = buscar.trim().toLowerCase()
     const match = (d: DespachoTrafo) =>
-      !q || `${d.nroSerie} ${d.ot} ${d.cliente} ${d.modelo ?? ''}`.toLowerCase().includes(q)
+      !q || `${d.nroSerie} ${d.nroInterno ?? ''} ${d.ot} ${d.cliente} ${d.modelo ?? ''}`.toLowerCase().includes(q)
     return DEPOSITOS.map((dep) => ({
       deposito: dep,
       items: despachos
@@ -52,7 +55,7 @@ export default function StockDepositos({ despachos }: { despachos: DespachoTrafo
 
       <input
         className="input" value={buscar} onChange={(e) => setBuscar(e.target.value)}
-        placeholder="🔍 Buscar por modelo, N° de serie, OT o cliente…" style={{ marginBottom: 14 }}
+        placeholder="🔍 Buscar por modelo, N° de serie, N° interno, OT o cliente…" style={{ marginBottom: 14 }}
       />
 
       {!hayAlgo && <div className="empty">Todavía no hay transformadores guardados en depósito.</div>}
@@ -70,7 +73,9 @@ export default function StockDepositos({ despachos }: { despachos: DespachoTrafo
                       <th style={{ padding: '8px 6px' }}>Transformador</th>
                       <th style={{ padding: '8px 6px' }}>Cliente</th>
                       <th style={{ padding: '8px 6px' }}>N° de serie</th>
+                      <th style={{ padding: '8px 6px' }}>N° interno</th>
                       <th style={{ padding: '8px 6px', whiteSpace: 'nowrap' }}>En el depósito desde</th>
+                      {onDelete && <th className="no-print" style={{ padding: '8px 6px' }}>Acciones</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -89,6 +94,7 @@ export default function StockDepositos({ despachos }: { despachos: DespachoTrafo
                           </td>
                           <td style={{ padding: '8px 6px' }}>{d.cliente || <span className="meta">Stock</span>}</td>
                           <td style={{ padding: '8px 6px' }}>{series.length ? series.join(', ') : <span className="meta">—</span>}</td>
+                          <td style={{ padding: '8px 6px' }}>{d.nroInterno || <span className="meta">—</span>}</td>
                           <td style={{ padding: '8px 6px', whiteSpace: 'nowrap' }}>
                             {ref ? fechaCorta(ref) : '—'}
                             <div className="meta" style={{ color: dias > 60 ? 'var(--rojo)' : dias > 30 ? 'var(--naranja)' : undefined }}>
@@ -96,6 +102,11 @@ export default function StockDepositos({ despachos }: { despachos: DespachoTrafo
                               {d.estado === 'embalado' ? ' · embalado, sin salir' : ''}
                             </div>
                           </td>
+                          {onDelete && (
+                            <td className="no-print" style={{ padding: '8px 6px' }}>
+                              <button className="btn btn-rojo" title="Eliminar este registro duplicado" onClick={() => void onDelete(d)}>🗑 Eliminar</button>
+                            </td>
+                          )}
                         </tr>
                       )
                     })}
