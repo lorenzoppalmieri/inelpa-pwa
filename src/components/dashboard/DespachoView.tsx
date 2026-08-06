@@ -3,7 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
 import { useAuth } from '../../auth/AuthContext'
 import { esSuperAdmin } from '../../auth/roles'
-import type { DespachoTrafo, EstadoDespacho, LineaProduccion } from '../../types'
+import type { DespachoTrafo, EstadoDespacho } from '../../types'
 import {
   ESTADOS_DESPACHO, estadoDespachoLabel, RESPONSABLES_DESPACHO, MOTIVOS_DEMORA_DESPACHO,
   checklistCompleto, checklistFaltantes, seriesDespacho, UBICACIONES_DESPACHO,
@@ -18,12 +18,13 @@ import { abrirProtocolo } from '../../lib/archivos'
 import FichaDespacho from './FichaDespacho'
 import DespachoReportes from './DespachoReportes'
 import AlertasDespacho from './AlertasDespacho'
-import ChipsInput from './ChipsInput'
 import FletesInternos from './FletesInternos'
 import LogisticaTareas from './LogisticaTareas'
 import { PERIODOS_HISTORIAL, rangoReporte, enRango, type PeriodoReporte } from '../../lib/periodoReporte'
 import { tituloTrafo } from '../../lib/modeloTrafo'
 import StockDepositos from './StockDepositos'
+import ConflictosSerie from './ConflictosSerie'
+import AltaExcepcionalDespacho from './AltaExcepcionalDespacho'
 import { purgarFotosVencidas } from '../../lib/purgaFotosRunner'
 
 // ============================================================
@@ -86,16 +87,6 @@ export default function DespachoView({ vista: vistaProp, onVista }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [esSupervisora])
 
-  // Alta.
-  const [ot, setOt] = useState('')
-  const [cliente, setCliente] = useState('')
-  const [numerosSerie, setNumerosSerie] = useState<string[]>([])
-  const [cut, setCut] = useState('')
-  const [potencia, setPotencia] = useState('')
-  const [tipo, setTipo] = useState('')
-  const [linea, setLinea] = useState<LineaProduccion>('distribucion')
-  const [msg, setMsg] = useState('')
-
   // Modales.
   const [ficha, setFicha] = useState<DespachoTrafo | null>(null)
   const [iniciando, setIniciando] = useState<DespachoTrafo | null>(null)
@@ -125,23 +116,6 @@ export default function DespachoView({ vista: vistaProp, onVista }: {
     if (!d.embalajeInicio) return 0
     const fin = d.embalajeFin ?? ahoraISO
     return Math.max(0, calcularTiempoProductivo(d.embalajeInicio, fin) - minsDemora(d))
-  }
-
-  async function crear() {
-    if (!ot.trim() || !cliente.trim() || numerosSerie.length === 0) { setMsg('Completá OT, cliente y al menos un N° de serie.'); return }
-    const d: DespachoTrafo = {
-      id: crypto.randomUUID(),
-      ot: ot.trim(), cliente: cliente.trim(),
-      nroSerie: numerosSerie.join(', '), numerosSerie,
-      cut: cut.trim() || undefined,
-      potencia: potencia.trim() || undefined, tipo: tipo.trim() || undefined,
-      linea, fechaIngreso: new Date().toISOString(),
-      estado: 'esperando_embalaje',
-      creada: new Date().toISOString(), creadaPor: usuario?.usuario,
-    }
-    await guardarDespacho(d)
-    setOt(''); setCliente(''); setNumerosSerie([]); setCut(''); setPotencia(''); setTipo(''); setLinea('distribucion')
-    setMsg(`Despacho de ${numerosSerie.length} unidad(es) ingresado.`)
   }
 
   // Tilda/destilda una serie como cargada al camión.
@@ -389,6 +363,10 @@ export default function DespachoView({ vista: vistaProp, onVista }: {
       />
 
       {/* Alertas automáticas (arriba de todo, visibles para el equipo) */}
+      {/* v1.73: series duplicadas. Va ARRIBA de todo: es un problema de
+          trazabilidad, no una alerta operativa más. */}
+      <ConflictosSerie despachos={despachos} soloLectura={!esSupervisora} onFicha={setFicha} />
+
       <AlertasDespacho despachos={despachos} />
 
       {/* Indicadores */}
@@ -529,31 +507,24 @@ export default function DespachoView({ vista: vistaProp, onVista }: {
         </div>
       )}
 
-      {/* Alta — solo Melany crea/envía tareas de embalaje; el equipo las ejecuta */}
-      {esSupervisora && (
-      <div className="card">
-        <div className="section-title">Nuevo despacho · uno o varios transformadores para un mismo viaje</div>
-        <div className="form-grid">
-          <div className="field"><label>OT</label><input className="input" value={ot} onChange={(e) => setOt(e.target.value)} placeholder="OT-1234" /></div>
-          <div className="field"><label>Cliente</label><input className="input" value={cliente} onChange={(e) => setCliente(e.target.value)} /></div>
-          <div className="field" style={{ gridColumn: '1 / -1' }}>
-            <label>N° de serie (agregá cada unidad del viaje)</label>
-            <ChipsInput valores={numerosSerie} onChange={setNumerosSerie} placeholder="ej. 24664 · Enter para agregar" />
-          </div>
-          <div className="field"><label>Potencia</label><input className="input" value={potencia} onChange={(e) => setPotencia(e.target.value)} placeholder="315 kVA" /></div>
-          <div className="field"><label>Tipo</label><input className="input" value={tipo} onChange={(e) => setTipo(e.target.value)} placeholder="Trifásico / Monoposte…" /></div>
-          <div className="field"><label>CUT (opcional · solo EPE)</label><input className="input" value={cut} onChange={(e) => setCut(e.target.value)} placeholder="ej. 49078" /></div>
-          <div className="field"><label>Línea</label>
-            <select className="input" value={linea} onChange={(e) => setLinea(e.target.value as LineaProduccion)}>
-              <option value="distribucion">Distribución</option>
-              <option value="rural">Rural</option>
-            </select>
-          </div>
+      {/* v1.73: SE QUITÓ el alta manual de despachos.
+          Un transformador entra a embalaje por UN SOLO camino: que Laboratorio
+          lo libere con su protocolo de ensayo aprobado. Cargarlo a mano permitía
+          preparar para despacho una unidad sin ensayo liberado, y era además la
+          principal fuente de series duplicadas (la misma serie tipeada acá y
+          liberada después por Laboratorio). Lo que ya está guardado en un
+          depósito sigue disponible en el stock, no hace falta volver a cargarlo. */}
+      <div className="card" style={{ borderLeft: '4px solid var(--azul-claro)' }}>
+        <div className="section-title" style={{ marginTop: 0 }}>¿De dónde salen los transformadores?</div>
+        <div className="meta">
+          Aparecen solos en <strong>Esperando embalaje</strong> cuando Laboratorio finaliza el ensayo y lo aprueba,
+          con su protocolo adjunto. Los que ya están guardados se manejan desde <strong>Stock de transformadores</strong>.
+          No se cargan a mano: sin ensayo liberado, un trafo no puede prepararse para despacho.
         </div>
-        <button className="btn btn-primary btn-bloque" style={{ marginTop: 10 }} onClick={crear}>＋ Ingresar a despacho</button>
-        {msg && <div className="meta" style={{ marginTop: 8 }}>{msg}</div>}
       </div>
-      )}
+
+      {/* Válvula para unidades anteriores a la app. Solo gerencia. */}
+      {esSuperAdmin(usuario) && <AltaExcepcionalDespacho />}
 
       {/* Esperando embalaje */}
       <div className="section-title">Esperando embalaje ({g.esperando.length})</div>
@@ -715,7 +686,7 @@ export default function DespachoView({ vista: vistaProp, onVista }: {
       )}
 
       {/* --- Modales --- */}
-      {ficha && <FichaDespacho despacho={despachos.find((x) => x.id === ficha.id) ?? ficha} onClose={() => setFicha(null)} />}
+      {ficha && <FichaDespacho despacho={despachos.find((x) => x.id === ficha.id) ?? ficha} onClose={() => setFicha(null)} puedeEditar={esSupervisora} />}
 
       {/* v1.44: enviar / mover a depósito */}
       {moviendo && (

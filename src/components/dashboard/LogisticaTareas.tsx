@@ -8,6 +8,7 @@ import { PRIORIDADES_LOG, RESPONSABLES_LOGISTICA, MOTIVOS_BLOQUEO_LOG, responsab
 import { guardarTareaLogistica, eliminarTareaLogistica, guardarPlantilla } from '../../sync/syncEngine'
 import { fmtDur, fechaCorta, hhmm } from '../../lib/time'
 import { minutosLaboralesLogistica } from '../../lib/calendario'
+import { minutosActivosLog, minutosPausaLog, minutosEsperaLog } from '../../lib/tiemposLogistica'
 import { instanciasAGenerar } from '../../lib/recurrencia'
 import { PERIODOS_HISTORIAL, rangoReporte, enRango, type PeriodoReporte } from '../../lib/periodoReporte'
 import PlantillasRecurrentes, { SelectorDias } from './PlantillasRecurrentes'
@@ -339,13 +340,14 @@ export default function LogisticaTareas({
   }
 
   // Minutos de pausa acumulados (incluye la pausa vigente si está pausada ahora).
+  // v1.73: la cuenta vive en lib/tiemposLogistica.ts, compartida con el tablero
+  // de reportes. Antes había una copia acá y otra allá.
   function minsPausa(t: TareaLogistica): number {
-    return (t.minutosPausada ?? 0) + (t.pausadaEn ? minutosLaboralesLogistica(t.pausadaEn, ahoraISO) : 0)
+    return minutosPausaLog(t, ahoraISO)
   }
   // Tiempo activo real = transcurrido desde el inicio menos las pausas.
   function minsActivos(t: TareaLogistica): number {
-    const fin = t.finalizada ?? ahoraISO
-    return Math.max(0, minutosLaboralesLogistica(t.iniciada ?? t.creada, fin) - minsPausa(t))
+    return minutosActivosLog(t, ahoraISO)
   }
   // Etiqueta de responsable(s) o "sin asignar".
   function respTxt(t: TareaLogistica) {
@@ -410,7 +412,7 @@ export default function LogisticaTareas({
   const ind = useMemo(() => {
     const nPend = abiertasTodas.filter((t) => t.estado === 'pendiente').length
     const porPrio = (p: PrioridadLog) => abiertasTodas.filter((t) => t.prioridad === p).length
-    const tiempos = finalizadas.map((t) => Math.max(0, minutosLaboralesLogistica(t.iniciada ?? t.creada, t.finalizada) - (t.minutosPausada ?? 0))).filter((m) => m > 0)
+    const tiempos = finalizadas.map((t) => minutosActivosLog(t, ahoraISO)).filter((m) => m > 0)
     const prom = tiempos.length ? Math.round(tiempos.reduce((a, b) => a + b, 0) / tiempos.length) : 0
     return { pend: nPend, curso: abiertasTodas.length - nPend, alta: porPrio('alta'), media: porPrio('media'), baja: porPrio('baja'), fin: finalizadas.length, prom }
   }, [abiertasTodas, finalizadas])
@@ -512,7 +514,7 @@ export default function LogisticaTareas({
             <div>
               <h3><span className={'prio-chip prio-' + t.prioridad}>{PRIO_LABEL[t.prioridad]}</span> {t.titulo}</h3>
               <div className="meta">
-                {respTxt(t)} · Pedida {fechaCorta(t.creada)} {hhmm(t.creada)} · <strong style={{ color: 'var(--naranja)' }}>hace {fmtDur(minutosLaboralesLogistica(t.creada, ahoraISO))}</strong>
+                {respTxt(t)} · Pedida {fechaCorta(t.creada)} {hhmm(t.creada)} · <strong style={{ color: 'var(--naranja)' }}>hace {fmtDur(minutosEsperaLog(t, ahoraISO))}</strong>
                 {t.detalle ? <> · {t.detalle}</> : null}
               </div>
               {t.fechaProgramada && (

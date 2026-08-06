@@ -44,12 +44,24 @@ function Dato({ label, valor, ancho = 130 }: { label: string; valor?: string | n
   )
 }
 
-export default function FichaDespacho({ despacho: d, onClose }: { despacho: DespachoTrafo; onClose: () => void }) {
+export default function FichaDespacho({ despacho: d, onClose, puedeEditar = false }: {
+  despacho: DespachoTrafo
+  onClose: () => void
+  /** v1.73: el encargado de Logística carga el CUT al organizar el despacho. */
+  puedeEditar?: boolean
+}) {
   const ahoraISO = new Date().toISOString()
   const color = ESTADOS_DESPACHO.find((e) => e.id === d.estado)?.color ?? 'var(--texto-tenue)'
   // Fallback: si el despacho no trae tipo/potencia, se derivan del nombre del modelo.
   const dm = datosModelo(d.modelo)
   const [subiendo, setSubiendo] = useState(false)
+  // v1.73: CUT editable. Se guarda al salir del campo, no en cada tecla.
+  const [cut, setCut] = useState(d.cut ?? '')
+  async function guardarCut() {
+    const v = cut.trim() || undefined
+    if (v === d.cut) return
+    await guardarDespacho({ ...d, cut: v })
+  }
   const [errFoto, setErrFoto] = useState('')
 
   const baseChecklist: ChecklistDespacho = d.checklist ?? {
@@ -109,7 +121,19 @@ export default function FichaDespacho({ despacho: d, onClose }: { despacho: Desp
             <Dato label="N° serie" valor={d.nroSerie} />
             <Dato label="Potencia" valor={d.potencia ?? dm.potencia} />
             <Dato label="Tipo" valor={d.tipo ?? dm.tipo} />
-            <Dato label="CUT (EPE)" valor={d.cut} />
+            {/* v1.73: el CUT se cargaba en el alta manual, que se eliminó. Ahora
+                lo completa acá el encargado, que es cuando se conoce el dato. */}
+            {puedeEditar
+              ? (
+                <div style={{ minWidth: 150 }}>
+                  <div className="meta">CUT (EPE)</div>
+                  <input
+                    className="input" value={cut} onChange={(e) => setCut(e.target.value)} onBlur={() => void guardarCut()}
+                    placeholder="ej. 49078" style={{ width: 130, padding: '4px 8px' }}
+                  />
+                </div>
+              )
+              : <Dato label="CUT (EPE)" valor={d.cut} />}
             <Dato label="Línea" valor={d.linea === 'rural' ? 'Rural' : 'Distribución'} />
             <Dato label="Ingreso a stock" valor={`${fechaCorta(d.fechaIngreso)} ${hhmm(d.fechaIngreso)}`} />
           </div>

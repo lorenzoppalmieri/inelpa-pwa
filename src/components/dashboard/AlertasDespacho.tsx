@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import type { DespachoTrafo } from '../../types'
-import { EMBALAJE_ALERTA_MIN, LISTO_ALERTA_DIAS, checklistCompleto, minutosDemoraAcotados } from '../../types'
+import { EMBALAJE_ALERTA_MIN, LISTO_ALERTA_DIAS, DEPOSITO_ALERTA_DIAS, checklistCompleto, minutosDemoraAcotados } from '../../types'
 import { fmtDur, minutosEntre } from '../../lib/time'
 import { calcularTiempoProductivo } from '../../lib/calendario'
 
@@ -53,6 +53,24 @@ export default function AlertasDespacho({ despachos }: { despachos: DespachoTraf
     const listosViejos = despachos.filter((d) => d.estado === 'embalado' && d.embalajeFin && minutosEntre(d.embalajeFin, ahoraISO) > LISTO_ALERTA_DIAS * 1440)
     if (listosViejos.length) {
       out.push({ nivel: 'rojo', icono: '📦', texto: `${listosViejos.length} equipo(s) listo(s) hace más de ${LISTO_ALERTA_DIAS} días sin despachar.` })
+    }
+
+    // 3.b) v1.73: GUARDADOS EN DEPÓSITO hace demasiado.
+    // Punto ciego que dejó la v1.44: la alerta de arriba solo mira 'embalado',
+    // así que desde que existe el estado 'en_deposito' un trafo podía pasar
+    // meses en Cerdán sin que nada avisara. Es plata inmovilizada y espacio
+    // ocupado. También en días calendario: la antigüedad no se toma horas libres.
+    const guardadosViejos = despachos.filter((d) =>
+      d.estado === 'en_deposito'
+      && minutosEntre(d.fechaDeposito ?? d.embalajeFin, ahoraISO) > DEPOSITO_ALERTA_DIAS * 1440)
+    if (guardadosViejos.length) {
+      const peor = guardadosViejos.slice().sort((a, b) =>
+        minutosEntre(b.fechaDeposito ?? b.embalajeFin, ahoraISO) - minutosEntre(a.fechaDeposito ?? a.embalajeFin, ahoraISO))[0]
+      const dias = Math.floor(minutosEntre(peor.fechaDeposito ?? peor.embalajeFin, ahoraISO) / 1440)
+      out.push({
+        nivel: 'naranja', icono: '🏬',
+        texto: `${guardadosViejos.length} transformador(es) guardado(s) hace más de ${DEPOSITO_ALERTA_DIAS} días. El más viejo: serie ${peor.nroSerie || '—'} en ${peor.deposito ?? 'depósito'}, ${dias} días.`,
+      })
     }
 
     // 4) Nuevos ingresos de hoy (info).

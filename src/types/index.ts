@@ -827,9 +827,46 @@ export function despachoTieneSerie(d: DespachoTrafo, serie: string | undefined):
   return !!buscada && seriesDespacho(d).some((s) => normalizarNumeroSerie(s) === buscada)
 }
 
+// v1.73: ¿el transformador TODAVÍA está en manos de INELPA?
+//
+// Sirve para decidir si un ensayo aprobado se vincula a un despacho que ya
+// existe o crea uno nuevo. Solo cuenta lo que sigue adentro de la planta o de
+// un depósito nuestro: una vez que salió al cliente, ese despacho es historia
+// cerrada y un ensayo nuevo con la misma serie es OTRA vuelta del ciclo.
+//
+// El caso que esto arregla: un trafo antiguo de INELPA, fuera de garantía, que
+// vuelve como REPARACIÓN de servicio con su número de serie original. Antes el
+// match por serie lo enganchaba al despacho de años atrás (estado 'entregado')
+// y la unidad reparada nunca aparecía en la cola de embalaje.
+export function despachoSigueEnPlanta(d: DespachoTrafo): boolean {
+  return d.estado !== 'despachado' && d.estado !== 'entregado'
+}
+
+/**
+ * Busca la unidad EN PLANTA que ya tiene esa serie (embalada, en proceso o
+ * guardada en un depósito). Determinístico: si hubiera más de una, devuelve la
+ * de ingreso más reciente, no "la primera que aparezca".
+ */
+export function buscarDespachoEnPlantaPorSerie(despachos: DespachoTrafo[], serie: string | undefined): DespachoTrafo | undefined {
+  const candidatos = despachos.filter((d) => despachoSigueEnPlanta(d) && despachoTieneSerie(d, serie))
+  if (candidatos.length <= 1) return candidatos[0]
+  return [...candidatos].sort((a, b) => (a.fechaIngreso < b.fechaIngreso ? 1 : -1))[0]
+}
+
+/** Despachos YA ENTREGADOS con esa serie (vueltas anteriores del mismo equipo). */
+export function despachosEntregadosConSerie(despachos: DespachoTrafo[], serie: string | undefined): DespachoTrafo[] {
+  return despachos
+    .filter((d) => d.estado === 'entregado' && despachoTieneSerie(d, serie))
+    .sort((a, b) => ((a.entregadaEn ?? '') < (b.entregadaEn ?? '') ? 1 : -1))
+}
+
 // v1.28 (Fase 3) — umbrales de las alertas automáticas del sector despacho.
 export const EMBALAJE_ALERTA_MIN = 120   // embalaje activo "excesivo" (min)
 export const LISTO_ALERTA_DIAS = 3       // embalado sin despachar hace + de X días
+// v1.73: guardado en un depósito hace demasiado. Es más laxo que el anterior a
+// propósito: mandarlo al depósito ES la decisión de dejarlo esperando, así que
+// recién a los 2 meses vale la pena preguntarse si el cliente lo va a retirar.
+export const DEPOSITO_ALERTA_DIAS = 60
 
 // Flete/viaje interno (traslados a depósito, reacomodo con grúa, etc.) con su
 // costo. Base de la estadística de gastos de flete (relevamiento, prioridad 2).

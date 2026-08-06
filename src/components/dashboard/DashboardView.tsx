@@ -15,6 +15,7 @@ import AlertaMaterial from './AlertaMaterial'
 import DireccionView from './DireccionView'
 import SugerenciasEstandar from './SugerenciasEstandar'
 import PlanificacionView from '../planificador/PlanificacionView'
+import AlertaRetrabajos, { useRetrabajosPendientes } from './AlertaRetrabajos'
 import MensajesPlanificador from '../mensajes/MensajesPlanificador'
 import MensajesInbox, { useMensajesNoLeidos } from '../mensajes/MensajesInbox'
 
@@ -56,6 +57,8 @@ function rangoPeriodo(periodo: Periodo, now: Date, diaISO?: string, desdeISO?: s
 export default function DashboardView() {
   const { usuario, permisos } = useAuth()
   const [vista, setVista] = useState<'gantt' | 'kpis' | 'planificacion' | 'andon' | 'direccion' | 'mensajes'>('gantt')
+  // v1.73: contador de retrabajos para el badge de la pestaña Planificación.
+  const nRetrabajos = useRetrabajosPendientes().length
   // v1.16: la vista ejecutiva "Direccion" es exclusiva del usuario lorenzo.
   const esDireccion = usuario?.usuario === 'lorenzo'
   // v1.18: mensajes. El planificador redacta; el encargado recibe (bandeja).
@@ -167,12 +170,17 @@ export default function DashboardView() {
       {/* v1.11: alerta de espera de material visible para encargado/planificador. */}
       <AlertaMaterial compacto />
 
+      {/* v1.73: retrabajos de laboratorio. Se ve desde CUALQUIER pestaña: antes
+          vivía solo dentro de Planificación y se perdía si el planificador
+          estaba parado en Gantt o KPIs. */}
+      {permisos?.cargarProgramacion && <AlertaRetrabajos onIr={() => setVista('planificacion')} />}
+
       <div className="tabs tabs-nav no-print">
         <button className={'tab' + (vista === 'gantt' ? ' active' : '')} onClick={() => setVista('gantt')}><span className="nav-ico" aria-hidden="true">📈</span><span className="nav-txt-largo">Gantt operativo</span><span className="nav-txt-corto">Gantt</span></button>
         <button className={'tab' + (vista === 'andon' ? ' active' : '')} onClick={() => setVista('andon')}><span className="nav-ico" aria-hidden="true">🏆</span><span className="nav-txt-largo">🏆 Andon</span><span className="nav-txt-corto">Andon</span></button>
         <button className={'tab' + (vista === 'kpis' ? ' active' : '')} onClick={() => setVista('kpis')}><span className="nav-ico" aria-hidden="true">📊</span><span className="nav-txt-largo">Eficiencia / KPIs</span><span className="nav-txt-corto">KPIs</span></button>
         {(permisos?.cargarProgramacion || permisos?.crearReparacion) && (
-          <button className={'tab' + (vista === 'planificacion' ? ' active' : '')} onClick={() => setVista('planificacion')}><span className="nav-ico" aria-hidden="true">🗂</span><span className="nav-txt-largo">Planificacion</span><span className="nav-txt-corto">Planificar</span></button>
+          <button className={'tab' + (vista === 'planificacion' ? ' active' : '')} onClick={() => setVista('planificacion')}><span className="nav-ico" aria-hidden="true">🗂</span><span className="nav-txt-largo">Planificacion{nRetrabajos > 0 ? ` (${nRetrabajos})` : ''}</span><span className="nav-txt-corto">Planificar{nRetrabajos > 0 ? ` (${nRetrabajos})` : ''}</span></button>
         )}
         {esDireccion && (
           <button className={'tab' + (vista === 'direccion' ? ' active' : '')} onClick={() => setVista('direccion')}><span className="nav-ico" aria-hidden="true">🏢</span><span className="nav-txt-largo">📊 Dirección</span><span className="nav-txt-corto">Dirección</span></button>

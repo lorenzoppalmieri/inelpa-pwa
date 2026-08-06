@@ -5,6 +5,7 @@ import type { TareaLogistica, PrioridadLog } from '../../types'
 import { responsablesDe, RESPONSABLES_LOGISTICA } from '../../types'
 import { fmtDur } from '../../lib/time'
 import { minutosLaboralesLogistica } from '../../lib/calendario'
+import { minutosActivosLog, minutosEsperaLog } from '../../lib/tiemposLogistica'
 import { PERIODOS_REPORTE, rangoReporte, enRango, type PeriodoReporte } from '../../lib/periodoReporte'
 
 // ============================================================
@@ -18,8 +19,8 @@ const PRIO_LABEL: Record<PrioridadLog, string> = { alta: 'ALTA', media: 'MEDIA',
 // Tiempo ACTIVO de resolucion de una tarea finalizada (descuenta pausas).
 // v1.39: se mide en minutos DENTRO del horario del pañol (Lun-Jue 08-17, Vie
 // 08-16). Lo trabajado fuera de ese rango no penaliza el KPI de resolución.
-function resolucion(t: TareaLogistica): number {
-  return Math.max(0, minutosLaboralesLogistica(t.iniciada ?? t.creada, t.finalizada) - (t.minutosPausada ?? 0))
+function resolucion(t: TareaLogistica, ahoraISO: string): number {
+  return minutosActivosLog(t, ahoraISO)
 }
 function media(nums: number[]): number {
   return nums.length ? Math.round(nums.reduce((a, b) => a + b, 0) / nums.length) : 0
@@ -70,7 +71,7 @@ export default function LogisticaReportes() {
     const abiertas = tp.filter((t) => t.estado !== 'finalizada')
     const pendientesSinTomar = tp.filter((t) => t.estado === 'pendiente')
 
-    const promGeneral = media(finalizadas.map(resolucion))
+    const promGeneral = media(finalizadas.map((t) => resolucion(t, ahoraISO)))
 
     // 1) Volumen + 2) Velocidad por operario (una tarea cuenta para cada responsable).
     const volumen = new Map<string, number>()
@@ -78,7 +79,7 @@ export default function LogisticaReportes() {
     for (const t of finalizadas) {
       for (const r of responsablesLogistica(t)) {
         volumen.set(r, (volumen.get(r) ?? 0) + 1)
-        const arr = tiempos.get(r) ?? []; arr.push(resolucion(t)); tiempos.set(r, arr)
+        const arr = tiempos.get(r) ?? []; arr.push(resolucion(t, ahoraISO)); tiempos.set(r, arr)
       }
     }
     const porVolumen = [...volumen.entries()].map(([n, v]) => ({ n, v })).sort((a, b) => b.v - a.v)
@@ -101,13 +102,13 @@ export default function LogisticaReportes() {
     // 4) Prioridad vs cumplimiento (tiempo prom de resolucion por prioridad).
     const porPrioridad = (['alta', 'media', 'baja'] as PrioridadLog[]).map((p) => {
       const fs = finalizadas.filter((t) => t.prioridad === p)
-      return { p, prom: media(fs.map(resolucion)), n: fs.length }
+      return { p, prom: media(fs.map((t) => resolucion(t, ahoraISO))), n: fs.length }
     })
 
     // 5) Tiempo de espera: pendientes sin tomar, ordenadas por antigüedad.
     //    En minutos del pañol (no penaliza la noche / finde que estuvieron esperando).
     const espera = pendientesSinTomar
-      .map((t) => ({ t, min: minutosLaboralesLogistica(t.creada, ahoraISO) }))
+      .map((t) => ({ t, min: minutosEsperaLog(t, ahoraISO) }))
       .sort((a, b) => b.min - a.min)
 
     // 6) Tendencia por día de la semana (pedidos creados). Lun -> Dom.

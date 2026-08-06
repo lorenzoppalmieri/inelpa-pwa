@@ -5,7 +5,9 @@ import { useMemo, useState } from 'react'
 // Menú lateral fijo con buscador y navegación por módulos. El contenedor
 // principal (AdminLayout) renderiza el módulo del ítem activo.
 // ============================================================
-export type ModuloAdmin = 'planificacion' | 'logistica' | 'laboratorio' | 'despacho' | 'sgo' | 'mantenimiento'
+// v1.47: se retiró 'despacho'. Despacho y embalaje dejó de ser un módulo aparte:
+// vive adentro de Logística, que es el área que lo absorbió en el organigrama.
+export type ModuloAdmin = 'planificacion' | 'logistica' | 'laboratorio' | 'sgo' | 'mantenimiento'
 
 export interface ItemMenu {
   id: ModuloAdmin
@@ -16,9 +18,8 @@ export interface ItemMenu {
 
 export const MENU_ADMIN: ItemMenu[] = [
   { id: 'planificacion', label: 'Planificación', icono: '📋', sub: 'KPIs, Gantt, órdenes y tareas' },
-  { id: 'logistica', label: 'Logística', icono: '🚛', sub: 'Pañol, pedidos de material y tareas' },
+  { id: 'logistica', label: 'Logística', icono: '🚛', sub: 'Pañol, material, despacho, embalaje, fletes y stock' },
   { id: 'laboratorio', label: 'Laboratorio', icono: '🔬', sub: 'Ensayos y protocolos' },
-  { id: 'despacho', label: 'Despacho', icono: '📦', sub: 'Embalaje, fletes y entregas' },
   { id: 'sgo', label: 'SGO INTEGRAL', icono: '🛡️', sub: 'Seis pilares, eventos y acciones' },
   // v1.62: editor de mapa de activos de mantenimiento (mismo componente que ve el jefe).
   { id: 'mantenimiento', label: 'Mantenimiento', icono: '🛠️', sub: 'Mapa de activos y editor de plano' },

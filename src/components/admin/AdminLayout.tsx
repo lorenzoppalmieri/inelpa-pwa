@@ -3,7 +3,6 @@ import Sidebar, { MENU_ADMIN, type ModuloAdmin } from './Sidebar'
 import DashboardView from '../dashboard/DashboardView'
 import LogisticaView from '../dashboard/LogisticaView'
 import LaboratorioView from '../laboratorio/LaboratorioView'
-import DespachoView from '../dashboard/DespachoView'
 import SGOView from '../sgo/SGOView'
 import MantenimientoView from '../../mantenimiento/MantenimientoView'
 
@@ -13,9 +12,12 @@ import MantenimientoView from '../../mantenimiento/MantenimientoView'
 // Menú lateral fijo + contenedor dinámico a la derecha. Cada ítem RENDERIZA EL
 // MISMO COMPONENTE que usa el responsable del área, sin duplicar código:
 //   Planificación -> DashboardView   (la vista de siempre de Lorenzo)
-//   Logística     -> LogisticaView   (la de Giuliano: cola de material, tareas, reportes)
+//   Logística     -> LogisticaView   (la de Giuliano: pañol, material, tareas,
+//                                     reportes, cubicaje + despacho y embalaje)
 //   Laboratorio   -> LaboratorioView (la del laboratorista)
-//   Despacho      -> DespachoView    (la de Melany)
+//
+// v1.47: se quitó el módulo "Despacho" del menú. Estaba duplicado: la misma
+// vista ya se abre desde adentro de Logística, que absorbió el área.
 //
 // Los permisos DENTRO de cada módulo los resuelve `esSuperAdmin` en auth/roles.ts
 // (LogisticaTareas y DespachoView ya lo contemplan), así que Lorenzo opera con los
@@ -70,7 +72,6 @@ export default function AdminLayout() {
         {modulo === 'planificacion' ? <DashboardView />
           : modulo === 'logistica' ? <LogisticaView />
           : modulo === 'laboratorio' ? <LaboratorioView />
-          : modulo === 'despacho' ? <DespachoView />
           : modulo === 'mantenimiento' ? <MantenimientoView />
           : <SGOView />}
       </section>

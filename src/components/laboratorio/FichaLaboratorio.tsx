@@ -1,6 +1,9 @@
 import { useRef, useState } from 'react'
 import type { TareaLaboratorio, EnsayoEstado, DespachoTrafo } from '../../types'
-import { ENSAYOS_LAB, estadoEnsayo, tieneRechazo, idDespachoDeLab, despachoTieneSerie } from '../../types'
+import {
+  ENSAYOS_LAB, estadoEnsayo, tieneRechazo, idDespachoDeLab,
+  buscarDespachoEnPlantaPorSerie, despachosEntregadosConSerie,
+} from '../../types'
 import { useAuth } from '../../auth/AuthContext'
 import { guardarLaboratorio } from '../../sync/syncEngine'
 import { guardarDespacho } from '../../sync/syncEngine'
@@ -107,9 +110,18 @@ export default function FichaLaboratorio({ tarea: t, onClose }: { tarea: TareaLa
     // v1.72: además de la idempotencia por laboratorioId, se busca la unidad por
     // N° de serie. Si ya fue embalada o movida a un depósito, se vincula este
     // ensayo a ESA misma fila y se conserva todo su estado e historial.
+    //
+    // v1.73: el match por serie mira SOLO lo que sigue en planta. Un despacho ya
+    // entregado es historia cerrada: si vuelve un trafo antiguo de INELPA como
+    // reparación de servicio, con su serie original, tiene que abrir un despacho
+    // NUEVO. Antes se enganchaba al de años atrás y la unidad reparada nunca
+    // llegaba a la cola de embalaje de Melany.
+    const todosDespachos = !retrabajo && serie ? await db.despachos.toArray() : []
     const existentePorSerie = !retrabajo && serie
-      ? (await db.despachos.toArray()).find((d) => despachoTieneSerie(d, serie))
+      ? buscarDespachoEnPlantaPorSerie(todosDespachos, serie)
       : undefined
+    // Vueltas anteriores del mismo equipo (reparación / segunda vida).
+    const entregadosPrevios = !retrabajo && serie ? despachosEntregadosConSerie(todosDespachos, serie) : []
     await guardarLaboratorio({
       ...t,
       nroSerie: serie,
@@ -133,29 +145,34 @@ export default function FichaLaboratorio({ tarea: t, onClose }: { tarea: TareaLa
       const despId = idDespachoDeLab(t.id)
       const existentePorId = await db.despachos.get(despId)
       const existentePorVinculo = await db.despachos.where('laboratorioId').equals(t.id).first()
-      const vinculadoPorSerie = !existentePorId && !existentePorVinculo && !!existentePorSerie
-      const yaExiste = existentePorId ?? existentePorVinculo ?? existentePorSerie
+      // El vínculo por id/laboratorioId ES la misma tarea de ensayo: acá sí se
+      // reescribe la fila (esto es lo que hace idempotente re-finalizar).
+      const yaExiste = existentePorId ?? existentePorVinculo
       if (yaExiste) {
         // Solo se refrescan los datos que puede haber corregido el laboratorio.
         await guardarDespacho({
           ...yaExiste,
-          // Si se encontró por serie, no se reemplaza un eventual viaje con más
-          // de una unidad: únicamente se vincula el ensayo a la fila existente.
-          nroSerie: vinculadoPorSerie ? yaExiste.nroSerie : (serie ?? yaExiste.nroSerie),
-          numerosSerie: vinculadoPorSerie ? yaExiste.numerosSerie : (serie ? [serie] : yaExiste.numerosSerie),
+          nroSerie: serie ?? yaExiste.nroSerie,
+          numerosSerie: serie ? [serie] : yaExiste.numerosSerie,
           protocoloPath: t.protocoloPath ?? yaExiste.protocoloPath,
           protocoloNombre: t.protocoloNombre ?? yaExiste.protocoloNombre,
           laboratorioId: t.id,
         })
-        if (vinculadoPorSerie) {
-          window.alert(`La serie ${serie} ya estaba en Despacho (${yaExiste.estado}). Se vinculó el ensayo al registro existente sin crear otro transformador ni modificar su depósito.`)
-        }
         setGuardando(false)
         onClose()
         return
       }
       const catalogo = await db.modelos.toArray()
       const dm = datosModelo(t.modelo, buscarModelo(t.modelo, catalogo))
+      // v1.73: si esta serie ya salió alguna vez, se deja constancia en el
+      // despacho nuevo. Es una segunda vuelta del mismo equipo (reparación de
+      // servicio o trafo fuera de garantía), no un error de carga.
+      const previo = entregadosPrevios[0]
+      const notaVuelta = existentePorSerie
+        ? `⚠ SERIE DUPLICADA: la serie ${serie} ya figura en otra ficha (${existentePorSerie.estado}${existentePorSerie.deposito ? ` · ${existentePorSerie.deposito}` : ''}). Logística tiene que resolver cuál queda.`
+        : previo
+          ? `⟳ 2ª vuelta: la serie ${serie} ya se entregó${previo.entregadaEn ? ` el ${fechaCorta(previo.entregadaEn)}` : ''}${previo.cliente ? ` a ${previo.cliente}` : ''}.`
+          : undefined
       const d: DespachoTrafo = {
         id: despId,
         laboratorioId: t.id,
@@ -169,12 +186,31 @@ export default function FichaLaboratorio({ tarea: t, onClose }: { tarea: TareaLa
         linea: t.linea ?? 'distribucion',
         fechaIngreso: now,
         estado: 'esperando_embalaje',
+        observaciones: notaVuelta,
         // v1.47: el protocolo viaja a Despacho para que Melany lo exporte.
         protocoloPath: t.protocoloPath,
         protocoloNombre: t.protocoloNombre,
         creada: now, creadaPor: usuario?.usuario,
       }
       await guardarDespacho(d)
+      // v1.73: la unidad se libera SIEMPRE; nunca se fusiona en silencio con otra
+      // ficha. Si la serie choca con algo que ya está en planta, se avisa acá y
+      // queda marcada como conflicto en Logística, que decide cuál ficha borrar.
+      if (existentePorSerie) {
+        window.alert(
+          `⚠ La serie ${serie} YA EXISTE en Despacho.\n\n` +
+          `Ficha que ya estaba: ${existentePorSerie.estado}${existentePorSerie.deposito ? ` en ${existentePorSerie.deposito}` : ''} · ` +
+          `cliente ${existentePorSerie.cliente || 'Stock'} · OT ${existentePorSerie.ot || '—'}\n\n` +
+          'Este transformador se liberó igual, pero dos unidades NO pueden compartir número de serie. ' +
+          'Quedó marcado como conflicto arriba de todo en Logística: ahí se decide cuál de las dos fichas se borra.',
+        )
+      } else if (previo) {
+        window.alert(
+          `La serie ${serie} ya se había entregado${previo.entregadaEn ? ` el ${fechaCorta(previo.entregadaEn)}` : ''}.\n\n` +
+          'Se creó un despacho NUEVO porque aquella unidad ya salió de planta: esto es una segunda vuelta del equipo ' +
+          '(reparación de servicio o trafo fuera de garantía). Queda anotado en las observaciones del despacho.',
+        )
+      }
     }
     // CAMINO B (retrabajo): no se despacha; el registro queda con resultado
     // 'retrabajo' + comentario y lo ve el planificador en su panel de retrabajos.
