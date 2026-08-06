@@ -533,17 +533,39 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
         <div className="gantt-ghost" style={{ left: ghost.x, top: ghost.y, width: ghost.w }}>{ghost.label}</div>
       )}
 
-      <div className="legend" style={{ padding: '12px 16px' }}>
-        <span><i style={{ background: 'var(--estado-pendiente)' }} /> Planificado/Pendiente</span>
-        <span><i style={{ background: 'var(--estado-proceso)' }} /> En proceso</span>
-        <span><i style={{ background: 'var(--estado-pausa)' }} /> Pausado por demora</span>
-        <span><i style={{ background: 'var(--estado-fin)' }} /> Finalizado</span>
-        <span><i style={{ background: 'var(--rojo)', width: 3 }} /> Ahora</span>
-        <span><i style={{ background: 'repeating-linear-gradient(45deg,#64748b,#64748b 4px,transparent 4px,transparent 8px)' }} /> Sin producción</span>
-        <span><i style={{ background: 'var(--estado-proceso)', boxShadow: 'inset 4px 0 0 0 var(--naranja)' }} /> Con hora de recuperación (+1h)</span>
-        <span><i style={{ background: 'repeating-linear-gradient(45deg,var(--rojo),var(--rojo) 3px,rgba(239,68,68,.35) 3px,rgba(239,68,68,.35) 6px)' }} /> Parada / demora justificada</span>
-        <span><i style={{ background: '#000', boxShadow: 'inset 0 0 0 1px #f1f5f9' }} /> Demora SIN justificar (excede estándar)</span>
-        <span><i style={{ background: 'var(--reparacion)' }} /> Reparación (no productivo)</span>
+      {/* v1.75: la leyenda se separa en BLOQUES porque mezclaba dos dimensiones
+          distintas y confundía: el color de la BARRA dice cómo está la tarea
+          ahora; las tramas ENCIMA de la barra cuentan qué le pasó y cuándo.
+          Una misma tarea puede tener las dos cosas a la vez. */}
+      <div className="legend-wrap" style={{ padding: '12px 16px' }}>
+        <div className="legend-bloque">
+          <span className="legend-tit">Estado de la tarea <em>(color de la barra)</em></span>
+          <div className="legend">
+            <span><i style={{ background: 'var(--estado-pendiente)' }} /> Planificada / pendiente</span>
+            <span><i style={{ background: 'var(--estado-proceso)' }} /> En proceso</span>
+            <span><i style={{ background: 'var(--estado-pausa)' }} /> Pausada AHORA</span>
+            <span><i style={{ background: 'var(--estado-fin)' }} /> Finalizada</span>
+            <span><i style={{ background: 'var(--reparacion)' }} /> Reparación (no productivo)</span>
+          </div>
+        </div>
+
+        <div className="legend-bloque">
+          <span className="legend-tit">Qué pasó dentro de la tarea <em>(tramos sobre la barra)</em></span>
+          <div className="legend">
+            <span><i style={{ background: 'repeating-linear-gradient(45deg,var(--rojo),var(--rojo) 3px,rgba(239,68,68,.35) 3px,rgba(239,68,68,.35) 6px)' }} /> Estuvo parada (con motivo) — demora justificada</span>
+            <span><i style={{ background: 'repeating-linear-gradient(45deg,#94a3b8,#94a3b8 3px,rgba(148,163,184,.35) 3px,rgba(148,163,184,.35) 6px)' }} /> Almuerzo / pausa programada (no es demora)</span>
+            <span><i style={{ background: '#000', boxShadow: 'inset 0 0 0 1px #f1f5f9' }} /> Estuvo parada SIN motivo cargado</span>
+          </div>
+        </div>
+
+        <div className="legend-bloque">
+          <span className="legend-tit">Referencias del calendario</span>
+          <div className="legend">
+            <span><i style={{ background: 'var(--rojo)', width: 3 }} /> Ahora</span>
+            <span><i style={{ background: 'repeating-linear-gradient(45deg,#64748b,#64748b 4px,transparent 4px,transparent 8px)' }} /> Planta cerrada (fuera de turno)</span>
+            <span><i style={{ background: 'var(--estado-proceso)', boxShadow: 'inset 4px 0 0 0 var(--naranja)' }} /> Con hora de recuperación (+30m o +1h)</span>
+          </div>
+        </div>
       </div>
     </div>
   )

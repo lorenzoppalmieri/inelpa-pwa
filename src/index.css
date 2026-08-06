@@ -1632,3 +1632,19 @@ body.admin-mode .content { max-width: none; padding: 12px 18px; }
 @media (max-width: 768px) {
   .select-operario { min-height: 48px; font-size: 16px; max-width: 100%; }
 }
+
+/* ---------- Leyenda del Gantt en bloques (v1.75) ----------
+   Separa "estado de la tarea" (color de la barra) de "que le paso" (tramas
+   encima). Mezclados en una sola fila se confundian: el amarillo es el AHORA
+   y el rojo es un TRAMO del historial. */
+.legend-wrap { display: flex; flex-direction: column; gap: 10px; }
+.legend-bloque { display: flex; flex-direction: column; gap: 4px; }
+.legend-tit {
+  font-size: .72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .4px;
+  color: var(--texto-tenue);
+}
+.legend-tit em { font-weight: 500; text-transform: none; letter-spacing: 0; font-style: normal; opacity: .75; }
+@media (max-width: 768px) {
+  .legend-wrap { padding: 10px 12px !important; }
+  .legend-tit { font-size: .68rem; }
+}
