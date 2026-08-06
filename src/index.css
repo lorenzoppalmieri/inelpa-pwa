@@ -1620,3 +1620,15 @@ body.admin-mode .content { max-width: none; padding: 12px 18px; }
 /* Coherencia P9: la gama vencida es una advertencia -> amarillo canonico
    (antes rojo suave, confundia con falla). */
 .mant-gama-chip.g-vencida { background: var(--mant-atencion); color: #1a1206; }
+
+/* ---------- Selector de operario en tablet compartida (v1.74) ----------
+   Solo aparece en Montaje Rural. Va arriba a la derecha de la tarjeta, debajo
+   del chip de estado. Grande para el dedo: la eligen parados en la linea. */
+.select-operario {
+  min-height: 44px; max-width: 220px; font-size: .9rem;
+  border-color: var(--azul-claro);
+}
+.select-operario:invalid, .select-operario[value=""] { color: var(--texto-tenue); }
+@media (max-width: 768px) {
+  .select-operario { min-height: 48px; font-size: 16px; max-width: 100%; }
+}

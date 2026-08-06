@@ -1191,6 +1191,45 @@ export function operariosParaSector(sectorId: SectorId, todos: Usuario[]): Usuar
   return ops.filter((u) => u.sectores.includes(sectorId))
 }
 
+// ============================================================
+// TABLET COMPARTIDA — MONTAJE RURAL (v1.74)
+//
+// En Montaje Rural varios operarios usan UNA sola tablet y no quieren estar
+// cerrando sesión entre tarea y tarea. Por eso la tablet entra con una cuenta
+// de EQUIPO ("Equipo Montaje PA/PO Rural") y el responsable real de cada tarea
+// se elige en un desplegable dentro de la tarjeta.
+//
+// El problema que esto resuelve: al iniciar una tarea, la app estampaba como
+// operario al usuario logueado. Con la cuenta de equipo, TODAS las tareas
+// quedaban a nombre del "Equipo", y el Gantt las apilaba en una sola fila en
+// vez de mostrarlas por persona.
+// ============================================================
+const MONTAJE_RURAL: SectorId[] = ['montaje_pa_rural', 'montaje_po_rural']
+
+/** ¿El sector usa la tablet compartida con selector de operario? */
+export function esMontajeRural(id: SectorId): boolean {
+  return MONTAJE_RURAL.includes(id)
+}
+
+/**
+ * Cuentas de EQUIPO (no son personas). Nunca deben quedar como responsable real
+ * de una tarea: sirven solo para que la tablet tenga sesión abierta.
+ * Si se agregan más líneas compartidas, sumarlas acá.
+ */
+export const CUENTAS_EQUIPO: string[] = ['montaje_linea2_par', 'montaje_linea2_por']
+
+export function esCuentaEquipo(u?: { usuario?: string } | null): boolean {
+  return !!u?.usuario && CUENTAS_EQUIPO.includes(u.usuario)
+}
+
+/**
+ * Colaboradores REALES que se pueden elegir en el desplegable de una tarea:
+ * los del sector, sin las cuentas de equipo.
+ */
+export function colaboradoresReales(sectorId: SectorId, todos: Usuario[]): Usuario[] {
+  return operariosParaSector(sectorId, todos).filter((u) => !esCuentaEquipo(u))
+}
+
 // --- Helpers de sectores de bobinado ---
 const BOB_AT: SectorId[] = ['bob_dist_at', 'bob_rural_at']
 const BOB_BT: SectorId[] = ['bob_dist_bt', 'bob_rural_bt']

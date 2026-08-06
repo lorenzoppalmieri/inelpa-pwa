@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
 import type { Tarea, CausaParada, DatosBobinado } from '../../types'
-import { sectorById, causaLabel, requiereDatosBobinado, esCausaLogistica, nombreSemielaborado, minutosRecupTarea } from '../../types'
+import { sectorById, causaLabel, requiereDatosBobinado, esCausaLogistica, nombreSemielaborado, minutosRecupTarea,
+  esMontajeRural, esCuentaEquipo, colaboradoresReales } from '../../types'
 import { guardarTarea, guardarLaboratorio } from '../../sync/syncEngine'
 import type { TareaLaboratorio } from '../../types'
 import { useAuth } from '../../auth/AuthContext'
@@ -51,12 +52,37 @@ export default function TareaCard({ tarea, onIniciar }: { tarea: Tarea; onInicia
     }
   }, [tarea.estado])
 
+  // v1.74: TABLET COMPARTIDA (solo Montaje Rural). La tablet entra con la cuenta
+  // de equipo, así que el responsable real se elige en el desplegable de la
+  // tarjeta. Todo lo de acá está aislado tras `tabletCompartida`: el resto de la
+  // planta sigue funcionando exactamente igual.
+  const tabletCompartida = esMontajeRural(tarea.sectorId)
+  const usuarios = useLiveQuery(() => db.usuarios.toArray(), []) ?? []
+  const roster = tabletCompartida ? colaboradoresReales(tarea.sectorId, usuarios) : []
+  const [asignando, setAsignando] = useState(false)
+
+  /** Asigna (o desasigna) el responsable REAL de la tarea. Escribe en Dexie y
+   *  encola el cambio: funciona sin señal, como el resto de la app. */
+  async function asignarOperario(operarioId: string) {
+    setAsignando(true)
+    await guardarTarea({ ...tarea, operarioId: operarioId || undefined })
+    setAsignando(false)
+  }
+
   async function iniciar() {
     // Se estampa el operario que ejecuta (trazabilidad y KPIs); la asignacion es por maquina.
+    // v1.74: en la tablet compartida NUNCA se estampa la cuenta de equipo — si se
+    // estampara, todas las tareas quedarían a nombre del "Equipo" y el Gantt las
+    // apilaría en una sola fila en vez de mostrarlas por persona.
+    const yoSoyEquipo = esCuentaEquipo(usuario)
+    if (tabletCompartida && !tarea.operarioId && yoSoyEquipo) {
+      window.alert('Antes de arrancar, elegí quién va a hacer esta tarea en la lista de arriba a la derecha.')
+      return
+    }
     await guardarTarea({
       ...tarea, estado: 'en_proceso',
       inicioReal: tarea.inicioReal ?? new Date().toISOString(),
-      operarioId: tarea.operarioId ?? usuario?.id,
+      operarioId: tarea.operarioId ?? (yoSoyEquipo ? undefined : usuario?.id),
     })
     // v1.16: al iniciar, la vista salta al filtro "En curso" para que el operario
     // vea la tarea que arranco y no inicie otra por error.
@@ -193,7 +219,22 @@ export default function TareaCard({ tarea, onIniciar }: { tarea: Tarea; onInicia
           <h3>{titulo}{tarea.fase ? ` · ${tarea.fase}` : ''}</h3>
           <div className="meta">{sector.nombre}{comp ? ` · Modelo ${tarea.modelo}` : ''}</div>
         </div>
-        <span className={'estado-chip ' + ESTADO_CHIP[tarea.estado]}>{ESTADO_TXT[tarea.estado]}</span>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+          <span className={'estado-chip ' + ESTADO_CHIP[tarea.estado]}>{ESTADO_TXT[tarea.estado]}</span>
+          {/* v1.74: selector de responsable REAL (solo Montaje Rural). */}
+          {tabletCompartida && tarea.estado !== 'finalizada' && (
+            <select
+              className="select select-operario"
+              value={tarea.operarioId ?? ''}
+              disabled={asignando}
+              onChange={(e) => void asignarOperario(e.target.value)}
+              title="Quién hace esta tarea"
+            >
+              <option value="">👤 ¿Quién la hace?</option>
+              {roster.map((u) => <option key={u.id} value={u.id}>{u.nombre}</option>)}
+            </select>
+          )}
+        </div>
       </div>
 
       <div className="meta">
