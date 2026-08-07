@@ -1004,8 +1004,13 @@ export interface CausaParadaDef {
   categoria: CategoriaParada
   codigo?: number          // numero en la planilla maestra de planta
   // Areas donde aplica la causa. Sin definir = GLOBAL (visible en todas las
-  // secciones, ej. Almuerzo y Otra). El operario ve: su area + las globales.
+  // secciones, ej. Almuerzo). El operario ve: su area + las globales.
   areas?: AreaDemora[]
+  // v1.76: causa RETIRADA. Ya no se ofrece al operario en ninguna seccion, pero
+  // sigue en el catalogo para que las paradas YA registradas con ella conserven
+  // su etiqueta en Gantt, KPIs y Pareto (causaLabel cae al id crudo si no esta).
+  // No borrar la entrada: se rompe el historico.
+  retirada?: boolean
 }
 
 export const CAUSAS_PARADA: CausaParadaDef[] = [
@@ -1109,7 +1114,9 @@ export const CAUSAS_PARADA: CausaParadaDef[] = [
   // ===== GLOBALES (visibles en TODAS las secciones) =====
   // No productiva (NO penaliza el OEE: pausa programada de planta).
   { id: 'almuerzo', label: 'Almuerzo', categoria: 'no_productiva', codigo: 50 },
-  { id: 'otra', label: 'Otra', categoria: 'otra' },
+  // v1.76: RETIRADA de todas las secciones productivas (antes solo de Montaje).
+  // Se mantiene la definicion SOLO para leer el historico. No se ofrece mas.
+  { id: 'otra', label: 'Otra', categoria: 'otra', retirada: true },
   // v1.17: parada AUTOMATICA (no la elige el operario; areas:[] la oculta del modal).
   // Cubre el lapso entre que una tarea se finaliza y se REABRE: tiempo NO productivo
   // que no debe contar (error de carga o retrabajo).
@@ -1136,12 +1143,15 @@ export function esCausaLogistica(c: CausaParada): boolean {
 }
 
 // Causas visibles para un sector: las de su area + las globales (sin areas).
-// v1.17: en MONTAJE no se ofrece la causa generica "Otra" (decision de planta).
+// v1.17: en MONTAJE no se ofrecia la causa generica "Otra" (decision de planta).
+// v1.76: esa decision se extiende a TODAS las secciones productivas via el flag
+// `retirada`. El operario tiene que elegir un motivo concreto: una parada
+// cargada como "Otra" no sirve para el Pareto ni para accionar sobre la causa.
 export function causasDeSector(id: SectorId): CausaParadaDef[] {
   const area = areaDemora(id)
   return CAUSAS_PARADA.filter((c) => {
+    if (c.retirada) return false
     if (c.areas && !c.areas.includes(area)) return false
-    if (area === 'montaje' && c.id === 'otra') return false
     return true
   })
 }
