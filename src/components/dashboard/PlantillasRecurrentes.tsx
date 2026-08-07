@@ -56,6 +56,13 @@ export default function PlantillasRecurrentes({
   origen = 'logistica', roster = RESPONSABLES_LOGISTICA,
 }: { origen?: 'logistica' | 'despacho'; roster?: string[] } = {}) {
   const todas = useLiveQuery(() => db.plantillasRecurrentes.toArray(), []) ?? []
+  // v1.74: si una plantilla no llegó a Supabase, la recurrencia se pierde en el
+  // próximo sync (fetchInicial limpia Dexie y repuebla desde la nube) y hasta
+  // ahora eso pasaba EN SILENCIO: el error solo iba a la consola. Acá se ve.
+  const opsFallidas = useLiveQuery(
+    async () => (await db.syncQueue.toArray()).filter((o) => o.entidad === 'plantilla_recurrente' && !!o.errorSync),
+    [],
+  ) ?? []
   const plantillas = useMemo(
     () => todas.filter((p) => (p.origen ?? 'logistica') === origen).sort((a, b) => (a.creada < b.creada ? 1 : -1)),
     [todas, origen],
@@ -113,6 +120,24 @@ export default function PlantillasRecurrentes({
   return (
     <>
       <div className="section-title">🔁 Tareas repetitivas ({plantillas.length})</div>
+
+      {/* v1.74: aviso cuando una plantilla quedó sin subir a la nube. */}
+      {opsFallidas.length > 0 && (
+        <div className="card" style={{ borderLeft: '5px solid var(--rojo)', marginBottom: 12 }}>
+          <div style={{ fontWeight: 800, color: 'var(--rojo)' }}>
+            ⚠ {opsFallidas.length} recurrencia(s) no se guardaron en la nube
+          </div>
+          <div className="meta">
+            Se ven en esta tablet pero no llegaron al servidor, así que se van a perder al recargar y no van a
+            generar tareas en los otros dispositivos. Mostrale esto a quien administra el sistema.
+          </div>
+          {opsFallidas.slice(0, 3).map((o) => (
+            <div className="meta" key={o.id} style={{ marginTop: 4, fontFamily: 'monospace', fontSize: '.78rem' }}>
+              · {o.errorSync}
+            </div>
+          ))}
+        </div>
+      )}
       <div className="meta" style={{ marginBottom: 12 }}>
         Cada plantilla genera automáticamente la tarea del día en la tablet, una a la vez (no se acumulan a futuro).
       </div>

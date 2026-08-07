@@ -17,11 +17,20 @@ import type { PlantillaRecurrente, TareaLogistica } from '../types'
 // REGLAS DE GENERACIÓN (todas deben cumplirse para generar):
 //   1. La plantilla está activa y hoy es uno de sus días.
 //   2. Hoy no está en `salteos` (feriado / excepción).
-//   3. La plantilla NO generó ya para hoy (`ultimaGeneracion < hoy`).  ← candado v1.42
-//   4. NO existe ninguna instancia de esa plantilla con fecha de hoy,
+//   3. NO existe ninguna instancia de esa plantilla con fecha de hoy,
 //      CUALQUIERA SEA SU ESTADO — incluida `finalizada`.                ← candado v1.42
-//   5. No hay una instancia anterior todavía abierta (si la de ayer quedó sin
+//   4. No hay una instancia anterior todavía abierta (si la de ayer quedó sin
 //      cerrar, no se apila la de hoy).
+//
+// REGRESIÓN CORREGIDA EN v1.74
+//   La v1.42 había sumado un tercer candado, `ultimaGeneracion`, guardado en la
+//   plantilla. Eso obligaba a escribir una columna nueva (`ultima_generacion`)
+//   en cada guardado de plantilla. Si esa migración no corrió, PostgREST rechaza
+//   el upsert ENTERO, el sync lo marca 'fatal' y lo parkea sin avisar; como
+//   `fetchInicial` limpia Dexie y repuebla desde Supabase, la recurrencia recién
+//   configurada DESAPARECÍA sola. Se eliminó el candado: era defensa redundante
+//   (el llamador ya espera a que carguen los datos y relee por id antes de
+//   escribir) y no vale romper la función por él.
 //
 // BUG QUE ESTO CORRIGE (v1.42)
 //   Antes, el chequeo "ya existe" era `instancias.some(t => t.id === id)`. Como
@@ -87,14 +96,11 @@ export function instanciasAGenerar(
     if (!p.dias.includes(dow)) continue
     if (p.salteos?.includes(hoy)) continue          // feriado / excepción marcada por Giuliano
 
-    // Candado 1 (plantilla): ya se generó para hoy (o para un día posterior).
-    if (p.ultimaGeneracion && p.ultimaGeneracion >= hoy) continue
-
     const instancias = tareas.filter((t) => t.plantillaId === p.id)
-    // Candado 2 (instancia): ya existe la de hoy, en el estado que sea.
+    // Candado 1 (instancia): ya existe la de hoy, en el estado que sea.
     // Esto es lo que impide el respawn al finalizarla.
     if (instancias.some((t) => esInstanciaDe(t, p.id, hoy))) continue
-    // Candado 3 (anti-apilado): quedó una instancia anterior sin cerrar.
+    // Candado 2 (anti-apilado): quedó una instancia anterior sin cerrar.
     if (instancias.some((t) => t.estado !== 'finalizada')) continue
 
     const responsables = p.responsables ?? []

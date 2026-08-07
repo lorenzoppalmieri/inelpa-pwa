@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
 import type { Tarea } from '../../types'
-import { sectorById, maquinaSirveSector, operariosParaSector } from '../../types'
+import { sectorById, maquinaSirveSector, operariosParaSector, componenteSirveSector } from '../../types'
 import type { Maquina, Usuario } from '../../types'
 import { modeloPorNombre, componentesDeModelo } from '../../data/catalogo'
 import { guardarTarea } from '../../sync/syncEngine'
@@ -43,8 +43,11 @@ export default function EditarTarea({ tarea, maquinas, usuarios, onClose }: {
   const ordenSel = ordenes.find((o) => o.id === tarea.ordenId)
   const modeloSel = modeloPorNombre(ordenSel?.modelo)
   const cantidadOrden = ordenSel?.cantidad ?? 1
+  // v1.76: mismo criterio que en PlanificacionView. Si no se comparte tambien aca,
+  // al editar una tarea de bobinado rural con una bobina de distribucion la opcion
+  // elegida desapareceria del desplegable y el planificador la perderia al guardar.
   const componentesSector = useMemo(
-    () => componentesDeModelo(modeloSel).filter((c) => c.sectorId === tarea.sectorId),
+    () => componentesDeModelo(modeloSel).filter((c) => componenteSirveSector(c.sectorId, tarea.sectorId)),
     [modeloSel, tarea.sectorId],
   )
   const opcionesSemi = useMemo(() => componentesSector.map((c) => {

@@ -6,6 +6,7 @@ import {
   MATERIALES, lineaDesdeModelo, materialLabel, CATEGORIA_COMPONENTE_LABEL,
   MODELO_PROTOTIPO, esOrdenPrototipo,
   operariosParaSector, esSectorHerreria, maquinaSirveSector, claveEstandar,
+  componenteSirveSector, componenteEsDeOtroSector,
   type MaterialBobina, type SectorId, type OrdenProduccion, type Tarea,
   type Semielaborado, type EstadoSemielaborado, type TipoTarea, type Feriado, type EstadoTarea,
   type DatosBobinado,
@@ -440,18 +441,23 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
   // los semielaborados del transformador: cada tarea ya planificada (cualquier
   // estado) de ese componente en esta orden consume 1 unidad. Se ocultan los que
   // ya estan completos (planificado >= cantidad de la OF).
+  // v1.76: el filtro ya no exige que el sector sea EXACTO. En bobinado el catalogo
+  // se comparte entre distribucion y rural dentro del mismo nivel (AT/BT), asi que
+  // un bobinador rural puede recibir una bobina de distribucion. El cupo se sigue
+  // contando por orden + componente (NO por sector), asi que compartir el catalogo
+  // no permite planificar dos veces la misma bobina desde dos sectores distintos.
   const cantidadOrden = ordenSel?.cantidad ?? 1
   const componentesDelSector = componentesDeModelo(modeloSel)
-    .filter((c) => c.sectorId === sectorId)
+    .filter((c) => componenteSirveSector(c.sectorId, sectorId))
     .map((c) => {
       const planificado = todasTareas.filter((t) => t.ordenId === ordenId && t.componenteCodigo === c.codigo).length
-      return { c, restante: cantidadOrden - planificado }
+      return { c, restante: cantidadOrden - planificado, deOtroSector: componenteEsDeOtroSector(c.sectorId, sectorId) }
     })
     .filter((x) => x.restante > 0)
 
   // v1.16: ¿el modelo de la orden tiene semielaborados para este sector? Si los
   // tiene, elegir uno es OBLIGATORIO (no se puede planificar fabricacion "suelta").
-  const sectorTieneSemi = !!modeloSel && componentesDeModelo(modeloSel).some((c) => c.sectorId === sectorId)
+  const sectorTieneSemi = !!modeloSel && componentesDeModelo(modeloSel).some((c) => componenteSirveSector(c.sectorId, sectorId))
 
   // v1.24: tiempo estandar SUGERIDO por el asistente (mediana de tiempos reales).
   // Se busca en la tabla de estandares con la MISMA clave que el motor:
@@ -733,11 +739,22 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
               <label>Semielaborado (segun sector){sectorTieneSemi ? ' *' : ''}</label>
               <select className="input" value={componenteCodigo} onChange={(e) => setComponenteCodigo(e.target.value)} disabled={!ordenSel || componentesDelSector.length === 0}>
                 <option value="">— {!ordenSel ? 'Elegi una orden primero' : componentesDelSector.length === 0 ? 'Todos los semielaborados ya planificados' : 'Selecciona'} —</option>
-                {componentesDelSector.map(({ c, restante }) => (
-                  <option key={c.codigo} value={c.codigo}>{c.descripcion}{cantidadOrden > 1 ? ` (faltan ${restante})` : ''}</option>
+                {componentesDelSector.map(({ c, restante, deOtroSector }) => (
+                  <option key={c.codigo} value={c.codigo}>
+                    {deOtroSector ? '↔ ' : ''}{c.descripcion}{cantidadOrden > 1 ? ` (faltan ${restante})` : ''}
+                  </option>
                 ))}
               </select>
               {ordenSel && !modeloSel && <div className="meta" style={{ marginTop: 6 }}>El modelo de la orden no esta en el catalogo maestro.</div>}
+              {/* v1.76: aviso cuando la bobina elegida la fabrica normalmente la otra linea. */}
+              {componentesDelSector.some((x) => x.deOtroSector) && (
+                <div className="meta" style={{ marginTop: 6 }}>
+                  ↔ = bobina de la otra línea (se comparte el catálogo entre Distribución y Rural).
+                  {componentesDelSector.find((x) => x.c.codigo === componenteCodigo)?.deOtroSector
+                    ? ' La que elegiste es de la otra línea: la tarea igual queda registrada en ' + sectorById(sectorId).nombre + '.'
+                    : ''}
+                </div>
+              )}
             </div>
           )}
           {tipo === 'fabricacion' && esProto && (

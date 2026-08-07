@@ -15,6 +15,10 @@ import { resolverKPIAutomaticos } from '../../sgo/kpiAutomaticos'
 import { aplicarMedicionesIndicadores, type IndicadorSGO } from '../../sgo/indicadores'
 import { validarCierreEvento } from '../../sgo/cierre'
 import {
+  ID_DIAS_SIN_ACCIDENTES, ID_DIAS_SIN_INCIDENTES, IDS_CONTADORES_SEGURIDAD,
+  estadoContadorSeguridad, type TipoContadorSeguridad,
+} from '../../sgo/contadoresSeguridad'
+import {
   AREAS_SGO, PILARES_SGO, TIPOS_EVENTO_SGO, areaSGOLabel, codigoEventoSGO, costoNoCalidadTotal,
   type AccionSGO, type AuditoriaSGO, type EstadoEventoSGO, type EventoSGO,
   type AreaSGOId, type CostoNoCalidad, type DatosSeguridadSGO, type PilarSGO, type SeveridadSGO, type TipoAccionSGO, type TipoEventoSGO,
@@ -30,8 +34,6 @@ const SEVERIDADES: { id: SeveridadSGO; label: string }[] = [
   { id: 'baja', label: 'Baja' }, { id: 'media', label: 'Media' },
   { id: 'alta', label: 'Alta' }, { id: 'critica', label: 'Crítica' },
 ]
-
-const ID_DIAS_SIN_ACCIDENTES = 'sgo-global-dias-sin-accidentes'
 
 const ahoraLocal = () => {
   const d = new Date()
@@ -73,8 +75,9 @@ export default function SGOView() {
   })), [eventos])
   const vencidas = acciones.filter(vencida).length
   const ajusteDiasSinAccidentes = indicadores.find((i) => i.id === ID_DIAS_SIN_ACCIDENTES)
+  const ajusteDiasSinIncidentes = indicadores.find((i) => i.id === ID_DIAS_SIN_INCIDENTES)
   const indicadoresResueltos = useMemo(() => resolverKPIAutomaticos(
-    aplicarMedicionesIndicadores(indicadores.filter((i) => i.id !== ID_DIAS_SIN_ACCIDENTES), mediciones),
+    aplicarMedicionesIndicadores(indicadores.filter((i) => !IDS_CONTADORES_SEGURIDAD.has(i.id)), mediciones),
     { tareas, laboratorio, tareasLogistica, eventos, acciones, mediciones },
   ), [indicadores, mediciones, tareas, laboratorio, tareasLogistica, eventos, acciones])
   const abiertosFiltrados = abiertos.filter((e) =>
@@ -101,7 +104,10 @@ export default function SGOView() {
         </div>
       </div>
 
-      <DiasSinAccidentes eventos={eventos} ajuste={ajusteDiasSinAccidentes} usuario={usuario?.usuario ?? 'sin_usuario'} />
+      <div className="sgo-dias-grid">
+        <ContadorDiasSeguridad tipo="accidentes" eventos={eventos} ajuste={ajusteDiasSinAccidentes} usuario={usuario?.usuario ?? 'sin_usuario'} />
+        <ContadorDiasSeguridad tipo="incidentes" eventos={eventos} ajuste={ajusteDiasSinIncidentes} usuario={usuario?.usuario ?? 'sin_usuario'} />
+      </div>
 
       <div className="logi-kpis" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(145px, 1fr))' }}>
         {resumen.map((p) => (
@@ -183,49 +189,38 @@ export default function SGOView() {
   )
 }
 
-function inicioDia(valor: string | Date): Date {
-  const d = valor instanceof Date ? new Date(valor) : new Date(valor)
-  d.setHours(0, 0, 0, 0)
-  return d
-}
+const CONFIG_CONTADORES_SEGURIDAD = {
+  accidentes: {
+    id: ID_DIAS_SIN_ACCIDENTES,
+    nombre: 'Días sin accidentes',
+    etiqueta: 'DÍAS SIN ACCIDENTES',
+    recordatorio: 'La seguridad depende del control diario de nuestros procesos.',
+  },
+  incidentes: {
+    id: ID_DIAS_SIN_INCIDENTES,
+    nombre: 'Días sin incidentes',
+    etiqueta: 'DÍAS SIN INCIDENTES',
+    recordatorio: 'Cada incidente y cuasi accidente es una oportunidad para prevenir lesiones.',
+  },
+} as const
 
-function diferenciaDias(desde: Date, hasta = inicioDia(new Date())): number {
-  return Math.max(0, Math.round((hasta.getTime() - desde.getTime()) / 86_400_000))
-}
-
-function estadoDiasSinAccidentes(eventos: EventoSGO[], ajuste?: IndicadorSGO) {
-  const ultimoAccidente = eventos
-    .filter((e) => e.tipo === 'incidente_seguridad' && e.seguridad?.resultadoPersona !== 'sin_lesion')
-    .sort((a, b) => (b.seguridad?.fechaHoraHecho ?? b.detectadoEn).localeCompare(a.seguridad?.fechaHoraHecho ?? a.detectadoEn))[0]
-  const fechaAccidente = ultimoAccidente ? (ultimoAccidente.seguridad?.fechaHoraHecho ?? ultimoAccidente.detectadoEn) : undefined
-  const accidentePosteriorAlAjuste = ultimoAccidente && fechaAccidente && (!ajuste || new Date(fechaAccidente).getTime() > new Date(ajuste.actualizadoEn).getTime())
-  if (accidentePosteriorAlAjuste) {
-    return { dias: diferenciaDias(inicioDia(fechaAccidente)), referencia: fechaAccidente, motivo: `Reiniciado por ${ultimoAccidente.codigo}` }
-  }
-  if (ajuste) {
-    return { dias: Math.max(0, Math.trunc(ajuste.valorActual ?? 0)) + diferenciaDias(inicioDia(ajuste.actualizadoEn)), referencia: ajuste.actualizadoEn, motivo: `Ajustado por ${ajuste.actualizadoPor}` }
-  }
-  if (ultimoAccidente) {
-    return { dias: diferenciaDias(inicioDia(fechaAccidente!)), referencia: fechaAccidente, motivo: `Reiniciado por ${ultimoAccidente.codigo}` }
-  }
-  return { dias: 0, referencia: undefined, motivo: 'Valor inicial pendiente de configurar' }
-}
-
-function DiasSinAccidentes({ eventos, ajuste, usuario }: { eventos: EventoSGO[]; ajuste?: IndicadorSGO; usuario: string }) {
+function ContadorDiasSeguridad({ tipo, eventos, ajuste, usuario }: { tipo: TipoContadorSeguridad; eventos: EventoSGO[]; ajuste?: IndicadorSGO; usuario: string }) {
   const [editando, setEditando] = useState(false)
-  const estado = estadoDiasSinAccidentes(eventos, ajuste)
+  const config = CONFIG_CONTADORES_SEGURIDAD[tipo]
+  const estado = estadoContadorSeguridad(eventos, ajuste, tipo)
   const [valor, setValor] = useState(String(estado.dias))
   const [guardando, setGuardando] = useState(false)
   const puedeEditar = usuario.trim().toLowerCase() === 'lorenzo'
 
   async function guardar() {
+    if (!puedeEditar) return
     const numero = Number(valor)
     if (!Number.isInteger(numero) || numero < 0) return
     const ahora = new Date().toISOString()
     setGuardando(true)
     await guardarIndicadorSGO({
-      id: ID_DIAS_SIN_ACCIDENTES, areaId: 'gerencia_directorio', pilar: 'seguridad',
-      nombre: 'Días sin accidentes', unidad: 'días', direccion: 'mayor_mejor',
+      id: config.id, areaId: 'gerencia_directorio', pilar: 'seguridad',
+      nombre: config.nombre, unidad: 'días', direccion: 'mayor_mejor',
       meta: 365, umbralAmarillo: 30, valorActual: numero, origen: 'manual',
       periodo: ahora.slice(0, 7), frecuencia: 'anual', activo: true,
       actualizadoEn: ahora, actualizadoPor: usuario,
@@ -234,14 +229,14 @@ function DiasSinAccidentes({ eventos, ajuste, usuario }: { eventos: EventoSGO[];
     setEditando(false)
   }
 
-  return <section className={`sgo-dias-cartel ${estado.dias === 0 ? 'reiniciado' : ''}`} aria-label={`${estado.dias} días sin accidentes`}>
+  return <section className={`sgo-dias-cartel sgo-dias-${tipo} ${estado.dias === 0 ? 'reiniciado' : ''}`} aria-label={`${estado.dias} ${config.nombre.toLowerCase()}`}>
     <div>
-      <div className="sgo-dias-etiqueta">DÍAS SIN ACCIDENTES</div>
-      <div className="sgo-dias-recordatorio">La seguridad depende del control diario de nuestros procesos.</div>
+      <div className="sgo-dias-etiqueta">{config.etiqueta}</div>
+      <div className="sgo-dias-recordatorio">{config.recordatorio}</div>
       <div className="sgo-dias-meta">{estado.motivo}{estado.referencia ? ` · ${fechaHora(estado.referencia)}` : ''}</div>
     </div>
     {editando ? <div className="sgo-dias-edicion">
-      <input className="input" type="number" min="0" step="1" value={valor} onChange={(e) => setValor(e.target.value)} aria-label="Días sin accidentes" />
+      <input className="input" type="number" min="0" step="1" value={valor} onChange={(e) => setValor(e.target.value)} aria-label={config.nombre} />
       <button className="btn" onClick={() => setEditando(false)}>Cancelar</button>
       <button className="btn btn-primary" disabled={guardando || !Number.isInteger(Number(valor)) || Number(valor) < 0} onClick={() => void guardar()}>{guardando ? 'Guardando…' : 'Guardar'}</button>
     </div> : <div className="sgo-dias-valor-wrap">

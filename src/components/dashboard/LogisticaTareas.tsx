@@ -123,7 +123,8 @@ export default function LogisticaTareas({
   //    vacía del primer render y el put pisaba la instancia ya finalizada,
   //    devolviéndola a 'pendiente' (ese era el "bucle" reportado).
   // 2) Antes de escribir, relee la tarea por id: si ya existe, NO la toca.
-  // 3) Al generar, sella la plantilla con ultimaGeneracion = hoy.
+  // 3) v1.74: NO se toca la plantilla al generar. Antes se le escribía
+  //    `ultimaGeneracion`, lo que disparaba un upsert por cada generación.
   const generando = useRef(false)
   useEffect(() => {
     if (todasRaw === undefined || plantillasRaw === undefined) return   // datos aún no cargados
@@ -139,8 +140,6 @@ export default function LogisticaTareas({
           const yaExiste = await db.tareasLogistica.get(t.id)
           if (yaExiste) continue
           await guardarTareaLogistica(t)
-          const p = misPlantillas.find((x) => x.id === t.plantillaId)
-          if (p) await guardarPlantilla({ ...p, ultimaGeneracion: t.fechaInstancia })
         }
       } finally {
         generando.current = false
@@ -175,10 +174,12 @@ export default function LogisticaTareas({
       estimadoMin: repitiendo.estimadoMin,
       dias: repDias,
       activa: true,
-      // v1.42: la tarea desde la que se creó la recurrencia YA cubre el día de hoy.
-      // Sellamos hoy como generado para que la primera instancia automática caiga
-      // recién en la próxima fecha que corresponda (y no se duplique ahora mismo).
-      ultimaGeneracion: hoyLocal(),
+      // v1.74: la tarea desde la que se creó la recurrencia YA cubre el día de hoy,
+      // así que se saltea hoy para que la primera instancia automática caiga en la
+      // próxima fecha que corresponda. Se usa `salteos` —columna que existe desde
+      // v1.39— y no una columna nueva: si la migración no corrió, el upsert de la
+      // plantilla falla y la recurrencia se pierde sin avisar.
+      salteos: [hoyLocal()],
       creada: new Date().toISOString(),
       creadaPor: usuario?.usuario,
     }

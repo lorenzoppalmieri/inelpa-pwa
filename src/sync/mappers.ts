@@ -1003,7 +1003,11 @@ export function plantillaToRow(p: PlantillaRecurrente): PlantillaRecurrenteRow {
     hora: p.hora ?? null,
     activa: p.activa,
     salteos: p.salteos ?? null,
-    ultima_generacion: p.ultimaGeneracion ?? null,
+    // v1.74: NO se manda `ultima_generacion`. Si la columna no existe en
+    // Supabase, PostgREST rechaza el upsert entero, el sync lo marca FATAL y lo
+    // parkea — la plantilla nunca sube. Como `fetchInicial` limpia Dexie y la
+    // repuebla desde Supabase, la recurrencia recién creada DESAPARECÍA sola.
+    // El candado anti-respawn no la necesita (ver lib/recurrencia.ts).
     creada_en: p.creada,
     creada_por: p.creadaPor ?? null,
   }

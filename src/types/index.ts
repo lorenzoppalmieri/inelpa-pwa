@@ -1247,6 +1247,47 @@ export function esBobinadoAT(id: SectorId): boolean { return BOB_AT.includes(id)
 export function esBobinadoBT(id: SectorId): boolean { return BOB_BT.includes(id) }
 export function esBobinado(id: SectorId): boolean { return esBobinadoAT(id) || esBobinadoBT(id) }
 
+/**
+ * v1.76 — CATALOGO DE BOBINAS COMPARTIDO ENTRE DISTRIBUCION Y RURAL.
+ *
+ * Cada semielaborado del catalogo maestro viene etiquetado con el sector que lo
+ * fabrica "de fabrica" (BOBALT... -> bob_dist_at, etc.). Eso impedia que el
+ * planificador le cargara una bobina de distribucion a un bobinador rural: el
+ * desplegable salia vacio.
+ *
+ * Regla: un componente sirve a un sector si es el suyo, o si AMBOS son de
+ * bobinado del MISMO NIVEL (AT con AT, BT con BT). Es simetrico: distribucion
+ * tambien puede tomar bobinas rurales. Va en linea con el pool unico de 30
+ * bobinadoras (ver maquinaSirveSector).
+ *
+ * El nivel NO se cruza a proposito: requiereDatosBobinado le pide al operario
+ * diametro interno + externo en BT y solo externo en AT. Mezclar AT con BT le
+ * cambiaria los campos del formulario al bobinador.
+ *
+ * NO aplica a montaje, herreria ni pintura: ahi el sector sigue siendo exacto.
+ */
+// v1.76 fix: `ComponenteSemielaborado.sectorId` es `SectorId | null` (un
+// componente del catálogo puede no tener sector productivo asignado). Se acepta
+// null y se responde false: sin sector, no lo fabrica nadie.
+export function componenteSirveSector(componenteSectorId: SectorId | null, sectorId: SectorId): boolean {
+  // Hay componentes del catalogo maestro SIN sector asignado (sectorId null).
+  // Igual que antes, no se ofrecen en ningun sector: no se sabe quien los fabrica.
+  if (!componenteSectorId) return false
+  if (componenteSectorId === sectorId) return true
+  if (esBobinadoAT(componenteSectorId) && esBobinadoAT(sectorId)) return true
+  if (esBobinadoBT(componenteSectorId) && esBobinadoBT(sectorId)) return true
+  return false
+}
+
+/**
+ * true si el componente lo fabrica normalmente OTRO sector (se comparte por la
+ * regla de arriba). Sirve para avisarlo en la UI y que el planificador no cargue
+ * una bobina de la otra linea sin darse cuenta.
+ */
+export function componenteEsDeOtroSector(componenteSectorId: SectorId | null, sectorId: SectorId): boolean {
+  return !!componenteSectorId && componenteSectorId !== sectorId && componenteSirveSector(componenteSectorId, sectorId)
+}
+
 // Que campos tecnicos de bobinado requiere un sector (null = ninguno).
 export interface ReqBobinado { interno: boolean; externo: boolean; codigo: boolean }
 export function requiereDatosBobinado(id: SectorId): ReqBobinado | null {
