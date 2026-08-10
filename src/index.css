@@ -671,13 +671,60 @@ button { font-family: inherit; cursor: pointer; border: none; }
 
 /* ---------- Modal ---------- */
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.7); display: grid; place-items: center; z-index: 100; padding: 16px; }
-.modal { width: 100%; max-width: 520px; background: var(--panel); border: 1px solid var(--borde); border-radius: 18px; padding: 20px; }
+.modal { width: 100%; max-width: 520px; background: var(--panel); border: 1px solid var(--borde); border-radius: 18px; padding: 20px;
+  /* v1.78 — RED DE SEGURIDAD. Ningun modal puede pasarse del alto de la pantalla.
+     Sin esto, en una tablet APAISADA (poca altura) el pie del modal quedaba
+     fuera del viewport y era imposible llegar al boton de confirmar: el bloque
+     responsive de abajo es max-width:768px y una tablet apaisada mide ~1280px
+     de ancho, asi que nunca entraba ahi. Aplica a los 31 modales de la app.
+     dvh descuenta la barra del navegador; el vh de arriba es el fallback. */
+  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+}
 .modal h2 { margin-bottom: 14px; }
+
+/* ---------- Modal de alto fijo: cabecera y pie SIEMPRE visibles ----------
+   Estructura: .modal-head y .modal-pie no se achican nunca; .modal-cuerpo se
+   come el espacio sobrante y es la UNICA zona con scroll.
+   `min-height: 0` es imprescindible: por defecto un hijo flex no baja de su
+   contenido (min-height:auto) y el scroll interno no llega a activarse. */
+.modal-flex { display: flex; flex-direction: column; overflow: hidden; }
+.modal-flex > * { flex: 0 0 auto; }
+.modal-flex > .modal-cuerpo {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;   /* el scroll no se "escapa" al fondo */
+  -webkit-overflow-scrolling: touch;
+}
+.modal-flex > .modal-pie { border-top: 1px solid var(--borde); padding-top: 12px; margin-top: 10px; }
+
+/* ---------- Pantallas BAJAS (tablet apaisada en la bobinadora) ----------
+   Se filtra por ALTO, no por ancho: una tablet apaisada mide ~1280px de ancho,
+   asi que el bloque de 768px no la agarra nunca. Al haber ancho de sobra y
+   altura escasa, se recorta el relleno vertical y las causas pasan a 3 columnas
+   para que entren mas sin scrollear. */
+@media (max-height: 620px) {
+  .modal-overlay { padding: 8px; }
+  .modal { padding: 12px 14px; max-height: calc(100dvh - 16px); }
+  .modal h2 { margin-bottom: 6px; font-size: 1.15rem; }
+  .modal-flex > .modal-pie { padding-top: 8px; margin-top: 6px; }
+  .causa-btn { min-height: 52px; font-size: .86rem; }
+  .causa-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  /* El modal de parada aprovecha el ancho disponible en apaisado. */
+  .modal-flex { max-width: 760px; }
+}
 .causa-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 6px; }
 .causa-btn { min-height: 64px; border-radius: var(--radio); background: var(--panel-2); color: var(--texto); font-weight: 700; font-size: .92rem; border: 2px solid var(--borde); padding: 8px; text-align: center; }
 .causa-btn.sel { border-color: var(--naranja); background: rgba(245,158,11,.18); }
-/* Lista de causas con scroll + agrupacion por categoria (≈40 causas) */
-.causa-scroll { max-height: 46vh; overflow-y: auto; margin-bottom: 8px; padding-right: 4px; -webkit-overflow-scrolling: touch; }
+/* Lista de causas con scroll + agrupacion por categoria (≈40 causas).
+   v1.78: se saco el `max-height: 46vh`. Era un alto FIJO que no sabia nada del
+   resto del modal: en una tablet apaisada, 46vh + cabecera + pie superaba la
+   pantalla y el boton de confirmar quedaba afuera. Ahora el alto lo reparte el
+   flex del contenedor (.modal-flex > .modal-cuerpo) y esta lista ocupa
+   exactamente lo que sobra, ni mas ni menos. */
+.causa-scroll { margin-bottom: 8px; padding-right: 4px; }
 .causa-cat { font-size: .72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .6px; color: var(--texto-tenue); margin: 6px 2px 8px; position: sticky; top: 0; background: var(--panel); padding: 4px 0; z-index: 1; }
 
 /* ---------- Banner parada activa ---------- */
@@ -1109,6 +1156,10 @@ body.admin-mode .content { max-width: none; padding: 12px 18px; }
   .modal > div[style*="justify-content: flex-end"] > .btn { width: 100%; }
   /* Grilla de causas de parada: una sola columna, botones grandes. */
   .causa-grid { grid-template-columns: 1fr; }
+  /* v1.78: el `overflow-y: auto` de arriba llega DESPUES que .modal-flex y le
+     pisaria el `overflow: hidden`, dando dos barras de scroll superpuestas en
+     el celular. El modal de alto fijo maneja su propio scroll interno. */
+  .modal.modal-flex { overflow: hidden; }
 }
 
 /* ---------- Botón de pantalla completa (v1.57) ---------- */

@@ -42,21 +42,27 @@ export default function ModalParada({ sectorId, onConfirm, onCancel }: {
 
   return (
     <div className="modal-overlay" onClick={onCancel}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h2>Registrar parada</h2>
-        <p className="meta" style={{ marginBottom: 12 }}>Busca o elige la causa. La hora de inicio se registra automaticamente.</p>
+      {/* v1.78: modal de alto acotado. Cabecera y pie fijos; la lista de causas
+          es la unica zona que scrollea. Antes, en tablet APAISADA el pie
+          (observacion + boton "Iniciar parada") quedaba fuera de la pantalla y
+          el operario no podia confirmar la parada. */}
+      <div className="modal modal-flex" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head">
+          <h2>Registrar parada</h2>
+          <p className="meta" style={{ marginBottom: 12 }}>Busca o elige la causa. La hora de inicio se registra automaticamente.</p>
 
-        <div className="field">
-          <input
-            className="input"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="🔍 Buscar causa (ej. alambre, mantenimiento, retrabajo)…"
-            autoFocus
-          />
+          <div className="field">
+            <input
+              className="input"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="🔍 Buscar causa (ej. alambre, mantenimiento, retrabajo)…"
+              autoFocus
+            />
+          </div>
         </div>
 
-        <div className="causa-scroll">
+        <div className="causa-scroll modal-cuerpo">
           {total === 0 && <div className="empty" style={{ padding: '20px 0' }}>Sin resultados para "{q}".</div>}
           {grupos.map((g) => (
             <div key={g.cat} style={{ marginBottom: 12 }}>
@@ -72,16 +78,18 @@ export default function ModalParada({ sectorId, onConfirm, onCancel }: {
           ))}
         </div>
 
-        {!esMontaje && (
-          <div className="field" style={{ marginTop: 6 }}>
-            <label>Observacion (opcional)</label>
-            <input className="input" value={obs} onChange={(e) => setObs(e.target.value)} placeholder="detalle..." />
+        <div className="modal-pie">
+          {!esMontaje && (
+            <div className="field" style={{ marginBottom: 8 }}>
+              <label>Observacion (opcional)</label>
+              <input className="input" value={obs} onChange={(e) => setObs(e.target.value)} placeholder="detalle..." />
+            </div>
+          )}
+          <div className="row-actions">
+            <button className="btn" style={{ flex: 1 }} onClick={onCancel}>Cancelar</button>
+            <button className="btn btn-naranja" style={{ flex: 1 }} disabled={!causa}
+              onClick={() => causa && onConfirm(causa, obs)}>Iniciar parada</button>
           </div>
-        )}
-        <div className="row-actions" style={{ marginTop: 8 }}>
-          <button className="btn" style={{ flex: 1 }} onClick={onCancel}>Cancelar</button>
-          <button className="btn btn-naranja" style={{ flex: 1 }} disabled={!causa}
-            onClick={() => causa && onConfirm(causa, obs)}>Iniciar parada</button>
         </div>
       </div>
     </div>
