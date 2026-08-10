@@ -2,7 +2,7 @@ import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/
 import { db } from '../db/dexie'
 import { supabase, SUPABASE_HABILITADO } from '../lib/supabaseClient'
 import { traerTabla, traerTodoDe, type ConsultaPaginable } from '../lib/supabaseFetch'
-import type { Rol, SyncOp, Tarea, OrdenProduccion, Semielaborado, SectorId, Objetivo, TareaLogistica, SolicitudLogistica, Feriado, Mensaje, MensajeLectura, TiempoEstandar, DespachoTrafo, FleteInterno, TareaLaboratorio, PlantillaRecurrente } from '../types'
+import type { Rol, SyncOp, Tarea, Parada, OrdenProduccion, Semielaborado, SectorId, Objetivo, TareaLogistica, SolicitudLogistica, Feriado, Mensaje, MensajeLectura, TiempoEstandar, DespachoTrafo, FleteInterno, TareaLaboratorio, PlantillaRecurrente } from '../types'
 import type { EventoSGO, AccionSGO, AuditoriaSGO } from '../sgo/types'
 import type { IndicadorSGO, MedicionIndicadorSGO } from '../sgo/indicadores'
 import type { GarantiaISO } from '../sgo/garantias'
@@ -337,6 +337,24 @@ let canal: RealtimeChannel | null = null
 
 type Payload = RealtimePostgresChangesPayload<Record<string, unknown>>
 
+/** ¿Hay operaciones NUESTRAS todavía sin subir para esta tarea? Si las hay, el
+ *  espejo local va ADELANTE de la nube y no hay que repescar nada: pisaríamos
+ *  trabajo del operario que aún no viajó. (entidadId no está indexado, pero la
+ *  cola se purga a las 24h y es chica.) */
+async function tienePendientesDe(tareaId: string): Promise<boolean> {
+  const ops = await db.syncQueue.filter((o) => !o.sincronizado && o.entidadId === tareaId).count()
+  return ops > 0
+}
+
+/** Paradas frescas de UNA tarea, directo de Supabase. Devuelve null si no se
+ *  pudo (sin red / error): en ese caso conservamos lo local y no rompemos nada. */
+async function repescarParadas(tareaId: string): Promise<Parada[] | null> {
+  if (!supabase || !navigator.onLine) return null
+  const { data, error } = await supabase.from('paradas').select('*').eq('tarea_id', tareaId)
+  if (error || !data) return null
+  return (data as unknown as ParadaRow[]).map(paradaFromRow)
+}
+
 async function onTareaChange(payload: Payload) {
   if (payload.eventType === 'DELETE') {
     await db.tareas.delete((payload.old as { id: string }).id)
@@ -344,7 +362,27 @@ async function onTareaChange(payload: Payload) {
   }
   const row = payload.new as unknown as TareaRow
   const existente = await db.tareas.get(row.id)
-  await db.tareas.put(tareaFromRow(row, existente?.paradas ?? []))
+  let paradas = existente?.paradas ?? []
+
+  // v1.77 — RECONCILIACION. Esta función mezcla dos fuentes: el ESTADO viene de
+  // la nube (row) y las PARADAS del espejo local. Mientras lleguen todos los
+  // eventos realtime de `paradas` coinciden, pero si se pierde uno (pestaña en
+  // segundo plano, corte de Wi-Fi, o la tabla `paradas` sin publicar en
+  // realtime) las dos fuentes quedan contradiciéndose PARA SIEMPRE: la tarea
+  // figura 'pausada' y localmente no hay ninguna parada abierta que cerrar.
+  // Eso dejaba el botón "Reanudar" muerto en la tablet del operario.
+  //
+  // Detectamos la contradicción y pedimos las paradas de ESA tarea (una query
+  // por id, no un re-sync). Si no hay red, se conserva lo local: offline sigue
+  // funcionando igual que antes.
+  const hayAbiertaLocal = paradas.some((p) => !p.fin)
+  const deberiaHaberAbierta = row.estado === 'pausada'
+  if (hayAbiertaLocal !== deberiaHaberAbierta && !(await tienePendientesDe(row.id))) {
+    const frescas = await repescarParadas(row.id)
+    if (frescas) paradas = frescas
+  }
+
+  await db.tareas.put(tareaFromRow(row, paradas))
 }
 
 async function onParadaChange(payload: Payload) {

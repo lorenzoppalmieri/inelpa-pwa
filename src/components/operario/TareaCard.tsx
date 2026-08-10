@@ -112,7 +112,22 @@ export default function TareaCard({ tarea, onIniciar }: { tarea: Tarea; onInicia
   // abiertas (ej. material), la tarea SIGUE pausada mostrando ese motivo; recién
   // vuelve a "en proceso" cuando no queda ninguna parada abierta.
   async function reanudar() {
-    if (!paradaAbierta) return
+    // v1.77 — BUG DE PLANTA: el boton "Reanudar" no hacia NADA y la tarea quedaba
+    // pausada para siempre. Se renderiza con estado === 'pausada', pero esta
+    // funcion arrancaba con `if (!paradaAbierta) return`, un no-op silencioso.
+    //
+    // Una tarea puede quedar 'pausada' SIN ninguna parada abierta cuando el
+    // espejo local se desincroniza (ver onTareaChange en syncEngine: el estado
+    // llega de la nube y las paradas son las locales). Ahi el operario no tenia
+    // NINGUNA forma de salir.
+    //
+    // Sin parada abierta no hay nada que cerrar ni que justificar, asi que la
+    // tarea simplemente vuelve a 'en_proceso'. No se inventa ninguna parada:
+    // los tiempos ya registrados quedan intactos.
+    if (!paradaAbierta) {
+      if (tarea.estado === 'pausada') await guardarTarea({ ...tarea, estado: 'en_proceso' })
+      return
+    }
     const ahoraISO = new Date().toISOString()
     const paradas = tarea.paradas.map((p) => (p.id === paradaAbierta.id ? { ...p, fin: ahoraISO } : p))
     const siguenAbiertas = paradas.some((p) => !p.fin)
