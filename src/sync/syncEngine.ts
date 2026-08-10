@@ -9,6 +9,7 @@ import type { GarantiaISO } from '../sgo/garantias'
 import type { ControlProgramadoSGO, EjecucionControlSGO } from '../sgo/controles'
 import { setFeriados } from '../lib/calendario'
 import { procesarColaAvisosMant } from '../mantenimiento/avisos'
+import { exigirPermisoBorradoSGO } from '../sgo/permisos'
 import {
   tareaFromRow, paradaFromRow, ordenFromRow, semiFromRow, maquinaFromRow, usuarioFromRow, objetivoFromRow, tareaLogFromRow, solicitudLogFromRow, feriadoFromRow, mensajeFromRow, lecturaFromRow, estandarFromRow, despachoFromRow, fleteFromRow, laboratorioFromRow, plantillaFromRow, eventoSGOFromRow, accionSGOFromRow, indicadorSGOFromRow, medicionIndicadorSGOFromRow, auditoriaSGOFromRow, garantiaISOFromRow, controlProgramadoSGOFromRow, ejecucionControlSGOFromRow,
   tareaToRow, paradaToRow, ordenToRow, semiToRow, objetivoToRow, tareaLogToRow, solicitudLogToRow, feriadoToRow, mensajeToRow, lecturaToRow, estandarToRow, despachoToRow, fleteToRow, laboratorioToRow, plantillaToRow, eventoSGOToRow, accionSGOToRow, indicadorSGOToRow, medicionIndicadorSGOToRow, garantiaISOToRow, controlProgramadoSGOToRow, ejecucionControlSGOToRow,
@@ -658,7 +659,13 @@ async function empujar(op: SyncOp): Promise<EmpujeResultado> {
       if (op.entidad === 'indicador_sgo') {
         const { data, error } = await supabase.from('sgo_indicadores').delete().eq('id', op.entidadId).select('id')
         if (error) return fallo('delete indicador_sgo', error.message)
-        if (!data?.length) return fallo('delete indicador_sgo', 'Supabase no eliminó el KPI. Verificar permiso exclusivo de Lorenzo y migración v1.59.')
+        if (!data?.length) return fallo('delete indicador_sgo', 'Supabase no eliminó el KPI. Verificar permiso exclusivo de Lorenzo y migración SGO v1.69.')
+        return OK_EMPUJE
+      }
+      if (op.entidad === 'evento_sgo') {
+        const { data, error } = await supabase.from('sgo_eventos').delete().eq('id', op.entidadId).select('id')
+        if (error) return fallo('delete evento_sgo', error.message)
+        if (!data?.length) return fallo('delete evento_sgo', 'Supabase no eliminó el evento. Verificar permiso exclusivo de Lorenzo y migración SGO v1.69.')
         return OK_EMPUJE
       }
       const tabla = op.entidad === 'tarea' ? 'tareas'
@@ -675,7 +682,6 @@ async function empujar(op: SyncOp): Promise<EmpujeResultado> {
         : op.entidad === 'flete' ? 'fletes_internos'
         : op.entidad === 'laboratorio' ? 'laboratorio'
         : op.entidad === 'plantilla_recurrente' ? 'plantillas_recurrentes'
-        : op.entidad === 'evento_sgo' ? 'sgo_eventos'
         : op.entidad === 'accion_sgo' ? 'sgo_acciones'
         : op.entidad === 'medicion_indicador_sgo' ? 'sgo_indicador_mediciones'
         : op.entidad === 'garantia_iso' ? 'sgo_garantias_iso'
@@ -896,6 +902,17 @@ export async function guardarEventoSGO(e: EventoSGO): Promise<void> {
   await encolar({ entidad: 'evento_sgo', entidadId: e.id, tipo: 'upsert', payload: e })
 }
 
+export async function eliminarEventoSGO(e: EventoSGO, usuario: string): Promise<void> {
+  exigirPermisoBorradoSGO(usuario)
+  await db.transaction('rw', db.eventosSGO, db.accionesSGO, db.garantiasISO, db.ejecucionesControlesSGO, async () => {
+    await db.accionesSGO.where('eventoId').equals(e.id).delete()
+    await db.garantiasISO.where('eventoId').equals(e.id).modify((garantia) => { delete garantia.eventoId })
+    await db.ejecucionesControlesSGO.where('eventoId').equals(e.id).modify((ejecucion) => { delete ejecucion.eventoId })
+    await db.eventosSGO.delete(e.id)
+  })
+  await encolar({ entidad: 'evento_sgo', entidadId: e.id, tipo: 'delete', payload: { id: e.id } })
+}
+
 export async function guardarAccionSGO(a: AccionSGO): Promise<void> {
   await db.accionesSGO.put(a)
   await encolar({ entidad: 'accion_sgo', entidadId: a.id, tipo: 'upsert', payload: a })
@@ -905,7 +922,8 @@ export async function guardarIndicadorSGO(i: IndicadorSGO): Promise<void> {
   await db.indicadoresSGO.put(i)
   await encolar({ entidad: 'indicador_sgo', entidadId: i.id, tipo: 'upsert', payload: i })
 }
-export async function eliminarIndicadorSGO(i: IndicadorSGO): Promise<void> {
+export async function eliminarIndicadorSGO(i: IndicadorSGO, usuario: string): Promise<void> {
+  exigirPermisoBorradoSGO(usuario)
   await db.medicionesIndicadoresSGO.where('indicadorId').equals(i.id).delete()
   await db.indicadoresSGO.delete(i.id)
   await encolar({ entidad: 'indicador_sgo', entidadId: i.id, tipo: 'delete', payload: { id: i.id } })

@@ -4,9 +4,9 @@ import { periodoLocalISO } from '../../lib/time'
 import { AREAS_SGO, PILARES_SGO, type AreaSGOId, type PilarSGO } from '../../sgo/types'
 import { FRECUENCIAS_KPI, KPI_SUGERIDOS, configuracionUmbralValida, estadoIndicador, idMedicionIndicador, normalizarPeriodoKPI, periodoKPILabel, type DireccionKPI, type FrecuenciaKPI, type IndicadorSGO, type MedicionIndicadorSGO } from '../../sgo/indicadores'
 import { plantillasKPIAutomaticos } from '../../sgo/kpiAutomaticos'
+import { usuarioEsLorenzo } from '../../sgo/permisos'
 
 const periodoActual = () => periodoLocalISO()
-const esLorenzo = (usuario: string) => usuario.trim().toLowerCase() === 'lorenzo'
 
 export default function IndicadoresSGO({ indicadores, mediciones, usuario, onClose }: { indicadores: IndicadorSGO[]; mediciones: MedicionIndicadorSGO[]; usuario: string; onClose: () => void }) {
   const [area, setArea] = useState<AreaSGOId>('bobinado_distribucion')
@@ -70,7 +70,7 @@ export default function IndicadoresSGO({ indicadores, mediciones, usuario, onClo
     </div>
 
     <div className="section-title">Indicadores configurados ({visibles.length})</div>
-    {visibles.length === 0 ? <div className="empty">Esta celda todavía no tiene KPI. Permanecerá gris.</div> : visibles.map((i) => <IndicadorFila key={i.id} indicador={i} mediciones={mediciones.filter((m) => m.indicadorId === i.id)} usuario={usuario} puedeEliminar={esLorenzo(usuario)} />)}
+    {visibles.length === 0 ? <div className="empty">Esta celda todavía no tiene KPI. Permanecerá gris.</div> : visibles.map((i) => <IndicadorFila key={i.id} indicador={i} mediciones={mediciones.filter((m) => m.indicadorId === i.id)} usuario={usuario} puedeEliminar={usuarioEsLorenzo(usuario)} />)}
 
     <div className="card" style={{ marginTop: 14, borderLeft: '4px solid #2563eb' }}>
       <div className="section-title" style={{ marginTop: 0 }}>Nuevo indicador</div>
@@ -130,7 +130,7 @@ function IndicadorFila({ indicador: i, mediciones, usuario, puedeEliminar }: { i
   async function alternar() { await guardarIndicadorSGO({ ...i, activo: !i.activo, actualizadoEn: new Date().toISOString(), actualizadoPor: usuario }) }
   async function eliminar() {
     if (!puedeEliminar || !window.confirm(`¿Eliminar definitivamente el indicador "${i.nombre}"? Esta acción no se puede deshacer.`)) return
-    await eliminarIndicadorSGO(i)
+    await eliminarIndicadorSGO(i, usuario)
   }
   return <div className="card" style={{ marginBottom: 8, opacity: i.activo ? 1 : .6 }}>
     <div className="card-header"><div><strong>{i.nombre}</strong><div className="meta">{i.origen === 'automatico' ? '⚡ Automático' : 'Manual'} · {i.direccion === 'mayor_mejor' ? 'Mayor es mejor' : 'Menor es mejor'} · Estado: {estadoIndicador({ ...i, valorActual: valor === '' ? undefined : Number(valor), meta: Number(meta), umbralAmarillo: Number(amarillo) })}</div></div><div className="row-actions"><button className="btn" onClick={() => void alternar()}>{i.activo ? 'Desactivar' : 'Activar'}</button>{puedeEliminar && <button className="btn" style={{ color: 'var(--rojo)', borderColor: 'var(--rojo)' }} onClick={() => void eliminar()}>Eliminar</button>}</div></div>

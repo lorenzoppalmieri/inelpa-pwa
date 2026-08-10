@@ -4,6 +4,7 @@ import { AREAS_SGO, PILARES_SGO, type AccionSGO, type AreaSGOId, type EventoSGO,
 import { eliminarIndicadorSGO } from '../../sync/syncEngine'
 import { fechaLocalISO } from '../../lib/time'
 import { estadoProgramacionControl, FRECUENCIAS_CONTROL_SGO, type ControlProgramadoSGO } from '../../sgo/controles'
+import { usuarioEsLorenzo } from '../../sgo/permisos'
 
 const PALETA: Record<EstadoSemaforo, { color: string; fondo: string; label: string }> = {
   verde: { color: '#15803d', fondo: '#dcfce7', label: 'Conforme' },
@@ -128,10 +129,10 @@ function DetalleIndicador({ indicador, datos, usuario }: { indicador: IndicadorS
   const estado = estadoIndicador(indicador)
   const paleta = PALETA[estado]
   const detalle = detalleKPIAutomatico(indicador, datos)
-  const puedeEliminar = usuario.trim().toLowerCase() === 'lorenzo'
+  const puedeEliminar = usuarioEsLorenzo(usuario)
   async function eliminar() {
     if (!puedeEliminar || !window.confirm(`¿Eliminar definitivamente el indicador "${indicador.nombre}"?`)) return
-    await eliminarIndicadorSGO(indicador)
+    await eliminarIndicadorSGO(indicador, usuario)
   }
   return <div className="card" style={{ borderLeft: `5px solid ${paleta.color}` }}>
     <div className="card-header">

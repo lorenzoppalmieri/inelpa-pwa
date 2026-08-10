@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
 import { useAuth } from '../../auth/AuthContext'
-import { guardarAccionSGO, guardarEventoSGO, guardarIndicadorSGO } from '../../sync/syncEngine'
+import { eliminarEventoSGO, guardarAccionSGO, guardarEventoSGO, guardarIndicadorSGO } from '../../sync/syncEngine'
 import { fechaLocalISO, sumarDiasLocalISO } from '../../lib/time'
 import MatrizSGO from './MatrizSGO'
 import IndicadoresSGO from './IndicadoresSGO'
@@ -14,6 +14,7 @@ import { defectoSGOLabel, defectosParaArea } from '../../sgo/defectos'
 import { resolverKPIAutomaticos } from '../../sgo/kpiAutomaticos'
 import { aplicarMedicionesIndicadores, type IndicadorSGO } from '../../sgo/indicadores'
 import { validarCierreEvento } from '../../sgo/cierre'
+import { usuarioEsLorenzo } from '../../sgo/permisos'
 import {
   ID_DIAS_SIN_ACCIDENTES, ID_DIAS_SIN_INCIDENTES, IDS_CONTADORES_SEGURIDAD,
   estadoContadorSeguridad, type TipoContadorSeguridad,
@@ -210,7 +211,7 @@ function ContadorDiasSeguridad({ tipo, eventos, ajuste, usuario }: { tipo: TipoC
   const estado = estadoContadorSeguridad(eventos, ajuste, tipo)
   const [valor, setValor] = useState(String(estado.dias))
   const [guardando, setGuardando] = useState(false)
-  const puedeEditar = usuario.trim().toLowerCase() === 'lorenzo'
+  const puedeEditar = usuarioEsLorenzo(usuario)
 
   async function guardar() {
     if (!puedeEditar) return
@@ -394,6 +395,12 @@ function DetalleEvento({ evento, acciones, auditoria, usuario, onClose }: { even
   const [disposicion, setDisposicion] = useState(evento.disposicion ?? 'pendiente')
   const [costos, setCostos] = useState<CostoNoCalidad>(evento.costoDetalle ?? { material: 0, manoObra: 0, maquina: 0, ensayos: 0, logistica: 0, terceros: 0 })
   const [nuevaAccion, setNuevaAccion] = useState(false)
+  const [eliminando, setEliminando] = useState(false)
+  const puedeEliminar = usuarioEsLorenzo(usuario)
+  const vinculos = useLiveQuery(async () => ({
+    garantias: await db.garantiasISO.where('eventoId').equals(evento.id).count(),
+    controles: await db.ejecucionesControlesSGO.where('eventoId').equals(evento.id).count(),
+  }), [evento.id]) ?? { garantias: 0, controles: 0 }
 
   async function actualizar() {
     const now = new Date().toISOString()
@@ -411,6 +418,25 @@ function DetalleEvento({ evento, acciones, auditoria, usuario, onClose }: { even
       return
     }
     await guardarEventoSGO(actualizado)
+  }
+
+  async function eliminar() {
+    if (!puedeEliminar || eliminando) return
+    const relaciones = [
+      acciones.length ? `${acciones.length} acción(es) asociada(s)` : '',
+      vinculos.garantias ? `${vinculos.garantias} garantía(s) vinculada(s)` : '',
+      vinculos.controles ? `${vinculos.controles} control(es) ejecutado(s)` : '',
+    ].filter(Boolean).join(', ')
+    const detalle = relaciones ? `\n\nRegistros relacionados: ${relaciones}.` : ''
+    if (!window.confirm(`¿Eliminar definitivamente el evento ${evento.codigo}?${detalle}\n\nLas acciones asociadas se eliminarán. Las garantías y auditorías se conservarán, pero quedarán desvinculadas. La bitácora de auditoría conservará la eliminación.\n\nEsta acción no se puede deshacer.`)) return
+    setEliminando(true)
+    try {
+      await eliminarEventoSGO(evento, usuario)
+      onClose()
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'No se pudo eliminar el evento.')
+      setEliminando(false)
+    }
   }
 
   return <Modal titulo={`${evento.codigo} · ${evento.titulo}`} onClose={onClose} ancho={780}>
@@ -436,7 +462,10 @@ function DetalleEvento({ evento, acciones, auditoria, usuario, onClose }: { even
     <div className="field"><label>Causa raíz</label><textarea className="input" rows={3} value={causaRaiz} onChange={(e) => setCausaRaiz(e.target.value)} placeholder="Completar después del análisis; no confundir con el síntoma" /></div>
     <div className="field"><label>Método de análisis</label><select className="input" value={metodoAnalisis ?? ''} onChange={(e) => setMetodoAnalisis((e.target.value || undefined) as EventoSGO['metodoAnalisis'])}><option value="">Sin seleccionar</option><option value="5_porques">5 porqués</option><option value="ishikawa">Ishikawa</option><option value="a3">A3</option><option value="8d">8D</option><option value="otro">Otro</option></select></div>
     <div className="field"><label>Evidencias / referencias</label><textarea className="input" rows={3} value={evidencias} onChange={(e) => setEvidencias(e.target.value)} placeholder="Una referencia o enlace por línea" /></div>
-    <div className="row-actions" style={{ justifyContent: 'flex-end' }}><button className="btn btn-primary" onClick={() => void actualizar()}>Guardar expediente</button></div>
+    <div className="row-actions" style={{ justifyContent: 'space-between' }}>
+      {puedeEliminar && <button className="btn" disabled={eliminando} style={{ color: '#fca5a5', borderColor: '#ef4444' }} onClick={() => void eliminar()}>{eliminando ? 'Eliminando…' : 'Eliminar evento'}</button>}
+      <button className="btn btn-primary" style={{ marginLeft: 'auto' }} disabled={eliminando} onClick={() => void actualizar()}>Guardar expediente</button>
+    </div>
 
     <div className="section-title" style={{ marginTop: 18 }}>Acciones ({acciones.length})</div>
     {acciones.length === 0 ? <div className="empty">Sin acciones asignadas.</div> : acciones.map((a) => <AccionCard key={a.id} accion={a} usuario={usuario} />)}
