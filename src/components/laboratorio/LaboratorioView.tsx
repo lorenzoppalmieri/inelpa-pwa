@@ -22,6 +22,34 @@ import FichaLaboratorio from './FichaLaboratorio'
 
 const PAGINA = 20
 
+// ============================================================
+// v1.79 — SEMAFORO DE ESPERA EN LA COLA.
+//
+// El umbral viejo era `min > 3*480 ? rojo : min > 480 ? naranja : naranja`:
+// las dos ultimas ramas daban EL MISMO COLOR, asi que un trafo con 2 horas de
+// espera se veia igual que uno con 20. El semaforo no señalaba nada hasta el
+// salto a rojo.
+//
+// Ademas 480 min (8h) no es una jornada de esta planta: Lun-Jue se produce de
+// 07:00 a 15:45 (los ultimos 15' son limpieza) = 525 min. Los viernes son 465.
+// Se toma 525 como "una jornada" para que el umbral signifique algo real.
+// ============================================================
+const JORNADA_MIN = 525
+
+function colorEspera(min: number): string {
+  if (min > 3 * JORNADA_MIN) return 'var(--rojo)'       // mas de 3 jornadas
+  if (min > JORNADA_MIN) return 'var(--naranja)'        // entre 1 y 3 jornadas
+  return 'var(--estado-fin)'                            // menos de una jornada
+}
+
+/** "50h 55m" no dice mucho a simple vista; "≈ 5,8 jornadas" si. Solo se agrega
+ *  cuando ya paso al menos una jornada completa, para no ensuciar la tarjeta. */
+function jornadasLabel(min: number): string {
+  const j = min / JORNADA_MIN
+  if (j < 1) return ''
+  return ` · ≈ ${j.toFixed(1).replace('.', ',')} ${j < 2 ? 'jornada' : 'jornadas'}`
+}
+
 export default function LaboratorioView() {
   const tareas = useLiveQuery(() => db.laboratorio.toArray(), []) ?? []
   const [abierta, setAbierta] = useState<TareaLaboratorio | null>(null)
@@ -94,6 +122,16 @@ export default function LaboratorioView() {
       </div>
 
       <div className="section-title">Pendientes de ensayo ({g.pendientes.length})</div>
+      {/* v1.79: sin esto los colores no se entienden. Se aclara ademas que el
+          tiempo es de PLANTA (no reloj), que es la duda que surge al leerlo. */}
+      {g.pendientes.length > 0 && (
+        <div className="meta" style={{ margin: '-6px 0 10px' }}>
+          Ordenados del que más espera al que menos. La espera está en <strong>horas de planta</strong> (no
+          cuenta noches, fines de semana ni feriados) · <span style={{ color: 'var(--estado-fin)', fontWeight: 700 }}>menos de 1 jornada</span> ·{' '}
+          <span style={{ color: 'var(--naranja)', fontWeight: 700 }}>1 a 3 jornadas</span> ·{' '}
+          <span style={{ color: 'var(--rojo)', fontWeight: 700 }}>más de 3 jornadas</span>
+        </div>
+      )}
       {g.pendientes.length === 0
         ? <div className="empty">{buscar ? 'Ningún pendiente coincide con la búsqueda.' : 'Sin transformadores esperando ensayo.'}</div>
         : g.pendientes.map((t) => {
@@ -106,8 +144,8 @@ export default function LaboratorioView() {
                   <div className="meta">
                     Cliente <strong>{t.cliente || 'Stock'}</strong>{t.ot ? ` · OT ${t.ot}` : ''}{t.linea ? ` · ${t.linea === 'rural' ? 'Rural' : 'Distribución'}` : ''} · Ingresó {fechaCorta(t.creada)} {hhmm(t.creada)}
                     {' · '}
-                    <strong style={{ color: min > 3 * 480 ? 'var(--rojo)' : min > 480 ? 'var(--naranja)' : 'var(--naranja)' }}>
-                      esperando {fmtDur(min)}
+                    <strong style={{ color: colorEspera(min) }}>
+                      esperando {fmtDur(min)}{jornadasLabel(min)}
                     </strong>
                   </div>
                 </div>
