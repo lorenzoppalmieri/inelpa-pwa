@@ -615,7 +615,11 @@ export function enStock(d: DespachoTrafo): boolean {
 //  - todo lo ensayado aprobado -> crea el despacho (DespachoTrafo).
 //  - algún ensayo rechazado    -> retrabajo (avisa al planificador) + comentario.
 // ============================================================
-export type EstadoLab = 'pendiente' | 'en_ensayo' | 'finalizada'
+// v1.80: 'anulada' = ficha sacada de la cola por el super admin (trafo desfasado,
+// duplicado o cargado por error). NO se borra la fila: queda con motivo, autor y
+// fecha para poder explicar por que ese trafo terminado no tiene ensayo. Es
+// reversible (se puede restaurar a 'pendiente').
+export type EstadoLab = 'pendiente' | 'en_ensayo' | 'finalizada' | 'anulada'
 export type EnsayoEstado = 'sin' | 'aprobado' | 'rechazado'
 
 // Protocolo de ensayos (opcionales: los trafos chicos no llevan todos).
@@ -653,6 +657,10 @@ export interface TareaLaboratorio {
   // v1.48: auditoría de reaperturas. Una ficha finalizada queda en SOLO LECTURA;
   // para volver a tocarla hay que reabrirla explícitamente y queda registrado.
   reaperturas?: { en: string; por?: string }[]
+  // v1.80: auditoria de anulacion. Solo se completan cuando estado === 'anulada'.
+  anuladaEn?: string
+  anuladaPor?: string
+  motivoAnulacion?: string
   creada: string
   creadaPor?: string
   finalizada?: string

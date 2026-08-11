@@ -774,6 +774,10 @@ export interface LaboratorioRow {
   protocolo_nombre: string | null
   protocolo_subido_en: string | null
   reaperturas: { en: string; por?: string }[] | null
+  // v1.80: anulacion de ficha (super admin). Ver EstadoLab en types.
+  anulada_en: string | null
+  anulada_por: string | null
+  motivo_anulacion: string | null
   creada_en: string
   creada_por: string | null
   finalizada_en: string | null
@@ -798,6 +802,9 @@ export function laboratorioFromRow(r: LaboratorioRow): TareaLaboratorio {
     protocoloNombre: u(r.protocolo_nombre),
     protocoloSubido: u(r.protocolo_subido_en),
     reaperturas: r.reaperturas ?? undefined,
+    anuladaEn: u(r.anulada_en),
+    anuladaPor: u(r.anulada_por),
+    motivoAnulacion: u(r.motivo_anulacion),
     creada: r.creada_en,
     creadaPor: u(r.creada_por),
     finalizada: u(r.finalizada_en),
@@ -823,6 +830,9 @@ export function laboratorioToRow(t: TareaLaboratorio): LaboratorioRow {
     protocolo_nombre: t.protocoloNombre ?? null,
     protocolo_subido_en: t.protocoloSubido ?? null,
     reaperturas: t.reaperturas ?? null,
+    anulada_en: t.anuladaEn ?? null,
+    anulada_por: t.anuladaPor ?? null,
+    motivo_anulacion: t.motivoAnulacion ?? null,
     creada_en: t.creada,
     creada_por: t.creadaPor ?? null,
     finalizada_en: t.finalizada ?? null,

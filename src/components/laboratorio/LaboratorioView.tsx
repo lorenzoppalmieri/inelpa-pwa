@@ -2,7 +2,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
 import type { TareaLaboratorio } from '../../types'
-import { ENSAYOS_LAB, estadoEnsayo } from '../../types'
+import { ENSAYOS_LAB, estadoEnsayo, idDespachoDeLab } from '../../types'
+import { esSuperAdmin } from '../../auth/roles'
+import { useAuth } from '../../auth/AuthContext'
+import { guardarLaboratorio } from '../../sync/syncEngine'
 import { fechaCorta, hhmm, fmtDur } from '../../lib/time'
 import { calcularTiempoProductivo } from '../../lib/calendario'
 import { PERIODOS_HISTORIAL, rangoReporte, enRango, type PeriodoReporte } from '../../lib/periodoReporte'
@@ -51,8 +54,15 @@ function jornadasLabel(min: number): string {
 }
 
 export default function LaboratorioView() {
+  const { usuario } = useAuth()
+  const puedeAnular = esSuperAdmin(usuario)   // v1.80: hoy solo 'lorenzo'
   const tareas = useLiveQuery(() => db.laboratorio.toArray(), []) ?? []
   const [abierta, setAbierta] = useState<TareaLaboratorio | null>(null)
+  // v1.80: ficha en proceso de anulacion + motivo tipeado + aviso de bloqueo.
+  const [anulando, setAnulando] = useState<TareaLaboratorio | null>(null)
+  const [motivo, setMotivo] = useState('')
+  const [errAnular, setErrAnular] = useState('')
+  const [verAnuladas, setVerAnuladas] = useState(false)
   const [periodo, setPeriodo] = useState<PeriodoReporte>('mes_actual')
   const [buscar, setBuscar] = useState('')
   const [tope, setTope] = useState(PAGINA)
@@ -71,8 +81,13 @@ export default function LaboratorioView() {
   const g = useMemo(() => {
     const q = buscar.trim().toLowerCase()
     // La COLA se muestra siempre completa: es el trabajo pendiente, no historial.
-    const pendientes = tareas.filter((t) => t.estado !== 'finalizada' && coincide(t, q))
+    // v1.80: las anuladas NO son trabajo pendiente ni historial de ensayos; van
+    // a su propia lista aparte (abajo del todo, solo para el super admin).
+    const pendientes = tareas.filter((t) => t.estado !== 'finalizada' && t.estado !== 'anulada' && coincide(t, q))
       .sort((a, b) => (a.creada < b.creada ? -1 : 1))
+
+    const anuladas = tareas.filter((t) => t.estado === 'anulada' && coincide(t, q))
+      .sort((a, b) => ((b.anuladaEn ?? '') < (a.anuladaEn ?? '') ? -1 : 1))
 
     const finalizadasTodas = tareas.filter((t) => t.estado === 'finalizada')
     const r = rangoReporte(periodo)
@@ -80,10 +95,47 @@ export default function LaboratorioView() {
       .filter((t) => enRango(t.finalizada ?? t.creada, r.desde, r.hasta) && coincide(t, q))
       .sort((a, b) => ((b.finalizada ?? '') < (a.finalizada ?? '') ? -1 : 1))
 
-    return { pendientes, finalizadas, totalFinalizadas: finalizadasTodas.length }
+    return { pendientes, anuladas, finalizadas, totalFinalizadas: finalizadasTodas.length }
   }, [tareas, periodo, buscar])
 
   const visibles = g.finalizadas.slice(0, tope)
+
+  // ---------- v1.80: ANULAR / RESTAURAR una ficha (solo super admin) ----------
+  // Abre el modal, pero antes CHEQUEA que la ficha no haya generado ya un
+  // despacho. Un ensayo aprobado crea el despacho con id derivado del suyo
+  // (desp_<labId>); si se anulara la ficha, ese despacho quedaria huerfano en el
+  // modulo de embalaje, sin origen que lo explique.
+  async function pedirAnular(t: TareaLaboratorio) {
+    setMotivo(''); setErrAnular('')
+    const desp = await db.despachos.get(idDespachoDeLab(t.id))
+    if (desp) {
+      setErrAnular('Esta ficha ya liberó el trafo a Despacho. Primero hay que dar de baja el despacho; si no, quedaría sin origen.')
+    }
+    setAnulando(t)
+  }
+
+  async function confirmarAnular() {
+    const t = anulando
+    if (!t || !motivo.trim() || errAnular) return
+    await guardarLaboratorio({
+      ...t,
+      estado: 'anulada',
+      anuladaEn: new Date().toISOString(),
+      anuladaPor: usuario?.usuario,
+      motivoAnulacion: motivo.trim(),
+    })
+    setAnulando(null); setMotivo('')
+  }
+
+  // Vuelve la ficha a la cola. La anulacion es reversible a proposito: si se
+  // anula una de mas, no hay que rehacer nada a mano en la base.
+  async function restaurar(t: TareaLaboratorio) {
+    if (!window.confirm(`Devolver a la cola de ensayos:\n\n${t.modelo}\nSerie ${t.nroSerie || '(sin serie)'}`)) return
+    await guardarLaboratorio({
+      ...t, estado: 'pendiente',
+      anuladaEn: undefined, anuladaPor: undefined, motivoAnulacion: undefined,
+    })
+  }
 
   // Resumen de ensayos de una tarea (para la tarjeta finalizada).
   const resumen = (t: TareaLaboratorio) => {
@@ -152,6 +204,13 @@ export default function LaboratorioView() {
               </div>
               <div className="row-actions">
                 <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => setAbierta(t)}>🔬 Abrir ensayo</button>
+                {/* v1.80: sacar de la cola una ficha desfasada o duplicada. Solo
+                    super admin; no borra la fila, la marca como anulada. */}
+                {puedeAnular && (
+                  <button className="btn" onClick={() => void pedirAnular(t)} title="Sacar de la cola (queda registrado)">
+                    ✕ Anular
+                  </button>
+                )}
               </div>
             </div>
           )
@@ -195,6 +254,88 @@ export default function LaboratorioView() {
               </button>
             )}
           </>}
+
+      {/* ---------- v1.80: fichas ANULADAS (solo super admin) ----------
+          Plegado por defecto para no ensuciar la vista. Existe para poder
+          justificar por que un trafo terminado no tiene ensayo, y para
+          devolverlo a la cola si se anulo por error. */}
+      {puedeAnular && g.anuladas.length > 0 && (
+        <>
+          <button className="btn btn-bloque" style={{ marginTop: 18 }} onClick={() => setVerAnuladas((v) => !v)}>
+            {verAnuladas ? '▲ Ocultar' : '▼ Ver'} fichas anuladas ({g.anuladas.length})
+          </button>
+          {verAnuladas && g.anuladas.map((t) => (
+            <div className="card" key={t.id} style={{ opacity: .75, borderLeft: '4px solid var(--texto-tenue)' }}>
+              <div className="card-header">
+                <div>
+                  <h3 style={{ textDecoration: 'line-through' }}>{t.modelo}{t.nroSerie ? ` · Serie ${t.nroSerie}` : ' · (sin serie)'}</h3>
+                  <div className="meta">
+                    Anulada por <strong>{t.anuladaPor || '—'}</strong>
+                    {t.anuladaEn ? ` el ${fechaCorta(t.anuladaEn)} ${hhmm(t.anuladaEn)}` : ''}
+                    {t.ot ? ` · OT ${t.ot}` : ''} · Había ingresado {fechaCorta(t.creada)}
+                  </div>
+                  {t.motivoAnulacion && <div className="meta" style={{ marginTop: 4 }}>Motivo: <em>{t.motivoAnulacion}</em></div>}
+                </div>
+              </div>
+              <div className="row-actions">
+                <button className="btn" onClick={() => void restaurar(t)}>↺ Devolver a la cola</button>
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+
+      {/* ---------- v1.80: modal de anulacion ---------- */}
+      {anulando && (
+        <div className="modal-overlay" onClick={() => setAnulando(null)}>
+          <div className="modal modal-flex" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-head">
+              <h2>Anular ficha de laboratorio</h2>
+            </div>
+            <div className="modal-cuerpo">
+              {/* Se repiten modelo y serie para que no se anule la tarjeta equivocada. */}
+              <div className="card" style={{ borderLeft: '4px solid var(--naranja)' }}>
+                <strong>{anulando.modelo}</strong>
+                <div className="meta" style={{ marginTop: 4 }}>
+                  Serie <strong>{anulando.nroSerie || '(sin serie)'}</strong>
+                  {anulando.ot ? ` · OT ${anulando.ot}` : ''} · Cliente {anulando.cliente || 'Stock'}
+                  {' · '}Ingresó {fechaCorta(anulando.creada)} {hhmm(anulando.creada)}
+                </div>
+              </div>
+              {errAnular
+                ? <div className="meta" style={{ color: 'var(--rojo)', fontWeight: 700, marginTop: 10 }}>⚠ {errAnular}</div>
+                : (
+                  <>
+                    <div className="meta" style={{ marginTop: 10 }}>
+                      Sale de la cola de ensayos. <strong>No se borra</strong>: queda registrada con tu usuario y el
+                      motivo, y podés devolverla a la cola cuando quieras. La tarea de Montaje que la generó no se toca.
+                    </div>
+                    <div className="field" style={{ marginTop: 12 }}>
+                      <label>Motivo *</label>
+                      <input
+                        className="input" value={motivo} autoFocus
+                        onChange={(e) => setMotivo(e.target.value)}
+                        placeholder="ej. duplicada por error de carga de serie"
+                      />
+                    </div>
+                  </>
+                )}
+            </div>
+            <div className="modal-pie">
+              <div className="row-actions">
+                <button className="btn" style={{ flex: 1 }} onClick={() => setAnulando(null)}>Cancelar</button>
+                <button
+                  className="btn btn-naranja" style={{ flex: 1 }}
+                  disabled={!motivo.trim() || !!errAnular}
+                  onClick={() => void confirmarAnular()}
+                >
+                  Anular ficha
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {abierta && (
         <FichaLaboratorio
