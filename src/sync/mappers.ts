@@ -23,12 +23,14 @@ import type { AccionSGO, AuditoriaSGO, EventoSGO } from '../sgo/types'
 import { normalizarAreaSGO } from '../sgo/types'
 import type { IndicadorSGO, MedicionIndicadorSGO } from '../sgo/indicadores'
 import type { ControlProgramadoSGO, EjecucionControlSGO } from '../sgo/controles'
-import type { ActividadAgendaISO } from '../sgo/agendaISO'
+import type { ActividadAgendaISO, MarcaSemanaISO } from '../sgo/agendaISO'
 import type { ComentarioTareaSGO, TareaSGO } from '../sgo/tareasSGO'
 
 export interface ActividadAgendaISORow {
   id: string; titulo: string; categoria: string; normas: string[]; requisito: string | null; area: string | null
   responsable: string; frecuencia: string; fecha_objetivo: string | null; aviso_dias: number; estado: string
+  // v1.84: matriz año x semana. La marca real de la planilla es el casillero pintado.
+  semanas: MarcaSemanaISO[] | null; bloque: string | null; orden: number | null
   criticidad: string; evidencia_esperada: string | null; evidencia: string | null; resultado: string | null
   observaciones: string | null; fuente: string | null; completada_en: string | null; completada_por: string | null
   verificada_en: string | null; verificada_por: string | null; verificacion: string | null
@@ -47,6 +49,7 @@ export interface ComentarioTareaSGORow { id: string; tarea_id: string; autor: st
 export function actividadAgendaISOFromRow(r: ActividadAgendaISORow): ActividadAgendaISO {
   return { id: r.id, titulo: r.titulo, categoria: r.categoria as ActividadAgendaISO['categoria'], normas: r.normas as ActividadAgendaISO['normas'],
     requisito: u(r.requisito), area: u(r.area), responsable: r.responsable, frecuencia: r.frecuencia as ActividadAgendaISO['frecuencia'],
+    semanas: r.semanas ?? undefined, bloque: (r.bloque as ActividadAgendaISO['bloque']) ?? undefined, orden: r.orden ?? undefined,
     fechaObjetivo: u(r.fecha_objetivo), avisoDias: r.aviso_dias, estado: r.estado as ActividadAgendaISO['estado'], criticidad: r.criticidad as ActividadAgendaISO['criticidad'],
     evidenciaEsperada: u(r.evidencia_esperada), evidencia: u(r.evidencia), resultado: u(r.resultado), observaciones: u(r.observaciones), fuente: u(r.fuente),
     completadaEn: u(r.completada_en), completadaPor: u(r.completada_por), verificadaEn: u(r.verificada_en), verificadaPor: u(r.verificada_por), verificacion: u(r.verificacion),
@@ -56,6 +59,7 @@ export function actividadAgendaISOFromRow(r: ActividadAgendaISORow): ActividadAg
 export function actividadAgendaISOToRow(a: ActividadAgendaISO): ActividadAgendaISORow {
   return { id: a.id, titulo: a.titulo, categoria: a.categoria, normas: a.normas, requisito: a.requisito ?? null, area: a.area ?? null,
     responsable: a.responsable, frecuencia: a.frecuencia, fecha_objetivo: a.fechaObjetivo ?? null, aviso_dias: a.avisoDias, estado: a.estado,
+    semanas: a.semanas ?? null, bloque: a.bloque ?? null, orden: a.orden ?? null,
     criticidad: a.criticidad, evidencia_esperada: a.evidenciaEsperada ?? null, evidencia: a.evidencia ?? null, resultado: a.resultado ?? null,
     observaciones: a.observaciones ?? null, fuente: a.fuente ?? null, completada_en: a.completadaEn ?? null, completada_por: a.completadaPor ?? null,
     verificada_en: a.verificadaEn ?? null, verificada_por: a.verificadaPor ?? null, verificacion: a.verificacion ?? null,
