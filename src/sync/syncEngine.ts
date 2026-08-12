@@ -5,15 +5,16 @@ import { traerTabla, traerTodoDe, type ConsultaPaginable } from '../lib/supabase
 import type { Rol, SyncOp, Tarea, Parada, OrdenProduccion, Semielaborado, SectorId, Objetivo, TareaLogistica, SolicitudLogistica, Feriado, Mensaje, MensajeLectura, TiempoEstandar, DespachoTrafo, FleteInterno, TareaLaboratorio, PlantillaRecurrente } from '../types'
 import type { EventoSGO, AccionSGO, AuditoriaSGO } from '../sgo/types'
 import type { IndicadorSGO, MedicionIndicadorSGO } from '../sgo/indicadores'
-import type { GarantiaISO } from '../sgo/garantias'
 import type { ControlProgramadoSGO, EjecucionControlSGO } from '../sgo/controles'
+import type { ActividadAgendaISO } from '../sgo/agendaISO'
+import type { ComentarioTareaSGO, TareaSGO } from '../sgo/tareasSGO'
 import { setFeriados } from '../lib/calendario'
 import { procesarColaAvisosMant } from '../mantenimiento/avisos'
-import { exigirPermisoBorradoSGO } from '../sgo/permisos'
+import { exigirPermisoBorradoSGO, exigirPermisoGestionAgendaISO, exigirPermisoGuardarTareaSGO } from '../sgo/permisos'
 import {
-  tareaFromRow, paradaFromRow, ordenFromRow, semiFromRow, maquinaFromRow, usuarioFromRow, objetivoFromRow, tareaLogFromRow, solicitudLogFromRow, feriadoFromRow, mensajeFromRow, lecturaFromRow, estandarFromRow, despachoFromRow, fleteFromRow, laboratorioFromRow, plantillaFromRow, eventoSGOFromRow, accionSGOFromRow, indicadorSGOFromRow, medicionIndicadorSGOFromRow, auditoriaSGOFromRow, garantiaISOFromRow, controlProgramadoSGOFromRow, ejecucionControlSGOFromRow,
-  tareaToRow, paradaToRow, ordenToRow, semiToRow, objetivoToRow, tareaLogToRow, solicitudLogToRow, feriadoToRow, mensajeToRow, lecturaToRow, estandarToRow, despachoToRow, fleteToRow, laboratorioToRow, plantillaToRow, eventoSGOToRow, accionSGOToRow, indicadorSGOToRow, medicionIndicadorSGOToRow, garantiaISOToRow, controlProgramadoSGOToRow, ejecucionControlSGOToRow,
-  type TareaRow, type ParadaRow, type OrdenRow, type SemiRow, type MaquinaRow, type UsuarioRow, type ObjetivoRow, type TareaLogisticaRow, type SolicitudLogisticaRow, type FeriadoRow, type MensajeRow, type MensajeLecturaRow, type TiempoEstandarRow, type DespachoRow, type FleteRow, type LaboratorioRow, type PlantillaRecurrenteRow, type EventoSGORow, type AccionSGORow, type IndicadorSGORow, type MedicionIndicadorSGORow, type AuditoriaSGORow, type GarantiaISORow, type ControlProgramadoSGORow, type EjecucionControlSGORow,
+  tareaFromRow, paradaFromRow, ordenFromRow, semiFromRow, maquinaFromRow, usuarioFromRow, objetivoFromRow, tareaLogFromRow, solicitudLogFromRow, feriadoFromRow, mensajeFromRow, lecturaFromRow, estandarFromRow, despachoFromRow, fleteFromRow, laboratorioFromRow, plantillaFromRow, eventoSGOFromRow, accionSGOFromRow, indicadorSGOFromRow, medicionIndicadorSGOFromRow, auditoriaSGOFromRow, controlProgramadoSGOFromRow, ejecucionControlSGOFromRow, actividadAgendaISOFromRow, tareaSGOFromRow, comentarioTareaSGOFromRow,
+  tareaToRow, paradaToRow, ordenToRow, semiToRow, objetivoToRow, tareaLogToRow, solicitudLogToRow, feriadoToRow, mensajeToRow, lecturaToRow, estandarToRow, despachoToRow, fleteToRow, laboratorioToRow, plantillaToRow, eventoSGOToRow, accionSGOToRow, indicadorSGOToRow, medicionIndicadorSGOToRow, controlProgramadoSGOToRow, ejecucionControlSGOToRow, actividadAgendaISOToRow, tareaSGOToRow, comentarioTareaSGOToRow,
+  type TareaRow, type ParadaRow, type OrdenRow, type SemiRow, type MaquinaRow, type UsuarioRow, type ObjetivoRow, type TareaLogisticaRow, type SolicitudLogisticaRow, type FeriadoRow, type MensajeRow, type MensajeLecturaRow, type TiempoEstandarRow, type DespachoRow, type FleteRow, type LaboratorioRow, type PlantillaRecurrenteRow, type EventoSGORow, type AccionSGORow, type IndicadorSGORow, type MedicionIndicadorSGORow, type AuditoriaSGORow, type ControlProgramadoSGORow, type EjecucionControlSGORow, type ActividadAgendaISORow, type TareaSGORow, type ComentarioTareaSGORow,
 } from './mappers'
 
 // ============================================================
@@ -203,7 +204,7 @@ export async function fetchInicial(rol?: Rol): Promise<void> {
       ? await traerTabla<ParadaRow>('paradas')
       : await traerParadasDe(tareasRows.map((t) => t.id))
 
-    const [maqs, usrs, uss, ords, semis, objs, tlog, slog, fers, msgs, lects, ests, desp, flts, labs, plts, eventosSgo, accionesSgo, indicadoresSgo, medicionesSgo, auditoriaSgo, garantiasIso, controlesSgo, ejecucionesSgo, dtec] = await Promise.all([
+    const [maqs, usrs, uss, ords, semis, objs, tlog, slog, fers, msgs, lects, ests, desp, flts, labs, plts, eventosSgo, accionesSgo, indicadoresSgo, medicionesSgo, auditoriaSgo, controlesSgo, ejecucionesSgo, agendaIso, tareasSgo, comentariosTareasSgo, dtec] = await Promise.all([
       traerTodo('maquinas'),
       supabase.from('usuarios').select('id, nombre, usuario, rol, grupo_nomina, activo'),
       supabase.from('usuario_sectores').select('usuario_id, sector_id'),
@@ -225,9 +226,11 @@ export async function fetchInicial(rol?: Rol): Promise<void> {
       traerTodo('sgo_indicadores'),
       traerTodo('sgo_indicador_mediciones'),
       supabase.from('sgo_auditoria').select('*').order('creado_en', { ascending: false }).limit(1000),
-      traerTodo('sgo_garantias_iso'),
       traerTodo('sgo_controles_programados'),
       supabase.from('sgo_control_ejecuciones').select('*').order('ejecutado_en', { ascending: false }).limit(2000),
+      traerTodo('sgo_agenda_iso'),
+      traerTodo('sgo_tareas'),
+      traerTodo('sgo_tarea_comentarios'),
       traerTodo('datos_tecnicos'),
     ])
 
@@ -289,9 +292,11 @@ export async function fetchInicial(rol?: Rol): Promise<void> {
     if (indicadoresSgo.data) { await db.indicadoresSGO.clear(); await db.indicadoresSGO.bulkPut((indicadoresSgo.data as IndicadorSGORow[]).map(indicadorSGOFromRow)) }
     if (medicionesSgo.data) { await db.medicionesIndicadoresSGO.clear(); await db.medicionesIndicadoresSGO.bulkPut((medicionesSgo.data as MedicionIndicadorSGORow[]).map(medicionIndicadorSGOFromRow)) }
     if (auditoriaSgo.data) { await db.auditoriaSGO.clear(); await db.auditoriaSGO.bulkPut((auditoriaSgo.data as AuditoriaSGORow[]).map(auditoriaSGOFromRow)) }
-    if (garantiasIso.data) { await db.garantiasISO.clear(); await db.garantiasISO.bulkPut((garantiasIso.data as GarantiaISORow[]).map(garantiaISOFromRow)) }
     if (controlesSgo.data) { await db.controlesProgramadosSGO.clear(); await db.controlesProgramadosSGO.bulkPut((controlesSgo.data as ControlProgramadoSGORow[]).map(controlProgramadoSGOFromRow)) }
     if (ejecucionesSgo.data) { await db.ejecucionesControlesSGO.clear(); await db.ejecucionesControlesSGO.bulkPut((ejecucionesSgo.data as EjecucionControlSGORow[]).map(ejecucionControlSGOFromRow)) }
+    if (agendaIso.data) { await db.agendaISO.clear(); await db.agendaISO.bulkPut((agendaIso.data as ActividadAgendaISORow[]).map(actividadAgendaISOFromRow)) }
+    if (tareasSgo.data) { await db.tareasSGO.clear(); await db.tareasSGO.bulkPut((tareasSgo.data as TareaSGORow[]).map(tareaSGOFromRow)) }
+    if (comentariosTareasSgo.data) { await db.comentariosTareasSGO.clear(); await db.comentariosTareasSGO.bulkPut((comentariosTareasSgo.data as ComentarioTareaSGORow[]).map(comentarioTareaSGOFromRow)) }
 
     // Tareas logisticas
     if (tlog.data) await db.tareasLogistica.bulkPut((tlog.data as TareaLogisticaRow[]).map(tareaLogFromRow))
@@ -485,10 +490,6 @@ async function onAuditoriaSGOChange(payload: Payload) {
   if (payload.eventType === 'DELETE') { await db.auditoriaSGO.delete((payload.old as { id: string }).id); return }
   await db.auditoriaSGO.put(auditoriaSGOFromRow(payload.new as unknown as AuditoriaSGORow))
 }
-async function onGarantiaISOChange(payload: Payload) {
-  if (payload.eventType === 'DELETE') { await db.garantiasISO.delete((payload.old as { id: string }).id); return }
-  await db.garantiasISO.put(garantiaISOFromRow(payload.new as unknown as GarantiaISORow))
-}
 async function onControlProgramadoSGOChange(payload: Payload) {
   if (payload.eventType === 'DELETE') { await db.controlesProgramadosSGO.delete((payload.old as { id: string }).id); return }
   await db.controlesProgramadosSGO.put(controlProgramadoSGOFromRow(payload.new as unknown as ControlProgramadoSGORow))
@@ -496,6 +497,18 @@ async function onControlProgramadoSGOChange(payload: Payload) {
 async function onEjecucionControlSGOChange(payload: Payload) {
   if (payload.eventType === 'DELETE') { await db.ejecucionesControlesSGO.delete((payload.old as { id: string }).id); return }
   await db.ejecucionesControlesSGO.put(ejecucionControlSGOFromRow(payload.new as unknown as EjecucionControlSGORow))
+}
+async function onActividadAgendaISOChange(payload: Payload) {
+  if (payload.eventType === 'DELETE') { await db.agendaISO.delete((payload.old as { id: string }).id); return }
+  await db.agendaISO.put(actividadAgendaISOFromRow(payload.new as unknown as ActividadAgendaISORow))
+}
+async function onTareaSGOChange(payload: Payload) {
+  if (payload.eventType === 'DELETE') { await db.tareasSGO.delete((payload.old as { id: string }).id); return }
+  await db.tareasSGO.put(tareaSGOFromRow(payload.new as unknown as TareaSGORow))
+}
+async function onComentarioTareaSGOChange(payload: Payload) {
+  if (payload.eventType === 'DELETE') { await db.comentariosTareasSGO.delete((payload.old as { id: string }).id); return }
+  await db.comentariosTareasSGO.put(comentarioTareaSGOFromRow(payload.new as unknown as ComentarioTareaSGORow))
 }
 
 function suscribirRealtime() {
@@ -523,9 +536,11 @@ function suscribirRealtime() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'sgo_indicadores' }, onIndicadorSGOChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'sgo_indicador_mediciones' }, onMedicionIndicadorSGOChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'sgo_auditoria' }, onAuditoriaSGOChange)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'sgo_garantias_iso' }, onGarantiaISOChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'sgo_controles_programados' }, onControlProgramadoSGOChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'sgo_control_ejecuciones' }, onEjecucionControlSGOChange)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'sgo_agenda_iso' }, onActividadAgendaISOChange)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'sgo_tareas' }, onTareaSGOChange)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'sgo_tarea_comentarios' }, onComentarioTareaSGOChange)
     .subscribe()
 }
 
@@ -684,9 +699,11 @@ async function empujar(op: SyncOp): Promise<EmpujeResultado> {
         : op.entidad === 'plantilla_recurrente' ? 'plantillas_recurrentes'
         : op.entidad === 'accion_sgo' ? 'sgo_acciones'
         : op.entidad === 'medicion_indicador_sgo' ? 'sgo_indicador_mediciones'
-        : op.entidad === 'garantia_iso' ? 'sgo_garantias_iso'
         : op.entidad === 'control_programado_sgo' ? 'sgo_controles_programados'
         : op.entidad === 'ejecucion_control_sgo' ? 'sgo_control_ejecuciones'
+        : op.entidad === 'agenda_iso' ? 'sgo_agenda_iso'
+        : op.entidad === 'tarea_sgo' ? 'sgo_tareas'
+        : op.entidad === 'comentario_tarea_sgo' ? 'sgo_tarea_comentarios'
         : 'paradas'
       const { error } = await supabase.from(tabla).delete().eq('id', op.entidadId)
       if (error) return fallo(`delete ${op.entidad}`, error.message)
@@ -765,10 +782,6 @@ async function empujar(op: SyncOp): Promise<EmpujeResultado> {
         const { error } = await supabase.from('sgo_indicador_mediciones').upsert(medicionIndicadorSGOToRow(op.payload as MedicionIndicadorSGO), { onConflict: 'id' })
         return error ? fallo('upsert medicion_indicador_sgo', error.message) : OK_EMPUJE
       }
-      case 'garantia_iso': {
-        const { error } = await supabase.from('sgo_garantias_iso').upsert(garantiaISOToRow(op.payload as GarantiaISO), { onConflict: 'id' })
-        return error ? fallo('upsert garantia_iso', error.message) : OK_EMPUJE
-      }
       case 'control_programado_sgo': {
         const { error } = await supabase.from('sgo_controles_programados').upsert(controlProgramadoSGOToRow(op.payload as ControlProgramadoSGO), { onConflict: 'id' })
         return error ? fallo('upsert control_programado_sgo', error.message) : OK_EMPUJE
@@ -776,6 +789,18 @@ async function empujar(op: SyncOp): Promise<EmpujeResultado> {
       case 'ejecucion_control_sgo': {
         const { error } = await supabase.from('sgo_control_ejecuciones').upsert(ejecucionControlSGOToRow(op.payload as EjecucionControlSGO), { onConflict: 'id', ignoreDuplicates: true })
         return error ? fallo('upsert ejecucion_control_sgo', error.message) : OK_EMPUJE
+      }
+      case 'agenda_iso': {
+        const { error } = await supabase.from('sgo_agenda_iso').upsert(actividadAgendaISOToRow(op.payload as ActividadAgendaISO), { onConflict: 'id' })
+        return error ? fallo('upsert agenda_iso', error.message) : OK_EMPUJE
+      }
+      case 'tarea_sgo': {
+        const { error } = await supabase.from('sgo_tareas').upsert(tareaSGOToRow(op.payload as TareaSGO), { onConflict: 'id' })
+        return error ? fallo('upsert tarea_sgo', error.message) : OK_EMPUJE
+      }
+      case 'comentario_tarea_sgo': {
+        const { error } = await supabase.from('sgo_tarea_comentarios').upsert(comentarioTareaSGOToRow(op.payload as ComentarioTareaSGO), { onConflict: 'id' })
+        return error ? fallo('upsert comentario_tarea_sgo', error.message) : OK_EMPUJE
       }
       case 'tarea_logistica': {
         const { error } = await supabase.from('tareas_logistica').upsert(tareaLogToRow(op.payload as TareaLogistica), { onConflict: 'id' })
@@ -904,9 +929,8 @@ export async function guardarEventoSGO(e: EventoSGO): Promise<void> {
 
 export async function eliminarEventoSGO(e: EventoSGO, usuario: string): Promise<void> {
   exigirPermisoBorradoSGO(usuario)
-  await db.transaction('rw', db.eventosSGO, db.accionesSGO, db.garantiasISO, db.ejecucionesControlesSGO, async () => {
+  await db.transaction('rw', db.eventosSGO, db.accionesSGO, db.ejecucionesControlesSGO, async () => {
     await db.accionesSGO.where('eventoId').equals(e.id).delete()
-    await db.garantiasISO.where('eventoId').equals(e.id).modify((garantia) => { delete garantia.eventoId })
     await db.ejecucionesControlesSGO.where('eventoId').equals(e.id).modify((ejecucion) => { delete ejecucion.eventoId })
     await db.eventosSGO.delete(e.id)
   })
@@ -932,14 +956,6 @@ export async function guardarMedicionIndicadorSGO(m: MedicionIndicadorSGO): Prom
   await db.medicionesIndicadoresSGO.put(m)
   await encolar({ entidad: 'medicion_indicador_sgo', entidadId: m.id, tipo: 'upsert', payload: m })
 }
-export async function guardarGarantiaISO(g: GarantiaISO): Promise<void> {
-  await db.garantiasISO.put(g)
-  await encolar({ entidad: 'garantia_iso', entidadId: g.id, tipo: 'upsert', payload: g })
-}
-export async function eliminarGarantiaISO(g: GarantiaISO): Promise<void> {
-  await db.garantiasISO.delete(g.id)
-  await encolar({ entidad: 'garantia_iso', entidadId: g.id, tipo: 'delete', payload: { id: g.id } })
-}
 export async function guardarControlProgramadoSGO(c: ControlProgramadoSGO): Promise<void> {
   await db.controlesProgramadosSGO.put(c)
   await encolar({ entidad: 'control_programado_sgo', entidadId: c.id, tipo: 'upsert', payload: c })
@@ -947,6 +963,41 @@ export async function guardarControlProgramadoSGO(c: ControlProgramadoSGO): Prom
 export async function guardarEjecucionControlSGO(e: EjecucionControlSGO): Promise<void> {
   await db.ejecucionesControlesSGO.put(e)
   await encolar({ entidad: 'ejecucion_control_sgo', entidadId: e.id, tipo: 'upsert', payload: e })
+}
+
+export async function guardarActividadAgendaISO(a: ActividadAgendaISO, usuario: string): Promise<void> {
+  exigirPermisoGestionAgendaISO(usuario)
+  await db.agendaISO.put(a)
+  await encolar({ entidad: 'agenda_iso', entidadId: a.id, tipo: 'upsert', payload: a })
+}
+
+export async function eliminarActividadAgendaISO(a: ActividadAgendaISO, usuario: string): Promise<void> {
+  exigirPermisoBorradoSGO(usuario)
+  await db.agendaISO.delete(a.id)
+  await encolar({ entidad: 'agenda_iso', entidadId: a.id, tipo: 'delete', payload: { id: a.id } })
+}
+
+export async function guardarTareaSGO(t: TareaSGO, usuario: string): Promise<void> {
+  const existente = await db.tareasSGO.get(t.id)
+  exigirPermisoGuardarTareaSGO(usuario, existente?.asignadoA ?? t.asignadoA, !!existente)
+  await db.tareasSGO.put(t)
+  await encolar({ entidad: 'tarea_sgo', entidadId: t.id, tipo: 'upsert', payload: t })
+}
+export async function guardarComentarioTareaSGO(c: ComentarioTareaSGO, usuario: string): Promise<void> {
+  const tarea = await db.tareasSGO.get(c.tareaId)
+  if (!tarea) throw new Error('La tarea ya no existe.')
+  exigirPermisoGuardarTareaSGO(usuario, tarea.asignadoA, true)
+  await db.comentariosTareasSGO.put(c)
+  await encolar({ entidad: 'comentario_tarea_sgo', entidadId: c.id, tipo: 'upsert', payload: c })
+}
+
+export async function eliminarTareaSGO(t: TareaSGO, usuario: string): Promise<void> {
+  exigirPermisoBorradoSGO(usuario)
+  await db.transaction('rw', db.tareasSGO, db.comentariosTareasSGO, async () => {
+    await db.comentariosTareasSGO.where('tareaId').equals(t.id).delete()
+    await db.tareasSGO.delete(t.id)
+  })
+  await encolar({ entidad: 'tarea_sgo', entidadId: t.id, tipo: 'delete', payload: { id: t.id } })
 }
 
 // v1.39: plantillas de tareas recurrentes (las administra Giuliano).

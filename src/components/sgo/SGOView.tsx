@@ -7,10 +7,11 @@ import { fechaLocalISO, sumarDiasLocalISO } from '../../lib/time'
 import MatrizSGO from './MatrizSGO'
 import IndicadoresSGO from './IndicadoresSGO'
 import FichaCeldaSGO from './FichaCeldaSGO'
-import GarantiasISOView from './GarantiasISOView'
 import ControlesProgramadosView from './ControlesProgramadosView'
 import AuditoriaLogisticaView from './AuditoriaLogisticaView'
 import ControlesCampoView from './ControlesCampoView'
+import AgendaISOView from './AgendaISOView'
+import TareasSGOView from './TareasSGOView'
 import { defectoSGOLabel, defectosParaArea } from '../../sgo/defectos'
 import { resolverKPIAutomaticos } from '../../sgo/kpiAutomaticos'
 import { aplicarMedicionesIndicadores, type IndicadorSGO } from '../../sgo/indicadores'
@@ -66,7 +67,7 @@ export default function SGOView() {
   const [celdaSeleccionada, setCeldaSeleccionada] = useState<{ area: AreaSGOId; pilar: PilarSGO }>()
   const [filtroArea, setFiltroArea] = useState('')
   const [filtroPilar, setFiltroPilar] = useState('')
-  const [pestana, setPestana] = useState<'tablero' | 'controles' | 'campo' | 'garantias' | 'logistica'>('tablero')
+  const [pestana, setPestana] = useState<'tablero' | 'controles' | 'campo' | 'agenda_iso' | 'tareas_sgo' | 'logistica'>('tablero')
   const seleccionado = eventos.find((e) => e.id === seleccionadoId)
 
   const abiertos = eventos.filter((e) => e.estado !== 'cerrado')
@@ -92,9 +93,11 @@ export default function SGOView() {
         <button className={`tab ${pestana === 'controles' ? 'active' : ''}`} onClick={() => setPestana('controles')}>Controles programados</button>
         <button className={`tab ${pestana === 'campo' ? 'active' : ''}`} onClick={() => setPestana('campo')}>Controles de campo</button>
         <button className={`tab ${pestana === 'logistica' ? 'active' : ''}`} onClick={() => setPestana('logistica')}>Auditoría logística</button>
-        <button className={`tab ${pestana === 'garantias' ? 'active' : ''}`} onClick={() => setPestana('garantias')}>Garantías ISO 9001</button>
+        <button className={`tab ${pestana === 'agenda_iso' ? 'active' : ''}`} onClick={() => setPestana('agenda_iso')}>Agenda ISO</button>
+        <button className={`tab ${pestana === 'tareas_sgo' ? 'active' : ''}`} onClick={() => setPestana('tareas_sgo')}>Tareas SGO</button>
       </div>
-      {pestana === 'garantias' ? <GarantiasISOView usuario={usuario?.usuario ?? 'sin_usuario'} onOpenEvento={(id) => { setPestana('tablero'); setSeleccionadoId(id) }} />
+      {pestana === 'agenda_iso' ? <AgendaISOView usuario={usuario?.usuario ?? 'sin_usuario'} />
+        : pestana === 'tareas_sgo' ? <TareasSGOView usuario={usuario?.usuario ?? 'sin_usuario'} />
         : pestana === 'controles' ? <ControlesProgramadosView usuario={usuario?.usuario ?? 'sin_usuario'} onOpenEvento={(id) => { setPestana('tablero'); setSeleccionadoId(id) }} />
         : pestana === 'campo' ? <ControlesCampoView usuario={usuario?.usuario ?? 'sin_usuario'} onOpenEvento={(id) => { setPestana('tablero'); setSeleccionadoId(id) }} />
         : pestana === 'logistica' ? <AuditoriaLogisticaView usuario={usuario?.usuario ?? 'sin_usuario'} onOpenEvento={(id) => { setPestana('tablero'); setSeleccionadoId(id) }} /> : <>
@@ -401,9 +404,8 @@ function DetalleEvento({ evento, acciones, auditoria, usuario, onClose }: { even
   const [eliminando, setEliminando] = useState(false)
   const puedeEliminar = usuarioEsLorenzo(usuario)
   const vinculos = useLiveQuery(async () => ({
-    garantias: await db.garantiasISO.where('eventoId').equals(evento.id).count(),
     controles: await db.ejecucionesControlesSGO.where('eventoId').equals(evento.id).count(),
-  }), [evento.id]) ?? { garantias: 0, controles: 0 }
+  }), [evento.id]) ?? { controles: 0 }
 
   async function actualizar() {
     const now = new Date().toISOString()
@@ -427,11 +429,10 @@ function DetalleEvento({ evento, acciones, auditoria, usuario, onClose }: { even
     if (!puedeEliminar || eliminando) return
     const relaciones = [
       acciones.length ? `${acciones.length} acción(es) asociada(s)` : '',
-      vinculos.garantias ? `${vinculos.garantias} garantía(s) vinculada(s)` : '',
       vinculos.controles ? `${vinculos.controles} control(es) ejecutado(s)` : '',
     ].filter(Boolean).join(', ')
     const detalle = relaciones ? `\n\nRegistros relacionados: ${relaciones}.` : ''
-    if (!window.confirm(`¿Eliminar definitivamente el evento ${evento.codigo}?${detalle}\n\nLas acciones asociadas se eliminarán. Las garantías y auditorías se conservarán, pero quedarán desvinculadas. La bitácora de auditoría conservará la eliminación.\n\nEsta acción no se puede deshacer.`)) return
+    if (!window.confirm(`¿Eliminar definitivamente el evento ${evento.codigo}?${detalle}\n\nLas acciones asociadas se eliminarán. Las auditorías se conservarán, pero quedarán desvinculadas. La bitácora de auditoría conservará la eliminación.\n\nEsta acción no se puede deshacer.`)) return
     setEliminando(true)
     try {
       await eliminarEventoSGO(evento, usuario)

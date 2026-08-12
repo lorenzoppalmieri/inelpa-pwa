@@ -7,8 +7,9 @@ import type {
 } from '../types'
 import type { EventoSGO, AccionSGO, AuditoriaSGO } from '../sgo/types'
 import type { IndicadorSGO, MedicionIndicadorSGO } from '../sgo/indicadores'
-import type { GarantiaISO } from '../sgo/garantias'
 import type { ControlProgramadoSGO, EjecucionControlSGO } from '../sgo/controles'
+import type { ActividadAgendaISO } from '../sgo/agendaISO'
+import type { ComentarioTareaSGO, TareaSGO } from '../sgo/tareasSGO'
 import type { AvisoMantPendiente } from '../mantenimiento/types'
 
 // ============================================================
@@ -44,9 +45,11 @@ export class InelpaDB extends Dexie {
   indicadoresSGO!: Table<IndicadorSGO, string>
   medicionesIndicadoresSGO!: Table<MedicionIndicadorSGO, string>
   auditoriaSGO!: Table<AuditoriaSGO, string>
-  garantiasISO!: Table<GarantiaISO, string>
   controlesProgramadosSGO!: Table<ControlProgramadoSGO, string>
   ejecucionesControlesSGO!: Table<EjecucionControlSGO, string>
+  agendaISO!: Table<ActividadAgendaISO, string>
+  tareasSGO!: Table<TareaSGO, string>
+  comentariosTareasSGO!: Table<ComentarioTareaSGO, string>
   // v1.66: cola offline de avisos de mantenimiento (paradas de produccion ->
   // mant_avisos). El flush lo hace src/mantenimiento/avisos.ts.
   avisosMant!: Table<AvisoMantPendiente, string>
@@ -181,6 +184,13 @@ export class InelpaDB extends Dexie {
     this.version(26).stores({
       controlesProgramadosSGO: 'id, tipo, areaId, pilar, responsable, proximaFecha, activo, plantillaCampoId, [areaId+pilar]',
       ejecucionesControlesSGO: 'id, controlId, fechaProgramada, ejecutadoEn, resultado, eventoId, [controlId+fechaProgramada]',
+    })
+    // v1.87: agenda integrada ISO y asignación interna de tareas del equipo SGO.
+    this.version(27).stores({
+      garantiasISO: null,
+      agendaISO: 'id, categoria, responsable, fechaObjetivo, estado, criticidad',
+      tareasSGO: 'id, asignadoA, importancia, fechaLimite, estado, creadoEn',
+      comentariosTareasSGO: 'id, tareaId, autor, creadoEn',
     })
   }
 }

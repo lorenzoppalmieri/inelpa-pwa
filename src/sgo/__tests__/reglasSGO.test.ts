@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import { fechaLocalISO, periodoLocalISO, sumarDiasLocalISO } from '../../lib/time'
 import { validarCierreEvento } from '../cierre'
 import { aplicarMedicionesIndicadores, estadoIndicador, normalizarPeriodoKPI, type IndicadorSGO, type MedicionIndicadorSGO } from '../indicadores'
-import { erroresConsistenciaGarantia, type GarantiaISO } from '../garantias'
 import type { AccionSGO, EventoSGO } from '../types'
 
 const indicador: IndicadorSGO = {
@@ -29,15 +28,6 @@ const accionVerificada: AccionSGO = {
   creadoEn: '2026-07-30T12:00:00Z', creadoPor: 'Azul', actualizadoEn: '2026-07-31T11:00:00Z',
 }
 
-function garantiaBase(): GarantiaISO {
-  return {
-    id: 'g-1', codigo: 'GAR-1', tipo: 'TTD', fechaSalida: '2026-07-01',
-    fechaDeteccion: '2026-07-10', diagnostico: 'Pérdida', cobertura: 'si',
-    categoria: 'perdida_aceite', estado: 'abierto', verificado: false,
-    creadoEn: '2026-07-10T12:00:00Z', actualizadoEn: '2026-07-10T12:00:00Z',
-    actualizadoPor: 'Azul',
-  }
-}
 
 describe('fechas calendario local', () => {
   it('no adelanta el día por conversión UTC', () => {
@@ -84,20 +74,5 @@ describe('cierre controlado', () => {
 
   it('rechaza acciones sin eficacia confirmada', () => {
     expect(validarCierreEvento(eventoBase, [{ ...accionVerificada, eficaz: false }])).toContain('Confirmar la eficacia de todas las acciones no canceladas.')
-  })
-})
-
-describe('consistencia de garantías', () => {
-  it('exige fecha y explicación para verificar', () => {
-    const g = { ...garantiaBase(), estado: 'verificado' as const, verificado: true }
-    expect(erroresConsistenciaGarantia(g)).toEqual(expect.arrayContaining([
-      'La verificación requiere fecha de resolución.',
-      'La verificación requiere una explicación.',
-    ]))
-  })
-
-  it('rechaza cronología inválida', () => {
-    const g = { ...garantiaBase(), fechaResolucion: '2026-07-05' }
-    expect(erroresConsistenciaGarantia(g)).toContain('La resolución no puede ser anterior a la detección.')
   })
 })

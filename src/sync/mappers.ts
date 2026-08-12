@@ -22,8 +22,63 @@ import type { AccionSGO, AuditoriaSGO, EventoSGO } from '../sgo/types'
 // v1.47: remapea el área retirada 'logistica_administrativa' al leer de la base.
 import { normalizarAreaSGO } from '../sgo/types'
 import type { IndicadorSGO, MedicionIndicadorSGO } from '../sgo/indicadores'
-import type { GarantiaISO } from '../sgo/garantias'
 import type { ControlProgramadoSGO, EjecucionControlSGO } from '../sgo/controles'
+import type { ActividadAgendaISO } from '../sgo/agendaISO'
+import type { ComentarioTareaSGO, TareaSGO } from '../sgo/tareasSGO'
+
+export interface ActividadAgendaISORow {
+  id: string; titulo: string; categoria: string; normas: string[]; requisito: string | null; area: string | null
+  responsable: string; frecuencia: string; fecha_objetivo: string | null; aviso_dias: number; estado: string
+  criticidad: string; evidencia_esperada: string | null; evidencia: string | null; resultado: string | null
+  observaciones: string | null; fuente: string | null; completada_en: string | null; completada_por: string | null
+  verificada_en: string | null; verificada_por: string | null; verificacion: string | null
+  creado_en: string; creado_por: string; actualizado_en: string; actualizado_por: string
+}
+
+export interface TareaSGORow {
+  id: string; titulo: string; objetivo: string; descripcion: string; asignado_a: string; importancia: string
+  tiempo_estimado_min: number; fecha_limite: string | null; estado: string; plan_resolucion: string | null
+  tomada_en: string | null; tomada_por: string | null; conclusion: string | null; finalizada_en: string | null
+  finalizada_por: string | null; verificada_en: string | null; verificada_por: string | null
+  creado_en: string; creado_por: string; actualizado_en: string; actualizado_por: string
+}
+export interface ComentarioTareaSGORow { id: string; tarea_id: string; autor: string; texto: string; tipo: string; creado_en: string }
+
+export function actividadAgendaISOFromRow(r: ActividadAgendaISORow): ActividadAgendaISO {
+  return { id: r.id, titulo: r.titulo, categoria: r.categoria as ActividadAgendaISO['categoria'], normas: r.normas as ActividadAgendaISO['normas'],
+    requisito: u(r.requisito), area: u(r.area), responsable: r.responsable, frecuencia: r.frecuencia as ActividadAgendaISO['frecuencia'],
+    fechaObjetivo: u(r.fecha_objetivo), avisoDias: r.aviso_dias, estado: r.estado as ActividadAgendaISO['estado'], criticidad: r.criticidad as ActividadAgendaISO['criticidad'],
+    evidenciaEsperada: u(r.evidencia_esperada), evidencia: u(r.evidencia), resultado: u(r.resultado), observaciones: u(r.observaciones), fuente: u(r.fuente),
+    completadaEn: u(r.completada_en), completadaPor: u(r.completada_por), verificadaEn: u(r.verificada_en), verificadaPor: u(r.verificada_por), verificacion: u(r.verificacion),
+    creadoEn: r.creado_en, creadoPor: r.creado_por, actualizadoEn: r.actualizado_en, actualizadoPor: r.actualizado_por }
+}
+
+export function actividadAgendaISOToRow(a: ActividadAgendaISO): ActividadAgendaISORow {
+  return { id: a.id, titulo: a.titulo, categoria: a.categoria, normas: a.normas, requisito: a.requisito ?? null, area: a.area ?? null,
+    responsable: a.responsable, frecuencia: a.frecuencia, fecha_objetivo: a.fechaObjetivo ?? null, aviso_dias: a.avisoDias, estado: a.estado,
+    criticidad: a.criticidad, evidencia_esperada: a.evidenciaEsperada ?? null, evidencia: a.evidencia ?? null, resultado: a.resultado ?? null,
+    observaciones: a.observaciones ?? null, fuente: a.fuente ?? null, completada_en: a.completadaEn ?? null, completada_por: a.completadaPor ?? null,
+    verificada_en: a.verificadaEn ?? null, verificada_por: a.verificadaPor ?? null, verificacion: a.verificacion ?? null,
+    creado_en: a.creadoEn, creado_por: a.creadoPor, actualizado_en: a.actualizadoEn, actualizado_por: a.actualizadoPor }
+}
+
+export function tareaSGOFromRow(r: TareaSGORow): TareaSGO {
+  return { id: r.id, titulo: r.titulo, objetivo: r.objetivo, descripcion: r.descripcion, asignadoA: r.asignado_a as TareaSGO['asignadoA'],
+    importancia: r.importancia as TareaSGO['importancia'], tiempoEstimadoMin: r.tiempo_estimado_min, fechaLimite: u(r.fecha_limite), estado: r.estado as TareaSGO['estado'],
+    planResolucion: u(r.plan_resolucion), tomadaEn: u(r.tomada_en), tomadaPor: u(r.tomada_por), conclusion: u(r.conclusion), finalizadaEn: u(r.finalizada_en),
+    finalizadaPor: u(r.finalizada_por), verificadaEn: u(r.verificada_en), verificadaPor: u(r.verificada_por),
+    creadoEn: r.creado_en, creadoPor: r.creado_por, actualizadoEn: r.actualizado_en, actualizadoPor: r.actualizado_por }
+}
+
+export function tareaSGOToRow(t: TareaSGO): TareaSGORow {
+  return { id: t.id, titulo: t.titulo, objetivo: t.objetivo, descripcion: t.descripcion, asignado_a: t.asignadoA, importancia: t.importancia,
+    tiempo_estimado_min: t.tiempoEstimadoMin, fecha_limite: t.fechaLimite ?? null, estado: t.estado, plan_resolucion: t.planResolucion ?? null,
+    tomada_en: t.tomadaEn ?? null, tomada_por: t.tomadaPor ?? null, conclusion: t.conclusion ?? null, finalizada_en: t.finalizadaEn ?? null,
+    finalizada_por: t.finalizadaPor ?? null, verificada_en: t.verificadaEn ?? null, verificada_por: t.verificadaPor ?? null,
+    creado_en: t.creadoEn, creado_por: t.creadoPor, actualizado_en: t.actualizadoEn, actualizado_por: t.actualizadoPor }
+}
+export function comentarioTareaSGOFromRow(r: ComentarioTareaSGORow): ComentarioTareaSGO { return { id:r.id,tareaId:r.tarea_id,autor:r.autor,texto:r.texto,tipo:r.tipo as ComentarioTareaSGO['tipo'],creadoEn:r.creado_en } }
+export function comentarioTareaSGOToRow(c: ComentarioTareaSGO): ComentarioTareaSGORow { return { id:c.id,tarea_id:c.tareaId,autor:c.autor,texto:c.texto,tipo:c.tipo,creado_en:c.creadoEn } }
 
 // null -> undefined (Supabase devuelve null; la app usa undefined en opcionales).
 function u<T>(v: T | null | undefined): T | undefined {
@@ -1169,72 +1224,5 @@ export function semiToRow(s: Semielaborado): SemiRow {
     tiempo_estimado_min: s.tiempoEstimadoMin ?? null,
     sap_item_code: s.sapItemCode ?? null,
     actualizado_en: s.actualizado,
-  }
-}
-
-export interface GarantiaISORow {
-  id: string
-  codigo: string
-  tipo: string
-  nro_serie: string | null
-  fecha_salida: string | null
-  fecha_deteccion: string
-  ingresado_por: string | null
-  cliente: string | null
-  cliente_original: string | null
-  diagnostico: string
-  causas: string | null
-  cobertura: string
-  categoria: string
-  estado: string
-  area_responsable_id: string | null
-  defecto_codigo: string | null
-  evento_id: string | null
-  responsable: string | null
-  fecha_compromiso: string | null
-  solucion: string | null
-  fecha_resolucion: string | null
-  verificado: boolean
-  verificacion_detalle: string | null
-  costo_estimado: number | null
-  observaciones: string | null
-  fuente_fila: number | null
-  creado_en: string
-  actualizado_en: string
-  actualizado_por: string
-}
-
-export function garantiaISOFromRow(r: GarantiaISORow): GarantiaISO {
-  return {
-    id: r.id, codigo: r.codigo, tipo: r.tipo, nroSerie: u(r.nro_serie),
-    fechaSalida: u(r.fecha_salida), fechaDeteccion: r.fecha_deteccion,
-    ingresadoPor: u(r.ingresado_por), cliente: u(r.cliente), clienteOriginal: u(r.cliente_original),
-    diagnostico: r.diagnostico, causas: u(r.causas), cobertura: r.cobertura as GarantiaISO['cobertura'],
-    categoria: r.categoria as GarantiaISO['categoria'], estado: r.estado as GarantiaISO['estado'],
-    areaResponsableId: u(r.area_responsable_id) as GarantiaISO['areaResponsableId'],
-    defectoCodigo: u(r.defecto_codigo), eventoId: u(r.evento_id),
-    responsable: u(r.responsable), fechaCompromiso: u(r.fecha_compromiso), solucion: u(r.solucion),
-    fechaResolucion: u(r.fecha_resolucion), verificado: r.verificado,
-    verificacionDetalle: u(r.verificacion_detalle), costoEstimado: u(r.costo_estimado),
-    observaciones: u(r.observaciones), fuenteFila: u(r.fuente_fila),
-    creadoEn: r.creado_en, actualizadoEn: r.actualizado_en, actualizadoPor: r.actualizado_por,
-  }
-}
-
-export function garantiaISOToRow(g: GarantiaISO): GarantiaISORow {
-  return {
-    id: g.id, codigo: g.codigo, tipo: g.tipo, nro_serie: g.nroSerie ?? null,
-    fecha_salida: g.fechaSalida ?? null, fecha_deteccion: g.fechaDeteccion,
-    ingresado_por: g.ingresadoPor ?? null, cliente: g.cliente ?? null,
-    cliente_original: g.clienteOriginal ?? null, diagnostico: g.diagnostico,
-    causas: g.causas ?? null, cobertura: g.cobertura, categoria: g.categoria, estado: g.estado,
-    area_responsable_id: g.areaResponsableId ?? null, defecto_codigo: g.defectoCodigo ?? null,
-    evento_id: g.eventoId ?? null,
-    responsable: g.responsable ?? null, fecha_compromiso: g.fechaCompromiso ?? null,
-    solucion: g.solucion ?? null, fecha_resolucion: g.fechaResolucion ?? null,
-    verificado: g.verificado, verificacion_detalle: g.verificacionDetalle ?? null,
-    costo_estimado: g.costoEstimado ?? null, observaciones: g.observaciones ?? null,
-    fuente_fila: g.fuenteFila ?? null, creado_en: g.creadoEn,
-    actualizado_en: g.actualizadoEn, actualizado_por: g.actualizadoPor,
   }
 }

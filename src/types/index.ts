@@ -1022,7 +1022,7 @@ export function mensajeEsPara(m: Mensaje, u: { id: string; rol: Rol; sectores: S
 // Cola de sincronizacion: cada cambio offline se encola y se empuja al backend.
 export interface SyncOp {
   id: string
-  entidad: 'tarea' | 'parada' | 'orden' | 'semielaborado' | 'objetivo' | 'tarea_logistica' | 'solicitud_logistica' | 'feriado' | 'mensaje' | 'mensaje_lectura' | 'estandar' | 'despacho' | 'flete' | 'laboratorio' | 'plantilla_recurrente' | 'evento_sgo' | 'accion_sgo' | 'indicador_sgo' | 'medicion_indicador_sgo' | 'garantia_iso' | 'control_programado_sgo' | 'ejecucion_control_sgo'
+  entidad: 'tarea' | 'parada' | 'orden' | 'semielaborado' | 'objetivo' | 'tarea_logistica' | 'solicitud_logistica' | 'feriado' | 'mensaje' | 'mensaje_lectura' | 'estandar' | 'despacho' | 'flete' | 'laboratorio' | 'plantilla_recurrente' | 'evento_sgo' | 'accion_sgo' | 'indicador_sgo' | 'medicion_indicador_sgo' | 'control_programado_sgo' | 'ejecucion_control_sgo' | 'agenda_iso' | 'tarea_sgo' | 'comentario_tarea_sgo'
   entidadId: string
   tipo: 'upsert' | 'delete'
   payload: unknown
