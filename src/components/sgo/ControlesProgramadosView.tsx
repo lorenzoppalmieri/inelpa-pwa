@@ -108,7 +108,8 @@ export default function ControlesProgramadosView({ usuario, onOpenEvento }: { us
           </div>
           <div className="row-actions">
             <button className="btn" onClick={() => setEditor(control)}>Editar</button>
-            {control.activo && <button className="btn btn-primary" onClick={() => setEjecutando(control)}>Ejecutar control</button>}
+            {control.activo && control.tipo !== 'auditoria_campo' && <button className="btn btn-primary" onClick={() => setEjecutando(control)}>Ejecutar control</button>}
+            {control.activo && control.tipo === 'auditoria_campo' && <span className="meta">Ejecutar desde “Controles de campo”</span>}
           </div>
         </article>
       })}

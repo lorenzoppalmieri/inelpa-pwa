@@ -384,6 +384,7 @@ export interface ControlProgramadoSGORow {
   creado_por: string
   actualizado_en: string
   actualizado_por: string
+  plantilla_campo_id: string | null
 }
 
 export interface EjecucionControlSGORow {
@@ -403,6 +404,7 @@ export interface EjecucionControlSGORow {
   unidad: string | null
   evento_id: string | null
   auditoria_logistica: EjecucionControlSGO['auditoriaLogistica'] | null
+  auditoria_campo: EjecucionControlSGO['auditoriaCampo'] | null
 }
 
 export function controlProgramadoSGOFromRow(r: ControlProgramadoSGORow): ControlProgramadoSGO {
@@ -413,6 +415,7 @@ export function controlProgramadoSGOFromRow(r: ControlProgramadoSGORow): Control
     responsable: r.responsable, frecuencia: r.frecuencia as ControlProgramadoSGO['frecuencia'],
     proximaFecha: r.proxima_fecha, toleranciaDias: r.tolerancia_dias, activo: r.activo,
     creadoEn: r.creado_en, creadoPor: r.creado_por, actualizadoEn: r.actualizado_en, actualizadoPor: r.actualizado_por,
+    plantillaCampoId: u(r.plantilla_campo_id),
   }
 }
 
@@ -423,6 +426,7 @@ export function controlProgramadoSGOToRow(c: ControlProgramadoSGO): ControlProgr
     responsable: c.responsable, frecuencia: c.frecuencia, proxima_fecha: c.proximaFecha,
     tolerancia_dias: c.toleranciaDias, activo: c.activo, creado_en: c.creadoEn,
     creado_por: c.creadoPor, actualizado_en: c.actualizadoEn, actualizado_por: c.actualizadoPor,
+    plantilla_campo_id: c.plantillaCampoId ?? null,
   }
 }
 
@@ -432,7 +436,7 @@ export function ejecucionControlSGOFromRow(r: EjecucionControlSGORow): Ejecucion
     ejecutadoPor: r.ejecutado_por, resultado: r.resultado as EjecucionControlSGO['resultado'], detalle: r.detalle,
     evidencia: u(r.evidencia), ordenId: u(r.orden_id), nroSerie: u(r.nro_serie), semielaboradoCodigo: u(r.semielaborado_codigo),
     valorEsperado: u(r.valor_esperado), valorEncontrado: u(r.valor_encontrado), unidad: u(r.unidad), eventoId: u(r.evento_id),
-    auditoriaLogistica: u(r.auditoria_logistica),
+    auditoriaLogistica: u(r.auditoria_logistica), auditoriaCampo: u(r.auditoria_campo),
   }
 }
 
@@ -442,7 +446,7 @@ export function ejecucionControlSGOToRow(e: EjecucionControlSGO): EjecucionContr
     ejecutado_por: e.ejecutadoPor, resultado: e.resultado, detalle: e.detalle, evidencia: e.evidencia ?? null,
     orden_id: e.ordenId ?? null, nro_serie: e.nroSerie ?? null, semielaborado_codigo: e.semielaboradoCodigo ?? null,
     valor_esperado: e.valorEsperado ?? null, valor_encontrado: e.valorEncontrado ?? null, unidad: e.unidad ?? null,
-    evento_id: e.eventoId ?? null, auditoria_logistica: e.auditoriaLogistica ?? null,
+    evento_id: e.eventoId ?? null, auditoria_logistica: e.auditoriaLogistica ?? null, auditoria_campo: e.auditoriaCampo ?? null,
   }
 }
 

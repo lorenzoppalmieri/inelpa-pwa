@@ -222,7 +222,12 @@ export default function FichaLaboratorio({ tarea: t, onClose }: { tarea: TareaLa
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 640, width: '96%', maxHeight: '92vh', display: 'flex', flexDirection: 'column' }}>
+      {/* v1.83: la ficha ahora contiene el PROTOCOLO COMPLETO (una planilla de
+          9 secciones), no cuatro campos. Con los 640px de antes entraba a la
+          fuerza y aparecia scroll horizontal: se lee ancho, como la planilla en
+          papel. El protocolo ademas tiene su propio boton de pantalla completa. */}
+      <div className="modal modal-flex" onClick={(e) => e.stopPropagation()}
+        style={{ maxWidth: 1280, width: '97%', maxHeight: '94vh' }}>
         <div className="section-title" style={{ marginTop: 0, flex: 'none' }}>
           🔬 Ensayo de laboratorio{finalizada ? ' · CERRADO' : ''}
         </div>

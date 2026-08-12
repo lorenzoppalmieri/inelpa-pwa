@@ -175,6 +175,13 @@ export class InelpaDB extends Dexie {
     this.version(25).stores({
       avisosMant: 'id, paradaId',
     })
+    // v1.84: controles de campo estructurados (5S) y vínculo de plantilla.
+    // El detalle de respuestas viaja en la ejecución para conservar exactamente
+    // la versión auditada y mantener el flujo offline-first ya existente.
+    this.version(26).stores({
+      controlesProgramadosSGO: 'id, tipo, areaId, pilar, responsable, proximaFecha, activo, plantillaCampoId, [areaId+pilar]',
+      ejecucionesControlesSGO: 'id, controlId, fechaProgramada, ejecutadoEn, resultado, eventoId, [controlId+fechaProgramada]',
+    })
   }
 }
 

@@ -71,7 +71,18 @@ export default function ProtocoloEnsayo({ tarea, soloLectura = false, onCerrar }
   const g = tarea.mediciones
   const [fila, setFila] = useState<DatoTecnico | undefined>()
   const [msg, setMsg] = useState('')
+  // v1.83: la planilla es ancha por naturaleza. Ampliada ocupa toda la pantalla
+  // (sale del modal de la ficha, que aunque se ensancho sigue teniendo margenes).
+  const [ampliado, setAmpliado] = useState(false)
   const dis = soloLectura
+
+  // Con Escape se sale de pantalla completa sin tener que buscar el boton.
+  useEffect(() => {
+    if (!ampliado) return
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') setAmpliado(false) }
+    window.addEventListener('keydown', h)
+    return () => window.removeEventListener('keydown', h)
+  }, [ampliado])
 
   // ---------- configuracion ----------
   const [nf, setNf] = useState<Nf>(g?.nf ?? nfDesdeModelo(tarea.modelo) ?? 3)
@@ -272,12 +283,16 @@ export default function ProtocoloEnsayo({ tarea, soloLectura = false, onCerrar }
   const POS = ['1', '2', '3*', '4', '5']
 
   return (
-    <div className="proto-wrap">
+    <div className={'proto-wrap' + (ampliado ? ' proto-full' : '')}>
       {/* ---- barra de acciones: no sale impresa ---- */}
       <div className="proto-acciones no-print">
         {!dis && <button className="btn btn-primary" onClick={() => void guardar()}>💾 Guardar protocolo</button>}
         <button className="btn" onClick={() => window.print()}>🖨 Exportar PDF</button>
-        {onCerrar && <button className="btn" onClick={onCerrar}>Cerrar</button>}
+        <button className="btn" onClick={() => setAmpliado((v) => !v)}
+          title={ampliado ? 'Volver a la ficha (Esc)' : 'Ver la planilla en toda la pantalla'}>
+          {ampliado ? '🗕 Reducir' : '🗖 Pantalla completa'}
+        </button>
+        {onCerrar && !ampliado && <button className="btn" onClick={onCerrar}>Cerrar</button>}
         {msg && <span className="meta" style={{ color: 'var(--estado-fin)', fontWeight: 700 }}>✓ {msg}</span>}
       </div>
 

@@ -10,6 +10,7 @@ import FichaCeldaSGO from './FichaCeldaSGO'
 import GarantiasISOView from './GarantiasISOView'
 import ControlesProgramadosView from './ControlesProgramadosView'
 import AuditoriaLogisticaView from './AuditoriaLogisticaView'
+import ControlesCampoView from './ControlesCampoView'
 import { defectoSGOLabel, defectosParaArea } from '../../sgo/defectos'
 import { resolverKPIAutomaticos } from '../../sgo/kpiAutomaticos'
 import { aplicarMedicionesIndicadores, type IndicadorSGO } from '../../sgo/indicadores'
@@ -65,7 +66,7 @@ export default function SGOView() {
   const [celdaSeleccionada, setCeldaSeleccionada] = useState<{ area: AreaSGOId; pilar: PilarSGO }>()
   const [filtroArea, setFiltroArea] = useState('')
   const [filtroPilar, setFiltroPilar] = useState('')
-  const [pestana, setPestana] = useState<'tablero' | 'controles' | 'garantias' | 'logistica'>('tablero')
+  const [pestana, setPestana] = useState<'tablero' | 'controles' | 'campo' | 'garantias' | 'logistica'>('tablero')
   const seleccionado = eventos.find((e) => e.id === seleccionadoId)
 
   const abiertos = eventos.filter((e) => e.estado !== 'cerrado')
@@ -89,11 +90,13 @@ export default function SGOView() {
       <div className="tabs" role="tablist" aria-label="Secciones SGO">
         <button className={`tab ${pestana === 'tablero' ? 'active' : ''}`} onClick={() => setPestana('tablero')}>Tablero integral</button>
         <button className={`tab ${pestana === 'controles' ? 'active' : ''}`} onClick={() => setPestana('controles')}>Controles programados</button>
+        <button className={`tab ${pestana === 'campo' ? 'active' : ''}`} onClick={() => setPestana('campo')}>Controles de campo</button>
         <button className={`tab ${pestana === 'logistica' ? 'active' : ''}`} onClick={() => setPestana('logistica')}>Auditoría logística</button>
         <button className={`tab ${pestana === 'garantias' ? 'active' : ''}`} onClick={() => setPestana('garantias')}>Garantías ISO 9001</button>
       </div>
       {pestana === 'garantias' ? <GarantiasISOView usuario={usuario?.usuario ?? 'sin_usuario'} onOpenEvento={(id) => { setPestana('tablero'); setSeleccionadoId(id) }} />
         : pestana === 'controles' ? <ControlesProgramadosView usuario={usuario?.usuario ?? 'sin_usuario'} onOpenEvento={(id) => { setPestana('tablero'); setSeleccionadoId(id) }} />
+        : pestana === 'campo' ? <ControlesCampoView usuario={usuario?.usuario ?? 'sin_usuario'} onOpenEvento={(id) => { setPestana('tablero'); setSeleccionadoId(id) }} />
         : pestana === 'logistica' ? <AuditoriaLogisticaView usuario={usuario?.usuario ?? 'sin_usuario'} onOpenEvento={(id) => { setPestana('tablero'); setSeleccionadoId(id) }} /> : <>
       <div className="card" style={{ marginBottom: 14, borderLeft: '5px solid #2563eb' }}>
         <div className="card-header">

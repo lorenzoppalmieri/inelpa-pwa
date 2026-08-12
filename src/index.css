@@ -25,6 +25,87 @@
   --tap: 64px; /* altura minima de objetivos tactiles */
 }
 
+/* ============================================================
+   SGO · CONTROLES DE CAMPO (v1.84)
+   Vista táctil para auditorías 5S de Lara, Nicolás y Azul.
+   ============================================================ */
+.sgo-campo { display: grid; gap: 14px; }
+.sgo-campo-cabecera, .sgo-campo-identidad {
+  display: flex; justify-content: space-between; align-items: center; gap: 14px;
+  border-left: 5px solid #0ea5e9;
+}
+.sgo-campo-identidad { border-left-color: #8b5cf6; }
+.sgo-campo-identidad .input { width: min(100%, 390px); }
+.sgo-campo-agenda { display: grid; grid-template-columns: repeat(auto-fit,minmax(290px,1fr)); gap: 10px; }
+.sgo-campo-agenda-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-left: 4px solid #22c55e; }
+.sgo-campo-agenda-card.vencido { border-left-color: #ef4444; }
+.sgo-campo-historial { padding: 0; overflow: hidden; }
+.sgo-campo-historial-fila {
+  display: grid; grid-template-columns: 72px minmax(0,1fr) auto; gap: 12px; align-items: center;
+  padding: 11px 13px; border-bottom: 1px solid var(--borde);
+}
+.sgo-campo-historial-fila:last-child { border-bottom: 0; }
+.sgo-campo-score { min-width: 62px; padding: 7px 9px; border-radius: 999px; text-align: center; font-weight: 900; display: inline-block; }
+.score-verde { color: #052e16; background: #bbf7d0; }
+.score-amarillo { color: #713f12; background: #fef08a; }
+.score-rojo { color: #7f1d1d; background: #fecaca; }
+.score-gris { color: #334155; background: #e2e8f0; }
+.sgo-campo-doc-mini {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+  padding: 10px 12px; border: 1px solid var(--borde); border-radius: 10px; background: var(--panel-2);
+}
+.sgo-campo-form-meta { display: grid; grid-template-columns: repeat(auto-fit,minmax(190px,1fr)); gap: 10px; margin-top: 12px; }
+.sgo-campo-progreso {
+  position: sticky; top: -1px; z-index: 4; display: flex; justify-content: space-between; align-items: center;
+  margin: 12px 0 8px; padding: 9px 12px; border: 1px solid var(--borde); border-radius: 10px;
+  background: color-mix(in srgb, var(--panel) 94%, transparent); backdrop-filter: blur(8px);
+}
+.sgo-campo-secciones { display: grid; grid-template-columns: repeat(5,minmax(112px,1fr)); gap: 7px; overflow-x: auto; padding-bottom: 4px; }
+.sgo-campo-secciones .btn { min-height: 44px; white-space: nowrap; }
+.sgo-campo-preguntas { display: grid; gap: 10px; margin-top: 10px; }
+.sgo-campo-pregunta { border: 1px solid var(--borde); border-left: 5px solid #64748b; border-radius: 12px; padding: 13px; background: var(--panel-2); }
+.sgo-campo-pregunta.puntaje-2 { border-left-color: #22c55e; }
+.sgo-campo-pregunta.puntaje-1 { border-left-color: #eab308; }
+.sgo-campo-pregunta.puntaje-0 { border-left-color: #ef4444; }
+.sgo-campo-pregunta.puntaje-na { border-left-color: #94a3b8; }
+.sgo-campo-pregunta-cab strong { display: block; margin-top: 4px; font-size: .98rem; line-height: 1.35; }
+.sgo-campo-puntajes { display: grid; grid-template-columns: repeat(4,1fr); gap: 7px; margin: 10px 0; }
+.campo-op { min-height: 48px; font-weight: 800; border-width: 2px; }
+.campo-op-0.activo { background: #dc2626; border-color: #dc2626; color: #fff; }
+.campo-op-1.activo { background: #eab308; border-color: #eab308; color: #111827; }
+.campo-op-2.activo { background: #16a34a; border-color: #16a34a; color: #fff; }
+.campo-op-na.activo { background: #64748b; border-color: #64748b; color: #fff; }
+.sgo-campo-hallazgo-form {
+  display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 9px;
+  padding: 11px; border-radius: 10px; background: rgba(239,68,68,.07); border: 1px solid rgba(239,68,68,.25);
+}
+.campo-span-2 { grid-column: 1 / -1; }
+.sgo-campo-final-acciones {
+  display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap;
+  position: sticky; bottom: -1px; z-index: 4; margin-top: 13px; padding: 11px;
+  background: color-mix(in srgb, var(--panel) 94%, transparent); border-top: 1px solid var(--borde);
+}
+.sgo-campo-final-acciones .meta { margin-right: auto; }
+.sgo-campo-informe-vista { display: grid; gap: 10px; }
+.sgo-campo-informe-resumen { display: grid; grid-template-columns: repeat(auto-fit,minmax(150px,1fr)); gap: 7px; }
+.sgo-campo-informe-resumen > div { padding: 9px; border: 1px solid var(--borde); border-radius: 9px; }
+.sgo-campo-informe-resumen span, .sgo-campo-informe-resumen strong { display: block; }
+.sgo-campo-informe-resumen span { color: var(--texto-tenue); font-size: .72rem; }
+.sgo-campo-informe-vista h3 { margin: 8px 0 4px; padding: 7px 9px; border-radius: 7px; background: var(--panel-2); font-size: .85rem; }
+.sgo-campo-informe-item { display: grid; grid-template-columns: 65px 1fr; gap: 9px; align-items: start; padding: 7px 2px; border-bottom: 1px solid var(--borde); }
+
+@media (max-width: 720px) {
+  .sgo-campo-cabecera, .sgo-campo-identidad { align-items: stretch; flex-direction: column; }
+  .sgo-campo-cabecera .row-actions, .sgo-campo-cabecera .btn, .sgo-campo-identidad .input { width: 100%; }
+  .sgo-campo-cabecera .row-actions { display: grid; grid-template-columns: 1fr 1fr; }
+  .sgo-campo-historial-fila { grid-template-columns: 64px 1fr; }
+  .sgo-campo-historial-fila .row-actions { grid-column: 1 / -1; justify-content: flex-end; }
+  .sgo-campo-puntajes { grid-template-columns: repeat(2,1fr); }
+  .sgo-campo-hallazgo-form { grid-template-columns: 1fr; }
+  .campo-span-2 { grid-column: auto; }
+  .sgo-campo-final-acciones .btn { flex: 1 1 160px; }
+}
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 html, body, #root { height: 100%; }
@@ -1770,4 +1851,33 @@ body.admin-mode .content { max-width: none; padding: 12px 18px; }
   .proto-calc { font-weight: 800; }
   .proto-tabla { font-size: 8.5pt; page-break-inside: avoid; }
   .proto-sec { page-break-after: avoid; }
+}
+
+/* ---------- Protocolo en PANTALLA COMPLETA (v1.83) ----------
+   La planilla tiene 9 secciones y tablas anchas: dentro del modal de la ficha
+   se leia apretada y con scroll horizontal. Ampliada sale del modal y ocupa
+   todo el viewport. Es solo presentacion: los mismos inputs, el mismo estado. */
+.proto-full {
+  position: fixed; inset: 0; z-index: 300;
+  background: var(--fondo); overflow: auto;
+  padding: 12px 16px 32px; max-width: none;
+}
+.proto-full .proto-acciones {
+  position: sticky; top: 0; z-index: 2;
+  background: var(--fondo); padding: 8px 0; margin: 0 0 10px;
+  border-bottom: 1px solid var(--borde);
+}
+.proto-full .proto-hoja { max-width: 1600px; margin: 0 auto; }
+/* Con espacio de sobra la planilla respira: letra un punto mas grande. */
+.proto-full .proto-tabla { font-size: .82rem; }
+.proto-full .proto-tabla th, .proto-full .proto-tabla td { padding: 5px 8px; }
+
+/* La hoja nunca provoca scroll horizontal: si no entra, scrollea la tabla. */
+.proto-hoja { overflow-x: auto; }
+.proto-tabla { table-layout: auto; }
+
+@media (max-width: 900px) {
+  /* En pantallas chicas la planilla se lee de costado, como el papel. */
+  .proto-tabla { font-size: .7rem; }
+  .proto-tabla th, .proto-tabla td { padding: 2px 4px; }
 }
