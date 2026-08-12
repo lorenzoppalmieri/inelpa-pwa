@@ -1708,3 +1708,66 @@ body.admin-mode .content { max-width: none; padding: 12px 18px; }
   .legend-wrap { padding: 10px 12px !important; }
   .legend-tit { font-size: .68rem; }
 }
+
+/* ============================================================
+   PROTOCOLO DE ENSAYO (v1.83) — replica de la planilla RPH 8.6/03.
+   Se ve igual en pantalla y en el PDF: la exportacion es window.print()
+   con el bloque @media print de mas abajo (no hay libreria de xlsx en el
+   proyecto y no se pueden agregar dependencias).
+   ============================================================ */
+.proto-wrap { max-width: 1120px; margin: 0 auto; }
+.proto-acciones { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+.proto-hoja { background: var(--panel); border: 1px solid var(--borde); border-radius: 10px; padding: 18px; }
+.proto-sello { text-align: right; font-size: .68rem; color: var(--texto-tenue); letter-spacing: .4px; }
+.proto-titulo { text-align: center; font-size: 1.15rem; font-weight: 800; margin: 4px 0 14px; letter-spacing: .5px; }
+.proto-sec {
+  background: var(--panel-2); border-left: 4px solid var(--azul-claro);
+  font-weight: 800; font-size: .78rem; text-transform: uppercase; letter-spacing: .5px;
+  padding: 5px 8px; margin: 14px 0 0;
+}
+.proto-tabla { width: 100%; border-collapse: collapse; font-size: .76rem; }
+.proto-tabla th, .proto-tabla td { border: 1px solid var(--borde); padding: 3px 6px; text-align: left; vertical-align: middle; }
+.proto-tabla th { background: var(--panel-2); font-weight: 700; font-size: .7rem; text-transform: uppercase; white-space: nowrap; }
+.proto-grid td { text-align: center; }
+.proto-final td, .proto-final th { background: rgba(59,130,246,.10); font-weight: 800; }
+/* Los inputs se camuflan: la planilla tiene que verse como una planilla. */
+.proto-in {
+  background: transparent; border: none; border-bottom: 1px dotted var(--borde);
+  color: var(--texto); font: inherit; padding: 1px 2px; max-width: 100%;
+}
+.proto-in:focus { outline: none; border-bottom: 2px solid var(--azul-claro); background: rgba(59,130,246,.08); }
+.proto-in:disabled { border-bottom: none; color: var(--texto); }
+.proto-calc { font-weight: 800; color: var(--azul-claro); }
+.proto-pie { margin-top: 16px; font-size: .7rem; color: var(--texto-tenue); text-align: center; }
+.proto-firmas { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; margin-top: 34px; text-align: center; font-size: .7rem; }
+.proto-firmas > div { border-top: 1px solid var(--borde); padding-top: 6px; }
+
+/* Agujas (indicadores tipo reloj) */
+.agujas { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin: 10px 0; }
+.aguja-box { background: var(--panel-2); border: 1px solid var(--borde); border-radius: 10px; padding: 10px; text-align: center; }
+.aguja-tit { font-size: .74rem; font-weight: 700; color: var(--texto-tenue); margin-bottom: 4px; }
+.aguja-box svg { width: 100%; height: auto; max-height: 120px; }
+.aguja-val { font-size: 1.05rem; font-weight: 800; }
+.aguja-pct { font-size: .74rem; }
+
+/* ---------- IMPRESION / EXPORTAR A PDF ---------- */
+@media print {
+  @page { size: A4 portrait; margin: 10mm; }
+  body { background: #fff !important; }
+  /* Solo se imprime la hoja del protocolo. */
+  body * { visibility: hidden; }
+  .proto-hoja, .proto-hoja * { visibility: visible; }
+  .proto-hoja { position: absolute; inset: 0; margin: 0; border: none; border-radius: 0; padding: 0; background: #fff !important; }
+  .no-print, .tabs, .tabs-nav, .sidebar, .modal-overlay { display: none !important; }
+  /* Tinta: fondo blanco y texto negro, con los bordes visibles. */
+  .proto-hoja, .proto-tabla th, .proto-tabla td, .proto-sec, .proto-in, .proto-calc, .proto-titulo, .proto-sello, .proto-pie, .proto-firmas {
+    color: #000 !important; background: #fff !important;
+  }
+  .proto-tabla th, .proto-tabla td { border: 1px solid #000 !important; }
+  .proto-sec { border-left: 4px solid #000 !important; background: #eee !important; }
+  .proto-final td, .proto-final th { background: #eee !important; }
+  .proto-in { border-bottom: none !important; }
+  .proto-calc { font-weight: 800; }
+  .proto-tabla { font-size: 8.5pt; page-break-inside: avoid; }
+  .proto-sec { page-break-after: avoid; }
+}

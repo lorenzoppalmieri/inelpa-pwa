@@ -634,6 +634,66 @@ export const ENSAYOS_LAB: { key: string; label: string }[] = [
   { key: 'calentamiento', label: 'Calentamiento' },
 ]
 
+// ============================================================
+// v1.82 — MEDICIONES DEL ENSAYO DE PERDIDAS.
+// Se guarda como un unico JSON en la columna `mediciones` de `laboratorio`.
+// Incluye las ENTRADAS (lo que tipeo el laboratorista) y los RESULTADOS
+// congelados: si mañana se corrige el catalogo de datos tecnicos, el protocolo
+// ya emitido no puede cambiar solo. Las formulas viven en lib/ensayoPerdidas.ts.
+// ============================================================
+export interface MedicionesEnsayo {
+  nf?: 1 | 3
+  material?: MaterialBobina
+  tRef?: number                    // temperatura de referencia T, en °C
+  pinsO?: number                   // potencia de instrumentos en vacio, en VA
+  pinsCC?: number                  // idem cortocircuito, en VA
+  vacio?: {
+    arrollamiento: 'alta' | 'baja'
+    conexion: 'Y' | 'D'
+    p0m?: number; i0m?: number; um?: number
+  }
+  cc?: {
+    arrollamiento: 'alta' | 'baja'
+    conexion: 'Y' | 'D'
+    pccm?: number; im?: number; um?: number; tcc?: number; tR?: number
+    rUV?: number; rVW?: number; rWU?: number; rUN?: number
+    rUn?: number; rVn?: number; rWn?: number
+  }
+  resultados?: {
+    p0?: number; i0?: number; ioPct?: number
+    pcc?: number; pj?: number; ps?: number; pccRef?: number
+    ucc?: number; uccPct?: number; urccPct?: number; uxccPct?: number
+    pTotal?: number
+  }
+  // ---- v1.83: resto del PROTOCOLO DE ENSAYO (RPH 8.6/03 V03) ----
+  // Secciones que no dependen del motor de perdidas pero salen en la misma hoja.
+  cabecera?: {
+    nroFabricacion?: string; oc?: string; anio?: number
+    norma?: string; refrigeracion?: string; liquido?: string; lote?: string
+    masaKg?: number; frecuencia?: number; conmutacion?: string
+    grupoConexion?: string; arrollamientos?: string; fases?: string
+  }
+  /** 1. Relacion de transformacion: 5 posiciones del conmutador x 3 fases. */
+  relacion?: { tensionNominal?: number; relDivisor?: number; medidas?: (number | null)[][] }
+  /** 3. Resistencia de aislamiento: 3 tiempos x 3 combinaciones. */
+  aislamiento?: {
+    tiempos?: number[]; tensionKV?: number; temp?: number
+    atbt?: (string | null)[]; atMasa?: (string | null)[]; btMasa?: (string | null)[]
+  }
+  /** 5b. Verificacion a 1,05 Un (relacion Io(1,05)/Io). */
+  vacio105?: { tension?: number; corriente?: number }
+  /** 6 y 7. Tension aplicada e inducida. */
+  aplicada?: { atKV?: number; btKV?: number; tiempoS?: number; frecuencia?: number }
+  inducida?: { atKV?: number; btKV?: number; tiempoS?: number; frecuencia?: number }
+  /** 8. Estanqueidad en frio. */
+  estanqueidad?: { presionKPa?: number; tiempoH?: number }
+  /** 9. Espesor de pintura y conclusion. */
+  pintura?: { espesorUm?: string }
+  conclusion?: string
+  guardadoEn?: string
+  guardadoPor?: string
+}
+
 export interface TareaLaboratorio {
   id: string
   modelo: string
@@ -657,6 +717,9 @@ export interface TareaLaboratorio {
   // v1.48: auditoría de reaperturas. Una ficha finalizada queda en SOLO LECTURA;
   // para volver a tocarla hay que reabrirla explícitamente y queda registrado.
   reaperturas?: { en: string; por?: string }[]
+  // v1.82: mediciones del ENSAYO DE PERDIDAS (vacio + cortocircuito). Antes el
+  // panel solo hacia console.log y no se guardaba nada.
+  mediciones?: MedicionesEnsayo
   // v1.80: auditoria de anulacion. Solo se completan cuando estado === 'anulada'.
   anuladaEn?: string
   anuladaPor?: string

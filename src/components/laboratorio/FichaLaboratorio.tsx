@@ -8,7 +8,7 @@ import { useAuth } from '../../auth/AuthContext'
 import { guardarLaboratorio } from '../../sync/syncEngine'
 import { guardarDespacho } from '../../sync/syncEngine'
 import { db } from '../../db/dexie'
-import PanelEnsayo from './PanelEnsayo'
+import ProtocoloEnsayo from './ProtocoloEnsayo'
 import { fechaCorta, hhmm } from '../../lib/time'
 import { datosModelo, buscarModelo } from '../../lib/modeloTrafo'
 import { subirProtocolo, abrirProtocolo, MAX_PDF_MB } from '../../lib/archivos'
@@ -256,9 +256,14 @@ export default function FichaLaboratorio({ tarea: t, onClose }: { tarea: TareaLa
             {!finalizada && faltaSerie && <div className="meta" style={{ marginTop: 5, color: 'var(--rojo)', fontWeight: 700 }}>⚠ Completá el N° de serie antes de liberar.</div>}
           </div>
 
-          {/* v1.54: valores garantizados del modelo + carga de valores medidos.
-              El modelo y la serie ya vienen de Montaje, no se recargan. */}
-          <PanelEnsayo tarea={t} soloLectura={finalizada} />
+          {/* v1.83: el PROTOCOLO COMPLETO reemplaza al panel de ensayo suelto.
+              Es la misma planilla RPH 8.6/03 que usaba el laboratorio en Excel,
+              con las secciones 4 y 5 calculadas solas y exportable a PDF.
+              OJO: NO volver a montar <PanelEnsayo> en paralelo — los dos
+              escriben en `tarea.mediciones` y el panel viejo no conoce las
+              secciones nuevas, asi que al guardar borraria la cabecera, la
+              relacion de transformacion y el aislamiento. */}
+          <ProtocoloEnsayo tarea={t} soloLectura={finalizada} />
 
           {seccion('Protocolo de ensayos (marcá solo los que hiciste)')}
           {ENSAYOS_LAB.map((e) => {
