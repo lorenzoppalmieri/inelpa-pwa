@@ -1892,41 +1892,98 @@ body.admin-mode .content { max-width: none; padding: 12px 18px; }
 }
 
 /* ============================================================
-   AGENDA ISO — matriz año x semana (v1.84), réplica del R.I.T 6.2/05.
-   Tono acordado: es una agenda para todo el equipo, no un tablero de control.
-   Nada de rojo agresivo ni de ranking por persona.
-   ============================================================ */
-.agenda-scroll { overflow-x: auto; border: 1px solid var(--borde); border-radius: 10px; }
-.agenda-matriz { border-collapse: collapse; font-size: .72rem; width: max-content; min-width: 100%; }
-.agenda-matriz th, .agenda-matriz td { border: 1px solid var(--borde); padding: 0; }
-.agenda-matriz thead th { background: var(--panel-2); font-size: .64rem; font-weight: 800; padding: 3px 4px; text-align: center; white-space: nowrap; }
-.agenda-matriz thead th.mes-actual { background: rgba(59,130,246,.22); }
-.agenda-sem { width: 20px; min-width: 20px; color: var(--texto-tenue); font-weight: 600; }
-/* La columna de actividades queda fija al scrollear en horizontal. */
-.agenda-col-act { position: sticky; left: 0; z-index: 2; background: var(--panel); min-width: 260px; max-width: 320px; padding: 3px 6px !important; text-align: left; }
-.agenda-titulo { background: none; border: none; color: var(--texto); font: inherit; text-align: left; cursor: pointer; padding: 0; width: 100%; }
-.agenda-titulo:hover { color: var(--azul-claro); text-decoration: underline; }
-.agenda-cuenta { font-size: .62rem; color: var(--texto-tenue); margin-left: 6px; }
-.agenda-bloque td { background: var(--panel-2); font-weight: 800; font-size: .66rem; letter-spacing: .5px; padding: 4px 6px !important; position: sticky; left: 0; }
+   AGENDA ISO — matriz año x semana (v1.84, rediseñada v1.85).
+   Réplica del R.I.T 6.2/05. Tono: agenda del equipo, no tablero de control.
 
-/* Celdas: la marca ES el color, como en la planilla en papel. */
-.agenda-celda { height: 22px; }
-.agenda-celda button { width: 100%; height: 22px; display: block; background: none; border: none; cursor: pointer; padding: 0; }
-.agenda-celda button:disabled { cursor: default; }
-.agenda-celda button:hover:not(:disabled) { background: rgba(59,130,246,.18); }
-.agenda-celda.col-actual { background: rgba(59,130,246,.07); }
-.agenda-celda.programada button { background: var(--azul-claro); }
-.agenda-celda.hecha button { background: var(--estado-fin); }
-/* "Quedó atrás sin marcar": se señala con trama, no con rojo pleno. */
-.agenda-celda.pasada button {
-  background: repeating-linear-gradient(45deg, var(--naranja) 0 3px, transparent 3px 6px), rgba(245,158,11,.22);
+   CRITERIO DE DISEÑO: es una PLANILLA, no un dashboard. Casilleros cuadrados
+   de tamaño fijo, cuadrícula completa, línea gruesa al cerrar cada mes y banda
+   alterna mes por medio. Sin eso la grilla es un mar de rectángulos flotando
+   sin referencia — que es como quedó la primera versión.
+   ============================================================ */
+.agenda-scroll {
+  overflow: auto; max-height: 68vh;
+  border: 1px solid var(--borde); border-radius: 10px; background: var(--panel);
+}
+.agenda-matriz {
+  border-collapse: separate; border-spacing: 0;
+  font-size: .72rem; width: max-content; min-width: 100%;
+  table-layout: fixed;
 }
 
+/* ---------- Encabezados (fijos al scrollear) ---------- */
+.agenda-matriz thead th {
+  position: sticky; z-index: 3;
+  background: var(--panel-2);
+  font-size: .62rem; font-weight: 800; letter-spacing: .3px;
+  padding: 4px 2px; text-align: center; white-space: nowrap;
+  border-right: 1px solid var(--borde); border-bottom: 1px solid var(--borde);
+}
+.agenda-matriz thead tr:first-child th { top: 0; height: 22px; }
+.agenda-matriz thead tr:nth-child(2) th { top: 22px; height: 18px; }
+.agenda-matriz thead th.mes-actual { background: rgba(59,130,246,.28); color: #fff; }
+.agenda-sem { width: 19px; min-width: 19px; max-width: 19px; color: var(--texto-tenue); font-weight: 600; }
+.agenda-sem.banda { background: rgba(255,255,255,.035); }
+/* Cierre de mes: la línea que hacía falta para saber dónde estás parado. */
+.agenda-sem.fin-mes, .agenda-celda.fin-mes { border-right: 2px solid var(--texto-tenue) !important; }
+
+/* ---------- Columna de actividades (fija a la izquierda) ---------- */
+.agenda-col-act {
+  position: sticky; left: 0; z-index: 4;
+  background: var(--panel);
+  width: 280px; min-width: 280px; max-width: 280px;
+  padding: 0 !important; text-align: left;
+  border-right: 2px solid var(--texto-tenue);
+  border-bottom: 1px solid var(--borde);
+}
+.agenda-matriz thead .agenda-col-act { z-index: 6; background: var(--panel-2); }
+.agenda-titulo {
+  display: flex; align-items: center; gap: 6px; width: 100%;
+  background: none; border: none; color: var(--texto); font: inherit;
+  text-align: left; cursor: pointer; padding: 0 8px; height: 24px;
+}
+.agenda-titulo-txt { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .72rem; }
+.agenda-titulo:hover .agenda-titulo-txt { color: var(--azul-claro); }
+.agenda-cuenta {
+  flex: none; font-size: .6rem; font-weight: 700; color: var(--texto-tenue);
+  background: var(--panel-2); border-radius: 999px; padding: 1px 6px; min-width: 18px; text-align: center;
+}
+
+/* ---------- Fila de bloque ---------- */
+.agenda-bloque td {
+  position: sticky; left: 0; z-index: 5;
+  background: var(--panel-2); color: var(--texto);
+  font-weight: 800; font-size: .64rem; letter-spacing: .6px;
+  padding: 5px 8px !important;
+  border-top: 2px solid var(--texto-tenue); border-bottom: 1px solid var(--borde);
+}
+
+/* ---------- Celdas: cuadradas y con cuadrícula completa ---------- */
+.agenda-celda {
+  width: 19px; min-width: 19px; max-width: 19px; height: 24px; padding: 0;
+  border-right: 1px solid var(--borde); border-bottom: 1px solid var(--borde);
+}
+.agenda-celda.banda { background: rgba(255,255,255,.035); }
+.agenda-celda.col-actual { background: rgba(59,130,246,.10); }
+.agenda-celda button {
+  width: 100%; height: 100%; display: block; padding: 0;
+  background: none; border: none; cursor: pointer;
+}
+.agenda-celda button:disabled { cursor: default; }
+.agenda-celda button:hover:not(:disabled) { box-shadow: inset 0 0 0 2px var(--azul-claro); }
+/* El casillero pintado ocupa la celda entera, como en el papel. */
+.agenda-celda.programada button { background: var(--azul-claro); }
+.agenda-celda.hecha button { background: var(--estado-fin); }
+/* "Quedó atrás sin marcar": trama, no rojo pleno (tono acordado). */
+.agenda-celda.pasada button {
+  background: repeating-linear-gradient(45deg, var(--naranja) 0 3px, rgba(245,158,11,.25) 3px 6px);
+}
+.agenda-matriz tbody tr:nth-child(even) .agenda-col-act { background: rgba(255,255,255,.02); }
+
 .agenda-leyenda { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
-.agenda-leyenda i.lg { width: 13px; height: 13px; border-radius: 3px; display: inline-block; margin-right: 5px; vertical-align: -2px; }
+.agenda-leyenda i.lg { width: 13px; height: 13px; border-radius: 2px; display: inline-block; margin-right: 5px; vertical-align: -2px; }
 .agenda-leyenda i.programada { background: var(--azul-claro); }
 .agenda-leyenda i.hecha { background: var(--estado-fin); }
-.agenda-leyenda i.pasada { background: repeating-linear-gradient(45deg, var(--naranja) 0 3px, transparent 3px 6px), rgba(245,158,11,.22); }
+.agenda-leyenda i.pasada { background: repeating-linear-gradient(45deg, var(--naranja) 0 3px, rgba(245,158,11,.25) 3px 6px); }
 
 /* Gráfico de carga por mes: lo que la grilla esconde. */
 .agenda-carga { display: grid; grid-template-columns: repeat(12, 1fr); gap: 5px; align-items: end; height: 92px; }
@@ -1949,6 +2006,7 @@ body.admin-mode .content { max-width: none; padding: 12px 18px; }
 .agenda-prox-chip.crit-baja { background: var(--panel-2); color: var(--texto-tenue); }
 
 @media (max-width: 768px) {
-  .agenda-col-act { min-width: 150px; max-width: 170px; font-size: .68rem; }
+  .agenda-col-act { width: 148px; min-width: 148px; max-width: 148px; }
+  .agenda-titulo-txt { font-size: .64rem; }
   .agenda-carga { height: 70px; }
 }

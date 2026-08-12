@@ -90,7 +90,10 @@ export default function MatrizAgendaISO({
             <tr>
               {MESES.flatMap((_, i) =>
                 Array.from({ length: SEMANAS_MES[i] }, (_, k) => (
-                  <th key={`${i}-${k}`} className="agenda-sem">{k + 1}</th>
+                  <th key={`${i}-${k}`}
+                    className={'agenda-sem'
+                      + (k === SEMANAS_MES[i] - 1 ? ' fin-mes' : '')
+                      + (i % 2 === 1 ? ' banda' : '')}>{k + 1}</th>
                 )))}
             </tr>
           </thead>
@@ -107,10 +110,10 @@ export default function MatrizAgendaISO({
                   return (
                     <tr key={a.id}>
                       <td className="agenda-col-act">
-                        <button className="agenda-titulo" onClick={() => onAbrir(a)} title="Abrir la ficha de la actividad">
-                          {a.titulo}
+                        <button className="agenda-titulo" onClick={() => onAbrir(a)} title={`${a.titulo} — abrir la ficha`}>
+                          <span className="agenda-titulo-txt">{a.titulo}</span>
+                          {total > 0 && <span className="agenda-cuenta">{total}</span>}
                         </button>
-                        {total > 0 && <span className="agenda-cuenta">{total}</span>}
                       </td>
                       {MESES.flatMap((_, i) =>
                         Array.from({ length: SEMANAS_MES[i] }, (_, k) => {
@@ -123,6 +126,10 @@ export default function MatrizAgendaISO({
                           if (marca) cls.push(marca.hecha ? 'hecha' : 'programada')
                           if (pasada) cls.push('pasada')
                           if (anio === anioHoy && mes === mesHoy) cls.push('col-actual')
+                          // Banda alterna por mes + línea gruesa al cerrar el mes:
+                          // sin esto la grilla es un mar de casilleros sin referencia.
+                          if (i % 2 === 1) cls.push('banda')
+                          if (k === SEMANAS_MES[i] - 1) cls.push('fin-mes')
                           return (
                             <td key={`${mes}-${sem}`} className={cls.join(' ')}>
                               <button
