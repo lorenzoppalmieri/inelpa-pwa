@@ -139,7 +139,13 @@ export default function MatrizAgendaISO({
                                 title={!puedeEditar ? 'Solo Lorenzo y Azul reprograman'
                                   : marca ? (marca.hecha ? 'Hecha — click para quitar' : 'Programada — click para marcar hecha')
                                   : 'Click para programar esta semana'}
-                              />
+                              >
+                                {/* v1.86: UN SOLO COLOR en toda la planilla. El estado
+                                    no se distingue por tono sino por el relleno:
+                                    llena = programada · llena con tilde = hecha ·
+                                    solo contorno = quedó atrás sin marcar. */}
+                                {marca?.hecha ? '✓' : ''}
+                              </button>
                             </td>
                           )
                         }))}
@@ -154,7 +160,7 @@ export default function MatrizAgendaISO({
 
       <div className="agenda-leyenda meta">
         <span><i className="lg programada" /> Programada</span>
-        <span><i className="lg hecha" /> Hecha</span>
+        <span><i className="lg hecha">✓</i> Hecha</span>
         <span><i className="lg pasada" /> Quedó atrás sin marcar</span>
         {puedeEditar
           ? <span>· Click en el casillero: programar → hecha → quitar</span>
