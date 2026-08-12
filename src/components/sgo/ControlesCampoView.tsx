@@ -9,7 +9,7 @@ import {
 import { idMedicionIndicador } from '../../sgo/indicadores'
 import {
   AUDITORES_CAMPO, PLANTILLA_5S_RIT_9_2_12, SECCIONES_5S,
-  areaSugeridaParaAuditor, auditorDesdeUsuario, calcularPorcentajeCampo, calcularPorSeccionCampo,
+  areaSugeridaParaAuditor, areas5SParaAuditor, auditorDesdeUsuario, calcularPorcentajeCampo, calcularPorSeccionCampo,
   controlCampoCompleto, respuestaEsHallazgo, respuestaVacia, semaforoCampo,
   type AuditoriaCampoSGO, type PuntajeControlCampo, type RespuestaControlCampo, type RiesgoHallazgoCampo,
 } from '../../sgo/controlesCampo'
@@ -19,6 +19,7 @@ import {
   AREAS_SGO, PILARES_SGO, areaSGOLabel, codigoEventoSGO,
   type AccionSGO, type AreaSGOId, type EventoSGO, type PilarSGO,
 } from '../../sgo/types'
+import { usuarioEsLorenzo } from '../../sgo/permisos'
 
 const fechaHora = (iso: string) => new Intl.DateTimeFormat('es-AR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(iso))
 const fechaLarga = (iso: string) => new Intl.DateTimeFormat('es-AR', { dateStyle: 'long' }).format(new Date(`${iso.slice(0, 10)}T12:00:00`))
@@ -35,6 +36,7 @@ export default function ControlesCampoView({ usuario, onOpenEvento }: { usuario:
   const controles = useLiveQuery(() => db.controlesProgramadosSGO.toArray(), []) ?? []
   const ejecuciones = useLiveQuery(() => db.ejecucionesControlesSGO.toArray(), []) ?? []
   const [controlActivo, setControlActivo] = useState<ControlProgramadoSGO | null | undefined>()
+  const [solicitandoEspecial, setSolicitandoEspecial] = useState(false)
   const [programando, setProgramando] = useState(false)
   const [informe, setInforme] = useState<EjecucionControlSGO>()
   const [filtroAuditor, setFiltroAuditor] = useState(auditorDesdeUsuario(usuario) ?? '')
@@ -56,8 +58,7 @@ export default function ControlesCampoView({ usuario, onOpenEvento }: { usuario:
         <div className="meta">Auditorías trazables para tablets · producción, semielaborados y logística.</div>
       </div>
       <div className="row-actions">
-        <button className="btn" onClick={() => setProgramando(true)}>Programar área</button>
-        <button className="btn btn-primary" onClick={() => setControlActivo(null)}>+ Iniciar control 5S</button>
+        {usuarioEsLorenzo(usuario) && <><button className="btn" onClick={() => setSolicitandoEspecial(true)}>+ Pedir auditoría especial</button><button className="btn" onClick={() => setProgramando(true)}>Programar área</button></>}
       </div>
     </div>
 
@@ -84,8 +85,9 @@ export default function ControlesCampoView({ usuario, onOpenEvento }: { usuario:
     {pendientes.length === 0 ? <div className="empty">No hay controles 5S programados para este filtro. Podés programar un área o iniciar un control directo.</div>
       : <div className="sgo-campo-agenda">{pendientes.map((control) => <article className={`card sgo-campo-agenda-card ${control.proximaFecha < hoy ? 'vencido' : ''}`} key={control.id}>
         <div>
-          <strong>{areaSGOLabel(control.areaId)}</strong>
+          <strong>{control.frecuencia === 'unico' ? 'ESPECIAL · ' : ''}{areaSGOLabel(control.areaId)}</strong>
           <div className="meta">{control.responsable} · {control.proximaFecha < hoy ? 'Vencido' : control.proximaFecha === hoy ? 'Para hoy' : `Próximo: ${fechaLarga(control.proximaFecha)}`}</div>
+          {control.frecuencia === 'unico' && <div className="meta">{control.instrucciones}</div>}
           <div className="meta">{PLANTILLA_5S_RIT_9_2_12.documento.codigo} · versión {PLANTILLA_5S_RIT_9_2_12.documento.version}</div>
         </div>
         <button className="btn btn-primary" onClick={() => setControlActivo(control)}>Realizar</button>
@@ -107,6 +109,7 @@ export default function ControlesCampoView({ usuario, onOpenEvento }: { usuario:
 
     {controlActivo !== undefined && <EjecutarControlCampo control={controlActivo} usuario={usuario} historial={historial} onClose={() => setControlActivo(undefined)} />}
     {programando && <ProgramarControlCampo usuario={usuario} controles={controlesCampo} onClose={() => setProgramando(false)} />}
+    {solicitandoEspecial && <SolicitarAuditoriaEspecial usuario={usuario} onClose={() => setSolicitandoEspecial(false)} />}
     {informe?.auditoriaCampo && <InformeControlCampo ejecucion={informe} onClose={() => setInforme(undefined)} />}
   </div>
 }
@@ -121,8 +124,10 @@ function ProgramarControlCampo({ usuario, controles, onClose }: { usuario: strin
   const [area, setArea] = useState<AreaSGOId>(areaSugeridaParaAuditor(auditorInicial))
   const [fecha, setFecha] = useState(fechaLocalISO())
   const [guardando, setGuardando] = useState(false)
+  const areasAuditor = areas5SParaAuditor(auditor)
 
   async function guardar() {
+    if (!usuarioEsLorenzo(usuario)) { window.alert('Solo Lorenzo puede modificar la programación semanal de 5S.'); return }
     const existente = controles.find((c) => c.areaId === area)
     const now = new Date().toISOString()
     const control: ControlProgramadoSGO = {
@@ -137,10 +142,47 @@ function ProgramarControlCampo({ usuario, controles, onClose }: { usuario: strin
 
   return <Modal titulo="Programar control 5S" onClose={onClose}>
     <div className="field"><label>Auditor *</label><select className="input" value={auditor} onChange={(e) => { setAuditor(e.target.value); setArea(areaSugeridaParaAuditor(e.target.value)) }}>{AUDITORES_CAMPO.map((a) => <option key={a.id} value={a.nombre}>{a.nombre} · {a.alcance}</option>)}</select></div>
-    <div className="field"><label>Área *</label><select className="input" value={area} onChange={(e) => setArea(e.target.value as AreaSGOId)}>{AREAS_SGO.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}</select></div>
+    <div className="field"><label>Área *</label><select className="input" value={area} onChange={(e) => setArea(e.target.value as AreaSGOId)}>{AREAS_SGO.filter((a) => areasAuditor.includes(a.id)).map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}</select></div>
     <div className="field"><label>Próxima fecha *</label><input className="input" type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} /></div>
     <div className="meta">La frecuencia inicial será semanal, con un día de tolerancia. Después podrá modificarse desde Controles programados.</div>
     <div className="row-actions" style={{ justifyContent: 'flex-end', marginTop: 14 }}><button className="btn" onClick={onClose}>Cancelar</button><button className="btn btn-primary" disabled={guardando} onClick={() => void guardar()}>{guardando ? 'Guardando…' : 'Programar'}</button></div>
+  </Modal>
+}
+
+function SolicitarAuditoriaEspecial({ usuario, onClose }: { usuario: string; onClose: () => void }) {
+  const [auditor, setAuditor] = useState('Lara')
+  const [area, setArea] = useState<AreaSGOId>(areaSugeridaParaAuditor('Lara'))
+  const [fecha, setFecha] = useState(fechaLocalISO())
+  const [motivo, setMotivo] = useState('')
+  const [guardando, setGuardando] = useState(false)
+  const areasAuditor = areas5SParaAuditor(auditor)
+
+  async function guardar() {
+    if (!usuarioEsLorenzo(usuario)) { window.alert('Solo Lorenzo puede solicitar auditorías especiales.'); return }
+    if (!motivo.trim()) { window.alert('Completá el motivo de la auditoría especial.'); return }
+    const now = new Date().toISOString()
+    const id = `sgo-campo-5s-especial-${crypto.randomUUID()}`
+    const control: ControlProgramadoSGO = {
+      id, titulo: `Auditoría especial 5S · ${areaSGOLabel(area)}`, tipo: 'auditoria_campo', areaId: area,
+      pilar: 'mejora', norma: 'sgo_integral', requisito: PLANTILLA_5S_RIT_9_2_12.documento.codigo,
+      instrucciones: `AUDITORÍA ESPECIAL solicitada por Lorenzo. Motivo: ${motivo.trim()}`,
+      responsable: auditor, frecuencia: 'unico', proximaFecha: fecha, toleranciaDias: 0, activo: true,
+      plantillaCampoId: PLANTILLA_5S_RIT_9_2_12.id, creadoEn: now, creadoPor: usuario,
+      actualizadoEn: now, actualizadoPor: usuario,
+    }
+    setGuardando(true)
+    try { await guardarControlProgramadoSGO(control); onClose() }
+    catch (e) { window.alert(e instanceof Error ? e.message : 'No se pudo solicitar la auditoría especial.') }
+    finally { setGuardando(false) }
+  }
+
+  return <Modal titulo="Pedir auditoría especial 5S" onClose={onClose}>
+    <div className="field"><label>Auditor *</label><select className="input" value={auditor} onChange={(e) => { setAuditor(e.target.value); setArea(areaSugeridaParaAuditor(e.target.value)) }}>{AUDITORES_CAMPO.map((a) => <option key={a.id} value={a.nombre}>{a.nombre} · {a.alcance}</option>)}</select></div>
+    <div className="field"><label>Área *</label><select className="input" value={area} onChange={(e) => setArea(e.target.value as AreaSGOId)}>{AREAS_SGO.filter((a) => areasAuditor.includes(a.id)).map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}</select></div>
+    <div className="field"><label>Fecha requerida *</label><input className="input" type="date" min={fechaLocalISO()} value={fecha} onChange={(e) => setFecha(e.target.value)} /></div>
+    <div className="field"><label>Motivo / alcance especial *</label><textarea className="input" rows={3} value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Ej. reincidencia, reclamo, cambio de layout o verificación extraordinaria." /></div>
+    <div className="meta">Se agregará a la agenda del auditor como control de una sola vez y no modificará su frecuencia semanal.</div>
+    <div className="row-actions" style={{ justifyContent: 'flex-end', marginTop: 14 }}><button className="btn" onClick={onClose}>Cancelar</button><button className="btn btn-primary" disabled={guardando} onClick={() => void guardar()}>{guardando ? 'Solicitando…' : 'Solicitar auditoría'}</button></div>
   </Modal>
 }
 
@@ -236,7 +278,9 @@ function EjecutarControlCampo({ control, usuario, historial, onClose }: { contro
       const now = new Date().toISOString()
       const anterior = historial.find((e) => e.auditoriaCampo?.areaId === area)?.auditoriaCampo?.porcentajeCumplimiento
       const baseAuditoria: AuditoriaCampoSGO = {
-        tipo: '5s', plantillaId: PLANTILLA_5S_RIT_9_2_12.id, plantillaVersion: PLANTILLA_5S_RIT_9_2_12.version,
+        tipo: '5s', modalidad: registroControl.frecuencia === 'unico' ? 'especial' : 'programada',
+        motivoEspecial: registroControl.frecuencia === 'unico' ? registroControl.instrucciones : undefined,
+        plantillaId: PLANTILLA_5S_RIT_9_2_12.id, plantillaVersion: PLANTILLA_5S_RIT_9_2_12.version,
         documento: PLANTILLA_5S_RIT_9_2_12.documento, areaId: area, auditor: auditor.trim(), usuarioAcceso: usuario,
         encargadoArea: encargado.trim(), ubicacion: ubicacion.trim() || undefined, turno: turno || undefined,
         iniciadaEn: inicio, finalizadaEn: now, respuestas, porcentajeCumplimiento: porcentaje,

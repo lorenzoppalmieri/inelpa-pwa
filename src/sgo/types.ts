@@ -23,8 +23,11 @@ export type AreaSGOId =
   | 'montaje_rural'
   | 'herreria_pintura'
   | 'laminado'
+  | 'carpinteria'
+  | 'corte_aislacion'
   | 'administracion'
   | 'logistica_operativa'
+  | 'logistica_despacho'
   | 'mantenimiento'
   | 'automatismo'
   | 'it'
@@ -167,8 +170,11 @@ export const AREAS_SGO: { id: AreaSGOId; label: string }[] = [
   { id: 'montaje_rural', label: 'MONTAJE RURAL (PA y PO)' },
   { id: 'herreria_pintura', label: 'HERRERÍA Y PINTURA' },
   { id: 'laminado', label: 'LAMINADO' },
+  { id: 'carpinteria', label: 'CARPINTERÍA' },
+  { id: 'corte_aislacion', label: 'CORTE AISLACIÓN' },
   { id: 'administracion', label: 'ADMINISTRACIÓN' },
-  { id: 'logistica_operativa', label: 'LOGÍSTICA' },
+  { id: 'logistica_operativa', label: 'ABASTECIMIENTO' },
+  { id: 'logistica_despacho', label: 'DESPACHO' },
   { id: 'mantenimiento', label: 'MANTENIMIENTO' },
   { id: 'automatismo', label: 'AUTOMATISMO' },
   { id: 'it', label: 'IT' },
@@ -178,10 +184,9 @@ export const AREAS_SGO: { id: AreaSGOId; label: string }[] = [
   { id: 'diseno', label: 'DISEÑO' },
 ]
 
-// v1.47: el organigrama unificó logística. Desapareció "Logística Administrativa"
-// y "Logística Operativa" pasó a llamarse simplemente "LOGÍSTICA". El id
-// 'logistica_operativa' se conserva para no invalidar los expedientes, KPIs e
-// indicadores ya cargados; el id viejo se remapea al leer.
+// El id 'logistica_operativa' se conserva para no invalidar expedientes, KPIs e
+// indicadores ya cargados y desde v1.86 representa ABASTECIMIENTO. DESPACHO se
+// registra por separado con un id propio.
 const ALIAS_AREA_SGO: Record<string, AreaSGOId> = {
   logistica_administrativa: 'logistica_operativa',
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   PLANTILLA_5S_RIT_9_2_12, SECCIONES_5S, calcularPorcentajeCampo,
-  controlCampoCompleto, respuestaVacia, semaforoCampo, type RespuestaControlCampo,
+  areas5SParaAuditor, controlCampoCompleto, respuestaVacia, semaforoCampo, type RespuestaControlCampo,
 } from '../controlesCampo'
 
 describe('controles de campo 5S', () => {
@@ -36,5 +36,11 @@ describe('controles de campo 5S', () => {
     expect(semaforoCampo(90)).toBe('verde')
     expect(semaforoCampo(75)).toBe('amarillo')
     expect(semaforoCampo(74.9)).toBe('rojo')
+  })
+
+  it('separa logística y agrega las nuevas áreas productivas', () => {
+    expect(areas5SParaAuditor('Nicolás')).toEqual(['logistica_operativa', 'logistica_despacho'])
+    expect(areas5SParaAuditor('Lara')).toContain('carpinteria')
+    expect(areas5SParaAuditor('Lara')).toContain('corte_aislacion')
   })
 })

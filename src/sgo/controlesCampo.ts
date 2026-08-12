@@ -46,6 +46,8 @@ export interface RespuestaControlCampo {
 
 export interface AuditoriaCampoSGO {
   tipo: '5s'
+  modalidad?: 'programada' | 'especial'
+  motivoEspecial?: string
   plantillaId: string
   plantillaVersion: string
   documento: DocumentoControlCampo
@@ -189,4 +191,19 @@ export function semaforoCampo(porcentaje: number): 'verde' | 'amarillo' | 'rojo'
 export function areaSugeridaParaAuditor(auditor: string): AreaSGOId {
   const norm = auditor.toLocaleLowerCase('es').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
   return norm.includes('nicolas') ? 'logistica_operativa' : norm.includes('azul') ? 'administracion' : 'bobinado_distribucion'
+}
+
+export const AREAS_5S_POR_AUDITOR: Record<AuditorCampo['id'], AreaSGOId[]> = {
+  lara: [
+    'bobinado_rural', 'bobinado_distribucion', 'montaje_distribucion', 'montaje_rural',
+    'herreria_pintura', 'laminado', 'carpinteria', 'corte_aislacion',
+  ],
+  nicolas: ['logistica_operativa', 'logistica_despacho'],
+  azul: ['administracion'],
+}
+
+export function areas5SParaAuditor(auditor: string): AreaSGOId[] {
+  const norm = auditor.toLocaleLowerCase('es').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  const identificado = AUDITORES_CAMPO.find((a) => norm.includes(a.id))
+  return identificado ? AREAS_5S_POR_AUDITOR[identificado.id] : []
 }
