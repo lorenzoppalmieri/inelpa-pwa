@@ -180,7 +180,18 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
       // fila secuencial (el auto-shift ya encola las tareas con igual hora de
       // arranque). El apilado en sub-filas queda solo para sectores con paralelo
       // real (Montaje Parte Activa / Post Horno).
-      const laneBobinado = ts.length > 0 && ts.every((t) => esSectorBobinado(t.sectorId))
+      //
+      // v1.81 — ARREGLO. Esa premisa vale por MAQUINA, no por sector. Agrupado
+      // por sector (que es el modo por DEFECTO del tablero), un carril como
+      // "Bobinado Distribucion A.T." junta hasta 30 bobinadoras trabajando en
+      // paralelo: forzarlas todas a la fila 0 las dibujaba UNA ENCIMA DE OTRA.
+      // No era un problema del auto-shift —la cascada esta bien y no genera
+      // solapamientos dentro de un mismo recurso— sino del apilado visual.
+      // Ahora el colapso a una sola fila se aplica solo cuando el carril ES una
+      // sola maquina; si hay varias, decide el packing greedy de abajo.
+      const maquinasEnLane = new Set(ts.map((t) => t.maquinaId))
+      const laneBobinado = ts.length > 0 && maquinasEnLane.size <= 1
+        && ts.every((t) => esSectorBobinado(t.sectorId))
       const rowDe = new Map<string, number>()
       if (laneBobinado) {
         for (const { t } of conPlan) rowDe.set(t.id, 0)
