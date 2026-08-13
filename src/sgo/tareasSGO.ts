@@ -2,6 +2,13 @@ export type AsignadoTareaSGO = 'azul' | 'nicolas.sgo' | 'lara'
 export type ImportanciaTareaSGO = 'baja' | 'media' | 'alta' | 'critica'
 export type EstadoTareaSGO = 'asignada' | 'tomada' | 'en_proceso' | 'finalizada' | 'verificada' | 'cancelada'
 export type TipoComentarioTareaSGO = 'comentario' | 'plan' | 'conclusion' | 'verificacion'
+export type EscalaTiempoTareaSGO = 'horas' | 'dias' | 'semanas'
+
+export const MINUTOS_POR_ESCALA_TAREA_SGO: Record<EscalaTiempoTareaSGO, number> = {
+  horas: 60,
+  dias: 9 * 60,
+  semanas: 5 * 9 * 60,
+}
 
 export interface ComentarioTareaSGO {
   id: string
@@ -56,4 +63,19 @@ export function usuarioPuedeTrabajarTareaSGO(usuario: string, tarea: TareaSGO): 
 
 export function tareaSGOVencida(tarea: TareaSGO, hoy: string): boolean {
   return !!tarea.fechaLimite && !['finalizada', 'verificada', 'cancelada'].includes(tarea.estado) && tarea.fechaLimite < hoy
+}
+
+export function tiempoTareaSGOEnMinutos(cantidad: number, escala: EscalaTiempoTareaSGO): number {
+  return Math.max(1, Math.round(cantidad * MINUTOS_POR_ESCALA_TAREA_SGO[escala]))
+}
+
+export function tiempoTareaSGOLabel(minutos: number): string {
+  const escalas: { id: EscalaTiempoTareaSGO; singular: string; plural: string }[] = [
+    { id: 'semanas', singular: 'semana', plural: 'semanas' },
+    { id: 'dias', singular: 'día', plural: 'días' },
+    { id: 'horas', singular: 'hora', plural: 'horas' },
+  ]
+  const elegida = escalas.find((e) => minutos >= MINUTOS_POR_ESCALA_TAREA_SGO[e.id]) ?? escalas[2]
+  const valor = Math.round(minutos / MINUTOS_POR_ESCALA_TAREA_SGO[elegida.id] * 10) / 10
+  return `${valor.toLocaleString('es-AR')} ${valor === 1 ? elegida.singular : elegida.plural}`
 }
