@@ -179,6 +179,10 @@ const ITEMS_5S_V02: ItemPlantillaCampo[] = [
 export const PLANTILLA_5S_RIT_9_2_12: PlantillaControlCampo = {
   ...PLANTILLA_5S_RIT_9_2_12_V01,
   version: '02-digital',
+  documento: {
+    ...PLANTILLA_5S_RIT_9_2_12_V01.documento,
+    version: '02',
+  },
   items: ITEMS_5S_V02,
 }
 

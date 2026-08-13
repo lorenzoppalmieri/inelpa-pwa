@@ -10,6 +10,8 @@ describe('controles de campo 5S', () => {
     expect(SECCIONES_5S.map((s) => s.id)).toEqual(['seiri', 'seiton', 'seiso', 'seiketsu', 'shitsuke'])
     expect(PLANTILLA_5S_RIT_9_2_12.documento.codigo).toBe('R.I.T. 9.2/12')
     expect(PLANTILLA_5S_RIT_9_2_12.version).toBe('02-digital')
+    expect(PLANTILLA_5S_RIT_9_2_12.documento.version).toBe('02')
+    expect(PLANTILLA_5S_RIT_9_2_12_V01.documento.version).toBe('01')
     expect(new Set(PLANTILLA_5S_RIT_9_2_12.items.map((i) => i.seccion))).toEqual(new Set(SECCIONES_5S.map((s) => s.id)))
   })
 
