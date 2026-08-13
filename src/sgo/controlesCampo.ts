@@ -60,8 +60,11 @@ export interface AuditoriaCampoSGO {
   iniciadaEn: string
   finalizadaEn: string
   respuestas: RespuestaControlCampo[]
+  /** Copia de las preguntas utilizadas para preservar informes históricos. */
+  items?: ItemPlantillaCampo[]
   porcentajeCumplimiento: number
   porcentajePorSeccion: Partial<Record<Seccion5S, number>>
+  porcentajePorPilar?: Partial<Record<PilarSGO, number>>
   calificacionAnterior?: number
   eventoIds?: string[]
 }
@@ -91,7 +94,7 @@ const item = (
   pilar: PilarSGO = 'mejora', critico = false,
 ): ItemPlantillaCampo => ({ id, seccion, numero, punto, pregunta, pilar, critico })
 
-export const PLANTILLA_5S_RIT_9_2_12: PlantillaControlCampo = {
+export const PLANTILLA_5S_RIT_9_2_12_V01: PlantillaControlCampo = {
   id: 'rit-9-2-12-5s',
   nombre: 'Control semanal de 5S',
   version: '01-digital',
@@ -143,6 +146,56 @@ export const PLANTILLA_5S_RIT_9_2_12: PlantillaControlCampo = {
   ],
 }
 
+const reemplazosV02: Record<string, Pick<ItemPlantillaCampo, 'pregunta' | 'pilar' | 'critico'>> = {
+  '5s-seiton-04b': {
+    pregunta: '¿Los pasillos, las salidas y los accesos a equipos de emergencia (matafuegos, disyuntores e interruptores) se encuentran despejados?',
+    pilar: 'seguridad', critico: true,
+  },
+  '5s-seiso-01': {
+    pregunta: '¿Los pisos están libres de basura, agua, polvo, aceite y otros residuos?',
+    pilar: 'seguridad', critico: true,
+  },
+  '5s-seiso-02b': {
+    pregunta: '¿Las superficies y los equipos están libres de residuos, polvo y aceite?',
+    pilar: 'ambiente', critico: false,
+  },
+}
+
+const ITEMS_5S_V02: ItemPlantillaCampo[] = [
+  ...PLANTILLA_5S_RIT_9_2_12_V01.items.map((anterior) => ({ ...anterior, ...(reemplazosV02[anterior.id] ?? {}) })),
+  item('5s-seiri-06', 'seiri', 6, 'Separación de residuos', '¿La separación de residuos es adecuada y los recipientes se encuentran libres de residuos mezclados?', 'ambiente'),
+  item('5s-seiton-06', 'seiton', 6, 'Recipientes de residuos', '¿Los recipientes para clasificación de residuos se mantienen ordenados en el lugar definido?', 'ambiente'),
+  item('5s-seiton-07', 'seiton', 7, 'Contención de derrames', '¿Las bandejas de contención de derrames se encuentran correctamente ubicadas?', 'ambiente'),
+  item('5s-seiso-06', 'seiso', 6, 'Derrames', '¿El sector se encuentra libre de derrames?', 'ambiente', true),
+  item('5s-seiketsu-06', 'seiketsu', 6, 'Isla de residuos', '¿La isla de clasificación de residuos cuenta con todos los recipientes requeridos y correctamente identificados?', 'ambiente'),
+  item('5s-seiketsu-07', 'seiketsu', 7, 'Productos químicos', '¿Los recipientes que contienen productos químicos se encuentran correctamente identificados?', 'ambiente', true),
+  item('5s-seiketsu-08', 'seiketsu', 8, 'Matafuegos', '¿Los matafuegos se encuentran en su posición, en correcto estado y con la cartelería adecuada?', 'seguridad', true),
+  item('5s-seiketsu-09', 'seiketsu', 9, 'Elementos de izaje', '¿Los elementos de izaje se encuentran en óptimas condiciones e identificados?', 'seguridad', true),
+  item('5s-seiketsu-10', 'seiketsu', 10, 'Iluminación', '¿Las luminarias son suficientes y se encuentran en buenas condiciones?', 'seguridad'),
+  item('5s-seiketsu-11', 'seiketsu', 11, 'Instalaciones eléctricas', '¿Las instalaciones eléctricas se encuentran libres de conexiones empalmadas o improvisadas?', 'seguridad', true),
+  item('5s-shitsuke-07', 'shitsuke', 7, 'Elementos de protección personal', '¿Las personas del área cuentan con los elementos de seguridad adecuados y los utilizan correctamente?', 'seguridad', true),
+]
+
+export const PLANTILLA_5S_RIT_9_2_12: PlantillaControlCampo = {
+  ...PLANTILLA_5S_RIT_9_2_12_V01,
+  version: '02-digital',
+  items: ITEMS_5S_V02,
+}
+
+export function itemsDeAuditoriaCampo(auditoria: AuditoriaCampoSGO): ItemPlantillaCampo[] {
+  if (auditoria.items?.length) return auditoria.items
+  const respuestas = new Set(auditoria.respuestas.map((r) => r.itemId))
+  const plantilla = auditoria.plantillaVersion === PLANTILLA_5S_RIT_9_2_12_V01.version
+    ? PLANTILLA_5S_RIT_9_2_12_V01
+    : PLANTILLA_5S_RIT_9_2_12
+  return plantilla.items.filter((i) => respuestas.has(i.id))
+}
+
+export function prepararRespuestasCampo(anteriores?: RespuestaControlCampo[]): RespuestaControlCampo[] {
+  const porId = new Map((anteriores ?? []).map((r) => [r.itemId, r]))
+  return PLANTILLA_5S_RIT_9_2_12.items.map((i) => porId.get(i.id) ?? respuestaVacia(i.id))
+}
+
 export function auditorDesdeUsuario(usuario: string): string | undefined {
   const normalizado = usuario.trim().toLocaleLowerCase('es').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
   return AUDITORES_CAMPO.find((a) => normalizado === a.id || normalizado.includes(a.id))?.nombre
@@ -165,6 +218,12 @@ export function calcularPorSeccionCampo(respuestas: RespuestaControlCampo[]): Pa
     seccion.id,
     calcularPorcentajeCampo(respuestas, PLANTILLA_5S_RIT_9_2_12.items.filter((i) => i.seccion === seccion.id)),
   ])) as Partial<Record<Seccion5S, number>>
+}
+
+export function calcularPorPilarCampo(
+  respuestas: RespuestaControlCampo[], pilar: PilarSGO, items = PLANTILLA_5S_RIT_9_2_12.items,
+): number {
+  return calcularPorcentajeCampo(respuestas, items.filter((i) => i.pilar === pilar))
 }
 
 export function respuestaEsHallazgo(r: RespuestaControlCampo): boolean {

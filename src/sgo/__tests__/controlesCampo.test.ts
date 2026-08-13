@@ -1,14 +1,43 @@
 import { describe, expect, it } from 'vitest'
 import {
-  PLANTILLA_5S_RIT_9_2_12, SECCIONES_5S, calcularPorcentajeCampo,
-  areas5SParaAuditor, controlCampoCompleto, respuestaVacia, semaforoCampo, type RespuestaControlCampo,
+  PLANTILLA_5S_RIT_9_2_12, PLANTILLA_5S_RIT_9_2_12_V01, SECCIONES_5S, calcularPorcentajeCampo, calcularPorPilarCampo,
+  areas5SParaAuditor, controlCampoCompleto, itemsDeAuditoriaCampo, respuestaVacia, semaforoCampo,
+  type AuditoriaCampoSGO, type RespuestaControlCampo,
 } from '../controlesCampo'
 
 describe('controles de campo 5S', () => {
   it('incluye las cinco S y conserva el encabezado documental', () => {
     expect(SECCIONES_5S.map((s) => s.id)).toEqual(['seiri', 'seiton', 'seiso', 'seiketsu', 'shitsuke'])
     expect(PLANTILLA_5S_RIT_9_2_12.documento.codigo).toBe('R.I.T. 9.2/12')
+    expect(PLANTILLA_5S_RIT_9_2_12.version).toBe('02-digital')
     expect(new Set(PLANTILLA_5S_RIT_9_2_12.items.map((i) => i.seccion))).toEqual(new Set(SECCIONES_5S.map((s) => s.id)))
+  })
+
+  it('agrega Ambiente y Seguridad en la S correspondiente sin preguntas duplicadas', () => {
+    const items = PLANTILLA_5S_RIT_9_2_12.items
+    expect(new Set(items.map((i) => i.pregunta)).size).toBe(items.length)
+    expect(items.find((i) => i.id === '5s-seiri-06')).toMatchObject({ seccion: 'seiri', pilar: 'ambiente' })
+    expect(items.find((i) => i.id === '5s-seiso-06')).toMatchObject({ seccion: 'seiso', pilar: 'ambiente', critico: true })
+    expect(items.find((i) => i.id === '5s-seiketsu-08')).toMatchObject({ seccion: 'seiketsu', pilar: 'seguridad', critico: true })
+    expect(items.find((i) => i.id === '5s-shitsuke-07')).toMatchObject({ seccion: 'shitsuke', pilar: 'seguridad', critico: true })
+    expect(items.filter((i) => i.pregunta.toLocaleLowerCase('es').includes('derrames'))).toHaveLength(2)
+    expect(items.find((i) => i.id === '5s-seiso-01')?.pregunta).not.toContain('derrames')
+  })
+
+  it('conserva las preguntas de auditorías históricas de la versión anterior', () => {
+    const respuestas = PLANTILLA_5S_RIT_9_2_12_V01.items.map((i) => ({ itemId: i.id, puntaje: 2 as const }))
+    const auditoria = {
+      tipo: '5s', plantillaId: PLANTILLA_5S_RIT_9_2_12_V01.id, plantillaVersion: '01-digital',
+      documento: PLANTILLA_5S_RIT_9_2_12_V01.documento, areaId: 'laminado', auditor: 'Lara', usuarioAcceso: 'lara',
+      encargadoArea: 'Encargado', iniciadaEn: '', finalizadaEn: '', respuestas, porcentajeCumplimiento: 100, porcentajePorSeccion: {},
+    } satisfies AuditoriaCampoSGO
+    expect(itemsDeAuditoriaCampo(auditoria)).toEqual(PLANTILLA_5S_RIT_9_2_12_V01.items)
+  })
+
+  it('calcula resultados independientes de Seguridad y Medio Ambiente', () => {
+    const respuestas = PLANTILLA_5S_RIT_9_2_12.items.map((i) => ({ itemId: i.id, puntaje: (i.pilar === 'ambiente' ? 0 : 2) as 0 | 2 }))
+    expect(calcularPorPilarCampo(respuestas, 'seguridad')).toBe(100)
+    expect(calcularPorPilarCampo(respuestas, 'ambiente')).toBe(0)
   })
 
   it('calcula el porcentaje excluyendo no aplica y pendiente', () => {

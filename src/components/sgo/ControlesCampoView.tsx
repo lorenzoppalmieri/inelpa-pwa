@@ -9,8 +9,8 @@ import {
 import { idMedicionIndicador } from '../../sgo/indicadores'
 import {
   AUDITORES_CAMPO, PLANTILLA_5S_RIT_9_2_12, SECCIONES_5S,
-  areaSugeridaParaAuditor, areas5SParaAuditor, auditorDesdeUsuario, calcularPorcentajeCampo, calcularPorSeccionCampo,
-  controlCampoCompleto, respuestaEsHallazgo, respuestaVacia, semaforoCampo,
+  areaSugeridaParaAuditor, areas5SParaAuditor, auditorDesdeUsuario, calcularPorcentajeCampo, calcularPorPilarCampo, calcularPorSeccionCampo,
+  controlCampoCompleto, itemsDeAuditoriaCampo, prepararRespuestasCampo, respuestaEsHallazgo, semaforoCampo,
   type AuditoriaCampoSGO, type PuntajeControlCampo, type RespuestaControlCampo, type RiesgoHallazgoCampo,
 } from '../../sgo/controlesCampo'
 import { firmarEvidenciasCampo, subirEvidenciasCampo } from '../../sgo/evidenciasCampo'
@@ -26,7 +26,8 @@ const fechaLarga = (iso: string) => new Intl.DateTimeFormat('es-AR', { dateStyle
 const normalizar = (texto: string) => texto.toLocaleLowerCase('es').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 
 function resultadoDesdeAuditoria(auditoria: AuditoriaCampoSGO): EjecucionControlSGO['resultado'] {
-  const critico = auditoria.respuestas.some((r) => r.puntaje === 0 && PLANTILLA_5S_RIT_9_2_12.items.find((i) => i.id === r.itemId)?.critico)
+  const items = itemsDeAuditoriaCampo(auditoria)
+  const critico = auditoria.respuestas.some((r) => r.puntaje === 0 && items.find((i) => i.id === r.itemId)?.critico)
   if (critico || auditoria.porcentajeCumplimiento < 75) return 'no_conforme'
   if (auditoria.porcentajeCumplimiento < 90 || auditoria.respuestas.some(respuestaEsHallazgo)) return 'observacion'
   return 'conforme'
@@ -219,12 +220,14 @@ function EjecutarControlCampo({ control, usuario, historial, onClose }: { contro
   const [ubicacion, setUbicacion] = useState(inicial?.ubicacion ?? '')
   const [turno, setTurno] = useState(inicial?.turno ?? 'Mañana')
   const [inicio] = useState(inicial?.inicio ?? new Date().toISOString())
-  const [respuestas, setRespuestas] = useState<RespuestaControlCampo[]>(inicial?.respuestas ?? PLANTILLA_5S_RIT_9_2_12.items.map((i) => respuestaVacia(i.id)))
+  const [respuestas, setRespuestas] = useState<RespuestaControlCampo[]>(() => prepararRespuestasCampo(inicial?.respuestas))
   const [seccionActiva, setSeccionActiva] = useState(SECCIONES_5S[0].id)
   const [guardando, setGuardando] = useState(false)
   const [subiendoItem, setSubiendoItem] = useState<string>()
   const porcentaje = calcularPorcentajeCampo(respuestas)
   const porSeccion = calcularPorSeccionCampo(respuestas)
+  const porcentajeSeguridad = calcularPorPilarCampo(respuestas, 'seguridad')
+  const porcentajeAmbiente = calcularPorPilarCampo(respuestas, 'ambiente')
   const respondidas = respuestas.filter((r) => r.puntaje !== 'pendiente').length
 
   useEffect(() => {
@@ -283,8 +286,9 @@ function EjecutarControlCampo({ control, usuario, historial, onClose }: { contro
         plantillaId: PLANTILLA_5S_RIT_9_2_12.id, plantillaVersion: PLANTILLA_5S_RIT_9_2_12.version,
         documento: PLANTILLA_5S_RIT_9_2_12.documento, areaId: area, auditor: auditor.trim(), usuarioAcceso: usuario,
         encargadoArea: encargado.trim(), ubicacion: ubicacion.trim() || undefined, turno: turno || undefined,
-        iniciadaEn: inicio, finalizadaEn: now, respuestas, porcentajeCumplimiento: porcentaje,
-        porcentajePorSeccion: porSeccion, calificacionAnterior: anterior,
+        iniciadaEn: inicio, finalizadaEn: now, respuestas, items: PLANTILLA_5S_RIT_9_2_12.items,
+        porcentajeCumplimiento: porcentaje, porcentajePorSeccion: porSeccion,
+        porcentajePorPilar: { seguridad: porcentajeSeguridad, ambiente: porcentajeAmbiente }, calificacionAnterior: anterior,
       }
 
       const porPilar = new Map<PilarSGO, RespuestaControlCampo[]>()
@@ -342,19 +346,25 @@ function EjecutarControlCampo({ control, usuario, historial, onClose }: { contro
         actualizadoEn: now, actualizadoPor: usuario,
       })
 
-      const indicadorId = `sgo-5s-${area}`
       const periodo = now.slice(0, 7)
-      await guardarIndicadorSGO({
-        id: indicadorId, areaId: area, pilar: 'mejora', nombre: 'Cumplimiento 5S', unidad: '%', direccion: 'mayor_mejor',
-        meta: 90, umbralAmarillo: 75, valorActual: porcentaje, origen: 'manual', periodo, frecuencia: 'mensual', activo: true,
-        actualizadoEn: now, actualizadoPor: auditor.trim(),
-      })
-      await guardarMedicionIndicadorSGO({
-        id: idMedicionIndicador(indicadorId, periodo), indicadorId, periodo, valor: porcentaje,
-        explicacion: `Último control semanal 5S realizado por ${auditor.trim()} en ${areaSGOLabel(area)}.`,
-        evidencia: `Ejecución ${ejecucionId} · ${PLANTILLA_5S_RIT_9_2_12.documento.codigo}`, cerrado: false,
-        registradoEn: now, registradoPor: auditor.trim(), actualizadoEn: now, actualizadoPor: auditor.trim(),
-      })
+      const indicadores = [
+        { id: `sgo-5s-${area}`, pilar: 'mejora' as PilarSGO, nombre: 'Cumplimiento 5S', valor: porcentaje },
+        { id: `sgo-5s-seguridad-${area}`, pilar: 'seguridad' as PilarSGO, nombre: 'Cumplimiento de Seguridad en 5S', valor: porcentajeSeguridad },
+        { id: `sgo-5s-ambiente-${area}`, pilar: 'ambiente' as PilarSGO, nombre: 'Cumplimiento Ambiental en 5S', valor: porcentajeAmbiente },
+      ]
+      for (const indicador of indicadores) {
+        await guardarIndicadorSGO({
+          id: indicador.id, areaId: area, pilar: indicador.pilar, nombre: indicador.nombre, unidad: '%', direccion: 'mayor_mejor',
+          meta: 90, umbralAmarillo: 75, valorActual: indicador.valor, origen: 'manual', periodo, frecuencia: 'mensual', activo: true,
+          actualizadoEn: now, actualizadoPor: auditor.trim(),
+        })
+        await guardarMedicionIndicadorSGO({
+          id: idMedicionIndicador(indicador.id, periodo), indicadorId: indicador.id, periodo, valor: indicador.valor,
+          explicacion: `Último control semanal 5S realizado por ${auditor.trim()} en ${areaSGOLabel(area)}.`,
+          evidencia: `Ejecución ${ejecucionId} · ${PLANTILLA_5S_RIT_9_2_12.documento.codigo}`, cerrado: false,
+          registradoEn: now, registradoPor: auditor.trim(), actualizadoEn: now, actualizadoPor: auditor.trim(),
+        })
+      }
       localStorage.removeItem(claveBorrador)
       onClose()
     } catch (e) {
@@ -380,7 +390,7 @@ function EjecutarControlCampo({ control, usuario, historial, onClose }: { contro
       <div className="field"><label>Turno</label><select className="input" value={turno} onChange={(e) => setTurno(e.target.value)}><option>Mañana</option><option>Tarde</option><option>Noche</option></select></div>
     </div>
 
-    <div className="sgo-campo-progreso"><div><strong>{respondidas}/{respuestas.length}</strong> puntos respondidos</div><div className={`sgo-campo-score score-${semaforoCampo(porcentaje)}`}>{porcentaje}%</div></div>
+    <div className="sgo-campo-progreso"><div><strong>{respondidas}/{respuestas.length}</strong> puntos respondidos<div className="meta">Seguridad: {porcentajeSeguridad}% · Medio Ambiente: {porcentajeAmbiente}%</div></div><div className={`sgo-campo-score score-${semaforoCampo(porcentaje)}`}>{porcentaje}%</div></div>
     <div className="sgo-campo-secciones">{SECCIONES_5S.map((s) => <button key={s.id} className={`btn ${seccionActiva === s.id ? 'btn-primary' : ''}`} onClick={() => setSeccionActiva(s.id)}>{s.codigo} · {porSeccion[s.id] ?? 0}%</button>)}</div>
 
     <div className="sgo-campo-preguntas">{PLANTILLA_5S_RIT_9_2_12.items.filter((i) => i.seccion === seccionActiva).map((item) => {
@@ -409,11 +419,14 @@ function EjecutarControlCampo({ control, usuario, historial, onClose }: { contro
 
 function InformeControlCampo({ ejecucion, onClose }: { ejecucion: EjecucionControlSGO; onClose: () => void }) {
   const auditoria = ejecucion.auditoriaCampo!
+  const items = itemsDeAuditoriaCampo(auditoria)
+  const seguridad = auditoria.porcentajePorPilar?.seguridad ?? calcularPorPilarCampo(auditoria.respuestas, 'seguridad', items)
+  const ambiente = auditoria.porcentajePorPilar?.ambiente ?? calcularPorPilarCampo(auditoria.respuestas, 'ambiente', items)
   return <Modal titulo={`Informe · ${areaSGOLabel(auditoria.areaId)}`} onClose={onClose} ancho={1050}>
     <div className="sgo-campo-informe-vista">
       <div className="sgo-campo-doc-mini"><strong>{auditoria.documento.nombre}</strong><span>{auditoria.documento.codigo}</span><span>Versión {auditoria.documento.version}</span></div>
-      <div className="sgo-campo-informe-resumen"><div><span>Fecha</span><strong>{fechaHora(auditoria.finalizadaEn)}</strong></div><div><span>Auditor</span><strong>{auditoria.auditor}</strong></div><div><span>Área</span><strong>{areaSGOLabel(auditoria.areaId)}</strong></div><div><span>Encargado</span><strong>{auditoria.encargadoArea}</strong></div><div><span>Resultado</span><strong>{auditoria.porcentajeCumplimiento}%</strong></div></div>
-      {SECCIONES_5S.map((s) => <section key={s.id}><h3>{s.nombre} · {auditoria.porcentajePorSeccion[s.id] ?? 0}%</h3>{PLANTILLA_5S_RIT_9_2_12.items.filter((i) => i.seccion === s.id).map((item) => { const r = auditoria.respuestas.find((x) => x.itemId === item.id)!; return <div className="sgo-campo-informe-item" key={item.id}><span className={`sgo-campo-score score-${r.puntaje === 2 ? 'verde' : r.puntaje === 1 ? 'amarillo' : r.puntaje === 0 ? 'rojo' : 'gris'}`}>{r.puntaje === 'na' ? 'N/A' : `${r.puntaje}/2`}</span><div><strong>{item.pregunta}</strong>{r.observacion && <div>{r.observacion}</div>}{r.justificacionNoAplica && <div className="meta">No aplica: {r.justificacionNoAplica}</div>}{r.accion && <div className="meta">Acción: {r.accion} · {r.responsable} · {r.fechaCompromiso}</div>}</div></div> })}</section>)}
+      <div className="sgo-campo-informe-resumen"><div><span>Fecha</span><strong>{fechaHora(auditoria.finalizadaEn)}</strong></div><div><span>Auditor</span><strong>{auditoria.auditor}</strong></div><div><span>Área</span><strong>{areaSGOLabel(auditoria.areaId)}</strong></div><div><span>Encargado</span><strong>{auditoria.encargadoArea}</strong></div><div><span>Resultado general</span><strong>{auditoria.porcentajeCumplimiento}%</strong></div><div><span>Seguridad</span><strong>{seguridad}%</strong></div><div><span>Medio Ambiente</span><strong>{ambiente}%</strong></div></div>
+      {SECCIONES_5S.map((s) => <section key={s.id}><h3>{s.nombre} · {auditoria.porcentajePorSeccion[s.id] ?? 0}%</h3>{items.filter((i) => i.seccion === s.id).map((item) => { const r = auditoria.respuestas.find((x) => x.itemId === item.id); if (!r) return null; return <div className="sgo-campo-informe-item" key={item.id}><span className={`sgo-campo-score score-${r.puntaje === 2 ? 'verde' : r.puntaje === 1 ? 'amarillo' : r.puntaje === 0 ? 'rojo' : 'gris'}`}>{r.puntaje === 'na' ? 'N/A' : `${r.puntaje}/2`}</span><div><strong>{item.pregunta}</strong>{r.observacion && <div>{r.observacion}</div>}{r.justificacionNoAplica && <div className="meta">No aplica: {r.justificacionNoAplica}</div>}{r.accion && <div className="meta">Acción: {r.accion} · {r.responsable} · {r.fechaCompromiso}</div>}</div></div> })}</section>)}
     </div>
     <div className="row-actions" style={{ justifyContent: 'flex-end', marginTop: 12 }}><button className="btn" onClick={onClose}>Cerrar</button><button className="btn btn-primary" onClick={() => void exportarInformeCampo(ejecucion)}>🖨 Exportar PDF</button></div>
   </Modal>
@@ -424,13 +437,17 @@ const esc = (valor?: string | number) => String(valor ?? '').replace(/[&<>'"]/g,
 async function exportarInformeCampo(ejecucion: EjecucionControlSGO) {
   const a = ejecucion.auditoriaCampo
   if (!a) return
+  const items = itemsDeAuditoriaCampo(a)
+  const seguridad = a.porcentajePorPilar?.seguridad ?? calcularPorPilarCampo(a.respuestas, 'seguridad', items)
+  const ambiente = a.porcentajePorPilar?.ambiente ?? calcularPorPilarCampo(a.respuestas, 'ambiente', items)
   const paths = a.respuestas.flatMap((r) => r.evidenciaPaths ?? [])
   const urls = await firmarEvidenciasCampo(paths)
   const ventana = window.open('', '_blank')
   if (!ventana) { window.alert('El navegador bloqueó la ventana de exportación. Habilitá las ventanas emergentes.'); return }
   ventana.opener = null
-  const filas = SECCIONES_5S.map((seccion) => `<tr class="seccion"><td colspan="6">${esc(seccion.nombre)} · ${a.porcentajePorSeccion[seccion.id] ?? 0}%</td></tr>${PLANTILLA_5S_RIT_9_2_12.items.filter((i) => i.seccion === seccion.id).map((item) => {
-    const r = a.respuestas.find((x) => x.itemId === item.id)!
+  const filas = SECCIONES_5S.map((seccion) => `<tr class="seccion"><td colspan="6">${esc(seccion.nombre)} · ${a.porcentajePorSeccion[seccion.id] ?? 0}%</td></tr>${items.filter((i) => i.seccion === seccion.id).map((item) => {
+    const r = a.respuestas.find((x) => x.itemId === item.id)
+    if (!r) return ''
     const fotos = (r.evidenciaPaths ?? []).map((p) => urls[p] ? `<img src="${esc(urls[p])}" alt="Evidencia" />` : `<span>${esc(p)}</span>`).join('')
     return `<tr><td>${item.numero}</td><td>${esc(item.punto)}</td><td>${esc(item.pregunta)}</td><td class="puntaje">${r.puntaje === 'na' ? 'N/A' : esc(r.puntaje)}</td><td>${esc(r.observacion ?? r.justificacionNoAplica)}</td><td>${esc(r.accion)}${r.responsable ? `<br><b>${esc(r.responsable)}</b> · ${esc(r.fechaCompromiso)}` : ''}${r.evidenciaReferencia ? `<br>Evidencia: ${esc(r.evidenciaReferencia)}` : ''}<div class="fotos">${fotos}</div></td></tr>`
   }).join('')}`).join('')
@@ -438,7 +455,7 @@ async function exportarInformeCampo(ejecucion: EjecucionControlSGO) {
     @page{size:A4 portrait;margin:9mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#111;font-size:9px;margin:0}.cab{width:100%;border-collapse:collapse;margin-bottom:8px}.cab td{border:1px solid #111;padding:5px}.logo{width:22%;text-align:center}.logo img{max-width:100px;max-height:52px}.titulo{font-size:15px;font-weight:800;text-align:center}.doc{width:24%;line-height:1.5}.meta{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid #111;margin-bottom:8px}.meta div{padding:5px;border-right:1px solid #111}.meta div:nth-child(3n){border-right:0}.resultado{font-size:18px;font-weight:900}.tabla{width:100%;border-collapse:collapse}.tabla th,.tabla td{border:1px solid #333;padding:4px;vertical-align:top}.tabla th{background:#e5e7eb}.seccion td{background:#cbd5e1;font-weight:800;font-size:10px}.puntaje{text-align:center;font-size:12px;font-weight:900}.fotos{display:flex;gap:3px;flex-wrap:wrap;margin-top:3px}.fotos img{width:58px;height:44px;object-fit:cover}.firmas{display:grid;grid-template-columns:repeat(3,1fr);gap:25px;margin-top:28px;text-align:center}.firmas div{border-top:1px solid #111;padding-top:4px}.pie{margin-top:8px;text-align:center;color:#444}@media print{thead{display:table-header-group}.seccion{break-after:avoid}tr{break-inside:avoid}}
   </style></head><body>
     <table class="cab"><tr><td class="logo"><img src="${esc(new URL('/logo.png', window.location.origin).href)}" alt="INELPA"></td><td class="titulo">${esc(a.documento.nombre)}</td><td class="doc"><b>${esc(a.documento.codigo)}</b><br>Versión: ${esc(a.documento.version)}<br>Fecha de emisión: ${esc(a.documento.fechaEmision)}<br>Hoja N° 1</td></tr></table>
-    <div class="meta"><div><b>Fecha control</b><br>${esc(fechaHora(a.finalizadaEn))}</div><div><b>Controlado por</b><br>${esc(a.auditor)}</div><div><b>Sector</b><br>${esc(areaSGOLabel(a.areaId))}</div><div><b>Encargado de área</b><br>${esc(a.encargadoArea)}</div><div><b>Ubicación / turno</b><br>${esc(a.ubicacion)} · ${esc(a.turno)}</div><div><b>Resultado</b><br><span class="resultado">${a.porcentajeCumplimiento}%</span>${a.calificacionAnterior !== undefined ? `<br>Anterior: ${a.calificacionAnterior}%` : ''}</div></div>
+    <div class="meta"><div><b>Fecha control</b><br>${esc(fechaHora(a.finalizadaEn))}</div><div><b>Controlado por</b><br>${esc(a.auditor)}</div><div><b>Sector</b><br>${esc(areaSGOLabel(a.areaId))}</div><div><b>Encargado de área</b><br>${esc(a.encargadoArea)}</div><div><b>Ubicación / turno</b><br>${esc(a.ubicacion)} · ${esc(a.turno)}</div><div><b>Resultado general</b><br><span class="resultado">${a.porcentajeCumplimiento}%</span>${a.calificacionAnterior !== undefined ? `<br>Anterior: ${a.calificacionAnterior}%` : ''}<br>Seguridad: ${seguridad}% · Ambiente: ${ambiente}%</div></div>
     <table class="tabla"><thead><tr><th>N°</th><th>Punto a verificar</th><th>Descripción</th><th>0/1/2</th><th>Observación</th><th>Acción / evidencia</th></tr></thead><tbody>${filas}</tbody></table>
     <div class="firmas"><div>Auditado por<br><b>${esc(a.auditor)}</b></div><div>Encargado del área<br><b>${esc(a.encargadoArea)}</b></div><div>Revisión SGO</div></div>
     <div class="pie">Emitido: ${esc(a.documento.emitidoPor)} · Aprobado: ${esc(a.documento.aprobadoPor)} · Registro ${esc(ejecucion.id)} · Acceso: ${esc(a.usuarioAcceso)}</div>
