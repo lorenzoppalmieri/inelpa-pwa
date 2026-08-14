@@ -10,7 +10,10 @@ function norm(s: string): string {
 }
 
 // Orden de categorias en el modal.
-const ORDEN_CAT: CategoriaParada[] = ['material', 'logistica', 'maquina', 'personal', 'calidad', 'no_productiva', 'otra']
+// v1.88: 'laboratorio' va despues de 'calidad'. Sin agregarlo aca, las causas de
+// esa categoria NO se dibujan: el modal solo pinta los grupos que estan en esta
+// lista, no todos los que existan en el catalogo.
+const ORDEN_CAT: CategoriaParada[] = ['material', 'logistica', 'maquina', 'personal', 'calidad', 'laboratorio', 'no_productiva', 'otra']
 
 export default function ModalParada({ sectorId, onConfirm, onCancel }: {
   sectorId: SectorId

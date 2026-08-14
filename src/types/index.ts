@@ -196,7 +196,12 @@ export type EstadoTarea = 'pendiente' | 'en_proceso' | 'pausada' | 'finalizada'
 // y trae buscador, sin tocar componentes.
 export type CausaParada = string
 
-export type CategoriaParada = 'material' | 'logistica' | 'maquina' | 'personal' | 'calidad' | 'no_productiva' | 'otra'
+// v1.88: se suma 'laboratorio'. Montaje espera al LABORATORIO (ensayo, prueba de
+// tension), no un material: meterlo en 'logistica' le generaba al pañol un pedido
+// que no puede resolver, y en 'calidad' habria abierto una NO CONFORMIDAD en SGO
+// por cada parada (ver noConformidadDesdeParada). Es una demora de flujo, no un
+// defecto: el trafo no tiene nada mal.
+export type CategoriaParada = 'material' | 'logistica' | 'maquina' | 'personal' | 'calidad' | 'laboratorio' | 'no_productiva' | 'otra'
 
 export interface Parada {
   id: string
@@ -1175,6 +1180,12 @@ export const CAUSAS_PARADA: CausaParadaDef[] = [
 
   // ===== v1.11: nuevas esperas de ABASTECIMIENTO (disparan alerta a Logistica) =====
   { id: 'mon_espera_consumibles', label: 'Espera de consumibles', categoria: 'logistica', areas: ['montaje'] },
+  // v1.88 — TRES DEMORAS NUEVAS DE MONTAJE (pedido de Lorenzo).
+  // `areas: ['montaje']` alcanza a las CUATRO estaciones —PA y PO, distribucion
+  // y rural— porque areaDemora las mapea todas a 'montaje'. No hay que duplicar.
+  { id: 'mon_espera_aceite', label: 'Falta / espera de aceite', categoria: 'logistica', areas: ['montaje'] },
+  { id: 'mon_espera_ensayo_lab', label: 'Espera ensayo de laboratorio', categoria: 'laboratorio', areas: ['montaje'] },
+  { id: 'mon_espera_prueba_tension', label: 'Espera prueba de tension', categoria: 'laboratorio', areas: ['montaje'] },
   { id: 'her_espera_consumibles', label: 'Espera de consumibles', categoria: 'logistica', areas: ['herreria'] },
   { id: 'her_espera_materia_prima', label: 'Espera de materia prima', categoria: 'material', areas: ['herreria'] },
   { id: 'her_espera_gas', label: 'Espera de gas', categoria: 'logistica', areas: ['herreria'] },
@@ -1204,6 +1215,10 @@ export const CAUSAS_LOGISTICA = new Set<CausaParada>([
   'mon_espera_prensayugos', 'mon_espera_nucleo', 'mon_espera_bobina', 'mon_espera_chapones',
   'mon_espera_tacos', 'mon_espera_cartones', 'mon_espera_patas', 'mon_espera_chapa',
   'mon_espera_aislador', 'mon_espera_tubo_oxigeno', 'mon_error_entrega_insumos',
+  // v1.88: el aceite SI lo provee el pañol -> genera pedido de material.
+  // Las dos esperas de laboratorio NO entran aca a proposito: el operario no
+  // espera un insumo, y a Giuliano le llegaria un pedido que no puede resolver.
+  'mon_espera_aceite',
   'mon_insumos_defectuosos', 'mon_modif_materiales', 'mon_espera_consumibles',
   // Herreria
   'her_espera_cuba', 'her_espera_materiales', 'her_falta_tapa',
@@ -1229,7 +1244,8 @@ export function causasDeSector(id: SectorId): CausaParadaDef[] {
 
 export const CATEGORIA_LABEL: Record<CategoriaParada, string> = {
   material: 'Materiales / produccion', logistica: 'Logistica', maquina: 'Maquina / equipo',
-  personal: 'Personal', calidad: 'Calidad', no_productiva: 'Pausas programadas', otra: 'Otras',
+  personal: 'Personal', calidad: 'Calidad', laboratorio: 'Laboratorio',
+  no_productiva: 'Pausas programadas', otra: 'Otras',
 }
 
 export function sectorById(id: SectorId): Sector {
