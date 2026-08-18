@@ -25,7 +25,7 @@ function accionVencida(a: AccionSGO) {
   return !['verificada', 'cancelada'].includes(a.estado) && a.fechaCompromiso < fechaLocalISO()
 }
 
-export default function FichaCeldaSGO({ areaId, pilarId, indicadores, eventos, acciones, controles, datos, usuario, onClose, onFiltrarEventos, onOpenEvento }: {
+export default function FichaCeldaSGO({ areaId, pilarId, indicadores, eventos, acciones, controles, datos, usuario, onClose, onFiltrarEventos, onOpenEvento, onOpenControl }: {
   areaId: AreaSGOId
   pilarId: PilarSGO
   indicadores: IndicadorSGO[]
@@ -37,6 +37,7 @@ export default function FichaCeldaSGO({ areaId, pilarId, indicadores, eventos, a
   onClose: () => void
   onFiltrarEventos: () => void
   onOpenEvento: (id: string) => void
+  onOpenControl: (id?: string) => void
 }) {
   const area = AREAS_SGO.find((a) => a.id === areaId)!
   const pilar = PILARES_SGO.find((p) => p.id === pilarId)!
@@ -82,7 +83,7 @@ export default function FichaCeldaSGO({ areaId, pilarId, indicadores, eventos, a
         <div className="logi-kpi"><div className="n">{abiertos.length}</div><div className="l">Eventos abiertos</div></div>
         <div className="logi-kpi"><div className="n">{accionesCelda.length}</div><div className="l">Acciones</div></div>
         <div className="logi-kpi" style={{ borderTop: vencidas.length ? '4px solid #dc2626' : undefined }}><div className="n">{vencidas.length}</div><div className="l">Acciones vencidas</div></div>
-        <div className="logi-kpi" style={{ borderTop: controlesVencidos.length ? '4px solid #dc2626' : undefined }}><div className="n">{controlesVencidos.length}</div><div className="l">Controles vencidos</div></div>
+        <button type="button" className="logi-kpi" onClick={() => onOpenControl()} aria-label="Abrir controles programados" style={{ borderTop: controlesVencidos.length ? '4px solid #dc2626' : undefined, cursor: 'pointer' }}><div className="n">{controlesVencidos.length}</div><div className="l">Controles vencidos</div></button>
       </div>
 
       <div className="card" style={{ marginTop: 16 }}>
@@ -90,10 +91,10 @@ export default function FichaCeldaSGO({ areaId, pilarId, indicadores, eventos, a
         {controlesCelda.length === 0 ? <div className="empty">No existen controles activos para esta área y pilar.</div> : <div style={{ display: 'grid', gap: 8 }}>
           {[...controlesCelda].sort((a, b) => a.proximaFecha.localeCompare(b.proximaFecha)).map((control) => {
             const estado = estadoProgramacionControl(control)
-            return <div className="card" key={control.id} style={{ borderLeft: `4px solid ${estado === 'vencido' ? '#dc2626' : estado === 'hoy' ? '#d97706' : '#2563eb'}` }}>
+            return <button type="button" className="card" key={control.id} onClick={() => onOpenControl(control.id)} style={{ borderLeft: `4px solid ${estado === 'vencido' ? '#dc2626' : estado === 'hoy' ? '#d97706' : '#2563eb'}`, width: '100%', textAlign: 'left', cursor: 'pointer' }}>
               <div className="card-header"><strong>{control.titulo}</strong><span className="estado-chip">{estado === 'vencido' ? 'Vencido' : estado === 'hoy' ? 'Para hoy' : 'Programado'}</span></div>
               <div className="meta">Próximo: {formatoFecha(control.proximaFecha)} · {FRECUENCIAS_CONTROL_SGO.find((f) => f.id === control.frecuencia)?.label} · {control.responsable}</div>
-            </div>
+            </button>
           })}
         </div>}
       </div>

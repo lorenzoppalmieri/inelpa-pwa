@@ -130,9 +130,12 @@ export function proximaFechaControl(control: Pick<ControlProgramadoSGO, 'proxima
   return siguiente
 }
 
-export function estadoProgramacionControl(control: Pick<ControlProgramadoSGO, 'activo' | 'proximaFecha' | 'toleranciaDias'>, hoy = fechaLocalISO()): EstadoProgramacionControl {
+export function estadoProgramacionControl(control: Pick<ControlProgramadoSGO, 'activo' | 'proximaFecha' | 'toleranciaDias'> & Partial<Pick<ControlProgramadoSGO, 'tipo'>>, hoy = fechaLocalISO()): EstadoProgramacionControl {
   if (!control.activo) return 'inactivo'
   const vencimientoConTolerancia = sumarDiasLocalISO(Math.max(0, control.toleranciaDias), fechaDesdeISO(control.proximaFecha))
+  // Las auditorías logísticas son checklists operativos disponibles de forma
+  // permanente: la fecha orienta la frecuencia, pero no genera vencimiento.
+  if (control.tipo === 'auditoria_logistica' && vencimientoConTolerancia < hoy) return 'programado'
   if (vencimientoConTolerancia < hoy) return 'vencido'
   if (control.proximaFecha <= hoy) return 'hoy'
   if (control.proximaFecha <= sumarDiasLocalISO(7, fechaDesdeISO(hoy))) return 'proximo'

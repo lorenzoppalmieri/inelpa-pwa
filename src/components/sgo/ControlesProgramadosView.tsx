@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
 import { fechaLocalISO, sumarDiasLocalISO } from '../../lib/time'
-import { guardarControlProgramadoSGO, guardarEjecucionControlSGO, guardarEventoSGO } from '../../sync/syncEngine'
+import { eliminarControlProgramadoSGO, guardarControlProgramadoSGO, guardarEjecucionControlSGO, guardarEventoSGO } from '../../sync/syncEngine'
 import {
   FRECUENCIAS_CONTROL_SGO, NORMAS_CONTROL_SGO, RESULTADOS_CONTROL_SGO, TIPOS_CONTROL_SGO,
   estadoProgramacionControl, proximaFechaControl, resultadoControlRequiereEvento, tipoEventoDesdeControl,
@@ -10,6 +10,7 @@ import {
   type NormaControlSGO, type ResultadoControlSGO, type TipoControlSGO,
 } from '../../sgo/controles'
 import { AREAS_SGO, PILARES_SGO, areaSGOLabel, codigoEventoSGO, type AreaSGOId, type EventoSGO, type PilarSGO } from '../../sgo/types'
+import { usuarioEsLorenzo } from '../../sgo/permisos'
 
 const ESTADO_CONTROL = {
   vencido: { label: 'Vencido', clase: 'vencido' },
@@ -28,7 +29,12 @@ const fechaHoraLabel = (fecha: string) => new Intl.DateTimeFormat('es-AR', { dat
 const frecuenciaLabel = (id: FrecuenciaControlSGO) => FRECUENCIAS_CONTROL_SGO.find((f) => f.id === id)?.label ?? id
 const resultadoLabel = (id: ResultadoControlSGO) => RESULTADOS_CONTROL_SGO.find((r) => r.id === id)?.label ?? id
 
-export default function ControlesProgramadosView({ usuario, onOpenEvento }: { usuario: string; onOpenEvento: (id: string) => void }) {
+export default function ControlesProgramadosView({ usuario, onOpenEvento, controlInicialId, onControlInicialConsumido }: {
+  usuario: string
+  onOpenEvento: (id: string) => void
+  controlInicialId?: string
+  onControlInicialConsumido?: () => void
+}) {
   const controles = useLiveQuery(() => db.controlesProgramadosSGO.toArray(), []) ?? []
   const ejecuciones = useLiveQuery(() => db.ejecucionesControlesSGO.toArray(), []) ?? []
   const [editor, setEditor] = useState<ControlProgramadoSGO | null | undefined>()
@@ -38,6 +44,13 @@ export default function ControlesProgramadosView({ usuario, onOpenEvento }: { us
   const [estado, setEstado] = useState('activos')
   const hoy = fechaLocalISO()
   const desde30 = sumarDiasLocalISO(-30)
+
+  useEffect(() => {
+    if (!controlInicialId || !controles.length) return
+    const control = controles.find((c) => c.id === controlInicialId)
+    if (control) setEditor(control)
+    onControlInicialConsumido?.()
+  }, [controlInicialId, controles, onControlInicialConsumido])
 
   const resumen = useMemo(() => ({
     vencidos: controles.filter((c) => estadoProgramacionControl(c, hoy) === 'vencido').length,
@@ -151,6 +164,11 @@ function EditorControl({ registro, usuario, onClose }: { registro: ControlProgra
   const [tolerancia, setTolerancia] = useState(String(registro?.toleranciaDias ?? 0))
   const [activo, setActivo] = useState(registro?.activo ?? true)
   const [guardando, setGuardando] = useState(false)
+  const ejecucionesAsociadas = useLiveQuery(
+    () => registro ? db.ejecucionesControlesSGO.where('controlId').equals(registro.id).count() : Promise.resolve(0),
+    [registro?.id],
+  ) ?? 0
+  const puedeEliminar = Boolean(registro) && usuarioEsLorenzo(usuario)
 
   async function guardar() {
     if (!titulo.trim() || !instrucciones.trim() || !responsable.trim() || !proximaFecha) {
@@ -169,6 +187,23 @@ function EditorControl({ registro, usuario, onClose }: { registro: ControlProgra
     setGuardando(false); onClose()
   }
 
+  async function eliminar() {
+    if (!registro || !puedeEliminar) return
+    if (ejecucionesAsociadas > 0) {
+      window.alert('Este control tiene ejecuciones históricas. Para conservar la trazabilidad no puede eliminarse; desmarcá “Control activo” y guardalo.')
+      return
+    }
+    if (!window.confirm(`¿Eliminar definitivamente el control "${registro.titulo}"? Esta acción sólo está habilitada para Lorenzo.`)) return
+    setGuardando(true)
+    try {
+      await eliminarControlProgramadoSGO(registro, usuario)
+      onClose()
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'No se pudo eliminar el control.')
+      setGuardando(false)
+    }
+  }
+
   return <Modal titulo={registro ? 'Editar control programado' : 'Nuevo control programado'} onClose={onClose}>
     <div className="field"><label>Título *</label><input className="input" value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Ej. Verificación dimensional de bobinas terminadas" /></div>
     <div className="sgo-control-form-grid">
@@ -184,7 +219,10 @@ function EditorControl({ registro, usuario, onClose }: { registro: ControlProgra
     </div>
     <div className="field"><label>Qué se debe controlar *</label><textarea className="input" rows={4} value={instrucciones} onChange={(e) => setInstrucciones(e.target.value)} placeholder="Método, muestra, característica, documento o evidencia esperada." /></div>
     <label className="check-inline"><input type="checkbox" checked={activo} onChange={(e) => setActivo(e.target.checked)} /> Control activo</label>
-    <div className="row-actions" style={{ justifyContent: 'flex-end' }}><button className="btn" onClick={onClose}>Cancelar</button><button className="btn btn-primary" disabled={guardando} onClick={() => void guardar()}>{guardando ? 'Guardando…' : 'Guardar control'}</button></div>
+    <div className="row-actions" style={{ justifyContent: 'space-between' }}>
+      <div>{puedeEliminar && <button className="btn btn-rojo" disabled={guardando} onClick={() => void eliminar()}>{ejecucionesAsociadas > 0 ? 'Con historial · no eliminable' : 'Eliminar control'}</button>}</div>
+      <div className="row-actions"><button className="btn" onClick={onClose}>Cancelar</button><button className="btn btn-primary" disabled={guardando} onClick={() => void guardar()}>{guardando ? 'Guardando…' : 'Guardar control'}</button></div>
+    </div>
   </Modal>
 }
 

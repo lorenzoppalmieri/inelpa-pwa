@@ -584,6 +584,7 @@ button { font-family: inherit; cursor: pointer; border: none; }
 /* ---------- Logistica: organizador de tareas ---------- */
 .logi-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 14px; }
 .logi-kpi { background: var(--panel); border: 1px solid var(--borde); border-radius: var(--radio); padding: 12px; text-align: center; }
+button.logi-kpi, button.card { color: inherit; font: inherit; }
 .logi-kpi .n { font-size: 1.6rem; font-weight: 900; line-height: 1; }
 .logi-kpi .l { font-size: .72rem; color: var(--texto-tenue); margin-top: 4px; }
 .logi-kpi.prio-alta .n { color: var(--rojo); }

@@ -20,6 +20,10 @@ describe('agenda de controles SGO', () => {
     expect(estadoProgramacionControl({ ...base, proximaFecha: '2026-07-20', toleranciaDias: 2 }, '2026-07-23')).toBe('vencido')
   })
 
+  it('no vence las auditorías logísticas aunque la fecha orientativa haya pasado', () => {
+    expect(estadoProgramacionControl({ ...base, tipo: 'auditoria_logistica', proximaFecha: '2026-07-20', toleranciaDias: 0 }, '2026-08-18')).toBe('programado')
+  })
+
   it('clasifica como para hoy mientras permanece dentro de la tolerancia', () => {
     expect(estadoProgramacionControl({ ...base, proximaFecha: '2026-07-20', toleranciaDias: 3 }, '2026-07-22')).toBe('hoy')
   })

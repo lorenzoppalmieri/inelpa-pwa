@@ -683,6 +683,12 @@ async function empujar(op: SyncOp): Promise<EmpujeResultado> {
         if (!data?.length) return fallo('delete evento_sgo', 'Supabase no eliminó el evento. Verificar permiso exclusivo de Lorenzo y migración SGO v1.69.')
         return OK_EMPUJE
       }
+      if (op.entidad === 'control_programado_sgo') {
+        const { data, error } = await supabase.from('sgo_controles_programados').delete().eq('id', op.entidadId).select('id')
+        if (error) return fallo('delete control_programado_sgo', error.message)
+        if (!data?.length) return fallo('delete control_programado_sgo', 'Supabase no eliminó el control. Verificar que el usuario sea Lorenzo y que el control no tenga ejecuciones históricas.')
+        return OK_EMPUJE
+      }
       const tabla = op.entidad === 'tarea' ? 'tareas'
         : op.entidad === 'orden' ? 'ordenes'
         : op.entidad === 'semielaborado' ? 'semielaborados'
@@ -699,7 +705,6 @@ async function empujar(op: SyncOp): Promise<EmpujeResultado> {
         : op.entidad === 'plantilla_recurrente' ? 'plantillas_recurrentes'
         : op.entidad === 'accion_sgo' ? 'sgo_acciones'
         : op.entidad === 'medicion_indicador_sgo' ? 'sgo_indicador_mediciones'
-        : op.entidad === 'control_programado_sgo' ? 'sgo_controles_programados'
         : op.entidad === 'ejecucion_control_sgo' ? 'sgo_control_ejecuciones'
         : op.entidad === 'agenda_iso' ? 'sgo_agenda_iso'
         : op.entidad === 'tarea_sgo' ? 'sgo_tareas'
@@ -959,6 +964,18 @@ export async function guardarMedicionIndicadorSGO(m: MedicionIndicadorSGO): Prom
 export async function guardarControlProgramadoSGO(c: ControlProgramadoSGO): Promise<void> {
   await db.controlesProgramadosSGO.put(c)
   await encolar({ entidad: 'control_programado_sgo', entidadId: c.id, tipo: 'upsert', payload: c })
+}
+export async function eliminarControlProgramadoSGO(c: ControlProgramadoSGO, usuario: string): Promise<void> {
+  exigirPermisoBorradoSGO(usuario)
+  const ejecuciones = await db.ejecucionesControlesSGO.where('controlId').equals(c.id).count()
+  if (ejecuciones > 0) {
+    throw new Error('Este control tiene ejecuciones históricas y no puede eliminarse. Desactivalo para conservar la trazabilidad.')
+  }
+  await db.transaction('rw', db.controlesProgramadosSGO, db.eventosSGO, async () => {
+    await db.eventosSGO.where('controlId').equals(c.id).modify((evento) => { delete evento.controlId })
+    await db.controlesProgramadosSGO.delete(c.id)
+  })
+  await encolar({ entidad: 'control_programado_sgo', entidadId: c.id, tipo: 'delete', payload: { id: c.id } })
 }
 export async function guardarEjecucionControlSGO(e: EjecucionControlSGO): Promise<void> {
   await db.ejecucionesControlesSGO.put(e)

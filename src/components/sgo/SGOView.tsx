@@ -64,6 +64,7 @@ export default function SGOView() {
   const [nuevo, setNuevo] = useState(false)
   const [configIndicadores, setConfigIndicadores] = useState(false)
   const [seleccionadoId, setSeleccionadoId] = useState<string>()
+  const [controlInicialId, setControlInicialId] = useState<string>()
   const [celdaSeleccionada, setCeldaSeleccionada] = useState<{ area: AreaSGOId; pilar: PilarSGO }>()
   const [filtroArea, setFiltroArea] = useState('')
   const [filtroPilar, setFiltroPilar] = useState('')
@@ -98,7 +99,7 @@ export default function SGOView() {
       </div>
       {pestana === 'agenda_iso' ? <AgendaISOView usuario={usuario?.usuario ?? 'sin_usuario'} />
         : pestana === 'tareas_sgo' ? <TareasSGOView usuario={usuario?.usuario ?? 'sin_usuario'} />
-        : pestana === 'controles' ? <ControlesProgramadosView usuario={usuario?.usuario ?? 'sin_usuario'} onOpenEvento={(id) => { setPestana('tablero'); setSeleccionadoId(id) }} />
+        : pestana === 'controles' ? <ControlesProgramadosView usuario={usuario?.usuario ?? 'sin_usuario'} controlInicialId={controlInicialId} onControlInicialConsumido={() => setControlInicialId(undefined)} onOpenEvento={(id) => { setPestana('tablero'); setSeleccionadoId(id) }} />
         : pestana === 'campo' ? <ControlesCampoView usuario={usuario?.usuario ?? 'sin_usuario'} onOpenEvento={(id) => { setPestana('tablero'); setSeleccionadoId(id) }} />
         : pestana === 'logistica' ? <AuditoriaLogisticaView usuario={usuario?.usuario ?? 'sin_usuario'} onOpenEvento={(id) => { setPestana('tablero'); setSeleccionadoId(id) }} /> : <>
       <div className="card" style={{ marginBottom: 14, borderLeft: '5px solid #2563eb' }}>
@@ -189,6 +190,7 @@ export default function SGOView() {
         onClose={() => setCeldaSeleccionada(undefined)}
         onFiltrarEventos={() => { setFiltroArea(celdaSeleccionada.area); setFiltroPilar(celdaSeleccionada.pilar); setCeldaSeleccionada(undefined) }}
         onOpenEvento={(id) => { setCeldaSeleccionada(undefined); setSeleccionadoId(id) }}
+        onOpenControl={(id) => { setCeldaSeleccionada(undefined); setControlInicialId(id); setPestana('controles') }}
       />}
       {seleccionado && <DetalleEvento evento={seleccionado} acciones={acciones.filter((a) => a.eventoId === seleccionado.id)} auditoria={auditoria.filter((r) => r.entidadId === seleccionado.id || acciones.some((a) => a.eventoId === seleccionado.id && a.id === r.entidadId))} usuario={usuario?.usuario ?? 'sin_usuario'} onClose={() => setSeleccionadoId(undefined)} />}
       </>}
