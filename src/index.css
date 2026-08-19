@@ -2041,10 +2041,12 @@ body.admin-mode .content { max-width: none; padding: 12px 18px; }
 .nc-punto { color: var(--rojo); font-weight: 900; flex: none; }
 .nc-causa.ya .nc-punto { color: var(--estado-fin); }
 .nc-lbl { font-weight: 700; }
-.nc-min { color: var(--texto-tenue); font-variant-numeric: tabular-nums; }
+/* Cuándo ocurrió: en línea con la causa, tenue para no competir con el nombre. */
+.nc-cuando { width: 100%; padding-left: 14px; color: var(--texto-tenue); font-size: .7rem; font-variant-numeric: tabular-nums; }
+.nc-min { color: var(--texto-tenue); font-variant-numeric: tabular-nums; font-weight: 700; }
 /* La observacion del operario es lo que mas ayuda a decidir: se muestra entera
    si entra, y si no se corta con puntos suspensivos (el title tiene el texto). */
-.nc-obs { width: 100%; color: var(--texto-tenue); font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nc-obs { width: 100%; padding-left: 14px; color: var(--texto-tenue); font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 @media (max-width: 768px) {
   .celda-nc { min-width: 0; max-width: none; }

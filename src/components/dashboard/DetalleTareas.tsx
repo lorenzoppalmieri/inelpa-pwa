@@ -198,6 +198,10 @@ export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina }:
                           <div key={d.id} className={'nc-causa' + (d.ya ? ' ya' : '')}>
                             <span className="nc-punto">{d.ya ? '✓' : '•'}</span>
                             <span className="nc-lbl">{d.label}</span>
+                            {/* v1.90: cuándo pasó. Sin la fecha y la hora no se
+                                puede cruzar la parada con el turno ni con lo que
+                                recuerda el encargado de ese día. */}
+                            <span className="nc-cuando">{fechaCorta(d.inicio)} · {hhmm(d.inicio)}</span>
                             {d.min > 0 && <span className="nc-min">{fmtDur(d.min)}</span>}
                             {d.obs && <span className="nc-obs">“{d.obs}”</span>}
                           </div>
