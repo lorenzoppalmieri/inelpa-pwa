@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import type { Tarea } from '../../types'
-import { esReparacion, nombreSemielaborado } from '../../types'
+import { esReparacion, nombreSemielaborado, causaLabel } from '../../types'
 import { componentePorCodigo } from '../../data/catalogo'
-import { fmtDur } from '../../lib/time'
+import { fmtDur, hhmm, fechaCorta } from '../../lib/time'
 import {
   tiempoEstimadoMin, tiempoRealMin, totalDemoradoMin, demoraSinJustificarMin,
+  desglosePausas,
 } from '../../lib/kpi'
 import { exportarDetalleTareasCSV } from '../../lib/export'
 import { db } from '../../db/dexie'
@@ -148,13 +149,34 @@ export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina }:
               <th>Tarea</th><th>Colaborador</th><th>Estación</th>
               <th className="num">Estimado</th><th className="num">Real</th>
               <th className="num">Demorado</th><th className="num">Demora justif.</th>
-              <th className="num">Demora s/just.</th><th>SGO</th>
+              <th className="num">Demora s/just.</th><th>Calidad / SGO</th>
             </tr>
           </thead>
           <tbody>
             {filas.map((r) => {
               const pc = paradasCalidad(r.t)
               const vinculadas = pc.filter((p) => eventosSGO.some((e) => e.paradaId === p.id)).length
+              // v1.90: el planificador no podía ver QUÉ problema de calidad era:
+              // sólo un botón "+ NC" sin contexto, y tenía que decidir a ciegas.
+              // Se arma el detalle de cada parada de calidad —causa, observación
+              // del operario, duración y horario— para mostrarlo en la celda.
+              const tramos = pc.length ? desglosePausas(r.t) : []
+              const detalleNC = pc.map((p) => {
+                const tr = tramos.find((x) => x.id === p.id)
+                return {
+                  id: p.id,
+                  label: causaLabel(p.causa),
+                  obs: p.observacion?.trim() || '',
+                  min: tr?.minutos ?? 0,
+                  inicio: p.inicio,
+                  ya: eventosSGO.some((e) => e.paradaId === p.id),
+                }
+              })
+              // Tooltip con todo el detalle (la celda muestra sólo lo esencial).
+              const tituloNC = detalleNC.map((d) =>
+                `${d.ya ? '✓ ' : '• '}${d.label}${d.min ? ` · ${fmtDur(d.min)}` : ''}`
+                + ` · ${fechaCorta(d.inicio)} ${hhmm(d.inicio)}`
+                + (d.obs ? `\n   "${d.obs}"` : '')).join('\n')
               return <tr key={r.id} className={r.sinJust > 0 ? 'fila-demora' : ''}>
                 <td data-label="Tarea">{r.nombre}{r.nro ? ` · ${r.nro}` : ''}</td>
                 <td data-label="Colaborador">{r.operario}</td>
@@ -166,9 +188,27 @@ export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina }:
                 <td className={'num' + (r.sinJust > 0 ? '' : ' vacia')} data-label="Demora s/just." style={{ fontWeight: 800, color: r.sinJust > 0 ? 'var(--rojo)' : 'var(--texto-tenue)' }}>
                   {r.sinJust > 0 ? `+${fmtDur(r.sinJust)}` : '—'}
                 </td>
-                <td className={pc.length === 0 ? 'vacia' : ''} data-label="SGO">{pc.length === 0 ? '—' : vinculadas === pc.length
-                  ? <span className="estado-chip">NC creada</span>
-                  : <button className="btn btn-rojo" disabled={creandoNC === r.id} onClick={() => void crearNoConformidades(r.t)}>{creandoNC === r.id ? 'Creando…' : `+ NC (${pc.length - vinculadas})`}</button>}</td>
+                <td className={pc.length === 0 ? 'vacia' : 'celda-nc'} data-label="Calidad / SGO" title={tituloNC || undefined}>
+                  {pc.length === 0 ? '—' : (
+                    <>
+                      {/* Qué problema de calidad fue. Sin esto el planificador
+                          decidía a ciegas si abrir la no conformidad. */}
+                      <div className="nc-causas">
+                        {detalleNC.map((d) => (
+                          <div key={d.id} className={'nc-causa' + (d.ya ? ' ya' : '')}>
+                            <span className="nc-punto">{d.ya ? '✓' : '•'}</span>
+                            <span className="nc-lbl">{d.label}</span>
+                            {d.min > 0 && <span className="nc-min">{fmtDur(d.min)}</span>}
+                            {d.obs && <span className="nc-obs">“{d.obs}”</span>}
+                          </div>
+                        ))}
+                      </div>
+                      {vinculadas === pc.length
+                        ? <span className="estado-chip">NC creada</span>
+                        : <button className="btn btn-rojo" disabled={creandoNC === r.id} onClick={() => void crearNoConformidades(r.t)}>{creandoNC === r.id ? 'Creando…' : `+ NC (${pc.length - vinculadas})`}</button>}
+                    </>
+                  )}
+                </td>
               </tr>
             })}
           </tbody>

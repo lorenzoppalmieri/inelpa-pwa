@@ -2028,3 +2028,25 @@ body.admin-mode .content { max-width: none; padding: 12px 18px; }
   .agenda-titulo-txt { font-size: .64rem; }
   .agenda-carga { height: 70px; }
 }
+
+/* ---------- Detalle por tarea · celda "Calidad / SGO" (v1.90) ----------
+   Antes la celda era solo un boton "+ NC" sin contexto: el planificador tenia
+   que decidir a ciegas si abrir la no conformidad, sin ver QUE problema de
+   calidad fue. Ahora lista la causa, la duracion y la observacion del operario;
+   el detalle completo (con fecha y hora) va en el title de la celda. */
+.celda-nc { min-width: 210px; max-width: 300px; }
+.nc-causas { display: flex; flex-direction: column; gap: 3px; margin-bottom: 6px; }
+.nc-causa { display: flex; align-items: baseline; gap: 5px; font-size: .74rem; line-height: 1.25; flex-wrap: wrap; }
+.nc-causa.ya { opacity: .6; }
+.nc-punto { color: var(--rojo); font-weight: 900; flex: none; }
+.nc-causa.ya .nc-punto { color: var(--estado-fin); }
+.nc-lbl { font-weight: 700; }
+.nc-min { color: var(--texto-tenue); font-variant-numeric: tabular-nums; }
+/* La observacion del operario es lo que mas ayuda a decidir: se muestra entera
+   si entra, y si no se corta con puntos suspensivos (el title tiene el texto). */
+.nc-obs { width: 100%; color: var(--texto-tenue); font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+@media (max-width: 768px) {
+  .celda-nc { min-width: 0; max-width: none; }
+  .nc-obs { white-space: normal; }
+}
