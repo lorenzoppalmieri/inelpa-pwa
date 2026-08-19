@@ -12,6 +12,7 @@ import ProtocoloEnsayo from './ProtocoloEnsayo'
 import { fechaCorta, hhmm } from '../../lib/time'
 import { datosModelo, buscarModelo } from '../../lib/modeloTrafo'
 import { subirProtocolo, abrirProtocolo, MAX_PDF_MB } from '../../lib/archivos'
+import { noConformidadDesdeLaboratorio } from '../../sgo/integraciones'
 
 // ============================================================
 // FICHA DE LABORATORIO (v1.37) — el laboratorista corre el protocolo de ensayos.
@@ -122,7 +123,7 @@ export default function FichaLaboratorio({ tarea: t, onClose }: { tarea: TareaLa
       : undefined
     // Vueltas anteriores del mismo equipo (reparación / segunda vida).
     const entregadosPrevios = !retrabajo && serie ? despachosEntregadosConSerie(todosDespachos, serie) : []
-    await guardarLaboratorio({
+    const ensayoFinalizado: TareaLaboratorio = {
       ...t,
       nroSerie: serie,
       comentario: comentario.trim() || undefined,
@@ -130,7 +131,9 @@ export default function FichaLaboratorio({ tarea: t, onClose }: { tarea: TareaLa
       resultado: retrabajo ? 'retrabajo' : 'aprobado',
       finalizada: now,
       finalizadaPor: usuario?.usuario,
-    })
+    }
+    await guardarLaboratorio(ensayoFinalizado)
+    if (retrabajo) void noConformidadDesdeLaboratorio(ensayoFinalizado, usuario?.usuario ?? 'laboratorio')
     if (!retrabajo) {
       // CAMINO A: aprobado -> crea la tarea de despacho para Melany.
       // v1.43: se hereda la DESCRIPCIÓN COMPLETA del modelo, no solo la serie.

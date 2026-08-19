@@ -73,6 +73,7 @@ export default function SGOView() {
   const seleccionado = eventos.find((e) => e.id === seleccionadoId)
 
   const abiertos = eventos.filter((e) => e.estado !== 'cerrado')
+  const retrabajosPendientes = abiertos.filter((e) => Boolean(e.retrabajo)).length
   const resumen = useMemo(() => PILARES_SGO.map((p) => ({
     ...p,
     abiertos: abiertos.filter((e) => e.pilar === p.id).length,
@@ -92,7 +93,7 @@ export default function SGOView() {
     <div>
       <div className="tabs" role="tablist" aria-label="Secciones SGO">
         <button className={`tab ${pestana === 'tablero' ? 'active' : ''}`} onClick={() => setPestana('tablero')}>Tablero integral</button>
-        <button className={`tab ${pestana === 'mejoras' ? 'active' : ''}`} onClick={() => setPestana('mejoras')}>Mejora continua</button>
+        <button className={`tab ${pestana === 'mejoras' ? 'active' : ''}`} onClick={() => setPestana('mejoras')}>Mejora continua{retrabajosPendientes ? ` (${retrabajosPendientes})` : ''}</button>
         <button className={`tab ${pestana === 'controles' ? 'active' : ''}`} onClick={() => setPestana('controles')}>Controles SGO</button>
         <button className={`tab ${pestana === 'logistica' ? 'active' : ''}`} onClick={() => setPestana('logistica')}>Auditoría logística</button>
         <button className={`tab ${pestana === 'agenda_iso' ? 'active' : ''}`} onClick={() => setPestana('agenda_iso')}>Agenda ISO</button>

@@ -13,6 +13,7 @@ import { componentePorCodigo } from '../../data/catalogo'
 import { tiempoNetoMin } from '../../lib/kpi'
 import ModalParada from './ModalParada'
 import { generarAvisoDesdeParada, esCausaMantenimiento } from '../../mantenimiento/avisos'
+import { noConformidadDesdeDefectoTarea, noConformidadDesdeParada, paradasCalidad } from '../../sgo/integraciones'
 
 const ESTADO_CHIP: Record<string, string> = {
   pendiente: 'e-pendiente', en_proceso: 'e-proceso', pausada: 'e-pausa', finalizada: 'e-finalizado',
@@ -102,6 +103,9 @@ export default function TareaCard({ tarea, onIniciar }: { tarea: Tarea; onInicia
     setModal(false)
     const p = { id: crypto.randomUUID(), tareaId: tarea.id, causa, inicio: new Date().toISOString(), observacion: obs || undefined }
     await guardarTarea({ ...tarea, estado: 'pausada', paradas: [...tarea.paradas, p] })
+    if (paradasCalidad({ ...tarea, paradas: [p] }).length) {
+      void noConformidadDesdeParada(tarea, p, usuario?.usuario ?? 'produccion')
+    }
     // v1.66: puente Produccion -> Mantenimiento. La parada con causa mant_*
     // genera SOLA el aviso de falla (cola offline; nunca bloquea el registro).
     if (esCausaMantenimiento(causa)) {
@@ -168,11 +172,13 @@ export default function TareaCard({ tarea, onIniciar }: { tarea: Tarea; onInicia
           recupMin: minutosRecupTarea(tarea),
         })
       : 0
-    await guardarTarea({
+    const tareaFinalizada: Tarea = {
       ...tarea, estado: 'finalizada', finReal, calidadOk: ok, defecto, paradas,
       duracionEfectivaMin,
       datosBobinado: datosBobinado ?? tarea.datosBobinado,
-    })
+    }
+    await guardarTarea(tareaFinalizada)
+    if (!ok) void noConformidadDesdeDefectoTarea(tareaFinalizada, usuario?.usuario ?? 'produccion')
 
     // v1.37: PUENTE A LABORATORIO. Al finalizar una tarea de Montaje PO, el trafo
     // está terminado -> se crea automáticamente una tarea de ensayo (una sola vez).

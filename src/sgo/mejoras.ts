@@ -38,6 +38,7 @@ export const FUENTES_MEJORA: { id: FuenteMejoraSGO; label: string }[] = [
   { id: 'reunion_logistica', label: 'Reunión de logística' },
   { id: 'recorrido_planta', label: 'Recorrido de planta' },
   { id: 'revision_direccion', label: 'Revisión por la dirección' },
+  { id: 'retrabajo_produccion', label: 'Retrabajo de producción o laboratorio' },
   { id: 'evento_sgo', label: 'Evento SGO' },
   { id: 'manual', label: 'Carga manual' },
   { id: 'otro', label: 'Otro' },

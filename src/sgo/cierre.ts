@@ -1,5 +1,6 @@
 import type { AccionSGO, EventoSGO } from './types'
 import { validarCierreMejora } from './mejoras'
+import { validarCierreRetrabajo } from './retrabajos'
 
 const TIPOS_CON_INVESTIGACION = new Set<EventoSGO['tipo']>([
   'no_conformidad',
@@ -42,6 +43,7 @@ export function validarCierreEvento(evento: EventoSGO, acciones: AccionSGO[]): s
   }
 
   errores.push(...validarCierreMejora(evento, acciones))
+  errores.push(...validarCierreRetrabajo(evento))
 
   return errores
 }

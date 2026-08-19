@@ -11,6 +11,7 @@ import TareaCard from './TareaCard'
 import ModalParada from './ModalParada'
 import AndonView from '../dashboard/AndonView'
 import MensajesInbox, { useMensajesNoLeidos } from '../mensajes/MensajesInbox'
+import { noConformidadDesdeParada, paradasCalidad } from '../../sgo/integraciones'
 
 const ORDEN: Record<EstadoTarea, number> = { pausada: 0, en_proceso: 1, pendiente: 2, finalizada: 3 }
 const FILTROS: { id: 'activas' | 'pendientes' | 'finalizadas'; label: string }[] = [
@@ -95,6 +96,9 @@ export default function OperarioView() {
       const p = { id: crypto.randomUUID(), tareaId: t.id, causa, inicio: ahoraISO, observacion: obs || undefined }
       nuevas.push({ tarea: t, parada: p })
       await guardarTarea({ ...t, estado: 'pausada', paradas: [...t.paradas, p] })
+      if (paradasCalidad({ ...t, paradas: [p] }).length) {
+        void noConformidadDesdeParada(t, p, usuario?.usuario ?? 'produccion')
+      }
     }
     // v1.66: pausa de estacion con causa mant_* -> UN SOLO aviso a mantenimiento
     // (la maquina fallo, no cada tarea). Se usa la primera parada como clave

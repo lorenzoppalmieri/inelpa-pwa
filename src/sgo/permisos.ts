@@ -2,6 +2,10 @@ export function usuarioEsLorenzo(usuario: string): boolean {
   return usuario.trim().toLowerCase() === 'lorenzo'
 }
 
+export function usuarioPuedeInvestigarRetrabajo(usuario: string): boolean {
+  return ['lara', 'lorenzo'].includes(usuario.trim().toLowerCase())
+}
+
 export function exigirPermisoBorradoSGO(usuario: string): void {
   if (!usuarioEsLorenzo(usuario)) {
     throw new Error('Solo el usuario Lorenzo puede eliminar registros de SGO.')

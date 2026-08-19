@@ -32,13 +32,46 @@ export type FuenteMejoraSGO =
   | 'reunion_logistica'
   | 'recorrido_planta'
   | 'revision_direccion'
+  | 'retrabajo_produccion'
   | 'evento_sgo'
   | 'manual'
   | 'otro'
 export type DecisionMejoraSGO = 'pendiente' | 'aprobada' | 'a_futuro' | 'no_viable'
 export type PrioridadMejoraSGO = 'baja' | 'media' | 'alta' | 'critica'
 export type SeguimientoMejoraSGO = 'pendiente' | 'sostenida' | 'reincidencia'
-export type OrigenEntidadMejoraSGO = 'control_5s' | 'auditoria_logistica' | 'control_programado' | 'agenda_iso' | 'indicador' | 'evento_manual'
+export type OrigenEntidadMejoraSGO = 'control_5s' | 'auditoria_logistica' | 'control_programado' | 'agenda_iso' | 'indicador' | 'evento_manual' | 'retrabajo'
+
+export type OrigenRetrabajoSGO = 'parada_calidad' | 'defecto_final' | 'laboratorio'
+export type ClasificacionCausaRetrabajoSGO = 'persona' | 'metodo' | 'maquina' | 'material' | 'medicion' | 'ambiente' | 'diseno' | 'otro'
+export type ResultadoVerificacionRetrabajoSGO = 'pendiente' | 'eficaz' | 'reincidencia'
+
+export interface DatosRetrabajoSGO {
+  origen: OrigenRetrabajoSGO
+  asignadoA: string
+  fechaLimiteToma: string
+  fechaLimiteInvestigacion: string
+  tomadoEn?: string
+  tomadoPor?: string
+  operarioId?: string
+  causaRegistrada?: string
+  observacionOrigen?: string
+  minutosRetrabajo?: number
+  procesoOrigen?: string
+  procesoDeteccion?: string
+  clasificacionCausa?: ClasificacionCausaRetrabajoSGO
+  factoresContribuyentes?: string
+  reincidente?: boolean
+  antecedenteEventoId?: string
+  costosRevisados?: boolean
+  costosJustificacion?: string
+  referenciaSAP?: string
+  fechaVerificacion?: string
+  resultadoVerificacion?: ResultadoVerificacionRetrabajoSGO
+  observacionVerificacion?: string
+  verificadoEn?: string
+  verificadoPor?: string
+  mejoraEventoId?: string
+}
 
 export interface DatosMejoraSGO {
   clase: ClaseMejoraSGO
@@ -168,6 +201,7 @@ export interface EventoSGO {
   costoDetalle?: CostoNoCalidad
   seguridad?: DatosSeguridadSGO
   mejora?: DatosMejoraSGO
+  retrabajo?: DatosRetrabajoSGO
   causaRaiz?: string
   metodoAnalisis?: '5_porques' | 'ishikawa' | 'a3' | '8d' | 'otro'
   evidenciaUrls?: string[]

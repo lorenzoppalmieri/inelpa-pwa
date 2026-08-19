@@ -15,8 +15,9 @@ import {
   type DecisionMejoraSGO, type EventoSGO, type FuenteMejoraSGO, type PilarSGO,
   type PrioridadMejoraSGO, type SeveridadSGO,
 } from '../../sgo/types'
+import RetrabajosSGOView from './RetrabajosSGOView'
 
-type VistaMejoras = 'seguimiento' | 'resultados' | 'tablero'
+type VistaMejoras = 'seguimiento' | 'retrabajos' | 'resultados' | 'tablero'
 
 const fechaHora = (iso: string) => new Intl.DateTimeFormat('es-AR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(iso))
 const fechaLabel = (iso?: string) => iso ? new Intl.DateTimeFormat('es-AR', { dateStyle: 'medium' }).format(new Date(`${iso.slice(0, 10)}T12:00:00`)) : 'Sin fecha'
@@ -35,6 +36,7 @@ export default function MejorasSGOView({ usuario, onOpenEvento }: { usuario: str
   const [estado, setEstado] = useState<EstadoGestionMejora | ''>('')
   const hoy = fechaHoyISO()
   const registros = useMemo(() => eventos.filter((evento) => Boolean(evento.mejora)), [eventos])
+  const retrabajosPendientes = eventos.filter((evento) => evento.retrabajo && evento.estado !== 'cerrado').length
   const accionesDe = (id: string) => acciones.filter((accion) => accion.eventoId === id)
   const abiertos = registros.filter((evento) => evento.estado !== 'cerrado')
   const cerrados = registros.filter((evento) => evento.estado === 'cerrado')
@@ -82,16 +84,18 @@ export default function MejorasSGOView({ usuario, onOpenEvento }: { usuario: str
     </div>
     <div className="tabs sgo-mejoras-tabs">
       <button className={`tab ${vista === 'seguimiento' ? 'active' : ''}`} onClick={() => setVista('seguimiento')}>Seguimiento activo</button>
+      <button className={`tab ${vista === 'retrabajos' ? 'active' : ''}`} onClick={() => setVista('retrabajos')}>Retrabajos{retrabajosPendientes ? ` (${retrabajosPendientes})` : ''}</button>
       <button className={`tab ${vista === 'resultados' ? 'active' : ''}`} onClick={() => setVista('resultados')}>Resultados e historial</button>
       <button className={`tab ${vista === 'tablero' ? 'active' : ''}`} onClick={() => setVista('tablero')}>Tablero</button>
     </div>
-    {vista !== 'tablero' && <div className="card sgo-mejoras-filtros">
+    {['seguimiento', 'resultados'].includes(vista) && <div className="card sgo-mejoras-filtros">
       <input className="input" value={buscar} onChange={(e) => setBuscar(e.target.value)} placeholder="Buscar código, mejora, responsable…" />
       <select className="input" value={fuente} onChange={(e) => setFuente(e.target.value as FuenteMejoraSGO | '')}><option value="">Todas las fuentes</option>{FUENTES_MEJORA.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}</select>
       <select className="input" value={area} onChange={(e) => setArea(e.target.value as AreaSGOId | '')}><option value="">Todas las áreas</option>{AREAS_SGO.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}</select>
       <select className="input" value={estado} onChange={(e) => setEstado(e.target.value as EstadoGestionMejora | '')}><option value="">Todos los estados</option>{ESTADOS_GESTION_MEJORA.map((e) => <option key={e.id} value={e.id}>{e.label}</option>)}</select>
     </div>}
-    {vista === 'tablero' ? <Tablero registros={registros} acciones={acciones} hoy={hoy} />
+    {vista === 'retrabajos' ? <RetrabajosSGOView usuario={usuario} onOpenEvento={onOpenEvento} />
+      : vista === 'tablero' ? <Tablero registros={registros} acciones={acciones} hoy={hoy} />
       : vista === 'seguimiento' ? <Kanban registros={visibles} acciones={acciones} hoy={hoy} onOpen={setEditor} />
         : <Listado registros={visibles} acciones={acciones} hoy={hoy} onOpen={setEditor} vacio="Todavía no hay mejoras cerradas." />}
     {editor !== undefined && <EditorMejora registro={editor} acciones={editor ? accionesDe(editor.id) : []} usuario={usuario}

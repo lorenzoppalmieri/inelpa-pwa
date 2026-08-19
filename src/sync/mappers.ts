@@ -250,6 +250,7 @@ export interface EventoSGORow {
   costo_detalle: EventoSGO['costoDetalle'] | null
   seguridad: EventoSGO['seguridad'] | null
   mejora: EventoSGO['mejora'] | null
+  retrabajo: EventoSGO['retrabajo'] | null
   causa_raiz: string | null
   metodo_analisis: string | null
   evidencia_urls: string[] | null
@@ -333,7 +334,7 @@ export function eventoSGOFromRow(r: EventoSGORow): EventoSGO {
     detectadoPor: r.detectado_por, responsable: u(r.responsable), contencion: u(r.contencion),
     disposicion: u(r.disposicion) as EventoSGO['disposicion'], cantidadAfectada: u(r.cantidad_afectada),
     costoEstimado: u(r.costo_estimado), costoDetalle: r.costo_detalle ?? undefined, seguridad: r.seguridad ?? undefined,
-    mejora: r.mejora ?? undefined, causaRaiz: u(r.causa_raiz),
+    mejora: r.mejora ?? undefined, retrabajo: r.retrabajo ?? undefined, causaRaiz: u(r.causa_raiz),
     metodoAnalisis: u(r.metodo_analisis) as EventoSGO['metodoAnalisis'],
     evidenciaUrls: r.evidencia_urls ?? undefined, creadoEn: r.creado_en,
     actualizadoEn: r.actualizado_en, cerradoEn: u(r.cerrado_en), cerradoPor: u(r.cerrado_por),
@@ -350,7 +351,7 @@ export function eventoSGOToRow(e: EventoSGO): EventoSGORow {
     responsable: e.responsable ?? null, contencion: e.contencion ?? null,
     disposicion: e.disposicion ?? null, cantidad_afectada: e.cantidadAfectada ?? null,
     costo_estimado: e.costoEstimado ?? null, costo_detalle: e.costoDetalle ?? null, seguridad: e.seguridad ?? null,
-    mejora: e.mejora ?? null, causa_raiz: e.causaRaiz ?? null,
+    mejora: e.mejora ?? null, retrabajo: e.retrabajo ?? null, causa_raiz: e.causaRaiz ?? null,
     metodo_analisis: e.metodoAnalisis ?? null, evidencia_urls: e.evidenciaUrls ?? null,
     creado_en: e.creadoEn, actualizado_en: e.actualizadoEn, cerrado_en: e.cerradoEn ?? null,
     cerrado_por: e.cerradoPor ?? null,

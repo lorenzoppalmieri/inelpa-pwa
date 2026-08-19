@@ -59,21 +59,97 @@ export function desglosePausas(t: Tarea, ahoraISO?: string): TramoPausa[] {
   })
 }
 
-// DEMORA JUSTIFICADA = suma de las pausas PRODUCTIVAS (rotura, falta de
-// material, espera de máquina...). Medida en minutos de planta abierta.
+// ============================================================
+// v1.89 — FUSIÓN DE INTERVALOS SUPERPUESTOS
+//
+// BUG REPORTADO (Montaje Rural): Lautaro sale a comprar comida y marca su
+// "Almuerzo" 45' antes; después el equipo activa el "Almuerzo" general de la
+// línea. La tarea queda con DOS pausas que se pisan en el tiempo, y la suma
+// simple descontaba las dos: 11:30-13:00 + 12:30-13:00 daba 120' cuando la
+// planta estuvo parada 90'.
+//
+// La solución NO es sumar y restar: es unir los intervalos ANTES de medirlos.
+//
+// Ojo con la tentación de resolver esto con date-fns: fusionar es comparar
+// strings ISO y no necesita librería, pero MEDIR cada tramo tiene que pasar
+// por `calcularTiempoNetoProductivo` (motor de horas hábiles). Con una resta
+// de fechas, una pausa de 11:16 a 07:45 del día siguiente da 20h en vez de 5h
+// — es el bug que ya se arregló en v1.45. No volver atrás.
+// ============================================================
+
+export interface Intervalo { inicio: string; fin: string }
+
+/**
+ * Une los intervalos que se superponen o se tocan. Función PURA.
+ * [11:30-13:00] + [12:30-13:00]  ->  [11:30-13:00]
+ * [09:00-10:00] + [11:00-12:00]  ->  los dos, separados (no se tocan)
+ */
+export function fusionarIntervalos(xs: Intervalo[]): Intervalo[] {
+  const vals = xs.filter((x) => x.inicio && x.fin && x.fin > x.inicio)
+    .sort((a, b) => (a.inicio < b.inicio ? -1 : a.inicio > b.inicio ? 1 : 0))
+  const out: Intervalo[] = []
+  for (const x of vals) {
+    const ult = out[out.length - 1]
+    // `<=` y no `<`: dos pausas pegadas (una termina justo cuando arranca la
+    // otra) son un solo tramo de planta parada, no dos.
+    if (ult && x.inicio <= ult.fin) {
+      if (x.fin > ult.fin) ult.fin = x.fin
+    } else {
+      out.push({ inicio: x.inicio, fin: x.fin })
+    }
+  }
+  return out
+}
+
+/**
+ * Quita de `base` los tramos cubiertos por `quitar`. Función PURA.
+ * Se usa para la precedencia acordada con Lorenzo: si un ALMUERZO se superpone
+ * con una demora justificada, ese tramo es almuerzo — el operario no estaba
+ * esperando el material, estaba comiendo. Sin esto se descontaría dos veces.
+ */
+export function restarIntervalos(base: Intervalo[], quitar: Intervalo[]): Intervalo[] {
+  const cortes = fusionarIntervalos(quitar)
+  let actual = fusionarIntervalos(base)
+  for (const q of cortes) {
+    const sig: Intervalo[] = []
+    for (const b of actual) {
+      if (q.fin <= b.inicio || q.inicio >= b.fin) { sig.push(b); continue }  // no se tocan
+      if (q.inicio > b.inicio) sig.push({ inicio: b.inicio, fin: q.inicio }) // sobra por izquierda
+      if (q.fin < b.fin) sig.push({ inicio: q.fin, fin: b.fin })             // sobra por derecha
+    }
+    actual = sig
+  }
+  return actual
+}
+
+/** Mide una lista de intervalos en minutos de PLANTA ABIERTA (no reloj). */
+function medirIntervalos(xs: Intervalo[], recupMin: number): number {
+  return xs.reduce((acc, x) => acc + calcularTiempoNetoProductivo(
+    new Date(x.inicio), new Date(x.fin), { recupMin, sinAlmuerzo: true }), 0)
+}
+
+/** Los tramos de pausa de una tarea, separados en los dos cubos. */
+function cubosDePausas(t: Tarea, ahoraISO?: string): { prod: Intervalo[]; noProd: Intervalo[] } {
+  const tramos = desglosePausas(t, ahoraISO)
+  return {
+    prod: tramos.filter((x) => x.productiva).map((x) => ({ inicio: x.inicio, fin: x.fin })),
+    noProd: tramos.filter((x) => !x.productiva).map((x) => ({ inicio: x.inicio, fin: x.fin })),
+  }
+}
+
+// DEMORA JUSTIFICADA = pausas PRODUCTIVAS (rotura, falta de material, espera de
+// máquina...), FUSIONADAS y sin los tramos que pisa el almuerzo.
 export function minutosParada(t: Tarea, ahoraISO?: string): number {
-  return desglosePausas(t, ahoraISO)
-    .filter((x) => x.productiva)
-    .reduce((acc, x) => acc + x.minutos, 0)
+  const { prod, noProd } = cubosDePausas(t, ahoraISO)
+  return medirIntervalos(restarIntervalos(prod, noProd), minutosRecupTarea(t))
 }
 
 // PAUSAS NO PRODUCTIVAS (almuerzo, reapertura). NO son demora: se descuentan del
 // Tiempo Real como si esa franja no existiera, pero se muestran en el detalle
 // (el operario las marca todos los días y tiene que poder verlas).
 export function minutosNoProductivos(t: Tarea, ahoraISO?: string): number {
-  return desglosePausas(t, ahoraISO)
-    .filter((x) => !x.productiva)
-    .reduce((acc, x) => acc + x.minutos, 0)
+  const { noProd } = cubosDePausas(t, ahoraISO)
+  return medirIntervalos(fusionarIntervalos(noProd), minutosRecupTarea(t))
 }
 
 // Tiempo real de ejecucion BRUTO (resta cruda de timestamps). Solo informativo
@@ -136,11 +212,8 @@ export function tiempoRealHasta(t: Tarea, hastaISO?: string): number {
  * la usan el Gantt (para tareas en curso, con corte = ahora) y el dashboard.
  */
 export function demoraSinJustificarHasta(t: Tarea, hastaISO?: string): number {
-  if (esReparacion(t)) return 0
-  const fin = hastaISO ?? t.finReal
-  if (!t.inicioReal || !fin) return 0
-  const exceso = tiempoRealHasta(t, fin) - tiempoEstimadoMin(t)
-  return Math.max(0, Math.round(exceso - minutosParada(t, fin)))
+  // v1.89: delega en metricasTarea para que no queden dos versiones de la cuenta.
+  return metricasTarea(t, hastaISO).sinJustificar
 }
 
 /**
@@ -153,8 +226,64 @@ export function demoraSinJustificarHasta(t: Tarea, hastaISO?: string): number {
  * Si el operario justificó TODO su exceso con pausas válidas, da 0.
  */
 export function demoraSinJustificarMin(t: Tarea): number {
-  const exceso = tiempoRealMin(t) - tiempoEstimadoMin(t)
-  return Math.max(0, exceso - totalDemoradoMin(t))
+  return metricasTarea(t).sinJustificar
+}
+
+// ============================================================
+// v1.89 — HELPER ÚNICO DE MÉTRICAS DE UNA TAREA
+//
+// Devuelve los cinco números de una sola pasada. Existe para que el tooltip del
+// Gantt, la tabla de detalle (filtrada o no) y el dashboard consuman EXACTAMENTE
+// la misma cuenta: cada vez que alguno hizo su propia versión, terminó
+// contradiciendo a los otros en pantalla.
+//
+// OJO CON EL NOMBRE `demorado`: acá significa lo que definió dirección, el
+// EXCESO sobre el estimado. NO confundir con `totalDemoradoMin()`, que devuelve
+// la demora JUSTIFICADA (suma de paradas). Son cosas distintas y ese choque de
+// nombres ya generó confusión en las columnas de los reportes.
+// ============================================================
+export interface MetricasTarea {
+  /** Tiempo estándar de la matriz Máquina+Modelo+Material. */
+  estimado: number
+  /** Laborable entre inicio y fin, menos las pausas no productivas fusionadas. */
+  real: number
+  /** MAX(0, real − estimado). Lo que tardó de más respecto del ideal. */
+  demorado: number
+  /** Pausas de demora fusionadas, sin los tramos que pisa el almuerzo. */
+  justificada: number
+  /** MAX(0, demorado − justificada). Si justificó todo el exceso, da 0. */
+  sinJustificar: number
+  /** Almuerzo y pausas programadas, fusionadas. Informativo. */
+  noProductivo: number
+}
+
+/**
+ * @param hastaISO corte para tareas EN CURSO (normalmente "ahora").
+ *                 Si se omite, se usa el fin real de la tarea.
+ */
+export function metricasTarea(t: Tarea, hastaISO?: string): MetricasTarea {
+  const estimado = tiempoEstimadoMin(t)
+  const vacio: MetricasTarea = {
+    estimado, real: 0, demorado: 0, justificada: 0, sinJustificar: 0, noProductivo: 0,
+  }
+  const fin = hastaISO ?? t.finReal
+  if (!t.inicioReal || !fin) return vacio
+
+  const real = tiempoRealHasta(t, fin)
+  const justificada = minutosParada(t, fin)
+  const noProductivo = minutosNoProductivos(t, fin)
+  const demorado = Math.max(0, real - estimado)
+  // Las reparaciones no penalizan: son trabajo no productivo por definición.
+  const sinJustificar = esReparacion(t) ? 0 : Math.max(0, Math.round(demorado - justificada))
+
+  return {
+    estimado,
+    real: Math.round(real),
+    demorado: Math.round(demorado),
+    justificada: Math.round(justificada),
+    sinJustificar,
+    noProductivo: Math.round(noProductivo),
+  }
 }
 
 // Filtra tareas cuyo trabajo cae dentro de [desdeISO, hastaISO) segun su
