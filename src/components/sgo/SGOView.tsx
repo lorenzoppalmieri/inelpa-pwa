@@ -12,10 +12,12 @@ import AuditoriaLogisticaView from './AuditoriaLogisticaView'
 import ControlesCampoView from './ControlesCampoView'
 import AgendaISOView from './AgendaISOView'
 import TareasSGOView from './TareasSGOView'
+import MejorasSGOView from './MejorasSGOView'
 import { defectoSGOLabel, defectosParaArea } from '../../sgo/defectos'
 import { resolverKPIAutomaticos } from '../../sgo/kpiAutomaticos'
 import { aplicarMedicionesIndicadores, type IndicadorSGO } from '../../sgo/indicadores'
 import { validarCierreEvento } from '../../sgo/cierre'
+import { datosMejoraDesdeEvento } from '../../sgo/mejoras'
 import { usuarioEsLorenzo } from '../../sgo/permisos'
 import {
   ID_DIAS_SIN_ACCIDENTES, ID_DIAS_SIN_INCIDENTES, IDS_CONTADORES_SEGURIDAD,
@@ -68,7 +70,7 @@ export default function SGOView() {
   const [celdaSeleccionada, setCeldaSeleccionada] = useState<{ area: AreaSGOId; pilar: PilarSGO }>()
   const [filtroArea, setFiltroArea] = useState('')
   const [filtroPilar, setFiltroPilar] = useState('')
-  const [pestana, setPestana] = useState<'tablero' | 'controles' | 'campo' | 'agenda_iso' | 'tareas_sgo' | 'logistica'>('tablero')
+  const [pestana, setPestana] = useState<'tablero' | 'mejoras' | 'controles' | 'campo' | 'agenda_iso' | 'tareas_sgo' | 'logistica'>('tablero')
   const seleccionado = eventos.find((e) => e.id === seleccionadoId)
 
   const abiertos = eventos.filter((e) => e.estado !== 'cerrado')
@@ -91,13 +93,15 @@ export default function SGOView() {
     <div>
       <div className="tabs" role="tablist" aria-label="Secciones SGO">
         <button className={`tab ${pestana === 'tablero' ? 'active' : ''}`} onClick={() => setPestana('tablero')}>Tablero integral</button>
+        <button className={`tab ${pestana === 'mejoras' ? 'active' : ''}`} onClick={() => setPestana('mejoras')}>Mejora continua</button>
         <button className={`tab ${pestana === 'controles' ? 'active' : ''}`} onClick={() => setPestana('controles')}>Controles programados</button>
         <button className={`tab ${pestana === 'campo' ? 'active' : ''}`} onClick={() => setPestana('campo')}>Controles de campo</button>
         <button className={`tab ${pestana === 'logistica' ? 'active' : ''}`} onClick={() => setPestana('logistica')}>Auditoría logística</button>
         <button className={`tab ${pestana === 'agenda_iso' ? 'active' : ''}`} onClick={() => setPestana('agenda_iso')}>Agenda ISO</button>
         <button className={`tab ${pestana === 'tareas_sgo' ? 'active' : ''}`} onClick={() => setPestana('tareas_sgo')}>Tareas SGO</button>
       </div>
-      {pestana === 'agenda_iso' ? <AgendaISOView usuario={usuario?.usuario ?? 'sin_usuario'} />
+      {pestana === 'mejoras' ? <MejorasSGOView usuario={usuario?.usuario ?? 'sin_usuario'} onOpenEvento={(id) => { setPestana('tablero'); setSeleccionadoId(id) }} />
+        : pestana === 'agenda_iso' ? <AgendaISOView usuario={usuario?.usuario ?? 'sin_usuario'} />
         : pestana === 'tareas_sgo' ? <TareasSGOView usuario={usuario?.usuario ?? 'sin_usuario'} />
         : pestana === 'controles' ? <ControlesProgramadosView usuario={usuario?.usuario ?? 'sin_usuario'} controlInicialId={controlInicialId} onControlInicialConsumido={() => setControlInicialId(undefined)} onOpenEvento={(id) => { setPestana('tablero'); setSeleccionadoId(id) }} />
         : pestana === 'campo' ? <ControlesCampoView usuario={usuario?.usuario ?? 'sin_usuario'} onOpenEvento={(id) => { setPestana('tablero'); setSeleccionadoId(id) }} />
@@ -295,6 +299,9 @@ function NuevoEvento({ usuario, onClose, onCreado }: { usuario: string; onClose:
       cantidadAfectada: esNC ? Number(cantidad) || 1 : undefined,
       costoDetalle: esNC ? costos : undefined, costoEstimado: esNC ? costoNoCalidadTotal(costos) : undefined,
       seguridad: esSeguridad ? seguridad : undefined,
+      mejora: ['oportunidad_mejora', 'hallazgo_auditoria'].includes(tipo)
+        ? datosMejoraDesdeEvento({ tipo, pilar: tipoDef.pilar, severidad }, { fuente: 'evento_sgo', origenEntidad: 'evento_manual' })
+        : undefined,
       detectadoEn: esSeguridad && seguridad.fechaHoraHecho ? new Date(seguridad.fechaHoraHecho).toISOString() : now,
       detectadoPor: usuario, responsable: responsable.trim() || undefined,
       creadoEn: now, actualizadoEn: now,

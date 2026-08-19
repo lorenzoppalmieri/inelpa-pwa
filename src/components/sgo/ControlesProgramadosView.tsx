@@ -11,6 +11,7 @@ import {
 } from '../../sgo/controles'
 import { AREAS_SGO, PILARES_SGO, areaSGOLabel, codigoEventoSGO, type AreaSGOId, type EventoSGO, type PilarSGO } from '../../sgo/types'
 import { usuarioEsLorenzo } from '../../sgo/permisos'
+import { datosMejoraDesdeEvento } from '../../sgo/mejoras'
 
 const ESTADO_CONTROL = {
   vencido: { label: 'Vencido', clase: 'vencido' },
@@ -251,20 +252,27 @@ function EjecutarControl({ control, usuario, onClose, onOpenEvento }: { control:
     if (generaEvento) {
       eventoId = crypto.randomUUID()
       const tipo = tipoEventoDesdeControl(control.pilar)
+      const severidad = resultado === 'no_conforme' ? 'media' : 'baja'
       const referencias = [ordenId && `Orden: ${ordenId}`, nroSerie && `Serie: ${nroSerie}`, semi && `Semielaborado: ${semi}`].filter(Boolean).join(' · ')
       const medicion = esperado || encontrado ? `Esperado: ${esperado || 'sin definir'}${unidad ? ` ${unidad}` : ''}. Encontrado: ${encontrado || 'sin dato'}${unidad ? ` ${unidad}` : ''}.` : ''
       const evento: EventoSGO = {
         id: eventoId, codigo: codigoEventoSGO(new Date(), eventoId), tipo, pilar: control.pilar,
         titulo: `${resultado === 'no_conforme' ? 'Control no conforme' : 'Observación'} · ${control.titulo}`,
         descripcion: [`Control programado para ${fechaLabel(control.proximaFecha)}.`, detalle.trim(), medicion, referencias].filter(Boolean).join('\n'),
-        severidad: resultado === 'no_conforme' ? 'media' : 'baja', estado: 'abierto', areaId: control.areaId,
+        severidad, estado: 'abierto', areaId: control.areaId,
         areaOrigenId: tipo === 'no_conformidad' ? control.areaId : undefined, ordenId: ordenId || undefined,
         nroSerie: nroSerie.trim() || undefined, controlId: control.id, responsable: control.responsable,
         seguridad: tipo === 'observacion_preventiva' ? {
           fechaHoraHecho: now, lugarExacto: areaSGOLabel(control.areaId), tareaActividad: control.titulo,
           tipoObservacion: 'insegura', condicionObservada: detalle.trim(), accionInmediata: 'Pendiente de definir en el expediente SGO',
         } : undefined,
-        evidenciaUrls: [evidencia.trim()], detectadoEn: now, detectadoPor: usuario, creadoEn: now, actualizadoEn: now,
+        evidenciaUrls: [evidencia.trim()], detectadoEn: now, detectadoPor: usuario,
+        mejora: datosMejoraDesdeEvento({ tipo, pilar: control.pilar, severidad }, {
+          fuente: control.tipo === 'auditoria_iso' ? 'auditoria_iso_interna' : 'control_programado',
+          origenEntidad: 'control_programado', origenId: control.id,
+          beneficioEsperado: 'Corregir el desvío detectado y sostener el cumplimiento del control.',
+        }),
+        creadoEn: now, actualizadoEn: now,
       }
       await guardarEventoSGO(evento)
     }

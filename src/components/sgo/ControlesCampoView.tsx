@@ -14,6 +14,7 @@ import {
   type AuditoriaCampoSGO, type PuntajeControlCampo, type RespuestaControlCampo, type RiesgoHallazgoCampo,
 } from '../../sgo/controlesCampo'
 import { firmarEvidenciasCampo, subirEvidenciasCampo } from '../../sgo/evidenciasCampo'
+import { datosMejoraDesdeEvento } from '../../sgo/mejoras'
 import { proximaFechaControl, tipoEventoDesdeControl, type ControlProgramadoSGO, type EjecucionControlSGO } from '../../sgo/controles'
 import {
   AREAS_SGO, PILARES_SGO, areaSGOLabel, codigoEventoSGO,
@@ -303,18 +304,23 @@ function EjecutarControlCampo({ control, usuario, historial, onClose }: { contro
         const hayCritico = hallazgosPilar.some((r, idx) => r.puntaje === 0 && items[idx]?.critico)
         const hayCero = hallazgosPilar.some((r) => r.puntaje === 0)
         const tipo = tipoEventoDesdeControl(pilar)
+        const severidad = hayCritico ? 'alta' : hayCero ? 'media' : 'baja'
         const detalle = hallazgosPilar.map((r, idx) => `${r.puntaje}/2 · ${items[idx]?.pregunta}: ${r.observacion}`).join('\n')
         const evento: EventoSGO = {
           id: eventoId, codigo: codigoEventoSGO(new Date(), eventoId), tipo, pilar,
           titulo: `Hallazgos 5S · ${areaSGOLabel(area)} · ${PILARES_SGO.find((p) => p.id === pilar)?.label}`,
           descripcion: `Control ${PLANTILLA_5S_RIT_9_2_12.documento.codigo} · Resultado general ${porcentaje}%.\n${detalle}`,
-          severidad: hayCritico ? 'alta' : hayCero ? 'media' : 'baja', estado: 'abierto', areaId: area,
+          severidad, estado: 'abierto', areaId: area,
           areaOrigenId: tipo === 'no_conformidad' ? area : undefined, controlId: registroControl.id,
           responsable: hallazgosPilar[0]?.responsable, detectadoEn: now, detectadoPor: auditor.trim(),
           seguridad: tipo === 'observacion_preventiva' ? {
             fechaHoraHecho: now, lugarExacto: ubicacion.trim() || areaSGOLabel(area), tareaActividad: 'Control semanal 5S',
             tipoObservacion: 'insegura', condicionObservada: detalle, accionInmediata: hallazgosPilar.map((r) => r.accion).filter(Boolean).join(' · '),
           } : undefined,
+          mejora: datosMejoraDesdeEvento({ tipo, pilar, severidad }, {
+            fuente: '5s', origenEntidad: 'control_5s', origenId: registroControl.id,
+            beneficioEsperado: `Corregir y sostener los hallazgos del control 5S ${PLANTILLA_5S_RIT_9_2_12.documento.codigo}.`,
+          }),
           creadoEn: now, actualizadoEn: now,
         }
         await guardarEventoSGO(evento)

@@ -10,6 +10,7 @@ import {
   type DatosAuditoriaLogistica, type EstadoPuntoAuditoria, type TipoAuditoriaLogistica,
 } from '../../sgo/logistica'
 import { codigoEventoSGO, type EventoSGO, type PilarSGO } from '../../sgo/types'
+import { datosMejoraDesdeEvento } from '../../sgo/mejoras'
 
 function fechaHoraLabel(iso: string) {
   return new Intl.DateTimeFormat('es-AR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(iso))
@@ -159,8 +160,10 @@ function NuevaAuditoria({ tipo, usuario, controles, onClose, onOpenEvento }: { t
     if (desviados.length) {
       eventoId = crypto.randomUUID()
       const pilar = desviados[0].pilar as PilarSGO
+      const tipoEvento = tipoEventoDesdeControl(pilar)
+      const severidad = desviados.some((p) => p.pilar === 'seguridad') ? 'alta' : 'media'
       const evento: EventoSGO = {
-        id: eventoId, codigo: codigoEventoSGO(new Date(), eventoId), tipo: tipoEventoDesdeControl(pilar), pilar,
+        id: eventoId, codigo: codigoEventoSGO(new Date(), eventoId), tipo: tipoEvento, pilar,
         titulo: `Auditoría logística con desvíos · ${plantilla.label}`,
         descripcion: [
           `${desviados.length} punto(s) no conforme(s) detectado(s) por ${auditor.trim()} en ${ubicacion.trim()}.`,
@@ -168,10 +171,15 @@ function NuevaAuditoria({ tipo, usuario, controles, onClose, onOpenEvento }: { t
           `Acción inmediata: ${accionInmediata.trim()}`,
           [documentoSap && `SAP: ${documentoSap}`, remito && `Remito: ${remito}`, series && `Series: ${series}`, patente && `Patente: ${patente}`].filter(Boolean).join(' · '),
         ].filter(Boolean).join('\n'),
-        severidad: desviados.some((p) => p.pilar === 'seguridad') ? 'alta' : 'media', estado: 'contenido',
+        severidad, estado: 'contenido',
         areaId: 'logistica_operativa', areaOrigenId: pilar === 'calidad' ? 'logistica_operativa' : undefined,
         responsable: responsableSector.trim(), contencion: accionInmediata.trim(), controlId: idControl,
-        evidenciaUrls: [evidencia.trim()], detectadoEn: now, detectadoPor: usuario, creadoEn: now, actualizadoEn: now,
+        evidenciaUrls: [evidencia.trim()], detectadoEn: now, detectadoPor: usuario,
+        mejora: datosMejoraDesdeEvento({ tipo: tipoEvento, pilar, severidad }, {
+          fuente: 'auditoria_logistica', origenEntidad: 'auditoria_logistica', origenId: idControl,
+          beneficioEsperado: 'Eliminar los desvíos logísticos detectados y evitar su repetición.',
+        }),
+        creadoEn: now, actualizadoEn: now,
       }
       await guardarEventoSGO(evento)
     }

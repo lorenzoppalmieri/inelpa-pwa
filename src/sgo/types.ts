@@ -16,6 +16,61 @@ export type EstadoEventoSGO = 'abierto' | 'contenido' | 'en_analisis' | 'con_acc
 export type EstadoAccionSGO = 'pendiente' | 'en_curso' | 'completada' | 'verificada' | 'cancelada'
 export type TipoAccionSGO = 'correccion' | 'correctiva' | 'preventiva' | 'mejora'
 
+export type ClaseMejoraSGO = 'idea' | 'observacion' | 'oportunidad' | 'mejora' | 'no_conformidad'
+export type FuenteMejoraSGO =
+  | '5s'
+  | 'entrevista'
+  | 'sugerencia_personal'
+  | 'auditoria_iso_interna'
+  | 'auditoria_iso_externa'
+  | 'auditoria_logistica'
+  | 'control_programado'
+  | 'kpi'
+  | 'reclamo'
+  | 'accidente_incidente'
+  | 'reunion_produccion'
+  | 'reunion_logistica'
+  | 'recorrido_planta'
+  | 'revision_direccion'
+  | 'evento_sgo'
+  | 'manual'
+  | 'otro'
+export type DecisionMejoraSGO = 'pendiente' | 'aprobada' | 'a_futuro' | 'no_viable'
+export type PrioridadMejoraSGO = 'baja' | 'media' | 'alta' | 'critica'
+export type SeguimientoMejoraSGO = 'pendiente' | 'sostenida' | 'reincidencia'
+export type OrigenEntidadMejoraSGO = 'control_5s' | 'auditoria_logistica' | 'control_programado' | 'agenda_iso' | 'indicador' | 'evento_manual'
+
+export interface DatosMejoraSGO {
+  clase: ClaseMejoraSGO
+  fuente: FuenteMejoraSGO
+  colaborador?: string
+  beneficioEsperado?: string
+  pilaresBeneficiados: PilarSGO[]
+  decision: DecisionMejoraSGO
+  justificacionDecision?: string
+  prioridad: PrioridadMejoraSGO
+  impacto?: 1 | 2 | 3 | 4 | 5
+  urgencia?: 1 | 2 | 3 | 4 | 5
+  esfuerzo?: 1 | 2 | 3 | 4 | 5
+  fechaObjetivo?: string
+  fechaRevision?: string
+  presupuestoEstimado?: number
+  referenciaSAP?: string
+  resultado?: string
+  beneficioReal?: string
+  estandarizacion?: string
+  metricaAntes?: number
+  metricaDespues?: number
+  unidadMetrica?: string
+  fechaSeguimiento?: string
+  seguimientoResultado?: SeguimientoMejoraSGO
+  seguimientoObservacion?: string
+  seguimientoEn?: string
+  seguimientoPor?: string
+  origenEntidad?: OrigenEntidadMejoraSGO
+  origenId?: string
+}
+
 export type AreaSGOId =
   | 'bobinado_rural'
   | 'bobinado_distribucion'
@@ -112,6 +167,7 @@ export interface EventoSGO {
   costoEstimado?: number
   costoDetalle?: CostoNoCalidad
   seguridad?: DatosSeguridadSGO
+  mejora?: DatosMejoraSGO
   causaRaiz?: string
   metodoAnalisis?: '5_porques' | 'ishikawa' | 'a3' | '8d' | 'otro'
   evidenciaUrls?: string[]
