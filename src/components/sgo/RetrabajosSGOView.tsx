@@ -5,6 +5,7 @@ import { validarCierreEvento } from '../../sgo/cierre'
 import { conciliarInvestigacionesRetrabajo } from '../../sgo/integraciones'
 import { datosMejoraDesdeEvento } from '../../sgo/mejoras'
 import { usuarioEsLorenzo, usuarioPuedeInvestigarRetrabajo } from '../../sgo/permisos'
+import { resolverTrazabilidadProductiva, type TrazabilidadProductivaSGO } from '../../sgo/trazabilidad'
 import {
   ESTADOS_INVESTIGACION_RETRABAJO, estadoInvestigacionRetrabajo, esEventoRetrabajo,
   semaforoSLAInvestigacion, type EstadoInvestigacionRetrabajo,
@@ -37,6 +38,9 @@ const estadoLabel = (id: EstadoInvestigacionRetrabajo) => ESTADOS_INVESTIGACION_
 export default function RetrabajosSGOView({ usuario, onOpenEvento }: { usuario: string; onOpenEvento: (id: string) => void }) {
   const eventos = useLiveQuery(() => db.eventosSGO.toArray(), []) ?? []
   const acciones = useLiveQuery(() => db.accionesSGO.toArray(), []) ?? []
+  const tareas = useLiveQuery(() => db.tareas.toArray(), []) ?? []
+  const maquinas = useLiveQuery(() => db.maquinas.toArray(), []) ?? []
+  const usuariosPlanta = useLiveQuery(() => db.usuarios.toArray(), []) ?? []
   const [buscar, setBuscar] = useState('')
   const [area, setArea] = useState<AreaSGOId | ''>('')
   const [estado, setEstado] = useState<EstadoInvestigacionRetrabajo | ''>('')
@@ -52,6 +56,7 @@ export default function RetrabajosSGOView({ usuario, onOpenEvento }: { usuario: 
   }, [puedeInvestigar, usuario])
 
   const retrabajos = useMemo(() => eventos.filter(esEventoRetrabajo), [eventos])
+  const trazabilidades = useMemo(() => new Map(retrabajos.map((evento) => [evento.id, resolverTrazabilidadProductiva(evento, tareas, maquinas, usuariosPlanta)])), [retrabajos, tareas, maquinas, usuariosPlanta])
   const accionesDe = (id: string) => acciones.filter((accion) => accion.eventoId === id)
   const activos = retrabajos.filter((evento) => evento.estado !== 'cerrado')
   const finalizados = retrabajos.filter((evento) => evento.estado === 'cerrado')
@@ -80,28 +85,28 @@ export default function RetrabajosSGOView({ usuario, onOpenEvento }: { usuario: 
       <Kpi valor={reincidencias} label="Reincidencias" tono={reincidencias ? 'rojo' : 'verde'} />
     </div>
     <div className="card sgo-retrabajos-filtros"><input className="input" value={buscar} onChange={(e) => setBuscar(e.target.value)} placeholder="Buscar código, modelo, serie, orden o defecto…" /><select className="input" value={area} onChange={(e) => setArea(e.target.value as AreaSGOId | '')}><option value="">Todas las áreas</option>{AREAS_SGO.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select><select className="input" value={estado} onChange={(e) => setEstado(e.target.value as EstadoInvestigacionRetrabajo | '')}><option value="">Todos los estados</option>{ESTADOS_INVESTIGACION_RETRABAJO.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></div>
-    {cerrados ? <Listado eventos={visibles} acciones={acciones} ahora={ahora} onOpen={setEditor} /> : <div className="sgo-retrabajos-kanban">{COLUMNAS.map((columna) => {
+    {cerrados ? <Listado eventos={visibles} acciones={acciones} trazabilidades={trazabilidades} ahora={ahora} onOpen={setEditor} /> : <div className="sgo-retrabajos-kanban">{COLUMNAS.map((columna) => {
       const items = visibles.filter((evento) => columna.estados.includes(estadoInvestigacionRetrabajo(evento, accionesDe(evento.id))))
-      return <section className="sgo-retrabajos-columna" key={columna.titulo}><div className="sgo-retrabajos-columna-titulo"><strong>{columna.titulo}</strong><span>{items.length}</span></div><div className="sgo-retrabajos-lista">{items.map((evento) => <RetrabajoCard key={evento.id} evento={evento} acciones={accionesDe(evento.id)} ahora={ahora} onOpen={() => setEditor(evento)} />)}{!items.length && <div className="empty">Sin casos</div>}</div></section>
+      return <section className="sgo-retrabajos-columna" key={columna.titulo}><div className="sgo-retrabajos-columna-titulo"><strong>{columna.titulo}</strong><span>{items.length}</span></div><div className="sgo-retrabajos-lista">{items.map((evento) => <RetrabajoCard key={evento.id} evento={evento} acciones={accionesDe(evento.id)} trazabilidad={trazabilidades.get(evento.id)!} ahora={ahora} onOpen={() => setEditor(evento)} />)}{!items.length && <div className="empty">Sin casos</div>}</div></section>
     })}</div>}
-    {editor && <EditorRetrabajo eventoInicial={editor} acciones={accionesDe(editor.id)} usuario={usuario} onClose={() => setEditor(undefined)} onOpenEvento={() => { setEditor(undefined); onOpenEvento(editor.id) }} />}
+    {editor && <EditorRetrabajo eventoInicial={editor} acciones={accionesDe(editor.id)} trazabilidad={trazabilidades.get(editor.id)!} usuario={usuario} onClose={() => setEditor(undefined)} onOpenEvento={() => { setEditor(undefined); onOpenEvento(editor.id) }} />}
   </div>
 }
 
 function Kpi({ valor, label, tono }: { valor: string | number; label: string; tono: string }) { return <div className={`card sgo-retrabajo-kpi tono-${tono}`}><strong>{valor}</strong><span>{label}</span></div> }
 
-function Listado({ eventos, acciones, ahora, onOpen }: { eventos: EventoSGO[]; acciones: AccionSGO[]; ahora: string; onOpen: (evento: EventoSGO) => void }) {
+function Listado({ eventos, acciones, trazabilidades, ahora, onOpen }: { eventos: EventoSGO[]; acciones: AccionSGO[]; trazabilidades: Map<string, TrazabilidadProductivaSGO>; ahora: string; onOpen: (evento: EventoSGO) => void }) {
   if (!eventos.length) return <div className="empty">No hay investigaciones cerradas con estos filtros.</div>
-  return <div className="sgo-retrabajos-lista">{eventos.map((evento) => <RetrabajoCard key={evento.id} evento={evento} acciones={acciones.filter((accion) => accion.eventoId === evento.id)} ahora={ahora} onOpen={() => onOpen(evento)} />)}</div>
+  return <div className="sgo-retrabajos-lista">{eventos.map((evento) => <RetrabajoCard key={evento.id} evento={evento} acciones={acciones.filter((accion) => accion.eventoId === evento.id)} trazabilidad={trazabilidades.get(evento.id)!} ahora={ahora} onOpen={() => onOpen(evento)} />)}</div>
 }
 
-function RetrabajoCard({ evento, acciones, ahora, onOpen }: { evento: EventoSGO; acciones: AccionSGO[]; ahora: string; onOpen: () => void }) {
+function RetrabajoCard({ evento, acciones, trazabilidad, ahora, onOpen }: { evento: EventoSGO; acciones: AccionSGO[]; trazabilidad: TrazabilidadProductivaSGO; ahora: string; onOpen: () => void }) {
   const etapa = estadoInvestigacionRetrabajo(evento, acciones)
   const sla = semaforoSLAInvestigacion(evento, ahora)
-  return <button className={`card sgo-retrabajo-card sla-${sla.tono}`} onClick={onOpen}><div className="sgo-retrabajo-card-top"><span className={`estado-chip retrabajo-${etapa}`}>{estadoLabel(etapa)}</span><span className={`sgo-retrabajo-sla sla-${sla.tono}`}>{sla.label}</span></div><strong>{evento.titulo}</strong><div className="meta">{evento.codigo} · {ORIGEN_LABEL[evento.retrabajo!.origen]}</div><div className="meta">{areaSGOLabel(evento.areaOrigenId ?? evento.areaId)} · {evento.modelo || 'Sin modelo'}{evento.nroSerie ? ` · Serie ${evento.nroSerie}` : ''}</div><div className="sgo-retrabajo-causa">{evento.retrabajo?.causaRegistrada || 'Sin causa informada en origen'}</div><div className="sgo-retrabajo-card-resumen"><span>Detectado: <strong>{fechaHora(evento.detectadoEn)}</strong></span><span>{evento.retrabajo?.minutosRetrabajo !== undefined ? `${evento.retrabajo.minutosRetrabajo} min` : 'Tiempo en curso'}</span><span>${costoNoCalidadTotal(evento.costoDetalle).toLocaleString('es-AR')}</span></div></button>
+  return <button className={`card sgo-retrabajo-card sla-${sla.tono}`} onClick={onOpen}><div className="sgo-retrabajo-card-top"><span className={`estado-chip retrabajo-${etapa}`}>{estadoLabel(etapa)}</span><span className={`sgo-retrabajo-sla sla-${sla.tono}`}>{sla.label}</span></div><strong>{evento.titulo}</strong><div className="meta">{evento.codigo} · {ORIGEN_LABEL[evento.retrabajo!.origen]}</div><div className="meta">{areaSGOLabel(evento.areaOrigenId ?? evento.areaId)} · {evento.modelo || 'Sin modelo'}{evento.nroSerie ? ` · Serie ${evento.nroSerie}` : ''}</div><div className="sgo-trazabilidad-compacta"><span><b>Sector:</b> {trazabilidad.sector}</span><span><b>Máquina:</b> {trazabilidad.maquina}</span><span><b>Operario:</b> {trazabilidad.operario}</span></div><div className="sgo-retrabajo-causa">{evento.retrabajo?.causaRegistrada || 'Sin causa informada en origen'}</div><div className="sgo-retrabajo-card-resumen"><span>Ocurrió: <strong>{fechaHora(evento.detectadoEn)}</strong></span><span>{evento.retrabajo?.minutosRetrabajo !== undefined ? `${evento.retrabajo.minutosRetrabajo} min` : 'Tiempo en curso'}</span><span>${costoNoCalidadTotal(evento.costoDetalle).toLocaleString('es-AR')}</span></div></button>
 }
 
-function EditorRetrabajo({ eventoInicial, acciones, usuario, onClose, onOpenEvento }: { eventoInicial: EventoSGO; acciones: AccionSGO[]; usuario: string; onClose: () => void; onOpenEvento: () => void }) {
+function EditorRetrabajo({ eventoInicial, acciones, trazabilidad, usuario, onClose, onOpenEvento }: { eventoInicial: EventoSGO; acciones: AccionSGO[]; trazabilidad: TrazabilidadProductivaSGO; usuario: string; onClose: () => void; onOpenEvento: () => void }) {
   const [evento, setEvento] = useState(eventoInicial)
   const [guardando, setGuardando] = useState(false)
   const datos = evento.retrabajo!
@@ -182,7 +187,7 @@ function EditorRetrabajo({ eventoInicial, acciones, usuario, onClose, onOpenEven
   }
 
   return <div className="modal-overlay"><div className="modal sgo-retrabajo-editor" role="dialog" aria-modal="true" aria-label={`Investigación ${evento.codigo}`}><div className="card-header"><div><div className="section-title">{evento.codigo} · Investigación de retrabajo</div><div className="meta">{ORIGEN_LABEL[datos.origen]} · detectado {fechaHora(evento.detectadoEn)}</div></div><button className="btn" onClick={onClose}>×</button></div>
-    <div className="sgo-retrabajo-origen"><div><span>Área</span><strong>{areaSGOLabel(evento.areaOrigenId ?? evento.areaId)}</strong></div><div><span>Modelo / serie</span><strong>{evento.modelo || '—'}{evento.nroSerie ? ` · ${evento.nroSerie}` : ''}</strong></div><div><span>Orden</span><strong>{evento.ordenId || '—'}</strong></div><div><span>Tiempo</span><strong>{datos.minutosRetrabajo !== undefined ? `${datos.minutosRetrabajo} min` : 'En curso / sin dato'}</strong></div></div>
+    <div className="sgo-retrabajo-origen"><div><span>Sector / línea</span><strong>{trazabilidad.sector}</strong></div><div><span>Máquina / puesto</span><strong>{trazabilidad.maquina}</strong></div><div><span>Operario</span><strong>{trazabilidad.operario}</strong></div><div><span>Fecha y hora</span><strong>{fechaHora(trazabilidad.ocurridoEn)}</strong></div><div><span>Modelo / serie</span><strong>{evento.modelo || '—'}{evento.nroSerie ? ` · ${evento.nroSerie}` : ''}</strong></div><div><span>Orden</span><strong>{evento.ordenId || '—'}</strong></div><div><span>Tiempo</span><strong>{datos.minutosRetrabajo !== undefined ? `${datos.minutosRetrabajo} min` : 'En curso / sin dato'}</strong></div><div><span>Registro SGO</span><strong>{trazabilidad.registradoPor}</strong></div></div>
     <div className="card sgo-retrabajo-deteccion"><strong>{datos.causaRegistrada || evento.titulo}</strong><div>{datos.observacionOrigen || evento.descripcion}</div></div>
     {!datos.tomadoEn ? <div className="card sgo-retrabajo-tomar"><div><strong>Pendiente de Lara</strong><div className="meta">Debe tomarse antes del {fechaHora(datos.fechaLimiteToma)}.</div></div>{puede && <button className="btn btn-primary" disabled={guardando} onClick={() => void tomar()}>Tomar investigación</button>}</div>
       : <div className="meta sgo-retrabajo-tomado">Tomada por <strong>{datos.tomadoPor}</strong> el {fechaHora(datos.tomadoEn)}</div>}

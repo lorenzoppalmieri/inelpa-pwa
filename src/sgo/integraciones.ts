@@ -1,9 +1,22 @@
 import { db } from '../db/dexie'
-import { CAUSAS_PARADA, ENSAYOS_LAB, causaLabel, estadoEnsayo, type Parada, type SectorId, type Tarea, type TareaLaboratorio } from '../types'
+import { CAUSAS_PARADA, ENSAYOS_LAB, SECTORES, causaLabel, estadoEnsayo, type Parada, type SectorId, type Tarea, type TareaLaboratorio } from '../types'
 import { guardarEventoSGO } from '../sync/syncEngine'
 import { ENSAYO_A_DEFECTO } from './defectos'
 import { crearDatosRetrabajo, INICIO_CIRCUITO_RETRABAJOS, minutosDeParada, RESPONSABLE_INVESTIGACION_RETRABAJO } from './retrabajos'
 import { areaSGOLabel, codigoEventoSGO, type AreaSGOId, type EventoSGO } from './types'
+
+async function ubicacionDesdeTarea(tarea: Tarea) {
+  const [maquina, operario] = await Promise.all([
+    db.maquinas.get(tarea.maquinaId),
+    tarea.operarioId ? db.usuarios.get(tarea.operarioId) : Promise.resolve(undefined),
+  ])
+  return {
+    operarioId: tarea.operarioId,
+    operarioNombre: operario?.nombre,
+    sectorNombre: SECTORES.find((sector) => sector.id === tarea.sectorId)?.nombre,
+    maquinaNombre: maquina?.nombre,
+  }
+}
 
 export async function noConformidadDesdeLaboratorio(t: TareaLaboratorio, usuario: string): Promise<{ evento: EventoSGO; creado: boolean }> {
   const existente = await db.eventosSGO.where('laboratorioId').equals(t.id).first()
@@ -68,14 +81,20 @@ export function paradasCalidad(t: Tarea): Parada[] {
 }
 
 export async function noConformidadDesdeParada(t: Tarea, p: Parada, usuario: string): Promise<{ evento: EventoSGO; creado: boolean }> {
+  const ubicacion = await ubicacionDesdeTarea(t)
   const existente = await db.eventosSGO.where('paradaId').equals(p.id).first()
   if (existente) {
     const minutos = minutosDeParada(p.inicio, p.fin)
-    if (!existente.retrabajo || (minutos !== undefined && existente.retrabajo.minutosRetrabajo !== minutos)) {
+    const faltaUbicacion = Boolean(existente.retrabajo && (
+      (!existente.retrabajo.sectorNombre && ubicacion.sectorNombre)
+      || (!existente.retrabajo.maquinaNombre && ubicacion.maquinaNombre)
+      || (!existente.retrabajo.operarioNombre && ubicacion.operarioNombre)
+    ))
+    if (!existente.retrabajo || faltaUbicacion || (minutos !== undefined && existente.retrabajo.minutosRetrabajo !== minutos)) {
       const actualizado: EventoSGO = {
         ...existente, responsable: RESPONSABLE_INVESTIGACION_RETRABAJO,
         retrabajo: crearDatosRetrabajo('parada_calidad', p.inicio, {
-          ...existente.retrabajo, operarioId: t.operarioId, causaRegistrada: causaLabel(p.causa),
+          ...existente.retrabajo, ...ubicacion, causaRegistrada: causaLabel(p.causa),
           observacionOrigen: p.observacion, minutosRetrabajo: minutos,
           procesoOrigen: areaSGOLabel(existente.areaOrigenId ?? existente.areaId),
           procesoDeteccion: areaSGOLabel(existente.areaId),
@@ -101,7 +120,7 @@ export async function noConformidadDesdeParada(t: Tarea, p: Parada, usuario: str
     costoEstimado: 0, detectadoEn: p.inicio, detectadoPor: usuario,
     responsable: RESPONSABLE_INVESTIGACION_RETRABAJO, disposicion: 'pendiente',
     retrabajo: crearDatosRetrabajo('parada_calidad', p.inicio, {
-      operarioId: t.operarioId, causaRegistrada: causaLabel(p.causa), observacionOrigen: p.observacion,
+      ...ubicacion, causaRegistrada: causaLabel(p.causa), observacionOrigen: p.observacion,
       minutosRetrabajo: minutosDeParada(p.inicio, p.fin), procesoOrigen: areaSGOLabel(area), procesoDeteccion: areaSGOLabel(area),
     }),
     creadoEn: now, actualizadoEn: now,
@@ -111,9 +130,24 @@ export async function noConformidadDesdeParada(t: Tarea, p: Parada, usuario: str
 }
 
 export async function noConformidadDesdeDefectoTarea(t: Tarea, usuario: string): Promise<{ evento: EventoSGO; creado: boolean }> {
+  const ubicacion = await ubicacionDesdeTarea(t)
   const vinculados = await db.eventosSGO.where('tareaId').equals(t.id).toArray()
   const existente = vinculados.find((evento) => evento.retrabajo?.origen === 'defecto_final')
-  if (existente) return { evento: existente, creado: false }
+  if (existente) {
+    const faltaUbicacion = Boolean(existente.retrabajo && (
+      (!existente.retrabajo.sectorNombre && ubicacion.sectorNombre)
+      || (!existente.retrabajo.maquinaNombre && ubicacion.maquinaNombre)
+      || (!existente.retrabajo.operarioNombre && ubicacion.operarioNombre)
+    ))
+    if (faltaUbicacion) {
+      const actualizado: EventoSGO = {
+        ...existente, retrabajo: { ...existente.retrabajo!, ...ubicacion }, actualizadoEn: new Date().toISOString(),
+      }
+      await guardarEventoSGO(actualizado)
+      return { evento: actualizado, creado: false }
+    }
+    return { evento: existente, creado: false }
+  }
   // Si la tarea ya originó una o más paradas de calidad, el defecto final forma
   // parte de esos expedientes. Evita abrir un duplicado por el mismo retrabajo.
   const investigacionDeParada = vinculados.find((evento) => evento.retrabajo?.origen === 'parada_calidad' && evento.estado !== 'cerrado')
@@ -131,7 +165,7 @@ export async function noConformidadDesdeDefectoTarea(t: Tarea, usuario: string):
     costoDetalle: { material: 0, manoObra: 0, maquina: 0, ensayos: 0, logistica: 0, terceros: 0 }, costoEstimado: 0,
     detectadoEn, detectadoPor: usuario, responsable: RESPONSABLE_INVESTIGACION_RETRABAJO, disposicion: 'pendiente',
     retrabajo: crearDatosRetrabajo('defecto_final', detectadoEn, {
-      operarioId: t.operarioId, causaRegistrada: t.defecto || 'Defecto no especificado',
+      ...ubicacion, causaRegistrada: t.defecto || 'Defecto no especificado',
       observacionOrigen: t.notas, procesoOrigen: areaSGOLabel(area), procesoDeteccion: areaSGOLabel(area),
     }),
     creadoEn: now, actualizadoEn: now,

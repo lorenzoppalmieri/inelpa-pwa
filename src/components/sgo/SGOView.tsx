@@ -18,6 +18,7 @@ import { aplicarMedicionesIndicadores, type IndicadorSGO } from '../../sgo/indic
 import { validarCierreEvento } from '../../sgo/cierre'
 import { datosMejoraDesdeEvento } from '../../sgo/mejoras'
 import { usuarioEsLorenzo } from '../../sgo/permisos'
+import { resolverTrazabilidadProductiva, type TrazabilidadProductivaSGO } from '../../sgo/trazabilidad'
 import {
   ID_DIAS_SIN_ACCIDENTES, ID_DIAS_SIN_INCIDENTES, IDS_CONTADORES_SEGURIDAD,
   estadoContadorSeguridad, type TipoContadorSeguridad,
@@ -60,6 +61,8 @@ export default function SGOView() {
   const auditoria = useLiveQuery(() => db.auditoriaSGO.toArray(), []) ?? []
   const controles = useLiveQuery(() => db.controlesProgramadosSGO.toArray(), []) ?? []
   const tareas = useLiveQuery(() => db.tareas.toArray(), []) ?? []
+  const maquinas = useLiveQuery(() => db.maquinas.toArray(), []) ?? []
+  const usuariosPlanta = useLiveQuery(() => db.usuarios.toArray(), []) ?? []
   const laboratorio = useLiveQuery(() => db.laboratorio.toArray(), []) ?? []
   const tareasLogistica = useLiveQuery(() => db.tareasLogistica.toArray(), []) ?? []
   const [nuevo, setNuevo] = useState(false)
@@ -146,6 +149,7 @@ export default function SGOView() {
           {[...abiertosFiltrados].sort((a, b) => b.detectadoEn.localeCompare(a.detectadoEn)).map((e) => {
             const p = PILARES_SGO.find((x) => x.id === e.pilar)
             const acc = acciones.filter((a) => a.eventoId === e.id)
+            const trazabilidad = resolverTrazabilidadProductiva(e, tareas, maquinas, usuariosPlanta)
             return (
               <button key={e.id} className="card sgo-evento-card" onClick={() => setSeleccionadoId(e.id)}
                 style={{ textAlign: 'left', cursor: 'pointer', borderLeft: `5px solid ${p?.color ?? '#64748b'}`, width: '100%' }}>
@@ -153,6 +157,7 @@ export default function SGOView() {
                   <div>
                     <strong>{e.codigo} · {e.titulo}</strong>
                     <div className="meta">Origen: {areaSGOLabel(e.areaOrigenId ?? e.areaId)} · Detectó: {areaSGOLabel(e.areaId)} · {p?.label} · {SEVERIDADES.find((s) => s.id === e.severidad)?.label} · {fechaHora(e.detectadoEn)}</div>
+                    {trazabilidad.aplica && <ResumenTrazabilidad trazabilidad={trazabilidad} compacto />}
                     {e.defectoCodigo && <div className="meta">Defecto: <strong>{defectoSGOLabel(e.defectoCodigo)}</strong>{e.costoEstimado ? ` · Costo estimado $${e.costoEstimado.toLocaleString('es-AR')}` : ''}</div>}
                     <div className="sgo-evento-descripcion" style={{ marginTop: 5 }}>{e.descripcion}</div>
                   </div>
@@ -194,7 +199,7 @@ export default function SGOView() {
         onOpenEvento={(id) => { setCeldaSeleccionada(undefined); setSeleccionadoId(id) }}
         onOpenControl={(id) => { setCeldaSeleccionada(undefined); setControlInicialId(id); setPestana('controles') }}
       />}
-      {seleccionado && <DetalleEvento evento={seleccionado} acciones={acciones.filter((a) => a.eventoId === seleccionado.id)} auditoria={auditoria.filter((r) => r.entidadId === seleccionado.id || acciones.some((a) => a.eventoId === seleccionado.id && a.id === r.entidadId))} usuario={usuario?.usuario ?? 'sin_usuario'} onClose={() => setSeleccionadoId(undefined)} />}
+      {seleccionado && <DetalleEvento evento={seleccionado} acciones={acciones.filter((a) => a.eventoId === seleccionado.id)} auditoria={auditoria.filter((r) => r.entidadId === seleccionado.id || acciones.some((a) => a.eventoId === seleccionado.id && a.id === r.entidadId))} usuario={usuario?.usuario ?? 'sin_usuario'} trazabilidad={resolverTrazabilidadProductiva(seleccionado, tareas, maquinas, usuariosPlanta)} onClose={() => setSeleccionadoId(undefined)} />}
       </>}
     </div>
   )
@@ -395,7 +400,27 @@ function FichaAltaSeguridad({ tipo, datos, onChange }: { tipo: TipoEventoSGO; da
   </>
 }
 
-function DetalleEvento({ evento, acciones, auditoria, usuario, onClose }: { evento: EventoSGO; acciones: AccionSGO[]; auditoria: AuditoriaSGO[]; usuario: string; onClose: () => void }) {
+function ResumenTrazabilidad({ trazabilidad, compacto = false }: { trazabilidad: TrazabilidadProductivaSGO; compacto?: boolean }) {
+  if (!trazabilidad.aplica) return null
+  if (compacto) return <div className="sgo-trazabilidad-compacta">
+    <span><b>Sector/línea:</b> {trazabilidad.sector}</span>
+    <span><b>Máquina/puesto:</b> {trazabilidad.maquina}</span>
+    <span><b>Operario:</b> {trazabilidad.operario}</span>
+    <span><b>Ocurrió:</b> {fechaHora(trazabilidad.ocurridoEn)}</span>
+  </div>
+  return <div className="card sgo-trazabilidad-ficha">
+    <div className="section-title" style={{ marginTop: 0 }}>Ubicación productiva del hallazgo</div>
+    <div className="sgo-trazabilidad-datos">
+      <DatoFicha label="Sector / línea" valor={trazabilidad.sector} />
+      <DatoFicha label="Máquina / puesto" valor={trazabilidad.maquina} />
+      <DatoFicha label="Operario que ejecutaba" valor={trazabilidad.operario} />
+      <DatoFicha label="Fecha y hora del hecho" valor={fechaHora(trazabilidad.ocurridoEn)} />
+    </div>
+    <div className="meta sgo-trazabilidad-registro">Registro incorporado a SGO por <strong>{trazabilidad.registradoPor}</strong>. Este dato identifica a quien registró o concilió el expediente, no necesariamente al operario involucrado.</div>
+  </div>
+}
+
+function DetalleEvento({ evento, acciones, auditoria, usuario, trazabilidad, onClose }: { evento: EventoSGO; acciones: AccionSGO[]; auditoria: AuditoriaSGO[]; usuario: string; trazabilidad: TrazabilidadProductivaSGO; onClose: () => void }) {
   const [contencion, setContencion] = useState(evento.contencion ?? '')
   const [causaRaiz, setCausaRaiz] = useState(evento.causaRaiz ?? '')
   const [responsable, setResponsable] = useState(evento.responsable ?? '')
@@ -451,8 +476,9 @@ function DetalleEvento({ evento, acciones, auditoria, usuario, onClose }: { even
   }
 
   return <Modal titulo={`${evento.codigo} · ${evento.titulo}`} onClose={onClose} ancho={780}>
-    <div className="meta">Detectado {fechaHora(evento.detectadoEn)} por <strong>{evento.detectadoPor}</strong> · Pilar {PILARES_SGO.find((p) => p.id === evento.pilar)?.label}</div>
+    <div className="meta">{trazabilidad.aplica ? `Hecho ocurrido ${fechaHora(evento.detectadoEn)}` : <>Detectado {fechaHora(evento.detectadoEn)} por <strong>{evento.detectadoPor}</strong></>} · Pilar {PILARES_SGO.find((p) => p.id === evento.pilar)?.label}</div>
     <p>{evento.descripcion}</p>
+    <ResumenTrazabilidad trazabilidad={trazabilidad} />
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(210px,1fr))', gap: 10 }}>
       <div className="field"><label>Estado</label><select className="input" value={estado} onChange={(e) => setEstado(e.target.value as EstadoEventoSGO)}>{ESTADOS_EVENTO.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}</select></div>
       <div className="field"><label>Responsable</label><input className="input" value={responsable} onChange={(e) => setResponsable(e.target.value)} /></div>

@@ -53,6 +53,9 @@ export interface DatosRetrabajoSGO {
   tomadoEn?: string
   tomadoPor?: string
   operarioId?: string
+  operarioNombre?: string
+  sectorNombre?: string
+  maquinaNombre?: string
   causaRegistrada?: string
   observacionOrigen?: string
   minutosRetrabajo?: number
