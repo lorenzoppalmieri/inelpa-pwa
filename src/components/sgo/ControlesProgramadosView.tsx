@@ -150,7 +150,7 @@ function ResumenControl({ valor, label, tono }: { valor: number; label: string; 
   return <div className={`card sgo-control-resumen tono-${tono}`}><strong>{valor}</strong><span>{label}</span></div>
 }
 
-function EditorControl({ registro, usuario, onClose }: { registro: ControlProgramadoSGO | null; usuario: string; onClose: () => void }) {
+export function EditorControl({ registro, usuario, onClose }: { registro: ControlProgramadoSGO | null; usuario: string; onClose: () => void }) {
   const ahora = new Date().toISOString()
   const [titulo, setTitulo] = useState(registro?.titulo ?? '')
   const [tipo, setTipo] = useState<TipoControlSGO>(registro?.tipo ?? 'proceso_productivo')
@@ -169,9 +169,14 @@ function EditorControl({ registro, usuario, onClose }: { registro: ControlProgra
     () => registro ? db.ejecucionesControlesSGO.where('controlId').equals(registro.id).count() : Promise.resolve(0),
     [registro?.id],
   ) ?? 0
+  const puedeEditar = usuarioEsLorenzo(usuario)
   const puedeEliminar = Boolean(registro) && usuarioEsLorenzo(usuario)
 
   async function guardar() {
+    if (!puedeEditar) {
+      window.alert('Solo Lorenzo puede crear o modificar la programación de controles.')
+      return
+    }
     if (!titulo.trim() || !instrucciones.trim() || !responsable.trim() || !proximaFecha) {
       window.alert('Completá título, instrucciones, responsable y próxima fecha.')
       return
@@ -227,7 +232,7 @@ function EditorControl({ registro, usuario, onClose }: { registro: ControlProgra
   </Modal>
 }
 
-function EjecutarControl({ control, usuario, onClose, onOpenEvento }: { control: ControlProgramadoSGO; usuario: string; onClose: () => void; onOpenEvento: (id: string) => void }) {
+export function EjecutarControl({ control, usuario, onClose, onOpenEvento }: { control: ControlProgramadoSGO; usuario: string; onClose: () => void; onOpenEvento: (id: string) => void }) {
   const [resultado, setResultado] = useState<ResultadoControlSGO>('conforme')
   const [detalle, setDetalle] = useState('')
   const [evidencia, setEvidencia] = useState('')

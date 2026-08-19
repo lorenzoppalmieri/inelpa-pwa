@@ -7,9 +7,8 @@ import { fechaLocalISO, sumarDiasLocalISO } from '../../lib/time'
 import MatrizSGO from './MatrizSGO'
 import IndicadoresSGO from './IndicadoresSGO'
 import FichaCeldaSGO from './FichaCeldaSGO'
-import ControlesProgramadosView from './ControlesProgramadosView'
 import AuditoriaLogisticaView from './AuditoriaLogisticaView'
-import ControlesCampoView from './ControlesCampoView'
+import ControlesSGOView from './ControlesSGOView'
 import AgendaISOView from './AgendaISOView'
 import TareasSGOView from './TareasSGOView'
 import MejorasSGOView from './MejorasSGOView'
@@ -70,7 +69,7 @@ export default function SGOView() {
   const [celdaSeleccionada, setCeldaSeleccionada] = useState<{ area: AreaSGOId; pilar: PilarSGO }>()
   const [filtroArea, setFiltroArea] = useState('')
   const [filtroPilar, setFiltroPilar] = useState('')
-  const [pestana, setPestana] = useState<'tablero' | 'mejoras' | 'controles' | 'campo' | 'agenda_iso' | 'tareas_sgo' | 'logistica'>('tablero')
+  const [pestana, setPestana] = useState<'tablero' | 'mejoras' | 'controles' | 'agenda_iso' | 'tareas_sgo' | 'logistica'>('tablero')
   const seleccionado = eventos.find((e) => e.id === seleccionadoId)
 
   const abiertos = eventos.filter((e) => e.estado !== 'cerrado')
@@ -94,8 +93,7 @@ export default function SGOView() {
       <div className="tabs" role="tablist" aria-label="Secciones SGO">
         <button className={`tab ${pestana === 'tablero' ? 'active' : ''}`} onClick={() => setPestana('tablero')}>Tablero integral</button>
         <button className={`tab ${pestana === 'mejoras' ? 'active' : ''}`} onClick={() => setPestana('mejoras')}>Mejora continua</button>
-        <button className={`tab ${pestana === 'controles' ? 'active' : ''}`} onClick={() => setPestana('controles')}>Controles programados</button>
-        <button className={`tab ${pestana === 'campo' ? 'active' : ''}`} onClick={() => setPestana('campo')}>Controles de campo</button>
+        <button className={`tab ${pestana === 'controles' ? 'active' : ''}`} onClick={() => setPestana('controles')}>Controles SGO</button>
         <button className={`tab ${pestana === 'logistica' ? 'active' : ''}`} onClick={() => setPestana('logistica')}>Auditoría logística</button>
         <button className={`tab ${pestana === 'agenda_iso' ? 'active' : ''}`} onClick={() => setPestana('agenda_iso')}>Agenda ISO</button>
         <button className={`tab ${pestana === 'tareas_sgo' ? 'active' : ''}`} onClick={() => setPestana('tareas_sgo')}>Tareas SGO</button>
@@ -103,8 +101,7 @@ export default function SGOView() {
       {pestana === 'mejoras' ? <MejorasSGOView usuario={usuario?.usuario ?? 'sin_usuario'} onOpenEvento={(id) => { setPestana('tablero'); setSeleccionadoId(id) }} />
         : pestana === 'agenda_iso' ? <AgendaISOView usuario={usuario?.usuario ?? 'sin_usuario'} />
         : pestana === 'tareas_sgo' ? <TareasSGOView usuario={usuario?.usuario ?? 'sin_usuario'} />
-        : pestana === 'controles' ? <ControlesProgramadosView usuario={usuario?.usuario ?? 'sin_usuario'} controlInicialId={controlInicialId} onControlInicialConsumido={() => setControlInicialId(undefined)} onOpenEvento={(id) => { setPestana('tablero'); setSeleccionadoId(id) }} />
-        : pestana === 'campo' ? <ControlesCampoView usuario={usuario?.usuario ?? 'sin_usuario'} onOpenEvento={(id) => { setPestana('tablero'); setSeleccionadoId(id) }} />
+        : pestana === 'controles' ? <ControlesSGOView usuario={usuario?.usuario ?? 'sin_usuario'} controlInicialId={controlInicialId} onControlInicialConsumido={() => setControlInicialId(undefined)} onOpenEvento={(id) => { setPestana('tablero'); setSeleccionadoId(id) }} />
         : pestana === 'logistica' ? <AuditoriaLogisticaView usuario={usuario?.usuario ?? 'sin_usuario'} onOpenEvento={(id) => { setPestana('tablero'); setSeleccionadoId(id) }} /> : <>
       <div className="card" style={{ marginBottom: 14, borderLeft: '5px solid #2563eb' }}>
         <div className="card-header">

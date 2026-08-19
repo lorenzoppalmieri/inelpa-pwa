@@ -120,7 +120,7 @@ function Resumen({ valor, label, tono }: { valor: number | string; label: string
   return <div className={`card sgo-control-resumen tono-${tono}`}><strong>{valor}</strong><span>{label}</span></div>
 }
 
-function ProgramarControlCampo({ usuario, controles, onClose }: { usuario: string; controles: ControlProgramadoSGO[]; onClose: () => void }) {
+export function ProgramarControlCampo({ usuario, controles, onClose }: { usuario: string; controles: ControlProgramadoSGO[]; onClose: () => void }) {
   const auditorInicial = auditorDesdeUsuario(usuario) ?? 'Lara'
   const [auditor, setAuditor] = useState(auditorInicial)
   const [area, setArea] = useState<AreaSGOId>(areaSugeridaParaAuditor(auditorInicial))
@@ -130,7 +130,7 @@ function ProgramarControlCampo({ usuario, controles, onClose }: { usuario: strin
 
   async function guardar() {
     if (!usuarioEsLorenzo(usuario)) { window.alert('Solo Lorenzo puede modificar la programación semanal de 5S.'); return }
-    const existente = controles.find((c) => c.areaId === area)
+    const existente = controles.find((c) => c.areaId === area && c.frecuencia !== 'unico')
     const now = new Date().toISOString()
     const control: ControlProgramadoSGO = {
       id: existente?.id ?? `sgo-campo-5s-${area}`, titulo: `Control semanal 5S · ${areaSGOLabel(area)}`,
@@ -151,7 +151,7 @@ function ProgramarControlCampo({ usuario, controles, onClose }: { usuario: strin
   </Modal>
 }
 
-function SolicitarAuditoriaEspecial({ usuario, onClose }: { usuario: string; onClose: () => void }) {
+export function SolicitarAuditoriaEspecial({ usuario, onClose }: { usuario: string; onClose: () => void }) {
   const [auditor, setAuditor] = useState('Lara')
   const [area, setArea] = useState<AreaSGOId>(areaSugeridaParaAuditor('Lara'))
   const [fecha, setFecha] = useState(fechaLocalISO())
@@ -210,7 +210,7 @@ function leerBorrador(clave: string, control?: ControlProgramadoSGO | null): Bor
   } catch { return undefined }
 }
 
-function EjecutarControlCampo({ control, usuario, historial, onClose }: { control: ControlProgramadoSGO | null; usuario: string; historial: EjecucionControlSGO[]; onClose: () => void }) {
+export function EjecutarControlCampo({ control, usuario, historial, onClose }: { control: ControlProgramadoSGO | null; usuario: string; historial: EjecucionControlSGO[]; onClose: () => void }) {
   const claveBorrador = `sgo-campo-borrador-${control?.id ?? 'libre'}`
   const [inicial] = useState(() => leerBorrador(claveBorrador, control))
   const auditorLogin = auditorDesdeUsuario(usuario)
@@ -423,7 +423,7 @@ function EjecutarControlCampo({ control, usuario, historial, onClose }: { contro
   </Modal>
 }
 
-function InformeControlCampo({ ejecucion, onClose }: { ejecucion: EjecucionControlSGO; onClose: () => void }) {
+export function InformeControlCampo({ ejecucion, onClose }: { ejecucion: EjecucionControlSGO; onClose: () => void }) {
   const auditoria = ejecucion.auditoriaCampo!
   const items = itemsDeAuditoriaCampo(auditoria)
   const seguridad = auditoria.porcentajePorPilar?.seguridad ?? calcularPorPilarCampo(auditoria.respuestas, 'seguridad', items)
