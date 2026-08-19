@@ -159,6 +159,17 @@ export default function TareaCard({ tarea, onIniciar }: { tarea: Tarea; onInicia
   }
 
   async function finalizar() {
+    // v1.92: NO se puede finalizar una tarea que nunca arrancó.
+    // Sin esta guarda quedaba `estado: 'finalizada'` con `inicioReal` vacío, y
+    // eso rompía dos cosas a la vez: en el Gantt la barra se dibujaba VERDE
+    // CLARO en su horario planificado (el planificador la veía como estimada), y
+    // en los KPIs entraba con Real 0, Demorado 0 y Demora justificada 0, bajando
+    // los promedios sin que se notara. Apareció en Montaje PO Rural, donde se
+    // trabaja con tablet compartida.
+    if (!tarea.inicioReal) {
+      window.alert('Esta tarea no se puede finalizar porque nunca se inició.\n\nTocá "▶ Iniciar tarea" primero: sin hora de arranque no se puede medir cuánto llevó.')
+      return
+    }
     const datosBobinado = validarBobinado()
     if (datosBobinado === false) return // falta data obligatoria de bobinado
     const ok = window.confirm('Control de calidad: ¿la pieza esta OK? (Aceptar = OK, Cancelar = con defecto)')

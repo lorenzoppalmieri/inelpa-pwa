@@ -2065,3 +2065,7 @@ body.admin-mode .content { max-width: none; padding: 12px 18px; }
   color: var(--texto-tenue); font: inherit; font-size: .68rem; text-decoration: underline;
 }
 .nc-link:hover { color: var(--azul-claro); }
+
+/* v1.92 — causa de parada bloqueada por horario (almuerzo fuera de 12-13) */
+.causa-btn.fuera-ventana { opacity: .45; cursor: not-allowed; border-style: dashed; }
+.causa-bloqueo { display: block; font-size: .62rem; font-weight: 600; color: var(--naranja); margin-top: 3px; }

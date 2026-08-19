@@ -46,6 +46,36 @@ export function tramoAlmuerzo(grupo: GrupoAlmuerzo): Tramo {
     : { iniMin: 12 * 60, finMin: 12 * 60 + 30 } // 12:00 - 12:30
 }
 
+// ============================================================
+// v1.92 — VENTANA EN LA QUE SE PUEDE REGISTRAR EL ALMUERZO
+//
+// Regla de planta (dirección + RRHH): son 30 minutos y se comen entre las 12 y
+// las 13. Antes nada lo impedía: un operario salía a comprar comida 12:30 antes
+// y marcaba "Almuerzo" a las 11:45, sumando 45' de pausa no productiva que se
+// descontaban del tiempo real.
+//
+// Se valida la VENTANA (12:00-13:00) para TODOS, sin distinguir grupo A/B: el
+// escalonamiento existe para el cálculo de capacidad, pero hoy ningún sector ni
+// colaborador tiene grupo asignado, así que restringir por grupo bloquearía a
+// gente sin dato. La ventana única cubre los dos turnos.
+//
+// Solo aplica al ALMUERZO. Una rotura de máquina o una falta de material se
+// registran a cualquier hora — si no, esas horas pasarían a demora sin justificar.
+// ============================================================
+export const ALMUERZO_VENTANA: Tramo = { iniMin: 12 * 60, finMin: 13 * 60 }
+
+/** true si `d` cae dentro de la ventana en que se puede marcar el almuerzo. */
+export function dentroVentanaAlmuerzo(d: Date = new Date()): boolean {
+  const min = d.getHours() * 60 + d.getMinutes()
+  return min >= ALMUERZO_VENTANA.iniMin && min < ALMUERZO_VENTANA.finMin
+}
+
+/** "12:00" / "13:00" — para armar el mensaje sin repetir los números. */
+export function ventanaAlmuerzoTexto(): string {
+  const f = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
+  return `${f(ALMUERZO_VENTANA.iniMin)} y las ${f(ALMUERZO_VENTANA.finMin)}`
+}
+
 // Cierre del turno NORMAL (donde cae la limpieza de fin de jornada).
 // dow: 0=Dom .. 6=Sab. null = no laborable.
 function cierreNormalMin(dow: number): number | null {

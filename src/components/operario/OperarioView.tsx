@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
 import { useAuth } from '../../auth/AuthContext'
 import { isoWeek } from '../../lib/time'
+import { dentroVentanaAlmuerzo, ventanaAlmuerzoTexto } from '../../lib/calendario'
 import type { EstadoTarea, Tarea, CausaParada } from '../../types'
 import { sectorById, TIPO_ESTACION_LABEL, maquinaSirveSector, esSectorBobinado, causaLabel, areaDemora, compararFifo } from '../../types'
 import { guardarTarea } from '../../sync/syncEngine'
@@ -88,6 +89,13 @@ export default function OperarioView() {
   // Pausa TODAS las tareas activas (en_proceso o pausada) sumando una NUEVA parada
   // con la causa elegida. Si una ya estaba pausada, queda con 2 paradas abiertas.
   async function pausarEstacion(causa: CausaParada, obs: string) {
+    // v1.92: red de seguridad. La pausa de estación entra por el mismo
+    // ModalParada, que ya bloquea el almuerzo fuera de las 12-13; esto cubre el
+    // caso de que el modal quede abierto y se confirme pasada la ventana.
+    if (causa === 'almuerzo' && !dentroVentanaAlmuerzo()) {
+      window.alert(`El almuerzo se registra entre las ${ventanaAlmuerzoTexto()}. Son 30 minutos.`)
+      return
+    }
     setModalGlobal(false)
     const ahoraISO = new Date().toISOString()
     const activas = (tareas ?? []).filter((t) => t.estado === 'en_proceso' || t.estado === 'pausada')
