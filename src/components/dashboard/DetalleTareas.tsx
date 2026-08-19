@@ -12,6 +12,7 @@ import { exportarDetalleTareasCSV } from '../../lib/export'
 import { db } from '../../db/dexie'
 import { useAuth } from '../../auth/AuthContext'
 import { noConformidadDesdeParada, paradasCalidad } from '../../sgo/integraciones'
+import { guardarTarea } from '../../sync/syncEngine'
 import FiltrosMovil from '../ui/FiltrosMovil'
 
 // ============================================================
@@ -30,11 +31,36 @@ export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina }:
   const [q, setQ] = useState('')
   const [soloDemora, setSoloDemora] = useState(false)
   const [creandoNC, setCreandoNC] = useState<string>()
+  // v1.91: parada de calidad que se está por descartar + el motivo tipeado.
+  const [descartando, setDescartando] = useState<{ t: Tarea; paradaId: string; label: string } | null>(null)
+  const [motivoDescarte, setMotivoDescarte] = useState('')
+
+  // v1.91: DESCARTAR una no conformidad. El planificador mira la parada de
+  // calidad y decide que no amerita abrir una NC (ej. un retrabajo menor ya
+  // resuelto en el momento). No se borra nada: queda el motivo y el autor,
+  // porque ante una auditoría hay que poder explicar la decisión. Es reversible.
+  async function descartarNC(t: Tarea, paradaId: string, motivo: string) {
+    const paradas = t.paradas.map((p) => (p.id === paradaId ? {
+      ...p, ncDescartada: true,
+      ncDescartadaPor: usuario?.usuario, ncDescartadaEn: new Date().toISOString(),
+      ncMotivoDescarte: motivo.trim(),
+    } : p))
+    await guardarTarea({ ...t, paradas })
+  }
+
+  async function reactivarNC(t: Tarea, paradaId: string) {
+    const paradas = t.paradas.map((p) => (p.id === paradaId ? {
+      ...p, ncDescartada: undefined, ncDescartadaPor: undefined,
+      ncDescartadaEn: undefined, ncMotivoDescarte: undefined,
+    } : p))
+    await guardarTarea({ ...t, paradas })
+  }
 
   async function crearNoConformidades(t: Tarea) {
     setCreandoNC(t.id)
     let creadas = 0
-    for (const p of paradasCalidad(t)) {
+    // v1.91: las descartadas a propósito no se convierten en NC.
+    for (const p of paradasCalidad(t).filter((x) => !x.ncDescartada)) {
       const r = await noConformidadDesdeParada(t, p, usuario?.usuario ?? 'planificador')
       if (r.creado) creadas++
     }
@@ -170,8 +196,14 @@ export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina }:
                   min: tr?.minutos ?? 0,
                   inicio: p.inicio,
                   ya: eventosSGO.some((e) => e.paradaId === p.id),
+                  descartada: !!p.ncDescartada,
+                  motivo: p.ncMotivoDescarte ?? '',
+                  descartadaPor: p.ncDescartadaPor ?? '',
                 }
               })
+              // Pendientes = ni convertidas en NC ni descartadas a propósito.
+              const pendientes = detalleNC.filter((d) => !d.ya && !d.descartada).length
+              const resueltas = detalleNC.length - pendientes
               // Tooltip con todo el detalle (la celda muestra sólo lo esencial).
               const tituloNC = detalleNC.map((d) =>
                 `${d.ya ? '✓ ' : '• '}${d.label}${d.min ? ` · ${fmtDur(d.min)}` : ''}`
@@ -195,8 +227,8 @@ export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina }:
                           decidía a ciegas si abrir la no conformidad. */}
                       <div className="nc-causas">
                         {detalleNC.map((d) => (
-                          <div key={d.id} className={'nc-causa' + (d.ya ? ' ya' : '')}>
-                            <span className="nc-punto">{d.ya ? '✓' : '•'}</span>
+                          <div key={d.id} className={'nc-causa' + (d.ya ? ' ya' : '') + (d.descartada ? ' descartada' : '')}>
+                            <span className="nc-punto">{d.ya ? '✓' : d.descartada ? '✕' : '•'}</span>
                             <span className="nc-lbl">{d.label}</span>
                             {/* v1.90: cuándo pasó. Sin la fecha y la hora no se
                                 puede cruzar la parada con el turno ni con lo que
@@ -204,12 +236,27 @@ export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina }:
                             <span className="nc-cuando">{fechaCorta(d.inicio)} · {hhmm(d.inicio)}</span>
                             {d.min > 0 && <span className="nc-min">{fmtDur(d.min)}</span>}
                             {d.obs && <span className="nc-obs">“{d.obs}”</span>}
+                            {/* v1.91: acción por parada. Cada una se resuelve
+                                sola: una tarea puede tener una NC creada y otra
+                                descartada. */}
+                            {d.descartada ? (
+                              <span className="nc-acciones">
+                                <em className="nc-descarte">Sin NC: {d.motivo || 'sin motivo'}{d.descartadaPor ? ` · ${d.descartadaPor}` : ''}</em>
+                                <button className="nc-link" onClick={() => void reactivarNC(r.t, d.id)}>↺ reactivar</button>
+                              </span>
+                            ) : !d.ya && (
+                              <span className="nc-acciones">
+                                <button className="nc-link" onClick={() => { setMotivoDescarte(''); setDescartando({ t: r.t, paradaId: d.id, label: d.label }) }}>
+                                  ✕ no amerita NC
+                                </button>
+                              </span>
+                            )}
                           </div>
                         ))}
                       </div>
-                      {vinculadas === pc.length
-                        ? <span className="estado-chip">NC creada</span>
-                        : <button className="btn btn-rojo" disabled={creandoNC === r.id} onClick={() => void crearNoConformidades(r.t)}>{creandoNC === r.id ? 'Creando…' : `+ NC (${pc.length - vinculadas})`}</button>}
+                      {pendientes === 0
+                        ? <span className="estado-chip">{vinculadas > 0 ? `NC creada${resueltas > vinculadas ? ` (${vinculadas} de ${resueltas})` : ''}` : 'Sin NC'}</span>
+                        : <button className="btn btn-rojo" disabled={creandoNC === r.id} onClick={() => void crearNoConformidades(r.t)}>{creandoNC === r.id ? 'Creando…' : `+ NC (${pendientes})`}</button>}
                     </>
                   )}
                 </td>
@@ -231,6 +278,43 @@ export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina }:
             </tr>
           </tfoot>
         </table>
+      )}
+
+      {/* ---------- v1.91: descartar una no conformidad ----------
+          Exige motivo: la decisión de NO abrir una NC sobre una parada de
+          calidad tiene que poder explicarse ante una auditoría. */}
+      {descartando && (
+        <div className="modal-overlay" onClick={() => setDescartando(null)}>
+          <div className="modal modal-flex" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 520 }}>
+            <div className="modal-head"><h2>No abrir no conformidad</h2></div>
+            <div className="modal-cuerpo">
+              <div className="card" style={{ borderLeft: '4px solid var(--naranja)' }}>
+                <strong>{descartando.label}</strong>
+                <div className="meta" style={{ marginTop: 4 }}>{descartando.t.modelo}{descartando.t.nroTransformador ? ` · N° ${descartando.t.nroTransformador}` : ''}</div>
+              </div>
+              <div className="meta" style={{ marginTop: 10 }}>
+                La parada <strong>no se borra</strong> y sigue contando como demora justificada.
+                Lo único que cambia es que deja de reclamar la no conformidad en esta pantalla.
+                Queda registrado con tu usuario y se puede reactivar cuando quieras.
+              </div>
+              <div className="field" style={{ marginTop: 12 }}>
+                <label>¿Por qué no amerita una NC? *</label>
+                <input className="input" value={motivoDescarte} autoFocus
+                  onChange={(e) => setMotivoDescarte(e.target.value)}
+                  placeholder="ej. retrabajo menor resuelto en el momento, sin impacto en el producto" />
+              </div>
+            </div>
+            <div className="modal-pie">
+              <div className="row-actions">
+                <button className="btn" style={{ flex: 1 }} onClick={() => setDescartando(null)}>Cancelar</button>
+                <button className="btn btn-naranja" style={{ flex: 1 }} disabled={!motivoDescarte.trim()}
+                  onClick={() => { void descartarNC(descartando.t, descartando.paradaId, motivoDescarte); setDescartando(null) }}>
+                  Confirmar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

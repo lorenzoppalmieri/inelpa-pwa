@@ -129,6 +129,11 @@ export interface ParadaRow {
   inicio: string
   fin: string | null
   observacion: string | null
+  // v1.91: descarte de la no conformidad (ver Parada en types).
+  nc_descartada: boolean | null
+  nc_descartada_por: string | null
+  nc_descartada_en: string | null
+  nc_motivo_descarte: string | null
 }
 
 export interface OrdenRow {
@@ -524,6 +529,10 @@ export function paradaFromRow(r: ParadaRow): Parada {
     inicio: r.inicio,
     fin: u(r.fin),
     observacion: u(r.observacion),
+    ncDescartada: r.nc_descartada ?? undefined,
+    ncDescartadaPor: u(r.nc_descartada_por),
+    ncDescartadaEn: u(r.nc_descartada_en),
+    ncMotivoDescarte: u(r.nc_motivo_descarte),
   }
 }
 
@@ -1201,6 +1210,10 @@ export function paradaToRow(p: Parada): ParadaRow {
     inicio: p.inicio,
     fin: p.fin ?? null,
     observacion: p.observacion ?? null,
+    nc_descartada: p.ncDescartada ?? null,
+    nc_descartada_por: p.ncDescartadaPor ?? null,
+    nc_descartada_en: p.ncDescartadaEn ?? null,
+    nc_motivo_descarte: p.ncMotivoDescarte ?? null,
   }
 }
 

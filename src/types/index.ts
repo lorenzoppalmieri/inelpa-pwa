@@ -210,6 +210,14 @@ export interface Parada {
   inicio: string           // ISO timestamp
   fin?: string             // ISO timestamp (undefined = parada en curso)
   observacion?: string
+  // v1.91: el planificador decidio que esta parada de CALIDAD no amerita abrir
+  // una no conformidad en SGO. Deja de reclamarla en "Detalle por tarea", pero
+  // NO se borra: queda el motivo y el autor, porque ante una auditoria hay que
+  // poder explicar por que se descarto. Es reversible.
+  ncDescartada?: boolean
+  ncDescartadaPor?: string
+  ncDescartadaEn?: string
+  ncMotivoDescarte?: string
 }
 
 // Datos tecnicos capturados en los sectores de bobinado antes de finalizar.
