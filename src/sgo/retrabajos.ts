@@ -80,6 +80,20 @@ export function requisitosCierreRetrabajo(evento: EventoSGO, acciones: AccionSGO
   if (!datos.resultadoResolucion?.trim()) errores.push('Documentar el resultado obtenido.')
   if (!costoDefinido(evento)) errores.push('Elegir cómo se registrará el costo del retrabajo.')
   if (datos.modalidadCosto === 'total_estimado' && !(evento.costoEstimado && evento.costoEstimado > 0)) errores.push('Ingresar el costo total estimado.')
+  if (datos.modalidadCosto === 'detallado' && datos.costeo) {
+    const costeo = datos.costeo
+    if (!(costeo.horasCorreccion > 0)) errores.push('Registrar el tiempo utilizado para corregir el retrabajo.')
+    if (!(costeo.personasInvolucradas >= 1)) errores.push('Registrar cuántas personas participaron de la corrección.')
+    if (['cobre', 'aluminio'].includes(costeo.materialTipo) && !(costeo.materialKg && costeo.materialKg > 0)) errores.push('Ingresar los kilogramos de material perdido.')
+    if (costeo.materialTipo === 'otro' && (!costeo.materialDescripcion?.trim() || !(costeo.materialCostoManual && costeo.materialCostoManual > 0))) errores.push('Describir y valorizar el otro material perdido.')
+    if (costeo.maquinaEstado !== 'no_aplica' && !costeo.maquinaDetalle?.trim()) errores.push('Describir la rotura, reparación o repuesto de la máquina.')
+    if (['estimado', 'confirmado'].includes(costeo.maquinaEstado) && !(costeo.maquinaCosto && costeo.maquinaCosto > 0)) errores.push('Ingresar el costo relevado de la máquina o repuesto.')
+    if ((costeo.ensayosCosto ?? 0) > 0 && !costeo.ensayosDetalle?.trim()) errores.push('Explicar el costo adicional de ensayos.')
+    if ((costeo.logisticaCosto ?? 0) > 0 && !costeo.logisticaDetalle?.trim()) errores.push('Explicar el costo adicional de logística.')
+    if ((costeo.tercerosCosto ?? 0) > 0 && !costeo.tercerosDetalle?.trim()) errores.push('Explicar el costo de terceros.')
+    if (nivel === 'critica' && costeo.maquinaEstado === 'pendiente_cotizacion') errores.push('Confirmar con Compras el costo pendiente de máquina o repuesto.')
+    if (nivel === 'critica' && (costeo.estado !== 'confirmado' || costeo.confirmadoPor?.trim().toLowerCase() !== 'lorenzo')) errores.push('Lorenzo debe confirmar el costeo antes de cerrar un retrabajo crítico.')
+  }
 
   if (nivel === 'simple') {
     if (activas.some((accion) => accion.estado !== 'verificada')) errores.push('Resolver o cancelar las acciones abiertas, o cambiar el nivel a “Con acción correctiva”.')

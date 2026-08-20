@@ -2,6 +2,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
 import { validarCierreEvento } from '../../sgo/cierre'
+import {
+  aplicarCosteoRetrabajo, crearCosteoRetrabajo, guardarNuevaVersionTarifarioCostos,
+  obtenerTarifarioCostosVigente, TARIFARIO_COSTOS_BASE,
+} from '../../sgo/costosRetrabajo'
 import { conciliarInvestigacionesRetrabajo } from '../../sgo/integraciones'
 import { datosMejoraDesdeEvento } from '../../sgo/mejoras'
 import { usuarioEsLorenzo, usuarioPuedeCerrarRetrabajo, usuarioPuedeInvestigarRetrabajo } from '../../sgo/permisos'
@@ -13,8 +17,9 @@ import {
 } from '../../sgo/retrabajos'
 import {
   AREAS_SGO, areaSGOLabel, codigoEventoSGO, costoNoCalidadTotal, type AccionSGO, type AreaSGOId,
-  type ClasificacionCausaRetrabajoSGO, type CostoNoCalidad, type DatosRetrabajoSGO, type EventoSGO,
-  type ModalidadCostoRetrabajoSGO, type NivelInvestigacionRetrabajoSGO,
+  type ClasificacionCausaRetrabajoSGO, type DatosCosteoRetrabajoSGO, type DatosRetrabajoSGO, type EventoSGO,
+  type MaterialCostoRetrabajoSGO, type ModalidadCostoRetrabajoSGO, type NivelInvestigacionRetrabajoSGO,
+  type TarifarioCostosRetrabajoSGO,
 } from '../../sgo/types'
 import { guardarAccionSGO, guardarEventoSGO } from '../../sync/syncEngine'
 
@@ -123,21 +128,17 @@ function EditorRetrabajo({ eventoInicial, acciones, trazabilidad, usuario, onClo
   const requisitos = requisitosCierreRetrabajo(evento, acciones)
   const setCampo = <K extends keyof EventoSGO>(campo: K, valor: EventoSGO[K]) => setEvento({ ...evento, [campo]: valor, actualizadoEn: new Date().toISOString() })
   const setDato = <K extends keyof DatosRetrabajoSGO>(campo: K, valor: DatosRetrabajoSGO[K]) => setEvento({ ...evento, retrabajo: { ...datos, [campo]: valor }, actualizadoEn: new Date().toISOString() })
-  const setCosto = (campo: keyof CostoNoCalidad, valor: number) => {
-    const costoDetalle = { material: 0, manoObra: 0, maquina: 0, ensayos: 0, logistica: 0, terceros: 0, ...evento.costoDetalle, [campo]: Math.max(0, valor || 0) }
-    setEvento({ ...evento, costoDetalle, costoEstimado: costoNoCalidadTotal(costoDetalle), actualizadoEn: new Date().toISOString() })
-  }
   const setNivel = (valor: NivelInvestigacionRetrabajoSGO) => {
     if (nivelForzado && valor !== 'critica') return
     setDato('nivelInvestigacion', valor)
   }
   const setModalidadCosto = (valor: ModalidadCostoRetrabajoSGO) => {
-    const base = { ...datos, modalidadCosto: valor, costosRevisados: true }
+    const base = { ...datos, modalidadCosto: valor, costosRevisados: valor === 'sin_costo', costeo: valor === 'detallado' ? datos.costeo : undefined }
     if (valor === 'sin_costo') {
       setEvento({ ...evento, costoDetalle: { material: 0, manoObra: 0, maquina: 0, ensayos: 0, logistica: 0, terceros: 0 }, costoEstimado: 0, retrabajo: { ...base, costosJustificacion: 'Sin costo adicional' }, actualizadoEn: new Date().toISOString() })
       return
     }
-    setEvento({ ...evento, retrabajo: base, actualizadoEn: new Date().toISOString() })
+    setEvento({ ...evento, retrabajo: base, costoDetalle: valor === 'total_estimado' ? undefined : evento.costoDetalle, actualizadoEn: new Date().toISOString() })
   }
 
   async function tomar() {
@@ -249,7 +250,15 @@ function EditorRetrabajo({ eventoInicial, acciones, trazabilidad, usuario, onClo
 
       <div className="section-title">2. Investigación de causa raíz</div><div className="sgo-retrabajo-form-grid"><Campo label="Método de análisis *"><select className="input" value={evento.metodoAnalisis ?? ''} onChange={(e) => setCampo('metodoAnalisis', (e.target.value || undefined) as EventoSGO['metodoAnalisis'])}><option value="">Seleccionar</option><option value="5_porques">5 porqués</option><option value="ishikawa">Ishikawa</option><option value="a3">A3</option><option value="8d">8D</option><option value="otro">Otro</option></select></Campo><Campo label="Clasificación de causa *"><select className="input" value={datos.clasificacionCausa ?? ''} onChange={(e) => setDato('clasificacionCausa', (e.target.value || undefined) as DatosRetrabajoSGO['clasificacionCausa'])}><option value="">Seleccionar</option>{CAUSAS.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></Campo></div><Campo label="Causa raíz comprobada *"><textarea className="input" rows={3} value={evento.causaRaiz ?? ''} onChange={(e) => setCampo('causaRaiz', e.target.value || undefined)} placeholder="No confundir la causa con el síntoma observado." /></Campo><Campo label="Factores contribuyentes *"><textarea className="input" rows={2} value={datos.factoresContribuyentes ?? ''} onChange={(e) => setDato('factoresContribuyentes', e.target.value || undefined)} /></Campo><label className="check-inline"><input type="checkbox" checked={Boolean(datos.reincidente)} onChange={(e) => setDato('reincidente', e.target.checked)} /> Es un defecto o causa reincidente</label>
 
-      <div className="section-title">3. Costos del retrabajo</div><div className="sgo-retrabajo-costos">{([['manoObra', 'Mano de obra'], ['material', 'Material'], ['maquina', 'Máquina'], ['ensayos', 'Ensayos'], ['logistica', 'Logística'], ['terceros', 'Terceros']] as [keyof CostoNoCalidad, string][]).map(([id, label]) => <Campo label={label} key={id}><input className="input" type="number" min="0" value={evento.costoDetalle?.[id] ?? 0} onChange={(e) => setCosto(id, Number(e.target.value))} /></Campo>)}</div><div className="sgo-retrabajo-total">Costo total estimado: <strong>${costoNoCalidadTotal(evento.costoDetalle).toLocaleString('es-AR')}</strong></div><div className="sgo-retrabajo-form-grid"><Campo label="Referencia SAP B1"><input className="input" value={datos.referenciaSAP ?? ''} onChange={(e) => setDato('referenciaSAP', e.target.value || undefined)} /></Campo><label className="check-inline"><input type="checkbox" checked={Boolean(datos.costosRevisados)} onChange={(e) => setDato('costosRevisados', e.target.checked)} /> Costos revisados y confirmados</label></div>{datos.costosRevisados && costoNoCalidadTotal(evento.costoDetalle) === 0 && <Campo label="Justificación de costo cero *"><textarea className="input" rows={2} value={datos.costosJustificacion ?? ''} onChange={(e) => setDato('costosJustificacion', e.target.value || undefined)} /></Campo>}
+      <div className="section-title">3. Costos del retrabajo</div>
+      <CostosRetrabajoEditor
+        evento={evento}
+        usuario={usuario}
+        lorenzo={lorenzo}
+        modalidad={modalidadCosto}
+        onModalidad={setModalidadCosto}
+        onChange={setEvento}
+      />
 
       <div className="section-title">4. Evidencia y verificación</div><Campo label="Evidencias / referencias (una por línea)"><textarea className="input" rows={2} value={(evento.evidenciaUrls ?? []).join('\n')} onChange={(e) => setCampo('evidenciaUrls', e.target.value.split('\n').map((item) => item.trim()).filter(Boolean))} /></Campo><div className="sgo-retrabajo-form-grid"><Campo label="Fecha real de verificación *"><input className="input" type="date" max={new Date().toISOString().slice(0, 10)} value={datos.fechaVerificacion ?? ''} onChange={(e) => setDato('fechaVerificacion', e.target.value || undefined)} /></Campo><Campo label="Resultado de la verificación"><select className="input" disabled={!lorenzo} value={datos.resultadoVerificacion ?? 'pendiente'} onChange={(e) => setDato('resultadoVerificacion', e.target.value as DatosRetrabajoSGO['resultadoVerificacion'])}><option value="pendiente">Pendiente</option><option value="eficaz">Acciones eficaces</option><option value="reincidencia">Reincidencia</option></select></Campo></div><Campo label="Observación de verificación *"><textarea className="input" rows={2} disabled={!lorenzo} value={datos.observacionVerificacion ?? ''} onChange={(e) => setDato('observacionVerificacion', e.target.value || undefined)} /></Campo>
     </fieldset>
@@ -258,6 +267,116 @@ function EditorRetrabajo({ eventoInicial, acciones, trazabilidad, usuario, onClo
     <div className="card sgo-retrabajo-mejora"><div><strong>Oportunidad de mejora continua</strong><div className="meta">Se crea como expediente vinculado solo si la investigación identifica una mejora que merece seguimiento propio.</div></div>{datos.mejoraEventoId ? <span className="estado-chip mejora-detectada">Propuesta creada</span> : editable ? <button className="btn" disabled={guardando} onClick={() => void proponerMejora()}>Proponer mejora</button> : <span className="meta">Sin propuesta</span>}</div>
     <div className="row-actions sgo-retrabajo-editor-pie"><button className="btn" onClick={onClose}>Cerrar ventana</button>{editable && <button className="btn btn-primary" disabled={guardando} onClick={() => void guardar()}>{guardando ? 'Guardando…' : 'Guardar investigación'}</button>}{lorenzo && evento.estado !== 'cerrado' && <button className="btn btn-verde" disabled={guardando} onClick={() => void cerrar()}>Verificar y cerrar</button>}</div>
   </div></div>
+}
+
+function CostosRetrabajoEditor({ evento, usuario, lorenzo, modalidad, onModalidad, onChange }: {
+  evento: EventoSGO
+  usuario: string
+  lorenzo: boolean
+  modalidad: ModalidadCostoRetrabajoSGO | ''
+  onModalidad: (valor: ModalidadCostoRetrabajoSGO) => void
+  onChange: (evento: EventoSGO) => void
+}) {
+  const [tarifarioVigente, setTarifarioVigente] = useState<TarifarioCostosRetrabajoSGO>(TARIFARIO_COSTOS_BASE)
+  const [tarifarioListo, setTarifarioListo] = useState(false)
+  const [editandoTarifario, setEditandoTarifario] = useState(false)
+  const [guardandoTarifario, setGuardandoTarifario] = useState(false)
+  const [nuevoTarifario, setNuevoTarifario] = useState({
+    vigenteDesde: new Date().toISOString().slice(0, 10),
+    horaHombre: TARIFARIO_COSTOS_BASE.horaHombre,
+    factorTiempoPerdido: TARIFARIO_COSTOS_BASE.factorTiempoPerdido,
+    cobreKg: TARIFARIO_COSTOS_BASE.cobreKg,
+    aluminioKg: TARIFARIO_COSTOS_BASE.aluminioKg,
+  })
+  const datos = evento.retrabajo!
+  const costeo = datos.costeo
+  const tarifarioAplicado = costeo?.tarifario ?? tarifarioVigente
+  const moneda = (valor = 0) => valor.toLocaleString('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 2 })
+
+  useEffect(() => {
+    let activo = true
+    void obtenerTarifarioCostosVigente().then((tarifario) => {
+      if (!activo) return
+      setTarifarioVigente(tarifario)
+      setNuevoTarifario({
+        vigenteDesde: new Date().toISOString().slice(0, 10),
+        horaHombre: tarifario.horaHombre,
+        factorTiempoPerdido: tarifario.factorTiempoPerdido,
+        cobreKg: tarifario.cobreKg,
+        aluminioKg: tarifario.aluminioKg,
+      })
+      setTarifarioListo(true)
+    })
+    return () => { activo = false }
+  }, [])
+
+  function actualizarCosteo(cambio: Partial<DatosCosteoRetrabajoSGO>) {
+    const base = costeo ?? crearCosteoRetrabajo(tarifarioVigente)
+    onChange(aplicarCosteoRetrabajo(evento, { ...base, ...cambio }))
+  }
+
+  function cambiarModalidad(valor: ModalidadCostoRetrabajoSGO) {
+    if (valor === 'detallado') {
+      onChange(aplicarCosteoRetrabajo(evento, costeo ?? crearCosteoRetrabajo(tarifarioVigente)))
+      return
+    }
+    onModalidad(valor)
+  }
+
+  function cambiarMaterial(materialTipo: MaterialCostoRetrabajoSGO) {
+    actualizarCosteo({
+      materialTipo,
+      materialKg: undefined,
+      materialDescripcion: undefined,
+      materialCostoManual: undefined,
+    })
+  }
+
+  async function guardarTarifario() {
+    if (!lorenzo || guardandoTarifario) return
+    setGuardandoTarifario(true)
+    try {
+      const guardado = await guardarNuevaVersionTarifarioCostos(nuevoTarifario, usuario)
+      const vigente = await obtenerTarifarioCostosVigente()
+      setTarifarioVigente(vigente)
+      setEditandoTarifario(false)
+      window.alert(guardado.vigenteDesde > new Date().toISOString().slice(0, 10) ? 'Nuevo tarifario programado para la fecha indicada.' : 'Nuevo tarifario guardado. Se aplicará a los retrabajos que todavía no hayan iniciado su costeo.')
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'No se pudo guardar el tarifario.')
+    } finally { setGuardandoTarifario(false) }
+  }
+
+  return <div className="sgo-costeo-retrabajo">
+    <Campo label="Forma de registrar el costo *"><select className="input" value={modalidad} disabled={!tarifarioListo && !costeo} onChange={(e) => cambiarModalidad(e.target.value as ModalidadCostoRetrabajoSGO)}><option value="">{tarifarioListo ? 'Seleccionar' : 'Cargando tarifario…'}</option><option value="detallado">Calcular con tarifario</option><option value="total_estimado">Ingresar un total estimado</option><option value="sin_costo">Sin costo adicional</option></select></Campo>
+
+    {modalidad === 'sin_costo' && <div className="card sgo-costeo-aviso">Se registrará un costo total de $0. El caso conservará la justificación “Sin costo adicional”.</div>}
+
+    {modalidad === 'total_estimado' && <div className="sgo-retrabajo-form-grid"><Campo label="Costo total estimado (ARS) *"><input className="input" type="number" min="0" step="0.01" value={evento.costoEstimado ?? ''} onChange={(e) => onChange({ ...evento, costoEstimado: Math.max(0, Number(e.target.value) || 0), actualizadoEn: new Date().toISOString() })} /></Campo><Campo label="Referencia / explicación"><input className="input" value={datos.costosJustificacion ?? ''} onChange={(e) => onChange({ ...evento, retrabajo: { ...datos, costosJustificacion: e.target.value || undefined }, actualizadoEn: new Date().toISOString() })} /></Campo></div>}
+
+    {modalidad === 'detallado' && <>
+      <div className="card sgo-tarifario-resumen"><div><strong>Tarifario aplicado</strong><div className="meta">Vigente desde {tarifarioAplicado.vigenteDesde}. Esta copia quedará fija en el retrabajo.</div></div><div className="sgo-tarifario-valores"><span>Hora hombre <b>{moneda(tarifarioAplicado.horaHombre)}</b></span><span>Factor <b>×{tarifarioAplicado.factorTiempoPerdido}</b></span><span>Cobre <b>{moneda(tarifarioAplicado.cobreKg)}/kg</b></span><span>Aluminio <b>{moneda(tarifarioAplicado.aluminioKg)}/kg</b></span></div>{lorenzo && <button type="button" className="btn" onClick={() => setEditandoTarifario((valor) => !valor)}>Editar valores base</button>}</div>
+
+      {lorenzo && editandoTarifario && <div className="card sgo-tarifario-editor"><div className="section-title">Nueva versión del tarifario</div><div className="meta">No modifica retrabajos que ya tengan un costeo iniciado.</div><div className="sgo-tarifario-form"><Campo label="Vigente desde"><input className="input" type="date" value={nuevoTarifario.vigenteDesde} onChange={(e) => setNuevoTarifario({ ...nuevoTarifario, vigenteDesde: e.target.value })} /></Campo><Campo label="Hora hombre"><input className="input" type="number" min="0.01" value={nuevoTarifario.horaHombre} onChange={(e) => setNuevoTarifario({ ...nuevoTarifario, horaHombre: Number(e.target.value) })} /></Campo><Campo label="Factor de tiempo perdido"><input className="input" type="number" min="1" step="0.1" value={nuevoTarifario.factorTiempoPerdido} onChange={(e) => setNuevoTarifario({ ...nuevoTarifario, factorTiempoPerdido: Number(e.target.value) })} /></Campo><Campo label="Cobre por kg"><input className="input" type="number" min="0.01" value={nuevoTarifario.cobreKg} onChange={(e) => setNuevoTarifario({ ...nuevoTarifario, cobreKg: Number(e.target.value) })} /></Campo><Campo label="Aluminio por kg"><input className="input" type="number" min="0.01" value={nuevoTarifario.aluminioKg} onChange={(e) => setNuevoTarifario({ ...nuevoTarifario, aluminioKg: Number(e.target.value) })} /></Campo></div><div className="row-actions"><button type="button" className="btn" onClick={() => setEditandoTarifario(false)}>Cancelar</button><button type="button" className="btn btn-primary" disabled={guardandoTarifario} onClick={() => void guardarTarifario()}>{guardandoTarifario ? 'Guardando…' : 'Guardar nueva versión'}</button></div></div>}
+
+      {!costeo && costoNoCalidadTotal(evento.costoDetalle) > 0 && <div className="card sgo-costeo-aviso">Este registro contiene un costeo anterior de {moneda(costoNoCalidadTotal(evento.costoDetalle))}. Al completar la nueva calculadora se reemplazará por un cálculo trazable.</div>}
+
+      <div className="card sgo-costeo-bloque"><div className="sgo-costeo-bloque-titulo"><div><strong>Mano de obra</strong><div className="meta">Tiempo de corrección × personas × hora hombre × factor productivo.</div></div><b>{moneda(evento.costoDetalle?.manoObra)}</b></div><div className="sgo-retrabajo-form-grid"><Campo label="Horas utilizadas *"><input className="input" type="number" min="0" step="0.25" value={costeo?.horasCorreccion ?? 0} onChange={(e) => actualizarCosteo({ horasCorreccion: Math.max(0, Number(e.target.value) || 0) })} /></Campo><Campo label="Personas involucradas *"><input className="input" type="number" min="1" step="1" value={costeo?.personasInvolucradas ?? 1} onChange={(e) => actualizarCosteo({ personasInvolucradas: Math.max(1, Math.floor(Number(e.target.value) || 1)) })} /></Campo></div>{costeo && <div className="meta">{costeo.horasCorreccion} h × {costeo.personasInvolucradas} persona(s) × {moneda(costeo.tarifario.horaHombre)} × {costeo.tarifario.factorTiempoPerdido}</div>}</div>
+
+      <div className="card sgo-costeo-bloque"><div className="sgo-costeo-bloque-titulo"><div><strong>Material perdido</strong><div className="meta">Solo puede seleccionarse cobre o aluminio; nunca ambos en el mismo retrabajo.</div></div><b>{moneda(evento.costoDetalle?.material)}</b></div><div className="sgo-retrabajo-form-grid"><Campo label="Material"><select className="input" value={costeo?.materialTipo ?? 'ninguno'} onChange={(e) => cambiarMaterial(e.target.value as MaterialCostoRetrabajoSGO)}><option value="ninguno">Sin material perdido</option><option value="cobre">Cobre</option><option value="aluminio">Aluminio</option><option value="otro">Otro material</option></select></Campo>{costeo && ['cobre', 'aluminio'].includes(costeo.materialTipo) && <Campo label="Kilogramos perdidos *"><input className="input" type="number" min="0" step="0.01" value={costeo.materialKg ?? 0} onChange={(e) => actualizarCosteo({ materialKg: Math.max(0, Number(e.target.value) || 0) })} /></Campo>}{costeo?.materialTipo === 'otro' && <><Campo label="Descripción *"><input className="input" value={costeo.materialDescripcion ?? ''} onChange={(e) => actualizarCosteo({ materialDescripcion: e.target.value || undefined })} /></Campo><Campo label="Costo relevado *"><input className="input" type="number" min="0" step="0.01" value={costeo.materialCostoManual ?? 0} onChange={(e) => actualizarCosteo({ materialCostoManual: Math.max(0, Number(e.target.value) || 0) })} /></Campo></>}</div>{costeo && ['cobre', 'aluminio'].includes(costeo.materialTipo) && <div className="meta">Precio aplicado: {moneda(costeo.materialTipo === 'cobre' ? costeo.tarifario.cobreKg : costeo.tarifario.aluminioKg)} por kg.</div>}</div>
+
+      <div className="card sgo-costeo-bloque"><div className="sgo-costeo-bloque-titulo"><div><strong>Máquina y repuestos</strong><div className="meta">Si hay rotura, Lara solicita el valor a Compras y deja la referencia.</div></div><b>{moneda(evento.costoDetalle?.maquina)}</b></div><div className="sgo-retrabajo-form-grid"><Campo label="Estado"><select className="input" value={costeo?.maquinaEstado ?? 'no_aplica'} onChange={(e) => actualizarCosteo({ maquinaEstado: e.target.value as DatosCosteoRetrabajoSGO['maquinaEstado'], estado: e.target.value === 'pendiente_cotizacion' ? 'estimado' : (costeo?.estado ?? 'estimado') })}><option value="no_aplica">No aplica</option><option value="pendiente_cotizacion">Pendiente de cotización</option><option value="estimado">Costo estimado</option><option value="confirmado">Costo confirmado</option></select></Campo>{costeo?.maquinaEstado !== 'no_aplica' && <><Campo label="Repuesto / reparación *"><input className="input" value={costeo?.maquinaDetalle ?? ''} onChange={(e) => actualizarCosteo({ maquinaDetalle: e.target.value || undefined })} /></Campo><Campo label="Referencia de Compras / SAP B1"><input className="input" value={costeo?.maquinaReferenciaCompras ?? ''} onChange={(e) => actualizarCosteo({ maquinaReferenciaCompras: e.target.value || undefined })} /></Campo><Campo label="Costo relevado"><input className="input" type="number" min="0" step="0.01" disabled={costeo?.maquinaEstado === 'pendiente_cotizacion'} value={costeo?.maquinaCosto ?? 0} onChange={(e) => actualizarCosteo({ maquinaCosto: Math.max(0, Number(e.target.value) || 0) })} /></Campo></>}</div>{costeo?.maquinaEstado === 'pendiente_cotizacion' && <div className="sgo-costeo-pendiente">Costo pendiente: solicitar cotización a Compras.</div>}</div>
+
+      <div className="card sgo-costeo-bloque"><div className="sgo-costeo-bloque-titulo"><div><strong>Otros costos relevados</strong><div className="meta">Ingresar el importe y explicar brevemente su origen.</div></div></div><div className="sgo-costeo-directos">{([['ensayos', 'Ensayos'], ['logistica', 'Logística'], ['terceros', 'Terceros']] as const).map(([id, label]) => {
+        const costoCampo = `${id}Costo` as 'ensayosCosto' | 'logisticaCosto' | 'tercerosCosto'
+        const detalleCampo = `${id}Detalle` as 'ensayosDetalle' | 'logisticaDetalle' | 'tercerosDetalle'
+        return <div className="sgo-costeo-directo" key={id}><Campo label={`${label} (ARS)`}><input className="input" type="number" min="0" step="0.01" value={costeo?.[costoCampo] ?? 0} onChange={(e) => actualizarCosteo({ [costoCampo]: Math.max(0, Number(e.target.value) || 0) })} /></Campo><Campo label="Detalle"><input className="input" value={costeo?.[detalleCampo] ?? ''} onChange={(e) => actualizarCosteo({ [detalleCampo]: e.target.value || undefined })} /></Campo></div>
+      })}</div></div>
+
+      <div className="sgo-retrabajo-form-grid"><Campo label="Estado del costeo"><select className="input" value={costeo?.estado ?? 'estimado'} onChange={(e) => { const confirmado = e.target.value === 'confirmado'; actualizarCosteo({ estado: e.target.value as DatosCosteoRetrabajoSGO['estado'], confirmadoEn: confirmado ? new Date().toISOString() : undefined, confirmadoPor: confirmado ? usuario : undefined }) }}><option value="estimado">Estimado</option><option value="confirmado" disabled={costeo?.maquinaEstado === 'pendiente_cotizacion' || (nivelInvestigacionRetrabajo(evento) === 'critica' && !lorenzo)}>Confirmado</option></select>{costeo?.confirmadoPor && <div className="meta">Confirmado por {costeo.confirmadoPor}.</div>}{nivelInvestigacionRetrabajo(evento) === 'critica' && !lorenzo && <div className="meta">El costeo crítico lo confirma Lorenzo.</div>}</Campo><Campo label="Referencia general SAP B1"><input className="input" value={datos.referenciaSAP ?? ''} onChange={(e) => onChange({ ...evento, retrabajo: { ...datos, referenciaSAP: e.target.value || undefined }, actualizadoEn: new Date().toISOString() })} /></Campo></div>
+
+      <div className="card sgo-costeo-total"><div><span>Mano de obra</span><b>{moneda(evento.costoDetalle?.manoObra)}</b></div><div><span>Material</span><b>{moneda(evento.costoDetalle?.material)}</b></div><div><span>Máquina</span><b>{moneda(evento.costoDetalle?.maquina)}</b></div><div><span>Ensayos</span><b>{moneda(evento.costoDetalle?.ensayos)}</b></div><div><span>Logística</span><b>{moneda(evento.costoDetalle?.logistica)}</b></div><div><span>Terceros</span><b>{moneda(evento.costoDetalle?.terceros)}</b></div><div className="sgo-costeo-total-final"><span>Costo total estimado</span><strong>{moneda(evento.costoEstimado)}</strong></div></div>
+    </>}
+  </div>
 }
 
 function Campo({ label, children }: { label: string; children: React.ReactNode }) { return <div className="field"><label>{label}</label>{children}</div> }

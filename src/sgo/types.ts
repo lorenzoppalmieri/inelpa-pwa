@@ -46,6 +46,43 @@ export type ClasificacionCausaRetrabajoSGO = 'persona' | 'metodo' | 'maquina' | 
 export type ResultadoVerificacionRetrabajoSGO = 'pendiente' | 'eficaz' | 'reincidencia'
 export type NivelInvestigacionRetrabajoSGO = 'simple' | 'con_accion' | 'critica'
 export type ModalidadCostoRetrabajoSGO = 'sin_costo' | 'total_estimado' | 'detallado'
+export type MaterialCostoRetrabajoSGO = 'ninguno' | 'cobre' | 'aluminio' | 'otro'
+export type EstadoCostoMaquinaSGO = 'no_aplica' | 'pendiente_cotizacion' | 'estimado' | 'confirmado'
+export type EstadoCosteoRetrabajoSGO = 'estimado' | 'confirmado'
+
+export interface TarifarioCostosRetrabajoSGO {
+  id: string
+  vigenteDesde: string
+  horaHombre: number
+  factorTiempoPerdido: number
+  cobreKg: number
+  aluminioKg: number
+  creadoEn?: string
+  creadoPor?: string
+}
+
+export interface DatosCosteoRetrabajoSGO {
+  tarifario: TarifarioCostosRetrabajoSGO
+  horasCorreccion: number
+  personasInvolucradas: number
+  materialTipo: MaterialCostoRetrabajoSGO
+  materialKg?: number
+  materialDescripcion?: string
+  materialCostoManual?: number
+  maquinaEstado: EstadoCostoMaquinaSGO
+  maquinaDetalle?: string
+  maquinaReferenciaCompras?: string
+  maquinaCosto?: number
+  ensayosCosto?: number
+  ensayosDetalle?: string
+  logisticaCosto?: number
+  logisticaDetalle?: string
+  tercerosCosto?: number
+  tercerosDetalle?: string
+  estado: EstadoCosteoRetrabajoSGO
+  confirmadoEn?: string
+  confirmadoPor?: string
+}
 
 export interface DatosRetrabajoSGO {
   origen: OrigenRetrabajoSGO
@@ -71,6 +108,7 @@ export interface DatosRetrabajoSGO {
   costosRevisados?: boolean
   costosJustificacion?: string
   modalidadCosto?: ModalidadCostoRetrabajoSGO
+  costeo?: DatosCosteoRetrabajoSGO
   referenciaSAP?: string
   resultadoResolucion?: string
   fechaVerificacion?: string
