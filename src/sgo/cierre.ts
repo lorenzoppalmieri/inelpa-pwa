@@ -21,6 +21,9 @@ export function eventoRequiereInvestigacion(evento: EventoSGO): boolean {
 
 export function validarCierreEvento(evento: EventoSGO, acciones: AccionSGO[]): string[] {
   if (evento.estado !== 'cerrado') return []
+  // Los retrabajos tienen un único validador por nivel. Evita duplicar las
+  // exigencias generales de una NC con las propias de la investigación.
+  if (evento.retrabajo) return validarCierreRetrabajo(evento, acciones)
 
   const errores: string[] = []
   const requiereInvestigacion = eventoRequiereInvestigacion(evento)
@@ -43,7 +46,5 @@ export function validarCierreEvento(evento: EventoSGO, acciones: AccionSGO[]): s
   }
 
   errores.push(...validarCierreMejora(evento, acciones))
-  errores.push(...validarCierreRetrabajo(evento))
-
   return errores
 }

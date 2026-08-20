@@ -6,6 +6,12 @@ export function usuarioPuedeInvestigarRetrabajo(usuario: string): boolean {
   return ['lara', 'lorenzo'].includes(usuario.trim().toLowerCase())
 }
 
+export function usuarioPuedeCerrarRetrabajo(usuario: string, evento: EventoSGO): boolean {
+  const normalizado = usuario.trim().toLowerCase()
+  if (normalizado === 'lorenzo') return true
+  return normalizado === 'lara' && Boolean(evento.retrabajo) && nivelInvestigacionRetrabajo(evento) !== 'critica'
+}
+
 export function exigirPermisoBorradoSGO(usuario: string): void {
   if (!usuarioEsLorenzo(usuario)) {
     throw new Error('Solo el usuario Lorenzo puede eliminar registros de SGO.')
@@ -24,3 +30,5 @@ export function exigirPermisoGuardarTareaSGO(usuario: string, asignadoA: string,
     throw new Error('No tenés permiso para modificar esta tarea SGO.')
   }
 }
+import { nivelInvestigacionRetrabajo } from './retrabajos'
+import type { EventoSGO } from './types'

@@ -4,17 +4,19 @@ import { db } from '../../db/dexie'
 import { validarCierreEvento } from '../../sgo/cierre'
 import { conciliarInvestigacionesRetrabajo } from '../../sgo/integraciones'
 import { datosMejoraDesdeEvento } from '../../sgo/mejoras'
-import { usuarioEsLorenzo, usuarioPuedeInvestigarRetrabajo } from '../../sgo/permisos'
+import { usuarioEsLorenzo, usuarioPuedeCerrarRetrabajo, usuarioPuedeInvestigarRetrabajo } from '../../sgo/permisos'
 import { resolverTrazabilidadProductiva, type TrazabilidadProductivaSGO } from '../../sgo/trazabilidad'
 import {
-  ESTADOS_INVESTIGACION_RETRABAJO, estadoInvestigacionRetrabajo, esEventoRetrabajo,
-  semaforoSLAInvestigacion, type EstadoInvestigacionRetrabajo,
+  ESTADOS_INVESTIGACION_RETRABAJO, NIVELES_INVESTIGACION_RETRABAJO, costoRetrabajoTotal,
+  estadoInvestigacionRetrabajo, esEventoRetrabajo, nivelInvestigacionRetrabajo,
+  requisitosCierreRetrabajo, semaforoSLAInvestigacion, type EstadoInvestigacionRetrabajo,
 } from '../../sgo/retrabajos'
 import {
   AREAS_SGO, areaSGOLabel, codigoEventoSGO, costoNoCalidadTotal, type AccionSGO, type AreaSGOId,
   type ClasificacionCausaRetrabajoSGO, type CostoNoCalidad, type DatosRetrabajoSGO, type EventoSGO,
+  type ModalidadCostoRetrabajoSGO, type NivelInvestigacionRetrabajoSGO,
 } from '../../sgo/types'
-import { guardarEventoSGO } from '../../sync/syncEngine'
+import { guardarAccionSGO, guardarEventoSGO } from '../../sync/syncEngine'
 
 const ORIGEN_LABEL: Record<DatosRetrabajoSGO['origen'], string> = {
   parada_calidad: 'Parada de calidad', defecto_final: 'Defecto al finalizar', laboratorio: 'Rechazo de laboratorio',
@@ -63,7 +65,7 @@ export default function RetrabajosSGOView({ usuario, onOpenEvento }: { usuario: 
   const vencidos = activos.filter((evento) => semaforoSLAInvestigacion(evento, ahora).tono === 'rojo').length
   const tomados = retrabajos.filter((evento) => evento.retrabajo?.tomadoEn)
   const enTermino = tomados.length ? Math.round(tomados.filter((evento) => evento.retrabajo!.tomadoEn! <= evento.retrabajo!.fechaLimiteToma).length / tomados.length * 100) : 0
-  const costoMes = retrabajos.filter((evento) => evento.detectadoEn.slice(0, 7) === mes).reduce((total, evento) => total + costoNoCalidadTotal(evento.costoDetalle), 0)
+  const costoMes = retrabajos.filter((evento) => evento.detectadoEn.slice(0, 7) === mes).reduce((total, evento) => total + costoRetrabajoTotal(evento), 0)
   const reincidencias = retrabajos.filter((evento) => evento.retrabajo?.reincidente || evento.retrabajo?.resultadoVerificacion === 'reincidencia').length
   const base = cerrados ? finalizados : activos
   const q = buscar.trim().toLocaleLowerCase('es')
@@ -103,7 +105,8 @@ function Listado({ eventos, acciones, trazabilidades, ahora, onOpen }: { eventos
 function RetrabajoCard({ evento, acciones, trazabilidad, ahora, onOpen }: { evento: EventoSGO; acciones: AccionSGO[]; trazabilidad: TrazabilidadProductivaSGO; ahora: string; onOpen: () => void }) {
   const etapa = estadoInvestigacionRetrabajo(evento, acciones)
   const sla = semaforoSLAInvestigacion(evento, ahora)
-  return <button className={`card sgo-retrabajo-card sla-${sla.tono}`} onClick={onOpen}><div className="sgo-retrabajo-card-top"><span className={`estado-chip retrabajo-${etapa}`}>{estadoLabel(etapa)}</span><span className={`sgo-retrabajo-sla sla-${sla.tono}`}>{sla.label}</span></div><strong>{evento.titulo}</strong><div className="meta">{evento.codigo} · {ORIGEN_LABEL[evento.retrabajo!.origen]}</div><div className="meta">{areaSGOLabel(evento.areaOrigenId ?? evento.areaId)} · {evento.modelo || 'Sin modelo'}{evento.nroSerie ? ` · Serie ${evento.nroSerie}` : ''}</div><div className="sgo-trazabilidad-compacta"><span><b>Sector:</b> {trazabilidad.sector}</span><span><b>Máquina:</b> {trazabilidad.maquina}</span><span><b>Operario:</b> {trazabilidad.operario}</span></div><div className="sgo-retrabajo-causa">{evento.retrabajo?.causaRegistrada || 'Sin causa informada en origen'}</div><div className="sgo-retrabajo-card-resumen"><span>Ocurrió: <strong>{fechaHora(evento.detectadoEn)}</strong></span><span>{evento.retrabajo?.minutosRetrabajo !== undefined ? `${evento.retrabajo.minutosRetrabajo} min` : 'Tiempo en curso'}</span><span>${costoNoCalidadTotal(evento.costoDetalle).toLocaleString('es-AR')}</span></div></button>
+  const nivel = NIVELES_INVESTIGACION_RETRABAJO.find((item) => item.id === nivelInvestigacionRetrabajo(evento))?.label
+  return <button className={`card sgo-retrabajo-card sla-${sla.tono}`} onClick={onOpen}><div className="sgo-retrabajo-card-top"><span className={`estado-chip retrabajo-${etapa}`}>{estadoLabel(etapa)}</span><span className={`sgo-retrabajo-sla sla-${sla.tono}`}>{sla.label}</span></div><strong>{evento.titulo}</strong><div className="meta">{evento.codigo} · {ORIGEN_LABEL[evento.retrabajo!.origen]} · {nivel}</div><div className="meta">{areaSGOLabel(evento.areaOrigenId ?? evento.areaId)} · {evento.modelo || 'Sin modelo'}{evento.nroSerie ? ` · Serie ${evento.nroSerie}` : ''}</div><div className="sgo-trazabilidad-compacta"><span><b>Sector:</b> {trazabilidad.sector}</span><span><b>Máquina:</b> {trazabilidad.maquina}</span><span><b>Operario:</b> {trazabilidad.operario}</span></div><div className="sgo-retrabajo-causa">{evento.retrabajo?.causaRegistrada || 'Sin causa informada en origen'}</div><div className="sgo-retrabajo-card-resumen"><span>Ocurrió: <strong>{fechaHora(evento.detectadoEn)}</strong></span><span>{evento.retrabajo?.minutosRetrabajo !== undefined ? `${evento.retrabajo.minutosRetrabajo} min` : 'Tiempo en curso'}</span><span>${costoRetrabajoTotal(evento).toLocaleString('es-AR')}</span></div></button>
 }
 
 function EditorRetrabajo({ eventoInicial, acciones, trazabilidad, usuario, onClose, onOpenEvento }: { eventoInicial: EventoSGO; acciones: AccionSGO[]; trazabilidad: TrazabilidadProductivaSGO; usuario: string; onClose: () => void; onOpenEvento: () => void }) {
@@ -112,12 +115,29 @@ function EditorRetrabajo({ eventoInicial, acciones, trazabilidad, usuario, onClo
   const datos = evento.retrabajo!
   const puede = usuarioPuedeInvestigarRetrabajo(usuario)
   const lorenzo = usuarioEsLorenzo(usuario)
+  const nivel = nivelInvestigacionRetrabajo(evento)
+  const cierrePermitido = usuarioPuedeCerrarRetrabajo(usuario, evento)
+  const nivelForzado = ['alta', 'critica'].includes(evento.severidad) || datos.origen === 'laboratorio' || Boolean(datos.reincidente)
   const editable = puede && Boolean(datos.tomadoEn) && evento.estado !== 'cerrado'
+  const modalidadCosto = datos.modalidadCosto ?? (datos.costosRevisados ? (costoNoCalidadTotal(evento.costoDetalle) > 0 ? 'detallado' : 'sin_costo') : '')
+  const requisitos = requisitosCierreRetrabajo(evento, acciones)
   const setCampo = <K extends keyof EventoSGO>(campo: K, valor: EventoSGO[K]) => setEvento({ ...evento, [campo]: valor, actualizadoEn: new Date().toISOString() })
   const setDato = <K extends keyof DatosRetrabajoSGO>(campo: K, valor: DatosRetrabajoSGO[K]) => setEvento({ ...evento, retrabajo: { ...datos, [campo]: valor }, actualizadoEn: new Date().toISOString() })
   const setCosto = (campo: keyof CostoNoCalidad, valor: number) => {
     const costoDetalle = { material: 0, manoObra: 0, maquina: 0, ensayos: 0, logistica: 0, terceros: 0, ...evento.costoDetalle, [campo]: Math.max(0, valor || 0) }
     setEvento({ ...evento, costoDetalle, costoEstimado: costoNoCalidadTotal(costoDetalle), actualizadoEn: new Date().toISOString() })
+  }
+  const setNivel = (valor: NivelInvestigacionRetrabajoSGO) => {
+    if (nivelForzado && valor !== 'critica') return
+    setDato('nivelInvestigacion', valor)
+  }
+  const setModalidadCosto = (valor: ModalidadCostoRetrabajoSGO) => {
+    const base = { ...datos, modalidadCosto: valor, costosRevisados: true }
+    if (valor === 'sin_costo') {
+      setEvento({ ...evento, costoDetalle: { material: 0, manoObra: 0, maquina: 0, ensayos: 0, logistica: 0, terceros: 0 }, costoEstimado: 0, retrabajo: { ...base, costosJustificacion: 'Sin costo adicional' }, actualizadoEn: new Date().toISOString() })
+      return
+    }
+    setEvento({ ...evento, retrabajo: base, actualizadoEn: new Date().toISOString() })
   }
 
   async function tomar() {
@@ -134,12 +154,31 @@ function EditorRetrabajo({ eventoInicial, acciones, trazabilidad, usuario, onClo
     const estado: EventoSGO['estado'] = activas.length ? 'con_acciones' : 'en_analisis'
     const reincide = datos.resultadoVerificacion === 'reincidencia'
     const now = new Date().toISOString()
-    const retrabajo = lorenzo && datos.resultadoVerificacion !== 'pendiente'
+    const retrabajo = cierrePermitido && datos.resultadoVerificacion !== 'pendiente'
       ? { ...datos, verificadoEn: now, verificadoPor: usuario }
       : datos
     const actualizado: EventoSGO = { ...evento, retrabajo, estado, severidad: reincide ? 'alta' : evento.severidad, cerradoEn: undefined, cerradoPor: undefined, actualizadoEn: now }
     setGuardando(true)
     try { await guardarEventoSGO(actualizado); onClose() } finally { setGuardando(false) }
+  }
+
+  async function resolverAccionesComoCorreccion() {
+    const pendientes = acciones.filter((accion) => !['verificada', 'cancelada'].includes(accion.estado))
+    if (!editable || nivel !== 'simple' || !pendientes.length) return
+    if (!window.confirm(`Se marcarán ${pendientes.length} acción(es) como resueltas mediante la corrección inmediata documentada. Usá esta opción solo si efectivamente quedaron solucionadas. ¿Continuar?`)) return
+    const now = new Date().toISOString()
+    setGuardando(true)
+    try {
+      for (const accion of pendientes) {
+        await guardarAccionSGO({
+          ...accion, estado: 'verificada', eficaz: true,
+          evidencia: accion.evidencia || 'Corrección inmediata documentada en la investigación de retrabajo.',
+          completadaEn: accion.completadaEn ?? now, completadaPor: accion.completadaPor ?? usuario,
+          verificadaEn: now, verificadaPor: usuario,
+          comentarioVerificacion: datos.resultadoResolucion || 'La corrección inmediata resolvió el retrabajo.', actualizadoEn: now,
+        })
+      }
+    } finally { setGuardando(false) }
   }
 
   async function proponerMejora() {
@@ -173,17 +212,30 @@ function EditorRetrabajo({ eventoInicial, acciones, trazabilidad, usuario, onClo
   }
 
   async function cerrar() {
-    if (!lorenzo) return
+    if (!cierrePermitido) return
     const now = new Date().toISOString()
     const candidato: EventoSGO = {
-      ...evento, retrabajo: { ...datos, verificadoEn: now, verificadoPor: usuario },
+      ...evento, retrabajo: {
+        ...datos,
+        resultadoVerificacion: nivel === 'simple' ? 'eficaz' : datos.resultadoVerificacion,
+        fechaVerificacion: nivel === 'critica' ? datos.fechaVerificacion : now.slice(0, 10),
+        verificadoEn: now, verificadoPor: usuario,
+      },
       estado: 'cerrado', cerradoEn: now, cerradoPor: usuario, actualizadoEn: now,
     }
     const errores = validarCierreEvento(candidato, acciones)
     if (errores.length) { window.alert(`No se puede cerrar la investigación:\n\n• ${errores.join('\n• ')}`); return }
     if (!window.confirm('La investigación quedará cerrada y pasará al historial. ¿Continuar?')) return
     setGuardando(true)
-    try { await guardarEventoSGO(candidato); onClose() } finally { setGuardando(false) }
+    try {
+      if (nivel === 'con_accion') {
+        for (const accion of acciones.filter((item) => item.estado === 'completada')) {
+          await guardarAccionSGO({ ...accion, estado: 'verificada', eficaz: true, verificadaEn: now, verificadaPor: usuario, comentarioVerificacion: datos.observacionVerificacion, actualizadoEn: now })
+        }
+      }
+      await guardarEventoSGO(candidato)
+      onClose()
+    } finally { setGuardando(false) }
   }
 
   return <div className="modal-overlay"><div className="modal sgo-retrabajo-editor" role="dialog" aria-modal="true" aria-label={`Investigación ${evento.codigo}`}><div className="card-header"><div><div className="section-title">{evento.codigo} · Investigación de retrabajo</div><div className="meta">{ORIGEN_LABEL[datos.origen]} · detectado {fechaHora(evento.detectadoEn)}</div></div><button className="btn" onClick={onClose}>×</button></div>

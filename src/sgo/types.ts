@@ -44,12 +44,15 @@ export type OrigenEntidadMejoraSGO = 'control_5s' | 'auditoria_logistica' | 'con
 export type OrigenRetrabajoSGO = 'parada_calidad' | 'defecto_final' | 'laboratorio'
 export type ClasificacionCausaRetrabajoSGO = 'persona' | 'metodo' | 'maquina' | 'material' | 'medicion' | 'ambiente' | 'diseno' | 'otro'
 export type ResultadoVerificacionRetrabajoSGO = 'pendiente' | 'eficaz' | 'reincidencia'
+export type NivelInvestigacionRetrabajoSGO = 'simple' | 'con_accion' | 'critica'
+export type ModalidadCostoRetrabajoSGO = 'sin_costo' | 'total_estimado' | 'detallado'
 
 export interface DatosRetrabajoSGO {
   origen: OrigenRetrabajoSGO
   asignadoA: string
   fechaLimiteToma: string
   fechaLimiteInvestigacion: string
+  nivelInvestigacion?: NivelInvestigacionRetrabajoSGO
   tomadoEn?: string
   tomadoPor?: string
   operarioId?: string
@@ -67,7 +70,9 @@ export interface DatosRetrabajoSGO {
   antecedenteEventoId?: string
   costosRevisados?: boolean
   costosJustificacion?: string
+  modalidadCosto?: ModalidadCostoRetrabajoSGO
   referenciaSAP?: string
+  resultadoResolucion?: string
   fechaVerificacion?: string
   resultadoVerificacion?: ResultadoVerificacionRetrabajoSGO
   observacionVerificacion?: string
