@@ -1,3 +1,6 @@
+import { nivelInvestigacionRetrabajo } from './retrabajos'
+import type { EventoSGO } from './types'
+
 export function usuarioEsLorenzo(usuario: string): boolean {
   return usuario.trim().toLowerCase() === 'lorenzo'
 }
@@ -30,5 +33,3 @@ export function exigirPermisoGuardarTareaSGO(usuario: string, asignadoA: string,
     throw new Error('No tenés permiso para modificar esta tarea SGO.')
   }
 }
-import { nivelInvestigacionRetrabajo } from './retrabajos'
-import type { EventoSGO } from './types'
