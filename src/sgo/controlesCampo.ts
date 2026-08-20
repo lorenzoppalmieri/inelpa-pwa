@@ -67,6 +67,40 @@ export interface AuditoriaCampoSGO {
   porcentajePorPilar?: Partial<Record<PilarSGO, number>>
   calificacionAnterior?: number
   eventoIds?: string[]
+  /** Trazabilidad de evidencias agregadas luego del cierre. */
+  evidenciasActualizadasEn?: string
+  evidenciasActualizadasPor?: string
+  evidenciasActualizaciones?: Array<{
+    actualizadoEn: string
+    actualizadoPor: string
+    cantidadAgregada: number
+  }>
+}
+
+export function agregarEvidenciasAuditoriaCampo(
+  auditoria: AuditoriaCampoSGO,
+  nuevasPorItem: Record<string, string[]>,
+  usuario: string,
+  actualizadoEn = new Date().toISOString(),
+): AuditoriaCampoSGO {
+  let cantidadAgregada = 0
+  const respuestas = auditoria.respuestas.map((respuesta) => {
+    const actuales = respuesta.evidenciaPaths ?? []
+    const nuevas = (nuevasPorItem[respuesta.itemId] ?? []).filter((path) => !actuales.includes(path))
+    cantidadAgregada += nuevas.length
+    return nuevas.length ? { ...respuesta, evidenciaPaths: [...actuales, ...nuevas] } : respuesta
+  })
+  if (!cantidadAgregada) return auditoria
+  return {
+    ...auditoria,
+    respuestas,
+    evidenciasActualizadasEn: actualizadoEn,
+    evidenciasActualizadasPor: usuario,
+    evidenciasActualizaciones: [
+      ...(auditoria.evidenciasActualizaciones ?? []),
+      { actualizadoEn, actualizadoPor: usuario, cantidadAgregada },
+    ],
+  }
 }
 
 export interface AuditorCampo {

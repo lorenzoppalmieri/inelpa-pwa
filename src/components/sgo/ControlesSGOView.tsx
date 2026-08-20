@@ -189,7 +189,7 @@ export default function ControlesSGOView({ usuario, onOpenEvento, controlInicial
     {ejecutandoCampo && <EjecutarControlCampo control={ejecutandoCampo} usuario={usuario} historial={historialCampo} onClose={() => setEjecutandoCampo(undefined)} />}
     {programandoCampo && <ProgramarControlCampo usuario={usuario} controles={controles.filter(esAuditoriaCampo)} onClose={() => setProgramandoCampo(false)} />}
     {auditoriaEspecial && <SolicitarAuditoriaEspecial usuario={usuario} onClose={() => setAuditoriaEspecial(false)} />}
-    {informeCampo?.auditoriaCampo && <InformeControlCampo ejecucion={informeCampo} onClose={() => setInformeCampo(undefined)} />}
+    {informeCampo?.auditoriaCampo && <InformeControlCampo ejecucion={informeCampo} usuario={usuario} onUpdated={setInformeCampo} onClose={() => setInformeCampo(undefined)} />}
   </div>
 }
 

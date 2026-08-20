@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   PLANTILLA_5S_RIT_9_2_12, PLANTILLA_5S_RIT_9_2_12_V01, SECCIONES_5S, calcularPorcentajeCampo, calcularPorPilarCampo,
-  areas5SParaAuditor, controlCampoCompleto, itemsDeAuditoriaCampo, respuestaVacia, semaforoCampo,
+  agregarEvidenciasAuditoriaCampo, areas5SParaAuditor, controlCampoCompleto, itemsDeAuditoriaCampo, respuestaVacia, semaforoCampo,
   type AuditoriaCampoSGO, type RespuestaControlCampo,
 } from '../controlesCampo'
 
@@ -73,5 +73,25 @@ describe('controles de campo 5S', () => {
     expect(areas5SParaAuditor('Nicolás')).toEqual(['logistica_operativa', 'logistica_despacho'])
     expect(areas5SParaAuditor('Lara')).toContain('carpinteria')
     expect(areas5SParaAuditor('Lara')).toContain('corte_aislacion')
+  })
+
+  it('permite anexar fotos después del cierre sin alterar respuestas ni puntajes', () => {
+    const auditoria = {
+      tipo: '5s', plantillaId: PLANTILLA_5S_RIT_9_2_12.id, plantillaVersion: PLANTILLA_5S_RIT_9_2_12.version,
+      documento: PLANTILLA_5S_RIT_9_2_12.documento, areaId: 'laminado', auditor: 'Lara', usuarioAcceso: 'lara',
+      encargadoArea: 'Encargado', iniciadaEn: '2026-08-20T10:00:00.000Z', finalizadaEn: '2026-08-20T11:00:00.000Z',
+      respuestas: [{ itemId: '5s-seiri-01a', puntaje: 1 as const, observacion: 'Material fuera de lugar.', evidenciaPaths: ['foto-anterior.jpg'] }],
+      porcentajeCumplimiento: 50, porcentajePorSeccion: { seiri: 50 },
+    } satisfies AuditoriaCampoSGO
+    const actualizada = agregarEvidenciasAuditoriaCampo(
+      auditoria, { '5s-seiri-01a': ['foto-anterior.jpg', 'foto-nueva.jpg'] }, 'Lara', '2026-08-20T15:00:00.000Z',
+    )
+    expect(actualizada.respuestas[0]).toMatchObject({ puntaje: 1, observacion: 'Material fuera de lugar.' })
+    expect(actualizada.respuestas[0].evidenciaPaths).toEqual(['foto-anterior.jpg', 'foto-nueva.jpg'])
+    expect(actualizada.porcentajeCumplimiento).toBe(50)
+    expect(actualizada.finalizadaEn).toBe(auditoria.finalizadaEn)
+    expect(actualizada.evidenciasActualizaciones).toEqual([
+      { actualizadoEn: '2026-08-20T15:00:00.000Z', actualizadoPor: 'Lara', cantidadAgregada: 1 },
+    ])
   })
 })

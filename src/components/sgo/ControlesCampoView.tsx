@@ -13,7 +13,10 @@ import {
   controlCampoCompleto, itemsDeAuditoriaCampo, prepararRespuestasCampo, respuestaEsHallazgo, semaforoCampo,
   type AuditoriaCampoSGO, type PuntajeControlCampo, type RespuestaControlCampo, type RiesgoHallazgoCampo,
 } from '../../sgo/controlesCampo'
-import { firmarEvidenciasCampo, subirEvidenciasCampo } from '../../sgo/evidenciasCampo'
+import {
+  capturarEvidenciasCampo, encolarEvidenciasCampo, firmarEvidenciasCampo, listarEvidenciasPendientesCampo,
+  sincronizarEvidenciasPendientesCampo, type EvidenciaPendienteCampo,
+} from '../../sgo/evidenciasCampo'
 import { datosMejoraDesdeEvento } from '../../sgo/mejoras'
 import { proximaFechaControl, tipoEventoDesdeControl, type ControlProgramadoSGO, type EjecucionControlSGO } from '../../sgo/controles'
 import {
@@ -112,7 +115,7 @@ export default function ControlesCampoView({ usuario, onOpenEvento }: { usuario:
     {controlActivo !== undefined && <EjecutarControlCampo control={controlActivo} usuario={usuario} historial={historial} onClose={() => setControlActivo(undefined)} />}
     {programando && <ProgramarControlCampo usuario={usuario} controles={controlesCampo} onClose={() => setProgramando(false)} />}
     {solicitandoEspecial && <SolicitarAuditoriaEspecial usuario={usuario} onClose={() => setSolicitandoEspecial(false)} />}
-    {informe?.auditoriaCampo && <InformeControlCampo ejecucion={informe} onClose={() => setInforme(undefined)} />}
+    {informe?.auditoriaCampo && <InformeControlCampo ejecucion={informe} usuario={usuario} onUpdated={setInforme} onClose={() => setInforme(undefined)} />}
   </div>
 }
 
@@ -225,6 +228,7 @@ export function EjecutarControlCampo({ control, usuario, historial, onClose }: {
   const [seccionActiva, setSeccionActiva] = useState(SECCIONES_5S[0].id)
   const [guardando, setGuardando] = useState(false)
   const [subiendoItem, setSubiendoItem] = useState<string>()
+  const [fotosPendientes, setFotosPendientes] = useState<Record<string, number>>({})
   const porcentaje = calcularPorcentajeCampo(respuestas)
   const porSeccion = calcularPorSeccionCampo(respuestas)
   const porcentajeSeguridad = calcularPorPilarCampo(respuestas, 'seguridad')
@@ -236,6 +240,15 @@ export function EjecutarControlCampo({ control, usuario, historial, onClose }: {
     localStorage.setItem(claveBorrador, JSON.stringify(borrador))
   }, [ejecucionId, control?.id, area, auditor, encargado, ubicacion, turno, inicio, respuestas, claveBorrador])
 
+  useEffect(() => {
+    void listarEvidenciasPendientesCampo(ejecucionId).then((registros) => {
+      setFotosPendientes(registros.reduce<Record<string, number>>((porItem, registro) => {
+        porItem[registro.itemId] = (porItem[registro.itemId] ?? 0) + 1
+        return porItem
+      }, {}))
+    }).catch(() => undefined)
+  }, [ejecucionId])
+
   function actualizar(itemId: string, cambio: Partial<RespuestaControlCampo>) {
     setRespuestas((actuales) => actuales.map((r) => r.itemId === itemId ? { ...r, ...cambio } : r))
   }
@@ -244,9 +257,13 @@ export function EjecutarControlCampo({ control, usuario, historial, onClose }: {
     if (!files?.length) return
     setSubiendoItem(itemId)
     try {
-      const paths = await subirEvidenciasCampo(files, ejecucionId, itemId)
+      const { paths, pendientes } = await capturarEvidenciasCampo(files, ejecucionId, itemId)
       const actual = respuestas.find((r) => r.itemId === itemId)
       actualizar(itemId, { evidenciaPaths: [...(actual?.evidenciaPaths ?? []), ...paths] })
+      if (pendientes) {
+        setFotosPendientes((actuales) => ({ ...actuales, [itemId]: (actuales[itemId] ?? 0) + pendientes }))
+        window.alert(`${pendientes} foto(s) quedaron guardadas en esta tablet. Podrás sincronizarlas al abrir el informe cuando vuelva Internet.`)
+      }
     } catch (e) {
       window.alert(e instanceof Error ? e.message : 'No se pudieron subir las evidencias.')
     } finally { setSubiendoItem(undefined) }
@@ -271,11 +288,16 @@ export function EjecutarControlCampo({ control, usuario, historial, onClose }: {
 
   async function finalizar() {
     if (!auditor.trim() || !encargado.trim()) { window.alert('Seleccioná el auditor real y completá el encargado del área.'); return }
-    if (!controlCampoCompleto(respuestas)) {
+    const respuestasParaValidar = respuestas.map((respuesta) => fotosPendientes[respuesta.itemId]
+      ? { ...respuesta, evidenciaPaths: [...(respuesta.evidenciaPaths ?? []), '__foto_pendiente_offline__'] }
+      : respuesta)
+    if (!controlCampoCompleto(respuestasParaValidar)) {
       window.alert('Faltan respuestas. Para 0 o 1 son obligatorios observación, evidencia, acción, responsable y fecha. “No aplica” requiere justificación.')
       return
     }
-    if (!window.confirm(`Se cerrará el control con ${porcentaje}% de cumplimiento. Una vez enviado quedará trazable. ¿Continuar?`)) return
+    const totalPendientes = Object.values(fotosPendientes).reduce((total, cantidad) => total + cantidad, 0)
+    const avisoFotos = totalPendientes ? `\n\n${totalPendientes} foto(s) quedarán guardadas en esta tablet hasta que vuelvas a tener Internet.` : ''
+    if (!window.confirm(`Se cerrará el control con ${porcentaje}% de cumplimiento. Una vez enviado quedará trazable.${avisoFotos}\n\n¿Continuar?`)) return
     setGuardando(true)
     try {
       const registroControl = await asegurarControl()
@@ -414,7 +436,7 @@ export function EjecutarControlCampo({ control, usuario, historial, onClose }: {
           <div className="field campo-span-2"><label>Corrección / acción requerida *</label><textarea className="input" rows={2} value={r.accion ?? ''} onChange={(e) => actualizar(item.id, { accion: e.target.value })} /></div>
           <div className="field"><label>Fecha compromiso *</label><input className="input" type="date" min={fechaLocalISO()} value={r.fechaCompromiso ?? ''} onChange={(e) => actualizar(item.id, { fechaCompromiso: e.target.value })} /></div>
           <div className="field"><label>Evidencia / referencia *</label><input className="input" value={r.evidenciaReferencia ?? ''} onChange={(e) => actualizar(item.id, { evidenciaReferencia: e.target.value })} placeholder="Foto, acta, SAP, ubicación…" /></div>
-          <div className="field campo-span-2"><label>Fotografías</label><label className="btn" style={{ cursor: 'pointer', width: 'fit-content' }}>{subiendoItem === item.id ? 'Subiendo…' : '📷 Tomar / adjuntar fotos'}<input type="file" accept="image/*" capture="environment" multiple disabled={subiendoItem === item.id} style={{ display: 'none' }} onChange={(e) => void subirFotos(item.id, e.target.files)} /></label>{Boolean(r.evidenciaPaths?.length) && <div className="meta">{r.evidenciaPaths!.length} fotografía(s) guardada(s).</div>}</div>
+          <div className="field campo-span-2"><label>Fotografías</label><label className="btn" style={{ cursor: 'pointer', width: 'fit-content' }}>{subiendoItem === item.id ? 'Guardando…' : '📷 Tomar / adjuntar fotos'}<input type="file" accept="image/*" capture="environment" multiple disabled={subiendoItem === item.id} style={{ display: 'none' }} onChange={(e) => void subirFotos(item.id, e.target.files)} /></label>{Boolean(r.evidenciaPaths?.length) && <div className="meta">{r.evidenciaPaths!.length} fotografía(s) sincronizada(s).</div>}{Boolean(fotosPendientes[item.id]) && <div className="sgo-evidencia-pendiente">📴 {fotosPendientes[item.id]} foto(s) guardada(s) en la tablet, pendientes de Internet.</div>}</div>
         </div>}
       </article>
     })}</div>
@@ -423,18 +445,70 @@ export function EjecutarControlCampo({ control, usuario, historial, onClose }: {
   </Modal>
 }
 
-export function InformeControlCampo({ ejecucion, onClose }: { ejecucion: EjecucionControlSGO; onClose: () => void }) {
+export function InformeControlCampo({ ejecucion, usuario, onUpdated, onClose }: { ejecucion: EjecucionControlSGO; usuario: string; onUpdated: (ejecucion: EjecucionControlSGO) => void; onClose: () => void }) {
   const auditoria = ejecucion.auditoriaCampo!
   const items = itemsDeAuditoriaCampo(auditoria)
   const seguridad = auditoria.porcentajePorPilar?.seguridad ?? calcularPorPilarCampo(auditoria.respuestas, 'seguridad', items)
   const ambiente = auditoria.porcentajePorPilar?.ambiente ?? calcularPorPilarCampo(auditoria.respuestas, 'ambiente', items)
+  const [editandoFotos, setEditandoFotos] = useState(false)
   return <Modal titulo={`Informe · ${areaSGOLabel(auditoria.areaId)}`} onClose={onClose} ancho={1050}>
     <div className="sgo-campo-informe-vista">
       <div className="sgo-campo-doc-mini"><strong>{auditoria.documento.nombre}</strong><span>{auditoria.documento.codigo}</span><span>Versión {auditoria.documento.version}</span></div>
       <div className="sgo-campo-informe-resumen"><div><span>Fecha</span><strong>{fechaHora(auditoria.finalizadaEn)}</strong></div><div><span>Auditor</span><strong>{auditoria.auditor}</strong></div><div><span>Área</span><strong>{areaSGOLabel(auditoria.areaId)}</strong></div><div><span>Encargado</span><strong>{auditoria.encargadoArea}</strong></div><div><span>Resultado general</span><strong>{auditoria.porcentajeCumplimiento}%</strong></div><div><span>Seguridad</span><strong>{seguridad}%</strong></div><div><span>Medio Ambiente</span><strong>{ambiente}%</strong></div></div>
-      {SECCIONES_5S.map((s) => <section key={s.id}><h3>{s.nombre} · {auditoria.porcentajePorSeccion[s.id] ?? 0}%</h3>{items.filter((i) => i.seccion === s.id).map((item) => { const r = auditoria.respuestas.find((x) => x.itemId === item.id); if (!r) return null; return <div className="sgo-campo-informe-item" key={item.id}><span className={`sgo-campo-score score-${r.puntaje === 2 ? 'verde' : r.puntaje === 1 ? 'amarillo' : r.puntaje === 0 ? 'rojo' : 'gris'}`}>{r.puntaje === 'na' ? 'N/A' : `${r.puntaje}/2`}</span><div><strong>{item.pregunta}</strong>{r.observacion && <div>{r.observacion}</div>}{r.justificacionNoAplica && <div className="meta">No aplica: {r.justificacionNoAplica}</div>}{r.accion && <div className="meta">Acción: {r.accion} · {r.responsable} · {r.fechaCompromiso}</div>}</div></div> })}</section>)}
+      {auditoria.evidenciasActualizadasEn && <div className="sgo-evidencia-traza">Última incorporación de fotos: {fechaHora(auditoria.evidenciasActualizadasEn)} · {auditoria.evidenciasActualizadasPor}</div>}
+      {SECCIONES_5S.map((s) => <section key={s.id}><h3>{s.nombre} · {auditoria.porcentajePorSeccion[s.id] ?? 0}%</h3>{items.filter((i) => i.seccion === s.id).map((item) => { const r = auditoria.respuestas.find((x) => x.itemId === item.id); if (!r) return null; return <div className="sgo-campo-informe-item" key={item.id}><span className={`sgo-campo-score score-${r.puntaje === 2 ? 'verde' : r.puntaje === 1 ? 'amarillo' : r.puntaje === 0 ? 'rojo' : 'gris'}`}>{r.puntaje === 'na' ? 'N/A' : `${r.puntaje}/2`}</span><div><strong>{item.pregunta}</strong>{r.observacion && <div>{r.observacion}</div>}{r.justificacionNoAplica && <div className="meta">No aplica: {r.justificacionNoAplica}</div>}{r.accion && <div className="meta">Acción: {r.accion} · {r.responsable} · {r.fechaCompromiso}</div>}{Boolean(r.evidenciaPaths?.length) && <div className="meta">📷 {r.evidenciaPaths!.length} foto(s) adjunta(s)</div>}</div></div> })}</section>)}
     </div>
-    <div className="row-actions" style={{ justifyContent: 'flex-end', marginTop: 12 }}><button className="btn" onClick={onClose}>Cerrar</button><button className="btn btn-primary" onClick={() => void exportarInformeCampo(ejecucion)}>🖨 Exportar PDF</button></div>
+    <div className="row-actions" style={{ justifyContent: 'flex-end', marginTop: 12 }}><button className="btn" onClick={onClose}>Cerrar</button><button className="btn" onClick={() => setEditandoFotos(true)}>📷 Agregar fotos</button><button className="btn btn-primary" onClick={() => void exportarInformeCampo(ejecucion)}>🖨 Exportar PDF</button></div>
+    {editandoFotos && <EditorFotosAuditoriaCampo ejecucion={ejecucion} usuario={usuario} onUpdated={onUpdated} onClose={() => setEditandoFotos(false)} />}
+  </Modal>
+}
+
+function EditorFotosAuditoriaCampo({ ejecucion, usuario, onUpdated, onClose }: { ejecucion: EjecucionControlSGO; usuario: string; onUpdated: (ejecucion: EjecucionControlSGO) => void; onClose: () => void }) {
+  const auditoria = ejecucion.auditoriaCampo!
+  const items = itemsDeAuditoriaCampo(auditoria)
+  const [itemId, setItemId] = useState(items.find((item) => auditoria.respuestas.find((r) => r.itemId === item.id && respuestaEsHallazgo(r)))?.id ?? items[0]?.id ?? '')
+  const [pendientes, setPendientes] = useState<EvidenciaPendienteCampo[]>([])
+  const [procesando, setProcesando] = useState(false)
+  const [mensaje, setMensaje] = useState('')
+
+  async function recargarPendientes() {
+    try { setPendientes(await listarEvidenciasPendientesCampo(ejecucion.id)) } catch (e) { setMensaje(e instanceof Error ? e.message : 'No se pudieron leer las fotos guardadas.') }
+  }
+
+  useEffect(() => { void recargarPendientes() }, [ejecucion.id])
+
+  async function adjuntar(files: FileList | null) {
+    if (!files?.length || !itemId) return
+    setProcesando(true); setMensaje('')
+    try {
+      const cantidad = await encolarEvidenciasCampo(files, ejecucion.id, itemId)
+      await recargarPendientes()
+      setMensaje(`${cantidad} foto(s) guardada(s) en esta tablet. ${navigator.onLine ? 'Sincronizando…' : 'Se podrán enviar cuando vuelva Internet.'}`)
+      if (navigator.onLine) await sincronizar()
+    } catch (e) { setMensaje(e instanceof Error ? e.message : 'No se pudieron guardar las fotos.') }
+    finally { setProcesando(false) }
+  }
+
+  async function sincronizar() {
+    if (!navigator.onLine) { setMensaje('Las fotos están seguras en esta tablet. Conectate a Internet para sincronizarlas.'); return }
+    setProcesando(true); setMensaje('Sincronizando fotografías…')
+    try {
+      const resultado = await sincronizarEvidenciasPendientesCampo(ejecucion, usuario)
+      onUpdated(resultado.ejecucion)
+      setPendientes([])
+      setMensaje(resultado.sincronizadas ? `${resultado.sincronizadas} foto(s) incorporada(s) al informe correctamente.` : 'No hay fotos pendientes de sincronización.')
+    } catch (e) {
+      await recargarPendientes()
+      setMensaje(e instanceof Error ? e.message : 'No se pudieron sincronizar las fotos.')
+    } finally { setProcesando(false) }
+  }
+
+  return <Modal titulo="Agregar fotos a auditoría cerrada" onClose={onClose} ancho={720}>
+    <div className="sgo-evidencia-aviso"><strong>El resultado de la auditoría no cambia.</strong><span>Solo se anexan fotografías. Las respuestas, el puntaje, la fecha y los hallazgos permanecen cerrados y trazables.</span></div>
+    <div className="field"><label>Punto de control al que corresponde la foto *</label><select className="input" value={itemId} onChange={(e) => setItemId(e.target.value)}>{items.map((item) => { const r = auditoria.respuestas.find((x) => x.itemId === item.id); return <option key={item.id} value={item.id}>{SECCIONES_5S.find((s) => s.id === item.seccion)?.codigo} · {item.numero} · {item.pregunta} · {r?.evidenciaPaths?.length ?? 0} foto(s)</option> })}</select></div>
+    <label className="btn btn-primary sgo-evidencia-adjuntar">{procesando ? 'Guardando…' : '📷 Tomar o elegir fotografías'}<input type="file" accept="image/*" capture="environment" multiple disabled={procesando || !itemId} style={{ display: 'none' }} onChange={(e) => { void adjuntar(e.target.files); e.currentTarget.value = '' }} /></label>
+    <div className={`sgo-evidencia-estado ${pendientes.length ? 'pendiente' : ''}`}><strong>{pendientes.length ? `📴 ${pendientes.length} foto(s) pendientes en esta tablet` : '✓ No hay fotos pendientes en esta tablet'}</strong>{mensaje && <span>{mensaje}</span>}</div>
+    <div className="row-actions" style={{ justifyContent: 'flex-end', marginTop: 14 }}><button className="btn" onClick={onClose}>Cerrar</button>{Boolean(pendientes.length) && <button className="btn btn-primary" disabled={procesando} onClick={() => void sincronizar()}>{procesando ? 'Sincronizando…' : 'Sincronizar ahora'}</button>}</div>
   </Modal>
 }
 
