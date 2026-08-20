@@ -13,7 +13,8 @@ import { resolverTrazabilidadProductiva, type TrazabilidadProductivaSGO } from '
 import {
   ESTADOS_INVESTIGACION_RETRABAJO, NIVELES_INVESTIGACION_RETRABAJO, costoRetrabajoTotal,
   estadoInvestigacionRetrabajo, esEventoRetrabajo, nivelInvestigacionRetrabajo,
-  requisitosCierreRetrabajo, semaforoSLAInvestigacion, type EstadoInvestigacionRetrabajo,
+  requisitosCierreRetrabajo, semaforoSLAInvestigacion, tiempoRetrabajoDesdePlanta,
+  type EstadoInvestigacionRetrabajo,
 } from '../../sgo/retrabajos'
 import {
   AREAS_SGO, areaSGOLabel, codigoEventoSGO, costoNoCalidadTotal, type AccionSGO, type AreaSGOId,
@@ -277,6 +278,18 @@ function CostosRetrabajoEditor({ evento, usuario, lorenzo, modalidad, onModalida
   onModalidad: (valor: ModalidadCostoRetrabajoSGO) => void
   onChange: (evento: EventoSGO) => void
 }) {
+  // v1.93: el tiempo del retrabajo ya está medido en planta. Un retrabajo ES una
+  // parada de calidad, y el evento guarda `tareaId` + `paradaId`, así que se
+  // puede recuperar sin que Lara lo busque a mano. Se PROPONE: ella confirma.
+  const tareaOrigen = useLiveQuery(
+    async () => (evento.tareaId ? db.tareas.get(evento.tareaId) : undefined),
+    [evento.tareaId],
+  )
+  const tiempoPlanta = useMemo(() => {
+    const p = tareaOrigen?.paradas?.find((x) => x.id === evento.paradaId)
+    return tiempoRetrabajoDesdePlanta(p, tareaOrigen?.finReal)
+  }, [tareaOrigen, evento.paradaId])
+
   const [tarifarioVigente, setTarifarioVigente] = useState<TarifarioCostosRetrabajoSGO>(TARIFARIO_COSTOS_BASE)
   const [tarifarioListo, setTarifarioListo] = useState(false)
   const [editandoTarifario, setEditandoTarifario] = useState(false)
@@ -360,7 +373,24 @@ function CostosRetrabajoEditor({ evento, usuario, lorenzo, modalidad, onModalida
 
       {!costeo && costoNoCalidadTotal(evento.costoDetalle) > 0 && <div className="card sgo-costeo-aviso">Este registro contiene un costeo anterior de {moneda(costoNoCalidadTotal(evento.costoDetalle))}. Al completar la nueva calculadora se reemplazará por un cálculo trazable.</div>}
 
-      <div className="card sgo-costeo-bloque"><div className="sgo-costeo-bloque-titulo"><div><strong>Mano de obra</strong><div className="meta">Tiempo de corrección × personas × hora hombre × factor productivo.</div></div><b>{moneda(evento.costoDetalle?.manoObra)}</b></div><div className="sgo-retrabajo-form-grid"><Campo label="Horas utilizadas *"><input className="input" type="number" min="0" step="0.25" value={costeo?.horasCorreccion ?? 0} onChange={(e) => actualizarCosteo({ horasCorreccion: Math.max(0, Number(e.target.value) || 0) })} /></Campo><Campo label="Personas involucradas *"><input className="input" type="number" min="1" step="1" value={costeo?.personasInvolucradas ?? 1} onChange={(e) => actualizarCosteo({ personasInvolucradas: Math.max(1, Math.floor(Number(e.target.value) || 1)) })} /></Campo></div>{costeo && <div className="meta">{costeo.horasCorreccion} h × {costeo.personasInvolucradas} persona(s) × {moneda(costeo.tarifario.horaHombre)} × {costeo.tarifario.factorTiempoPerdido}</div>}</div>
+      <div className="card sgo-costeo-bloque"><div className="sgo-costeo-bloque-titulo"><div><strong>Mano de obra</strong><div className="meta">Tiempo de corrección × personas × hora hombre × factor productivo.</div></div><b>{moneda(evento.costoDetalle?.manoObra)}</b></div><div className="sgo-retrabajo-form-grid"><Campo label="Horas utilizadas *"><input className="input" type="number" min="0" step="0.25" value={costeo?.horasCorreccion ?? 0} onChange={(e) => actualizarCosteo({ horasCorreccion: Math.max(0, Number(e.target.value) || 0) })} /></Campo><Campo label="Personas involucradas *"><input className="input" type="number" min="1" step="1" value={costeo?.personasInvolucradas ?? 1} onChange={(e) => actualizarCosteo({ personasInvolucradas: Math.max(1, Math.floor(Number(e.target.value) || 1)) })} /></Campo></div>{/* v1.93: el tiempo sale de la parada de calidad que originó el retrabajo.
+    Se ofrece, no se impone: Lara ve de dónde viene y decide si lo usa. */}
+      {tiempoPlanta && <div className="sgo-tiempo-planta">
+        <div>
+          <strong>Tiempo registrado en planta: {tiempoPlanta.horas} h</strong>
+          <div className="meta">
+            {tiempoPlanta.causa ? `${tiempoPlanta.causa} · ` : ''}{new Date(tiempoPlanta.inicio).toLocaleString()} · {tiempoPlanta.procedencia}
+          </div>
+        </div>
+        <button
+          className="btn"
+          disabled={!costeo || costeo.horasCorreccion === tiempoPlanta.horas}
+          onClick={() => actualizarCosteo({ horasCorreccion: tiempoPlanta.horas })}
+        >
+          {costeo?.horasCorreccion === tiempoPlanta.horas ? '✓ Aplicado' : '↧ Usar este tiempo'}
+        </button>
+      </div>}
+      {costeo && <div className="meta">{costeo.horasCorreccion} h × {costeo.personasInvolucradas} persona(s) × {moneda(costeo.tarifario.horaHombre)} × {costeo.tarifario.factorTiempoPerdido}</div>}</div>
 
       <div className="card sgo-costeo-bloque"><div className="sgo-costeo-bloque-titulo"><div><strong>Material perdido</strong><div className="meta">Solo puede seleccionarse cobre o aluminio; nunca ambos en el mismo retrabajo.</div></div><b>{moneda(evento.costoDetalle?.material)}</b></div><div className="sgo-retrabajo-form-grid"><Campo label="Material"><select className="input" value={costeo?.materialTipo ?? 'ninguno'} onChange={(e) => cambiarMaterial(e.target.value as MaterialCostoRetrabajoSGO)}><option value="ninguno">Sin material perdido</option><option value="cobre">Cobre</option><option value="aluminio">Aluminio</option><option value="otro">Otro material</option></select></Campo>{costeo && ['cobre', 'aluminio'].includes(costeo.materialTipo) && <Campo label="Kilogramos perdidos *"><input className="input" type="number" min="0" step="0.01" value={costeo.materialKg ?? 0} onChange={(e) => actualizarCosteo({ materialKg: Math.max(0, Number(e.target.value) || 0) })} /></Campo>}{costeo?.materialTipo === 'otro' && <><Campo label="Descripción *"><input className="input" value={costeo.materialDescripcion ?? ''} onChange={(e) => actualizarCosteo({ materialDescripcion: e.target.value || undefined })} /></Campo><Campo label="Costo relevado *"><input className="input" type="number" min="0" step="0.01" value={costeo.materialCostoManual ?? 0} onChange={(e) => actualizarCosteo({ materialCostoManual: Math.max(0, Number(e.target.value) || 0) })} /></Campo></>}</div>{costeo && ['cobre', 'aluminio'].includes(costeo.materialTipo) && <div className="meta">Precio aplicado: {moneda(costeo.materialTipo === 'cobre' ? costeo.tarifario.cobreKg : costeo.tarifario.aluminioKg)} por kg.</div>}</div>
 

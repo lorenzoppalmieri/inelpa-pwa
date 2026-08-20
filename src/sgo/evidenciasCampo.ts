@@ -5,6 +5,9 @@ import type { EjecucionControlSGO } from './controles'
 
 export const BUCKET_EVIDENCIAS_SGO = 'sgo-evidencias'
 const MAX_FOTO_MB = 8
+const MAX_FOTO_ORIGINAL_MB = 30
+const MAX_LADO_FOTO = 1920
+const TIPOS_STORAGE = new Set(['image/jpeg', 'image/png', 'image/webp'])
 const DB_PENDIENTES = 'inelpa_sgo_evidencias_offline'
 const STORE_PENDIENTES = 'pendientes'
 
@@ -28,9 +31,81 @@ function extensionArchivo(file: File): string {
   return 'jpg'
 }
 
-function validarFoto(file: File) {
-  if (!file.type.startsWith('image/')) throw new Error(`“${file.name}” no es una imagen.`)
-  if (file.size > MAX_FOTO_MB * 1024 * 1024) throw new Error(`“${file.name}” supera ${MAX_FOTO_MB} MB.`)
+export function tipoFotoDesdeArchivo(file: File): string | undefined {
+  if (file.type.startsWith('image/')) return file.type.toLocaleLowerCase('es')
+  const extension = file.name.split('.').pop()?.toLocaleLowerCase('es')
+  if (extension === 'jpg' || extension === 'jpeg') return 'image/jpeg'
+  if (extension === 'png') return 'image/png'
+  if (extension === 'webp') return 'image/webp'
+  if (extension === 'heic') return 'image/heic'
+  if (extension === 'heif') return 'image/heif'
+  return undefined
+}
+
+function validarFotoOriginal(file: File): string {
+  const tipo = tipoFotoDesdeArchivo(file)
+  if (!tipo) throw new Error(`“${file.name}” no fue reconocido como fotografía.`)
+  if (file.size > MAX_FOTO_ORIGINAL_MB * 1024 * 1024) {
+    throw new Error(`“${file.name}” es demasiado pesada. El máximo admitido desde cámara es ${MAX_FOTO_ORIGINAL_MB} MB.`)
+  }
+  return tipo
+}
+
+async function fotoComoJpeg(file: File): Promise<File> {
+  let fuente: CanvasImageSource | undefined
+  let ancho = 0
+  let alto = 0
+  let liberar: () => void = () => undefined
+  try {
+    if (typeof createImageBitmap === 'function') {
+      try {
+        const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' })
+        fuente = bitmap; ancho = bitmap.width; alto = bitmap.height; liberar = () => bitmap.close()
+      } catch {
+        // Safari puede reconocer una foto de cámara aunque createImageBitmap no la decodifique.
+      }
+    }
+    if (!fuente) {
+      const url = URL.createObjectURL(file)
+      const imagen = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const img = new Image()
+        img.onload = () => resolve(img)
+        img.onerror = () => reject(new Error('El navegador no pudo leer el formato de la foto.'))
+        img.src = url
+      })
+      fuente = imagen; ancho = imagen.naturalWidth; alto = imagen.naturalHeight; liberar = () => URL.revokeObjectURL(url)
+    }
+    const escala = Math.min(1, MAX_LADO_FOTO / Math.max(ancho, alto))
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.max(1, Math.round(ancho * escala))
+    canvas.height = Math.max(1, Math.round(alto * escala))
+    const contexto = canvas.getContext('2d')
+    if (!contexto) throw new Error('La tablet no pudo preparar la fotografía.')
+    contexto.fillStyle = '#ffffff'
+    contexto.fillRect(0, 0, canvas.width, canvas.height)
+    contexto.drawImage(fuente, 0, 0, canvas.width, canvas.height)
+    const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(
+      (resultado) => resultado ? resolve(resultado) : reject(new Error('La tablet no pudo convertir la fotografía.')),
+      'image/jpeg', 0.82,
+    ))
+    const nombre = `${file.name.replace(/\.[^.]+$/, '') || 'foto'}.jpg`
+    return new File([blob], nombre, { type: 'image/jpeg', lastModified: file.lastModified })
+  } finally { liberar() }
+}
+
+async function prepararFoto(file: File): Promise<File> {
+  const tipo = validarFotoOriginal(file)
+  if (TIPOS_STORAGE.has(tipo) && file.size <= 4 * 1024 * 1024) {
+    return file.type === tipo ? file : new File([file], file.name, { type: tipo, lastModified: file.lastModified })
+  }
+  try {
+    const preparada = await fotoComoJpeg(file)
+    if (preparada.size > MAX_FOTO_MB * 1024 * 1024) throw new Error('La fotografía continúa siendo demasiado pesada luego de optimizarla.')
+    return preparada
+  } catch (error) {
+    const detalle = error instanceof Error ? error.message : 'Formato no compatible.'
+    throw new Error(`No se pudo preparar “${file.name}”. ${detalle} Probá tomarla desde el botón “Tomar foto”.`)
+  }
 }
 
 function pathEvidencia(file: File, ejecucionId: string, itemId: string): string {
@@ -87,8 +162,8 @@ export async function listarEvidenciasPendientesCampo(ejecucionId: string): Prom
 
 export async function encolarEvidenciasCampo(files: FileList | File[], ejecucionId: string, itemId: string): Promise<number> {
   const lista = Array.from(files)
-  for (const file of lista) {
-    validarFoto(file)
+  for (const original of lista) {
+    const file = await prepararFoto(original)
     const registro: EvidenciaPendienteCampo = {
       id: crypto.randomUUID(), ejecucionId, itemId, path: pathEvidencia(file, ejecucionId, itemId),
       nombre: file.name, tipo: file.type || 'image/jpeg', creadaEn: new Date().toISOString(), blob: file, subida: false,
@@ -112,8 +187,8 @@ export async function subirEvidenciasCampo(files: FileList | File[], ejecucionId
   const lista = Array.from(files)
   if (!lista.length) return []
   const paths: string[] = []
-  for (const file of lista) {
-    validarFoto(file)
+  for (const original of lista) {
+    const file = await prepararFoto(original)
     const path = pathEvidencia(file, ejecucionId, itemId)
     await subirArchivo(path, file, file.type || 'image/jpeg', file.name)
     paths.push(path)
@@ -125,19 +200,25 @@ export async function capturarEvidenciasCampo(
   files: FileList | File[], ejecucionId: string, itemId: string,
 ): Promise<{ paths: string[]; pendientes: number }> {
   const lista = Array.from(files)
-  lista.forEach(validarFoto)
   const paths: string[] = []
   let pendientes = 0
-  for (const file of lista) {
+  for (const original of lista) {
+    const file = await prepararFoto(original)
     if (typeof navigator !== 'undefined' && navigator.onLine && supabase) {
       try {
-        paths.push(...await subirEvidenciasCampo([file], ejecucionId, itemId))
+        const path = pathEvidencia(file, ejecucionId, itemId)
+        await subirArchivo(path, file, file.type || 'image/jpeg', file.name)
+        paths.push(path)
         continue
       } catch {
         // Una caída de señal durante la carga no debe hacer perder esta foto.
       }
     }
-    await encolarEvidenciasCampo([file], ejecucionId, itemId)
+    const registro: EvidenciaPendienteCampo = {
+      id: crypto.randomUUID(), ejecucionId, itemId, path: pathEvidencia(file, ejecucionId, itemId),
+      nombre: file.name, tipo: file.type || 'image/jpeg', creadaEn: new Date().toISOString(), blob: file, subida: false,
+    }
+    await guardarPendiente(registro)
     pendientes += 1
   }
   return { paths, pendientes }

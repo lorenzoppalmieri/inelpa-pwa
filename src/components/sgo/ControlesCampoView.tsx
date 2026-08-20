@@ -436,7 +436,7 @@ export function EjecutarControlCampo({ control, usuario, historial, onClose }: {
           <div className="field campo-span-2"><label>Corrección / acción requerida *</label><textarea className="input" rows={2} value={r.accion ?? ''} onChange={(e) => actualizar(item.id, { accion: e.target.value })} /></div>
           <div className="field"><label>Fecha compromiso *</label><input className="input" type="date" min={fechaLocalISO()} value={r.fechaCompromiso ?? ''} onChange={(e) => actualizar(item.id, { fechaCompromiso: e.target.value })} /></div>
           <div className="field"><label>Evidencia / referencia *</label><input className="input" value={r.evidenciaReferencia ?? ''} onChange={(e) => actualizar(item.id, { evidenciaReferencia: e.target.value })} placeholder="Foto, acta, SAP, ubicación…" /></div>
-          <div className="field campo-span-2"><label>Fotografías</label><label className="btn" style={{ cursor: 'pointer', width: 'fit-content' }}>{subiendoItem === item.id ? 'Guardando…' : '📷 Tomar / adjuntar fotos'}<input type="file" accept="image/*" capture="environment" multiple disabled={subiendoItem === item.id} style={{ display: 'none' }} onChange={(e) => void subirFotos(item.id, e.target.files)} /></label>{Boolean(r.evidenciaPaths?.length) && <div className="meta">{r.evidenciaPaths!.length} fotografía(s) sincronizada(s).</div>}{Boolean(fotosPendientes[item.id]) && <div className="sgo-evidencia-pendiente">📴 {fotosPendientes[item.id]} foto(s) guardada(s) en la tablet, pendientes de Internet.</div>}</div>
+          <div className="field campo-span-2"><label>Fotografías</label><SelectorFotosCampo disabled={subiendoItem === item.id} procesando={subiendoItem === item.id} onFiles={(files) => void subirFotos(item.id, files)} />{Boolean(r.evidenciaPaths?.length) && <div className="meta">{r.evidenciaPaths!.length} fotografía(s) sincronizada(s).</div>}{Boolean(fotosPendientes[item.id]) && <div className="sgo-evidencia-pendiente">📴 {fotosPendientes[item.id]} foto(s) guardada(s) en la tablet, pendientes de Internet.</div>}</div>
         </div>}
       </article>
     })}</div>
@@ -506,10 +506,27 @@ function EditorFotosAuditoriaCampo({ ejecucion, usuario, onUpdated, onClose }: {
   return <Modal titulo="Agregar fotos a auditoría cerrada" onClose={onClose} ancho={720}>
     <div className="sgo-evidencia-aviso"><strong>El resultado de la auditoría no cambia.</strong><span>Solo se anexan fotografías. Las respuestas, el puntaje, la fecha y los hallazgos permanecen cerrados y trazables.</span></div>
     <div className="field"><label>Punto de control al que corresponde la foto *</label><select className="input" value={itemId} onChange={(e) => setItemId(e.target.value)}>{items.map((item) => { const r = auditoria.respuestas.find((x) => x.itemId === item.id); return <option key={item.id} value={item.id}>{SECCIONES_5S.find((s) => s.id === item.seccion)?.codigo} · {item.numero} · {item.pregunta} · {r?.evidenciaPaths?.length ?? 0} foto(s)</option> })}</select></div>
-    <label className="btn btn-primary sgo-evidencia-adjuntar">{procesando ? 'Guardando…' : '📷 Tomar o elegir fotografías'}<input type="file" accept="image/*" capture="environment" multiple disabled={procesando || !itemId} style={{ display: 'none' }} onChange={(e) => { void adjuntar(e.target.files); e.currentTarget.value = '' }} /></label>
+    <SelectorFotosCampo disabled={procesando || !itemId} procesando={procesando} onFiles={(files) => void adjuntar(files)} />
     <div className={`sgo-evidencia-estado ${pendientes.length ? 'pendiente' : ''}`}><strong>{pendientes.length ? `📴 ${pendientes.length} foto(s) pendientes en esta tablet` : '✓ No hay fotos pendientes en esta tablet'}</strong>{mensaje && <span>{mensaje}</span>}</div>
     <div className="row-actions" style={{ justifyContent: 'flex-end', marginTop: 14 }}><button className="btn" onClick={onClose}>Cerrar</button>{Boolean(pendientes.length) && <button className="btn btn-primary" disabled={procesando} onClick={() => void sincronizar()}>{procesando ? 'Sincronizando…' : 'Sincronizar ahora'}</button>}</div>
   </Modal>
+}
+
+function SelectorFotosCampo({ disabled, procesando, onFiles }: { disabled: boolean; procesando: boolean; onFiles: (files: FileList | null) => void }) {
+  const cambio = (event: React.ChangeEvent<HTMLInputElement>) => {
+    onFiles(event.currentTarget.files)
+    event.currentTarget.value = ''
+  }
+  return <div className="sgo-evidencia-selectores">
+    <label className={`btn btn-primary sgo-file-button ${disabled ? 'disabled' : ''}`}>
+      {procesando ? 'Preparando foto…' : '📷 Tomar foto'}
+      <input type="file" accept="image/*" capture="environment" disabled={disabled} onChange={cambio} aria-label="Tomar foto con la cámara" />
+    </label>
+    <label className={`btn sgo-file-button ${disabled ? 'disabled' : ''}`}>
+      🖼 Elegir de galería
+      <input type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple disabled={disabled} onChange={cambio} aria-label="Elegir fotos de la galería" />
+    </label>
+  </div>
 }
 
 const esc = (valor?: string | number) => String(valor ?? '').replace(/[&<>'"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c]!))

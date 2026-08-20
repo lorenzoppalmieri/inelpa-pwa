@@ -4,6 +4,7 @@ import {
   agregarEvidenciasAuditoriaCampo, areas5SParaAuditor, controlCampoCompleto, itemsDeAuditoriaCampo, respuestaVacia, semaforoCampo,
   type AuditoriaCampoSGO, type RespuestaControlCampo,
 } from '../controlesCampo'
+import { tipoFotoDesdeArchivo } from '../evidenciasCampo'
 
 describe('controles de campo 5S', () => {
   it('incluye las cinco S y conserva el encabezado documental', () => {
@@ -93,5 +94,11 @@ describe('controles de campo 5S', () => {
     expect(actualizada.evidenciasActualizaciones).toEqual([
       { actualizadoEn: '2026-08-20T15:00:00.000Z', actualizadoPor: 'Lara', cantidadAgregada: 1 },
     ])
+  })
+
+  it('reconoce fotos de tablet aunque el navegador no informe el tipo MIME', () => {
+    expect(tipoFotoDesdeArchivo({ name: 'CAMARA_001.JPG', type: '' } as File)).toBe('image/jpeg')
+    expect(tipoFotoDesdeArchivo({ name: 'IMG_002.HEIC', type: '' } as File)).toBe('image/heic')
+    expect(tipoFotoDesdeArchivo({ name: 'documento.pdf', type: '' } as File)).toBeUndefined()
   })
 })

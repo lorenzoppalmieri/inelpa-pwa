@@ -2,6 +2,7 @@ import {
   costoNoCalidadTotal, type AccionSGO, type DatosRetrabajoSGO, type EventoSGO,
   type NivelInvestigacionRetrabajoSGO, type OrigenRetrabajoSGO,
 } from './types'
+import { calcularTiempoNetoProductivo } from '../lib/calendario'
 
 export const INICIO_CIRCUITO_RETRABAJOS = '2026-08-19T00:00:00.000-03:00'
 export const RESPONSABLE_INVESTIGACION_RETRABAJO = 'Lara'
@@ -40,9 +41,74 @@ export function esEventoRetrabajo(evento: EventoSGO): boolean {
   return Boolean(evento.retrabajo)
 }
 
+/**
+ * Duración de una parada en MINUTOS DE PLANTA ABIERTA.
+ *
+ * v1.93 — BUG CORREGIDO: antes hacía `new Date(fin) - new Date(inicio)`, una
+ * resta cruda que cuenta la noche, el fin de semana y la fábrica cerrada. Una
+ * parada de 16:30 cerrada a las 08:00 del día siguiente daba 15h30 en vez de
+ * ~1h. Alimentando el costeo —hora hombre × factor 2— ese error infla el costo
+ * de no calidad más de diez veces.
+ *
+ * Es la misma trampa que se arregló en v1.45 para producción; acá había vuelto
+ * a entrar por otro camino. NUNCA restar fechas para medir tiempo de planta:
+ * usar el motor de calendario.
+ */
 export function minutosDeParada(inicio: string, fin?: string): number | undefined {
   if (!fin) return undefined
-  return Math.max(0, Math.round((new Date(fin).getTime() - new Date(inicio).getTime()) / 60000))
+  return Math.max(0, calcularTiempoNetoProductivo(new Date(inicio), new Date(fin), { sinAlmuerzo: true }))
+}
+
+// ============================================================
+// v1.93 — TIEMPO DEL RETRABAJO, TRAÍDO DE PLANTA
+//
+// Un RETRABAJO es una parada de calidad: el operario detiene la tarea, corrige
+// y reanuda. (Una tarea de tipo 'reparacion' es otra cosa y NO entra acá.)
+//
+// El evento ya viene con el vínculo: `tareaId` + `paradaId`. Así que el tiempo
+// que Lara cargaba a mano en `horasCorreccion` ya está medido en la tablet.
+//
+// Se PROPONE, no se impone: la función solo devuelve el dato y su procedencia;
+// quien decide si lo usa es Lara desde la calculadora de costos.
+// ============================================================
+export interface TiempoRetrabajoPlanta {
+  /** Minutos en horario de planta (no cuenta noches ni fines de semana). */
+  minutos: number
+  /** Horas con 2 decimales, listo para `horasCorreccion`. */
+  horas: number
+  causa: string
+  inicio: string
+  /** La parada sigue abierta: el operario nunca la cerró. */
+  abierta: boolean
+  /** Texto para mostrar de dónde salió el número. */
+  procedencia: string
+}
+
+/**
+ * @param parada la parada de calidad que originó el evento (evento.paradaId).
+ * @param finTarea fin real de la tarea, por si la parada quedó abierta.
+ */
+export function tiempoRetrabajoDesdePlanta(
+  parada: { causa: string; inicio: string; fin?: string } | undefined,
+  finTarea?: string,
+  ahoraISO = new Date().toISOString(),
+): TiempoRetrabajoPlanta | undefined {
+  if (!parada?.inicio) return undefined
+  // Una parada sin cerrar se mide hasta el fin de la tarea o hasta ahora — el
+  // mismo criterio que usa producción (finEfectivoParada, v1.66).
+  const fin = parada.fin ?? finTarea ?? ahoraISO
+  const minutos = minutosDeParada(parada.inicio, fin) ?? 0
+  const abierta = !parada.fin
+  return {
+    minutos,
+    horas: Math.round((minutos / 60) * 100) / 100,
+    causa: parada.causa,
+    inicio: parada.inicio,
+    abierta,
+    procedencia: abierta
+      ? 'Parada sin cerrar: medida hasta el cierre de la tarea. Verificá el valor.'
+      : 'Duración registrada en la tablet, en horas de planta.',
+  }
 }
 
 export function nivelInvestigacionRetrabajo(evento: EventoSGO): NivelInvestigacionRetrabajoSGO {
