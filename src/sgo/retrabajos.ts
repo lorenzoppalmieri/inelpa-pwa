@@ -85,29 +85,58 @@ export interface TiempoRetrabajoPlanta {
 }
 
 /**
- * @param parada la parada de calidad que originó el evento (evento.paradaId).
+ * El dato SIEMPRE sale del propio evento (`retrabajo.minutosRetrabajo`, que se
+ * guarda al crear la no conformidad). La parada de producción es OPCIONAL y solo
+ * se usa para recalcular con más precisión si está disponible.
+ *
+ * Es a propósito: Lara trabaja en SGO y su dispositivo puede no tener espejada
+ * la tarea de producción. Si el helper dependiera de `db.tareas`, a ella no le
+ * aparecería nada — y sin ningún error, que es lo peor.
+ *
+ * @param evento  el evento de retrabajo.
+ * @param parada  la parada de calidad, si está disponible localmente.
  * @param finTarea fin real de la tarea, por si la parada quedó abierta.
  */
 export function tiempoRetrabajoDesdePlanta(
-  parada: { causa: string; inicio: string; fin?: string } | undefined,
+  evento: EventoSGO,
+  parada?: { causa: string; inicio: string; fin?: string },
   finTarea?: string,
   ahoraISO = new Date().toISOString(),
 ): TiempoRetrabajoPlanta | undefined {
-  if (!parada?.inicio) return undefined
-  // Una parada sin cerrar se mide hasta el fin de la tarea o hasta ahora — el
-  // mismo criterio que usa producción (finEfectivoParada, v1.66).
-  const fin = parada.fin ?? finTarea ?? ahoraISO
-  const minutos = minutosDeParada(parada.inicio, fin) ?? 0
-  const abierta = !parada.fin
+  const datos = evento.retrabajo
+  const guardado = datos?.minutosRetrabajo
+
+  // Con la parada a mano se recalcula: los eventos creados ANTES del arreglo de
+  // v1.93 tienen guardado un valor con resta cruda de fechas (contaba la noche
+  // y el fin de semana), así que el recálculo es el bueno.
+  if (parada?.inicio) {
+    const abierta = !parada.fin
+    const fin = parada.fin ?? finTarea ?? ahoraISO
+    const minutos = minutosDeParada(parada.inicio, fin) ?? 0
+    const difiere = guardado !== undefined && Math.abs(guardado - minutos) > 5
+    return {
+      minutos,
+      horas: Math.round((minutos / 60) * 100) / 100,
+      causa: datos?.causaRegistrada ?? parada.causa,
+      inicio: parada.inicio,
+      abierta,
+      procedencia: abierta
+        ? 'Parada sin cerrar: medida hasta el cierre de la tarea. Verificá el valor.'
+        : difiere
+          ? 'Recalculado en horas de planta (el valor guardado al crear el evento contaba horas de fábrica cerrada).'
+          : 'Duración registrada en la tablet, en horas de planta.',
+    }
+  }
+
+  // Sin la parada local: se usa lo que quedó grabado en el evento.
+  if (guardado === undefined || guardado <= 0) return undefined
   return {
-    minutos,
-    horas: Math.round((minutos / 60) * 100) / 100,
-    causa: parada.causa,
-    inicio: parada.inicio,
-    abierta,
-    procedencia: abierta
-      ? 'Parada sin cerrar: medida hasta el cierre de la tarea. Verificá el valor.'
-      : 'Duración registrada en la tablet, en horas de planta.',
+    minutos: guardado,
+    horas: Math.round((guardado / 60) * 100) / 100,
+    causa: datos?.causaRegistrada ?? '',
+    inicio: evento.detectadoEn,
+    abierta: false,
+    procedencia: 'Registrado al crear la no conformidad desde Producción.',
   }
 }
 

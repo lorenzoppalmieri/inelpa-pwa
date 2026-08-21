@@ -285,10 +285,12 @@ function CostosRetrabajoEditor({ evento, usuario, lorenzo, modalidad, onModalida
     async () => (evento.tareaId ? db.tareas.get(evento.tareaId) : undefined),
     [evento.tareaId],
   )
+  // La tarea es OPCIONAL: si Lara no la tiene espejada, el tiempo igual sale del
+  // propio evento. Antes dependía de db.tareas y a ella no le aparecía nada.
   const tiempoPlanta = useMemo(() => {
     const p = tareaOrigen?.paradas?.find((x) => x.id === evento.paradaId)
-    return tiempoRetrabajoDesdePlanta(p, tareaOrigen?.finReal)
-  }, [tareaOrigen, evento.paradaId])
+    return tiempoRetrabajoDesdePlanta(evento, p, tareaOrigen?.finReal)
+  }, [evento, tareaOrigen])
 
   const [tarifarioVigente, setTarifarioVigente] = useState<TarifarioCostosRetrabajoSGO>(TARIFARIO_COSTOS_BASE)
   const [tarifarioListo, setTarifarioListo] = useState(false)
