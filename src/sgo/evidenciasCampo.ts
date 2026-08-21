@@ -51,7 +51,7 @@ function validarFotoOriginal(file: File): string {
   return tipo
 }
 
-async function fotoComoJpeg(file: File): Promise<File> {
+async function imagenComoJpeg(blobOriginal: Blob, maxLado: number, calidad: number): Promise<Blob> {
   let fuente: CanvasImageSource | undefined
   let ancho = 0
   let alto = 0
@@ -59,14 +59,14 @@ async function fotoComoJpeg(file: File): Promise<File> {
   try {
     if (typeof createImageBitmap === 'function') {
       try {
-        const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' })
+        const bitmap = await createImageBitmap(blobOriginal, { imageOrientation: 'from-image' })
         fuente = bitmap; ancho = bitmap.width; alto = bitmap.height; liberar = () => bitmap.close()
       } catch {
         // Safari puede reconocer una foto de cámara aunque createImageBitmap no la decodifique.
       }
     }
     if (!fuente) {
-      const url = URL.createObjectURL(file)
+      const url = URL.createObjectURL(blobOriginal)
       const imagen = await new Promise<HTMLImageElement>((resolve, reject) => {
         const img = new Image()
         img.onload = () => resolve(img)
@@ -75,7 +75,7 @@ async function fotoComoJpeg(file: File): Promise<File> {
       })
       fuente = imagen; ancho = imagen.naturalWidth; alto = imagen.naturalHeight; liberar = () => URL.revokeObjectURL(url)
     }
-    const escala = Math.min(1, MAX_LADO_FOTO / Math.max(ancho, alto))
+    const escala = Math.min(1, maxLado / Math.max(ancho, alto))
     const canvas = document.createElement('canvas')
     canvas.width = Math.max(1, Math.round(ancho * escala))
     canvas.height = Math.max(1, Math.round(alto * escala))
@@ -86,11 +86,27 @@ async function fotoComoJpeg(file: File): Promise<File> {
     contexto.drawImage(fuente, 0, 0, canvas.width, canvas.height)
     const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(
       (resultado) => resultado ? resolve(resultado) : reject(new Error('La tablet no pudo convertir la fotografía.')),
-      'image/jpeg', 0.82,
+      'image/jpeg', calidad,
     ))
-    const nombre = `${file.name.replace(/\.[^.]+$/, '') || 'foto'}.jpg`
-    return new File([blob], nombre, { type: 'image/jpeg', lastModified: file.lastModified })
+    return blob
   } finally { liberar() }
+}
+
+async function fotoComoJpeg(file: File): Promise<File> {
+  const blob = await imagenComoJpeg(file, MAX_LADO_FOTO, 0.82)
+  const nombre = `${file.name.replace(/\.[^.]+$/, '') || 'foto'}.jpg`
+  return new File([blob], nombre, { type: 'image/jpeg', lastModified: file.lastModified })
+}
+
+function blobADataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const lector = new FileReader()
+    lector.onload = () => typeof lector.result === 'string'
+      ? resolve(lector.result)
+      : reject(new Error('No se pudo incorporar una fotografía al PDF.'))
+    lector.onerror = () => reject(lector.error ?? new Error('No se pudo incorporar una fotografía al PDF.'))
+    lector.readAsDataURL(blob)
+  })
 }
 
 async function prepararFoto(file: File): Promise<File> {
@@ -274,5 +290,34 @@ export async function firmarEvidenciasCampo(paths: string[], segundos = 900): Pr
     const { data } = await cliente.storage.from(BUCKET_EVIDENCIAS_SGO).createSignedUrl(path, segundos)
     if (data?.signedUrl) resultado[path] = data.signedUrl
   }))
+  return resultado
+}
+
+/**
+ * Descarga las evidencias originales y genera copias temporales comprimidas para
+ * la impresión. Nunca reemplaza ni modifica los archivos guardados en Storage.
+ */
+export async function prepararEvidenciasPdfLivianas(
+  paths: string[],
+  onProgress?: (procesadas: number, total: number) => void,
+): Promise<Record<string, string>> {
+  if (!supabase || !paths.length) return {}
+  const unicos = [...new Set(paths)]
+  const resultado: Record<string, string> = {}
+
+  for (let indice = 0; indice < unicos.length; indice += 1) {
+    const path = unicos[indice]
+    const { data, error } = await supabase.storage.from(BUCKET_EVIDENCIAS_SGO).download(path)
+    if (error || !data) throw new Error(`No se pudo preparar la evidencia ${indice + 1}. Probá usar “PDF completo”.`)
+    try {
+      let optimizada = await imagenComoJpeg(data, 1000, 0.62)
+      if (optimizada.size > 350 * 1024) optimizada = await imagenComoJpeg(optimizada, 720, 0.52)
+      resultado[path] = await blobADataUrl(optimizada)
+    } catch {
+      throw new Error(`La evidencia ${indice + 1} no pudo comprimirse. Probá usar “PDF completo”.`)
+    }
+    onProgress?.(indice + 1, unicos.length)
+  }
+
   return resultado
 }

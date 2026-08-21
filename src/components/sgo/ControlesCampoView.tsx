@@ -15,7 +15,7 @@ import {
 } from '../../sgo/controlesCampo'
 import {
   capturarEvidenciasCampo, encolarEvidenciasCampo, firmarEvidenciasCampo, listarEvidenciasPendientesCampo,
-  sincronizarEvidenciasPendientesCampo, type EvidenciaPendienteCampo,
+  prepararEvidenciasPdfLivianas, sincronizarEvidenciasPendientesCampo, type EvidenciaPendienteCampo,
 } from '../../sgo/evidenciasCampo'
 import { datosMejoraDesdeEvento } from '../../sgo/mejoras'
 import { proximaFechaControl, tipoEventoDesdeControl, type ControlProgramadoSGO, type EjecucionControlSGO } from '../../sgo/controles'
@@ -451,6 +451,15 @@ export function InformeControlCampo({ ejecucion, usuario, onUpdated, onClose }: 
   const seguridad = auditoria.porcentajePorPilar?.seguridad ?? calcularPorPilarCampo(auditoria.respuestas, 'seguridad', items)
   const ambiente = auditoria.porcentajePorPilar?.ambiente ?? calcularPorPilarCampo(auditoria.respuestas, 'ambiente', items)
   const [editandoFotos, setEditandoFotos] = useState(false)
+  const [exportandoPdf, setExportandoPdf] = useState<ModoExportacionCampo>()
+
+  async function exportar(modo: ModoExportacionCampo) {
+    setExportandoPdf(modo)
+    try { await exportarInformeCampo(ejecucion, modo) }
+    catch (error) { window.alert(error instanceof Error ? error.message : 'No se pudo preparar el informe.') }
+    finally { setExportandoPdf(undefined) }
+  }
+
   return <Modal titulo={`Informe · ${areaSGOLabel(auditoria.areaId)}`} onClose={onClose} ancho={1050}>
     <div className="sgo-campo-informe-vista">
       <div className="sgo-campo-doc-mini"><strong>{auditoria.documento.nombre}</strong><span>{auditoria.documento.codigo}</span><span>Versión {auditoria.documento.version}</span></div>
@@ -458,7 +467,8 @@ export function InformeControlCampo({ ejecucion, usuario, onUpdated, onClose }: 
       {auditoria.evidenciasActualizadasEn && <div className="sgo-evidencia-traza">Última incorporación de fotos: {fechaHora(auditoria.evidenciasActualizadasEn)} · {auditoria.evidenciasActualizadasPor}</div>}
       {SECCIONES_5S.map((s) => <section key={s.id}><h3>{s.nombre} · {auditoria.porcentajePorSeccion[s.id] ?? 0}%</h3>{items.filter((i) => i.seccion === s.id).map((item) => { const r = auditoria.respuestas.find((x) => x.itemId === item.id); if (!r) return null; return <div className="sgo-campo-informe-item" key={item.id}><span className={`sgo-campo-score score-${r.puntaje === 2 ? 'verde' : r.puntaje === 1 ? 'amarillo' : r.puntaje === 0 ? 'rojo' : 'gris'}`}>{r.puntaje === 'na' ? 'N/A' : `${r.puntaje}/2`}</span><div><strong>{item.pregunta}</strong>{r.observacion && <div>{r.observacion}</div>}{r.justificacionNoAplica && <div className="meta">No aplica: {r.justificacionNoAplica}</div>}{r.accion && <div className="meta">Acción: {r.accion} · {r.responsable} · {r.fechaCompromiso}</div>}{Boolean(r.evidenciaPaths?.length) && <div className="meta">📷 {r.evidenciaPaths!.length} foto(s) adjunta(s)</div>}</div></div> })}</section>)}
     </div>
-    <div className="row-actions" style={{ justifyContent: 'flex-end', marginTop: 12 }}><button className="btn" onClick={onClose}>Cerrar</button><button className="btn" onClick={() => setEditandoFotos(true)}>📷 Agregar fotos</button><button className="btn btn-primary" onClick={() => void exportarInformeCampo(ejecucion)}>🖨 Exportar PDF</button></div>
+    <div className="sgo-pdf-export-help"><strong>Elegí el tipo de informe:</strong> el PDF liviano es ideal para correo; el completo conserva las evidencias en resolución original.</div>
+    <div className="row-actions" style={{ justifyContent: 'flex-end', marginTop: 12 }}><button className="btn" onClick={onClose}>Cerrar</button><button className="btn" onClick={() => setEditandoFotos(true)}>📷 Agregar fotos</button><button className="btn" disabled={Boolean(exportandoPdf)} onClick={() => void exportar('completo')}>{exportandoPdf === 'completo' ? 'Preparando…' : '🖨 PDF completo'}</button><button className="btn btn-primary" disabled={Boolean(exportandoPdf)} onClick={() => void exportar('liviano')}>{exportandoPdf === 'liviano' ? 'Comprimiendo fotos…' : '📧 PDF liviano para enviar'}</button></div>
     {editandoFotos && <EditorFotosAuditoriaCampo ejecucion={ejecucion} usuario={usuario} onUpdated={onUpdated} onClose={() => setEditandoFotos(false)} />}
   </Modal>
 }
@@ -531,34 +541,54 @@ function SelectorFotosCampo({ disabled, procesando, onFiles }: { disabled: boole
 
 const esc = (valor?: string | number) => String(valor ?? '').replace(/[&<>'"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c]!))
 
-async function exportarInformeCampo(ejecucion: EjecucionControlSGO) {
+type ModoExportacionCampo = 'liviano' | 'completo'
+
+async function exportarInformeCampo(ejecucion: EjecucionControlSGO, modo: ModoExportacionCampo) {
   const a = ejecucion.auditoriaCampo
   if (!a) return
+  const ventana = window.open('', '_blank')
+  if (!ventana) throw new Error('El navegador bloqueó la ventana de exportación. Habilitá las ventanas emergentes.')
+  ventana.opener = null
+  ventana.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Preparando informe</title><style>body{font-family:Arial,sans-serif;background:#f8fafc;color:#0f172a;display:grid;place-items:center;min-height:80vh;margin:0}.estado{max-width:520px;text-align:center;padding:32px}.estado strong{display:block;font-size:20px;margin-bottom:10px}.estado span{color:#475569}</style></head><body><div class="estado"><strong>${modo === 'liviano' ? 'Comprimiendo evidencias…' : 'Preparando evidencias originales…'}</strong><span id="progreso">Aguardá unos segundos. El informe se abrirá automáticamente.</span></div></body></html>`)
+  ventana.document.close()
+
+  const actualizarProgreso = (procesadas: number, total: number) => {
+    if (ventana.closed) return
+    const progreso = ventana.document.getElementById('progreso')
+    if (progreso) progreso.textContent = `Procesando fotografía ${procesadas} de ${total}.`
+  }
+
+  try {
   const items = itemsDeAuditoriaCampo(a)
   const seguridad = a.porcentajePorPilar?.seguridad ?? calcularPorPilarCampo(a.respuestas, 'seguridad', items)
   const ambiente = a.porcentajePorPilar?.ambiente ?? calcularPorPilarCampo(a.respuestas, 'ambiente', items)
   const paths = a.respuestas.flatMap((r) => r.evidenciaPaths ?? [])
-  const urls = await firmarEvidenciasCampo(paths)
-  const ventana = window.open('', '_blank')
-  if (!ventana) { window.alert('El navegador bloqueó la ventana de exportación. Habilitá las ventanas emergentes.'); return }
-  ventana.opener = null
+  const urls = modo === 'liviano'
+    ? await prepararEvidenciasPdfLivianas(paths, actualizarProgreso)
+    : await firmarEvidenciasCampo(paths)
+  if (ventana.closed) throw new Error('La ventana del informe fue cerrada antes de terminar.')
   const filas = SECCIONES_5S.map((seccion) => `<tr class="seccion"><td colspan="6">${esc(seccion.nombre)} · ${a.porcentajePorSeccion[seccion.id] ?? 0}%</td></tr>${items.filter((i) => i.seccion === seccion.id).map((item) => {
     const r = a.respuestas.find((x) => x.itemId === item.id)
     if (!r) return ''
     const fotos = (r.evidenciaPaths ?? []).map((p) => urls[p] ? `<img src="${esc(urls[p])}" alt="Evidencia" />` : `<span>${esc(p)}</span>`).join('')
     return `<tr><td>${item.numero}</td><td>${esc(item.punto)}</td><td>${esc(item.pregunta)}</td><td class="puntaje">${r.puntaje === 'na' ? 'N/A' : esc(r.puntaje)}</td><td>${esc(r.observacion ?? r.justificacionNoAplica)}</td><td>${esc(r.accion)}${r.responsable ? `<br><b>${esc(r.responsable)}</b> · ${esc(r.fechaCompromiso)}` : ''}${r.evidenciaReferencia ? `<br>Evidencia: ${esc(r.evidenciaReferencia)}` : ''}<div class="fotos">${fotos}</div></td></tr>`
   }).join('')}`).join('')
-  ventana.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(a.documento.codigo)} · ${esc(areaSGOLabel(a.areaId))}</title><style>
+  ventana.document.open()
+  ventana.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(a.documento.codigo)} · ${esc(areaSGOLabel(a.areaId))} · ${modo === 'liviano' ? 'Liviano' : 'Completo'}</title><style>
     @page{size:A4 portrait;margin:9mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#111;font-size:9px;margin:0}.cab{width:100%;border-collapse:collapse;margin-bottom:8px}.cab td{border:1px solid #111;padding:5px}.logo{width:22%;text-align:center}.logo img{max-width:100px;max-height:52px}.titulo{font-size:15px;font-weight:800;text-align:center}.doc{width:24%;line-height:1.5}.meta{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid #111;margin-bottom:8px}.meta div{padding:5px;border-right:1px solid #111}.meta div:nth-child(3n){border-right:0}.resultado{font-size:18px;font-weight:900}.tabla{width:100%;border-collapse:collapse}.tabla th,.tabla td{border:1px solid #333;padding:4px;vertical-align:top}.tabla th{background:#e5e7eb}.seccion td{background:#cbd5e1;font-weight:800;font-size:10px}.puntaje{text-align:center;font-size:12px;font-weight:900}.fotos{display:flex;gap:3px;flex-wrap:wrap;margin-top:3px}.fotos img{width:58px;height:44px;object-fit:cover}.firmas{display:grid;grid-template-columns:repeat(3,1fr);gap:25px;margin-top:28px;text-align:center}.firmas div{border-top:1px solid #111;padding-top:4px}.pie{margin-top:8px;text-align:center;color:#444}@media print{thead{display:table-header-group}.seccion{break-after:avoid}tr{break-inside:avoid}}
   </style></head><body>
     <table class="cab"><tr><td class="logo"><img src="${esc(new URL('/logo.png', window.location.origin).href)}" alt="INELPA"></td><td class="titulo">${esc(a.documento.nombre)}</td><td class="doc"><b>${esc(a.documento.codigo)}</b><br>Versión: ${esc(a.documento.version)}<br>Fecha de emisión: ${esc(a.documento.fechaEmision)}<br>Hoja N° 1</td></tr></table>
     <div class="meta"><div><b>Fecha control</b><br>${esc(fechaHora(a.finalizadaEn))}</div><div><b>Controlado por</b><br>${esc(a.auditor)}</div><div><b>Sector</b><br>${esc(areaSGOLabel(a.areaId))}</div><div><b>Encargado de área</b><br>${esc(a.encargadoArea)}</div><div><b>Ubicación / turno</b><br>${esc(a.ubicacion)} · ${esc(a.turno)}</div><div><b>Resultado general</b><br><span class="resultado">${a.porcentajeCumplimiento}%</span>${a.calificacionAnterior !== undefined ? `<br>Anterior: ${a.calificacionAnterior}%` : ''}<br>Seguridad: ${seguridad}% · Ambiente: ${ambiente}%</div></div>
     <table class="tabla"><thead><tr><th>N°</th><th>Punto a verificar</th><th>Descripción</th><th>0/1/2</th><th>Observación</th><th>Acción / evidencia</th></tr></thead><tbody>${filas}</tbody></table>
     <div class="firmas"><div>Auditado por<br><b>${esc(a.auditor)}</b></div><div>Encargado del área<br><b>${esc(a.encargadoArea)}</b></div><div>Revisión SGO</div></div>
-    <div class="pie">Emitido: ${esc(a.documento.emitidoPor)} · Aprobado: ${esc(a.documento.aprobadoPor)} · Registro ${esc(ejecucion.id)} · Acceso: ${esc(a.usuarioAcceso)}</div>
-    <script>window.addEventListener('load',()=>setTimeout(()=>window.print(),350))<\/script>
+    <div class="pie"><b>${modo === 'liviano' ? 'PDF liviano para envío · Las evidencias originales permanecen disponibles en SGO.' : 'PDF completo · Evidencias incorporadas en su resolución original.'}</b><br>Emitido: ${esc(a.documento.emitidoPor)} · Aprobado: ${esc(a.documento.aprobadoPor)} · Registro ${esc(ejecucion.id)} · Acceso: ${esc(a.usuarioAcceso)}</div>
+    <script>window.addEventListener('load',()=>{const imagenes=Array.from(document.images);Promise.all(imagenes.map((img)=>img.complete?Promise.resolve():new Promise((resolve)=>{img.onload=resolve;img.onerror=resolve}))).then(()=>setTimeout(()=>window.print(),250))})<\/script>
   </body></html>`)
   ventana.document.close()
+  } catch (error) {
+    if (!ventana.closed) ventana.close()
+    throw error
+  }
 }
 
 function Modal({ titulo, onClose, ancho = 760, children }: { titulo: string; onClose: () => void; ancho?: number; children: React.ReactNode }) {

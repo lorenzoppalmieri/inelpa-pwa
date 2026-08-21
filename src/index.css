@@ -92,6 +92,8 @@
 .sgo-campo-informe-resumen span, .sgo-campo-informe-resumen strong { display: block; }
 .sgo-campo-informe-resumen span { color: var(--texto-tenue); font-size: .72rem; }
 .sgo-campo-informe-vista h3 { margin: 8px 0 4px; padding: 7px 9px; border-radius: 7px; background: var(--panel-2); font-size: .85rem; }
+.sgo-pdf-export-help { margin-top: 12px; padding: 9px 11px; border: 1px solid rgba(56,189,248,.28); border-radius: 8px; background: rgba(2,132,199,.08); color: var(--texto-tenue); font-size: .78rem; }
+.sgo-pdf-export-help strong { color: var(--texto); }
 .sgo-campo-informe-item { display: grid; grid-template-columns: 65px 1fr; gap: 9px; align-items: start; padding: 7px 2px; border-bottom: 1px solid var(--borde); }
 .sgo-evidencia-pendiente { margin-top: 6px; color: #fde68a; font-size: .78rem; font-weight: 800; }
 .sgo-evidencia-traza { padding: 9px 11px; border: 1px solid rgba(56,189,248,.35); border-radius: 9px; background: rgba(2,132,199,.1); color: #bae6fd; font-size: .78rem; }
