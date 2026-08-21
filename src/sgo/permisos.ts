@@ -5,6 +5,11 @@ export function usuarioEsLorenzo(usuario: string): boolean {
   return usuario.trim().toLowerCase() === 'lorenzo'
 }
 
+export function usuarioPuedeExportarInformesSGO(usuario: string): boolean {
+  const normalizado = usuario.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  return ['lorenzo', 'lara', 'nicolas.sgo', 'nicolas', 'azul', 'gestionsgo'].includes(normalizado)
+}
+
 export function usuarioPuedeInvestigarRetrabajo(usuario: string): boolean {
   return ['lara', 'lorenzo'].includes(usuario.trim().toLowerCase())
 }

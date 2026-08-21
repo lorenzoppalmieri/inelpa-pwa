@@ -23,7 +23,7 @@ import {
   AREAS_SGO, PILARES_SGO, areaSGOLabel, codigoEventoSGO,
   type AccionSGO, type AreaSGOId, type EventoSGO, type PilarSGO,
 } from '../../sgo/types'
-import { usuarioEsLorenzo } from '../../sgo/permisos'
+import { usuarioEsLorenzo, usuarioPuedeExportarInformesSGO } from '../../sgo/permisos'
 
 const fechaHora = (iso: string) => new Intl.DateTimeFormat('es-AR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(iso))
 const fechaLarga = (iso: string) => new Intl.DateTimeFormat('es-AR', { dateStyle: 'long' }).format(new Date(`${iso.slice(0, 10)}T12:00:00`))
@@ -452,8 +452,10 @@ export function InformeControlCampo({ ejecucion, usuario, onUpdated, onClose }: 
   const ambiente = auditoria.porcentajePorPilar?.ambiente ?? calcularPorPilarCampo(auditoria.respuestas, 'ambiente', items)
   const [editandoFotos, setEditandoFotos] = useState(false)
   const [exportandoPdf, setExportandoPdf] = useState<ModoExportacionCampo>()
+  const puedeExportar = usuarioPuedeExportarInformesSGO(usuario)
 
   async function exportar(modo: ModoExportacionCampo) {
+    if (!puedeExportar) { window.alert('La exportación está habilitada para Lorenzo, Lara, Nicolás y Azul.'); return }
     setExportandoPdf(modo)
     try { await exportarInformeCampo(ejecucion, modo) }
     catch (error) { window.alert(error instanceof Error ? error.message : 'No se pudo preparar el informe.') }
@@ -467,8 +469,8 @@ export function InformeControlCampo({ ejecucion, usuario, onUpdated, onClose }: 
       {auditoria.evidenciasActualizadasEn && <div className="sgo-evidencia-traza">Última incorporación de fotos: {fechaHora(auditoria.evidenciasActualizadasEn)} · {auditoria.evidenciasActualizadasPor}</div>}
       {SECCIONES_5S.map((s) => <section key={s.id}><h3>{s.nombre} · {auditoria.porcentajePorSeccion[s.id] ?? 0}%</h3>{items.filter((i) => i.seccion === s.id).map((item) => { const r = auditoria.respuestas.find((x) => x.itemId === item.id); if (!r) return null; return <div className="sgo-campo-informe-item" key={item.id}><span className={`sgo-campo-score score-${r.puntaje === 2 ? 'verde' : r.puntaje === 1 ? 'amarillo' : r.puntaje === 0 ? 'rojo' : 'gris'}`}>{r.puntaje === 'na' ? 'N/A' : `${r.puntaje}/2`}</span><div><strong>{item.pregunta}</strong>{r.observacion && <div>{r.observacion}</div>}{r.justificacionNoAplica && <div className="meta">No aplica: {r.justificacionNoAplica}</div>}{r.accion && <div className="meta">Acción: {r.accion} · {r.responsable} · {r.fechaCompromiso}</div>}{Boolean(r.evidenciaPaths?.length) && <div className="meta">📷 {r.evidenciaPaths!.length} foto(s) adjunta(s)</div>}</div></div> })}</section>)}
     </div>
-    <div className="sgo-pdf-export-help"><strong>Elegí el tipo de informe:</strong> el PDF liviano es ideal para correo; el completo conserva las evidencias en resolución original.</div>
-    <div className="row-actions" style={{ justifyContent: 'flex-end', marginTop: 12 }}><button className="btn" onClick={onClose}>Cerrar</button><button className="btn" onClick={() => setEditandoFotos(true)}>📷 Agregar fotos</button><button className="btn" disabled={Boolean(exportandoPdf)} onClick={() => void exportar('completo')}>{exportandoPdf === 'completo' ? 'Preparando…' : '🖨 PDF completo'}</button><button className="btn btn-primary" disabled={Boolean(exportandoPdf)} onClick={() => void exportar('liviano')}>{exportandoPdf === 'liviano' ? 'Comprimiendo fotos…' : '📧 PDF liviano para enviar'}</button></div>
+    <div className="sgo-pdf-export-help"><strong>Exportación habilitada para Lorenzo, Lara, Nicolás y Azul:</strong> el PDF liviano es ideal para correo; el completo conserva las evidencias en resolución original.</div>
+    <div className="row-actions" style={{ justifyContent: 'flex-end', marginTop: 12 }}><button className="btn" onClick={onClose}>Cerrar</button><button className="btn" onClick={() => setEditandoFotos(true)}>📷 Agregar fotos</button>{puedeExportar && <><button className="btn" disabled={Boolean(exportandoPdf)} onClick={() => void exportar('completo')}>{exportandoPdf === 'completo' ? 'Preparando…' : '🖨 PDF completo'}</button><button className="btn btn-primary" disabled={Boolean(exportandoPdf)} onClick={() => void exportar('liviano')}>{exportandoPdf === 'liviano' ? 'Comprimiendo fotos…' : '📧 PDF liviano para enviar'}</button></>}</div>
     {editandoFotos && <EditorFotosAuditoriaCampo ejecucion={ejecucion} usuario={usuario} onUpdated={onUpdated} onClose={() => setEditandoFotos(false)} />}
   </Modal>
 }
