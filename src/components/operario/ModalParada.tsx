@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  causasDeSector, CATEGORIA_LABEL, areaDemora,
+  causasDeSector, CATEGORIA_LABEL, areaDemora, esCausaRetrabajo, contarPalabras,
+  MAX_PALABRAS_RETRABAJO,
   type CausaParada, type CategoriaParada, type CausaParadaDef, type SectorId,
 } from '../../types'
 import { dentroVentanaAlmuerzo, ventanaAlmuerzoTexto } from '../../lib/calendario'
@@ -39,7 +40,17 @@ export default function ModalParada({ sectorId, onConfirm, onCancel }: {
   }, [])
   const bloqueada = (c: CausaParada) => c === CAUSA_ALMUERZO && !almuerzoOk
   // En Montaje el operario NO escribe observación (solo elige la causa).
+  // v1.94: salvo en RETRABAJO — ahí sí escribe, como en el resto de la planta.
   const esMontaje = areaDemora(sectorId) === 'montaje'
+
+  // v1.94: la explicación es OBLIGATORIA en los retrabajos y tiene tope de
+  // palabras. La parada abre sola una no conformidad y Lara la investiga sin
+  // haber estado en planta: sin esta línea, arranca a ciegas.
+  const retrabajo = !!causa && esCausaRetrabajo(causa)
+  const palabras = contarPalabras(obs)
+  const seExcede = retrabajo && palabras > MAX_PALABRAS_RETRABAJO
+  const faltaTexto = retrabajo && palabras === 0
+  const obsInvalida = seExcede || faltaTexto
 
   // Causas de la SECCION del operario (+ globales) -> filtro por texto -> agrupa.
   const grupos = useMemo(() => {
@@ -104,7 +115,27 @@ export default function ModalParada({ sectorId, onConfirm, onCancel }: {
         </div>
 
         <div className="modal-pie">
-          {!esMontaje && (
+          {/* v1.94: en RETRABAJO el campo aparece siempre (también en Montaje) y
+              es obligatorio, con tope de palabras. En el resto sigue como antes. */}
+          {retrabajo ? (
+            <div className="field" style={{ marginBottom: 8 }}>
+              <label>¿Qué pasó? — máximo {MAX_PALABRAS_RETRABAJO} palabras *</label>
+              <input
+                className={'input' + (seExcede ? ' input-error' : '')}
+                value={obs} autoFocus
+                onChange={(e) => setObs(e.target.value)}
+                placeholder="ej. se pasó de vueltas la capa 3"
+              />
+              <div className="retrabajo-ayuda">
+                <span className={seExcede ? 'excedido' : ''}>{palabras} / {MAX_PALABRAS_RETRABAJO} palabras</span>
+                {seExcede
+                  ? <strong> · Pasaste el límite: contá qué pasó en {MAX_PALABRAS_RETRABAJO} palabras o menos.</strong>
+                  : faltaTexto
+                    ? <span> · Escribí en pocas palabras qué pasó. Va al informe de calidad.</span>
+                    : <span> · Esto lo va a leer quien investigue el retrabajo.</span>}
+              </div>
+            </div>
+          ) : !esMontaje && (
             <div className="field" style={{ marginBottom: 8 }}>
               <label>Observacion (opcional)</label>
               <input className="input" value={obs} onChange={(e) => setObs(e.target.value)} placeholder="detalle..." />
@@ -119,8 +150,8 @@ export default function ModalParada({ sectorId, onConfirm, onCancel }: {
           )}
           <div className="row-actions">
             <button className="btn" style={{ flex: 1 }} onClick={onCancel}>Cancelar</button>
-            <button className="btn btn-naranja" style={{ flex: 1 }} disabled={!causa || bloqueada(causa)}
-              onClick={() => causa && !bloqueada(causa) && onConfirm(causa, obs)}>Iniciar parada</button>
+            <button className="btn btn-naranja" style={{ flex: 1 }} disabled={!causa || bloqueada(causa) || obsInvalida}
+              onClick={() => causa && !bloqueada(causa) && !obsInvalida && onConfirm(causa, obs)}>Iniciar parada</button>
           </div>
         </div>
       </div>

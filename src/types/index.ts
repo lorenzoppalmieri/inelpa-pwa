@@ -1095,6 +1095,12 @@ export interface CausaParadaDef {
   // su etiqueta en Gantt, KPIs y Pareto (causaLabel cae al id crudo si no esta).
   // No borrar la entrada: se rompe el historico.
   retirada?: boolean
+  // v1.94: es un RETRABAJO. El operario tiene que explicar en pocas palabras que
+  // paso, porque esta parada abre sola una no conformidad en SGO y Lara la
+  // investiga sin haber estado en planta. Se marca con un flag y NO buscando la
+  // palabra "retrabajo" en el label: hay causas que son retrabajo sin llamarse
+  // asi ("Solucionando retrabajo" si, "Bobina de BT defectuosa" no).
+  esRetrabajo?: boolean
 }
 
 export const CAUSAS_PARADA: CausaParadaDef[] = [
@@ -1122,7 +1128,7 @@ export const CAUSAS_PARADA: CausaParadaDef[] = [
   { id: 'accidente_laboral', label: 'Accidente laboral', categoria: 'personal', codigo: 29, areas: ['bobinado', 'general'] },
   { id: 'espera_encargado', label: 'Espera a encargado', categoria: 'personal', codigo: 4, areas: ['bobinado', 'general'] },
   { id: 'taco_defectuoso', label: 'Taco defectuoso', categoria: 'calidad', codigo: 38, areas: ['bobinado', 'general'] },
-  { id: 'retrabajo', label: 'Retrabajo', categoria: 'calidad', codigo: 10, areas: ['bobinado', 'general'] },
+  { id: 'retrabajo', label: 'Retrabajo', categoria: 'calidad', codigo: 10, areas: ['bobinado', 'general'], esRetrabajo: true },
   { id: 'calidad_alambre', label: 'Problemas calidad del alambre o planchuela', categoria: 'calidad', codigo: 18, areas: ['bobinado', 'general'] },
   { id: 'bobina_bt_defectuosa', label: 'Bobina de BT defectuosa', categoria: 'calidad', codigo: 40, areas: ['bobinado', 'general'] },
   { id: 'espera_peso_kg', label: 'Espera peso kg', categoria: 'material', codigo: 40, areas: ['bobinado', 'general'] },
@@ -1131,12 +1137,12 @@ export const CAUSAS_PARADA: CausaParadaDef[] = [
   { id: 'her_espera_cuba', label: 'Espera cuba', categoria: 'material', areas: ['herreria'] },
   { id: 'her_espera_materiales', label: 'Espera materiales / herramientas / etc.', categoria: 'material', areas: ['herreria'] },
   { id: 'her_falta_tapa', label: 'Falta de tapa', categoria: 'material', areas: ['herreria'] },
-  { id: 'her_retrabajo_tercero', label: 'Retrabajo de un 3° del sector', categoria: 'calidad', areas: ['herreria'] },
-  { id: 'her_retrabajo_propio', label: 'Retrabajo propio', categoria: 'calidad', areas: ['herreria'] },
-  { id: 'her_retrabajo_cuba_tapa_tanque', label: 'Retrabajo en su cuba / tapa / tanque', categoria: 'calidad', areas: ['herreria'] },
-  { id: 'her_retrabajo', label: 'Retrabajo', categoria: 'calidad', areas: ['herreria'] },
-  { id: 'her_retrabajo_otro_sector', label: 'Retrabajo (de otro sector)', categoria: 'calidad', areas: ['herreria'] },
-  { id: 'her_retrabajo_proveedor', label: 'Retrabajo (problemas proveedor)', categoria: 'calidad', areas: ['herreria'] },
+  { id: 'her_retrabajo_tercero', label: 'Retrabajo de un 3° del sector', categoria: 'calidad', areas: ['herreria'] , esRetrabajo: true },
+  { id: 'her_retrabajo_propio', label: 'Retrabajo propio', categoria: 'calidad', areas: ['herreria'] , esRetrabajo: true },
+  { id: 'her_retrabajo_cuba_tapa_tanque', label: 'Retrabajo en su cuba / tapa / tanque', categoria: 'calidad', areas: ['herreria'] , esRetrabajo: true },
+  { id: 'her_retrabajo', label: 'Retrabajo', categoria: 'calidad', areas: ['herreria'] , esRetrabajo: true },
+  { id: 'her_retrabajo_otro_sector', label: 'Retrabajo (de otro sector)', categoria: 'calidad', areas: ['herreria'] , esRetrabajo: true },
+  { id: 'her_retrabajo_proveedor', label: 'Retrabajo (problemas proveedor)', categoria: 'calidad', areas: ['herreria'] , esRetrabajo: true },
   { id: 'her_perdidas_hermetizado', label: 'Perdidas en hermetizado', categoria: 'calidad', areas: ['herreria'] },
   { id: 'her_hermetizado', label: 'Hermetizado', categoria: 'otra', areas: ['herreria'] },
   { id: 'her_capacitacion', label: 'Capacitacion', categoria: 'personal', areas: ['herreria'] },
@@ -1172,11 +1178,11 @@ export const CAUSAS_PARADA: CausaParadaDef[] = [
   { id: 'mon_ayuda_sector', label: 'Ayuda en el sector', categoria: 'personal', areas: ['montaje'] },
   { id: 'mon_ayuda_otro_sector', label: 'Ayuda en otro sector', categoria: 'personal', areas: ['montaje'] },
   { id: 'mon_retiro', label: 'Retiro', categoria: 'personal', areas: ['montaje'] },
-  { id: 'mon_retrabajo_bobina', label: 'Retrabajo bobina', categoria: 'calidad', areas: ['montaje'] },
+  { id: 'mon_retrabajo_bobina', label: 'Retrabajo bobina', categoria: 'calidad', areas: ['montaje'] , esRetrabajo: true },
   { id: 'mon_no_da_relacion', label: 'No da relacion la/s bobina/s', categoria: 'calidad', areas: ['montaje'] },
   { id: 'mon_insumos_defectuosos', label: 'Materiales o insumos defectuosos (chapa, prensayugos, llave, angulos)', categoria: 'calidad', areas: ['montaje'] },
   { id: 'mon_modif_materiales', label: 'Modificacion de materiales / insumos recibidos', categoria: 'calidad', areas: ['montaje'] },
-  { id: 'mon_solucionando_retrabajo', label: 'Solucionando retrabajo', categoria: 'calidad', areas: ['montaje'] },
+  { id: 'mon_solucionando_retrabajo', label: 'Solucionando retrabajo', categoria: 'calidad', areas: ['montaje'] , esRetrabajo: true },
   { id: 'mon_pintaron_prensayugo', label: 'Pintaron prensayugo en el sector', categoria: 'otra', areas: ['montaje'] },
   { id: 'mon_espera_conmutador', label: 'Espera / falta conmutador', categoria: 'logistica', areas: ['montaje'] },
   { id: 'mon_espera_varillas_roscadas', label: 'Espera / falta varillas roscadas', categoria: 'logistica', areas: ['montaje'] },
@@ -1185,6 +1191,9 @@ export const CAUSAS_PARADA: CausaParadaDef[] = [
   { id: 'pin_falta_cubas', label: 'Falta de cubas', categoria: 'material', areas: ['pintura'] },
   { id: 'pin_falta_material_logistico', label: 'Falta de material logistico', categoria: 'logistica', areas: ['pintura'] },
   { id: 'pin_corte_luz', label: 'Corte de luz', categoria: 'maquina', areas: ['pintura'] },
+  // v1.94: Pintura no tenia causa de retrabajo y es una de las areas que la
+  // necesita. `integraciones.ts` ya la mapeaba a PIN_ACABADO sin que existiera.
+  { id: 'pin_retrabajo', label: 'Retrabajo de pintura', categoria: 'calidad', areas: ['pintura'], esRetrabajo: true },
 
   // ===== v1.11: nuevas esperas de ABASTECIMIENTO (disparan alerta a Logistica) =====
   { id: 'mon_espera_consumibles', label: 'Espera de consumibles', categoria: 'logistica', areas: ['montaje'] },
@@ -1263,6 +1272,28 @@ export function causaLabel(c: CausaParada): string {
   return CAUSAS_PARADA.find((x) => x.id === c)?.label ?? c
 }
 // Paradas no productivas (almuerzo, pausas programadas): no penalizan el OEE.
+// ============================================================
+// v1.94 — RETRABAJOS: el operario explica en pocas palabras qué pasó.
+//
+// Una parada de retrabajo abre SOLA una no conformidad en SGO
+// (TareaCard.confirmarParada -> noConformidadDesdeParada) y Lara la investiga
+// sin haber estado en planta. Sin una línea del operario, esa investigación
+// arranca a ciegas.
+//
+// El tope es de 10 palabras a propósito: se carga en una tablet, con guantes y
+// la máquina parada. No es un informe, es una pista.
+// ============================================================
+export const MAX_PALABRAS_RETRABAJO = 10
+
+export function esCausaRetrabajo(c: CausaParada): boolean {
+  return CAUSAS_PARADA.find((x) => x.id === c)?.esRetrabajo === true
+}
+
+/** Palabras reales de un texto (ignora espacios de más y saltos de línea). */
+export function contarPalabras(texto: string): number {
+  return texto.trim().split(/\s+/).filter(Boolean).length
+}
+
 export function esParadaNoProductiva(c: CausaParada): boolean {
   return CAUSAS_PARADA.find((x) => x.id === c)?.categoria === 'no_productiva'
 }
