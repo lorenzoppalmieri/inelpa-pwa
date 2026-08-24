@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
 import { useAuth } from '../../auth/AuthContext'
-import { esDirectorio } from '../../auth/roles'
 import { SECTORES, materialLabel, esSectorBobinado, BOBINADO_SECTORES, type LineaProduccion, type SectorId, type Tarea, type Maquina } from '../../types'
 import { isoWeek } from '../../lib/time'
 import { filtrarPorRango } from '../../lib/kpi'
@@ -13,7 +12,6 @@ import GanttOperativo from './GanttOperativo'
 import KpiPanel from './KpiPanel'
 import AndonView from './AndonView'
 import AlertaMaterial from './AlertaMaterial'
-import DireccionView from './DireccionView'
 import CuellosView from './CuellosView'
 import SugerenciasEstandar from './SugerenciasEstandar'
 import PlanificacionView from '../planificador/PlanificacionView'
@@ -60,13 +58,9 @@ export default function DashboardView() {
   const { usuario, permisos } = useAuth()
   // v1.97: 'cuellos' — OEE por estación y cuellos de botella. La MISMA pantalla
   // se monta también en SGO (un solo componente, no dos copias).
-  const [vista, setVista] = useState<'gantt' | 'kpis' | 'planificacion' | 'andon' | 'direccion' | 'mensajes' | 'cuellos'>('gantt')
+  const [vista, setVista] = useState<'gantt' | 'kpis' | 'planificacion' | 'andon' | 'mensajes' | 'cuellos'>('gantt')
   // v1.73: contador de retrabajos para el badge de la pestaña Planificación.
   const nRetrabajos = useRetrabajosPendientes().length
-  // v1.16: la vista ejecutiva "Direccion" es exclusiva del usuario lorenzo.
-  // v1.95: la vista ejecutiva es del DIRECTORIO (Lorenzo + la cuenta compartida
-  // 'direccion' de Guillermo y Mario), no de un usuario escrito a mano.
-  const esDireccion = esDirectorio(usuario)
   // v1.18: mensajes. El planificador redacta; el encargado recibe (bandeja).
   const esCompositor = !!permisos?.cargarProgramacion
   const noLeidos = useMensajesNoLeidos()
@@ -189,9 +183,10 @@ export default function DashboardView() {
         {(permisos?.cargarProgramacion || permisos?.crearReparacion) && (
           <button className={'tab' + (vista === 'planificacion' ? ' active' : '')} onClick={() => setVista('planificacion')}><span className="nav-ico" aria-hidden="true">🗂</span><span className="nav-txt-largo">Planificacion{nRetrabajos > 0 ? ` (${nRetrabajos})` : ''}</span><span className="nav-txt-corto">Planificar{nRetrabajos > 0 ? ` (${nRetrabajos})` : ''}</span></button>
         )}
-        {esDireccion && (
-          <button className={'tab' + (vista === 'direccion' ? ' active' : '')} onClick={() => setVista('direccion')}><span className="nav-ico" aria-hidden="true">🏢</span><span className="nav-txt-largo">📊 Dirección</span><span className="nav-txt-corto">Dirección</span></button>
-        )}
+        {/* v1.98: se retiró la pestaña "📊 Dirección". No aportaba información
+            accionable y su lugar lo ocupa "Cuellos / OEE", que sí responde
+            preguntas de gestión. El componente DireccionView.tsx queda en el
+            repo sin montar, por si se quiere retomar. */}
         <button className={'tab' + (vista === 'mensajes' ? ' active' : '')} onClick={() => setVista('mensajes')}>
           <span className="nav-ico" aria-hidden="true">💬</span>
           <span className="nav-txt-largo">💬 Mensajes{!esCompositor && noLeidos > 0 ? ` (${noLeidos})` : ''}</span>
@@ -203,8 +198,6 @@ export default function DashboardView() {
         ? (esCompositor ? <MensajesPlanificador /> : <MensajesInbox />)
         : vista === 'cuellos'
         ? <CuellosView />
-        : vista === 'direccion' && esDireccion
-        ? <DireccionView />
         : vista === 'andon'
         ? <AndonView />
         : vista === 'planificacion' && (permisos?.cargarProgramacion || permisos?.crearReparacion)
