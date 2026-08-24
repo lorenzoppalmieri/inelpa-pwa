@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
 import { eliminarEventoSGO, guardarEventoSGO } from '../../sync/syncEngine'
@@ -25,7 +25,13 @@ const fuenteLabel = (id?: FuenteMejoraSGO) => FUENTES_MEJORA.find((f) => f.id ==
 const claseLabel = (id?: ClaseMejoraSGO) => CLASES_MEJORA.find((c) => c.id === id)?.label ?? 'Mejora'
 const estadoLabel = (id: EstadoGestionMejora) => ESTADOS_GESTION_MEJORA.find((e) => e.id === id)?.label ?? id
 
-export default function MejorasSGOView({ usuario, onOpenEvento }: { usuario: string; onOpenEvento: (id: string) => void }) {
+export default function MejorasSGOView({ usuario, onOpenEvento, registroInicialId, vistaInicial, onRegistroInicialConsumido }: {
+  usuario: string
+  onOpenEvento: (id: string) => void
+  registroInicialId?: string
+  vistaInicial?: 'seguimiento' | 'retrabajos'
+  onRegistroInicialConsumido?: () => void
+}) {
   const eventos = useLiveQuery(() => db.eventosSGO.toArray(), []) ?? []
   const acciones = useLiveQuery(() => db.accionesSGO.toArray(), []) ?? []
   const [vista, setVista] = useState<VistaMejoras>('seguimiento')
@@ -34,6 +40,18 @@ export default function MejorasSGOView({ usuario, onOpenEvento }: { usuario: str
   const [fuente, setFuente] = useState<FuenteMejoraSGO | ''>('')
   const [area, setArea] = useState<AreaSGOId | ''>('')
   const [estado, setEstado] = useState<EstadoGestionMejora | ''>('')
+  useEffect(() => {
+    if (!registroInicialId) return
+    if (vistaInicial === 'retrabajos') {
+      setVista('retrabajos')
+      return
+    }
+    const registro = eventos.find((item) => item.id === registroInicialId && item.mejora)
+    if (!registro) return
+    setVista('seguimiento')
+    setEditor(registro)
+    onRegistroInicialConsumido?.()
+  }, [registroInicialId, vistaInicial, eventos, onRegistroInicialConsumido])
   const hoy = fechaHoyISO()
   const registros = useMemo(() => eventos.filter((evento) => Boolean(evento.mejora)), [eventos])
   const retrabajosPendientes = eventos.filter((evento) => evento.retrabajo && evento.estado !== 'cerrado').length
@@ -94,7 +112,7 @@ export default function MejorasSGOView({ usuario, onOpenEvento }: { usuario: str
       <select className="input" value={area} onChange={(e) => setArea(e.target.value as AreaSGOId | '')}><option value="">Todas las áreas</option>{AREAS_SGO.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}</select>
       <select className="input" value={estado} onChange={(e) => setEstado(e.target.value as EstadoGestionMejora | '')}><option value="">Todos los estados</option>{ESTADOS_GESTION_MEJORA.map((e) => <option key={e.id} value={e.id}>{e.label}</option>)}</select>
     </div>}
-    {vista === 'retrabajos' ? <RetrabajosSGOView usuario={usuario} onOpenEvento={onOpenEvento} />
+    {vista === 'retrabajos' ? <RetrabajosSGOView usuario={usuario} onOpenEvento={onOpenEvento} eventoInicialId={vistaInicial === 'retrabajos' ? registroInicialId : undefined} onEventoInicialConsumido={onRegistroInicialConsumido} />
       : vista === 'tablero' ? <Tablero registros={registros} acciones={acciones} hoy={hoy} />
       : vista === 'seguimiento' ? <Kanban registros={visibles} acciones={acciones} hoy={hoy} onOpen={setEditor} />
         : <Listado registros={visibles} acciones={acciones} hoy={hoy} onOpen={setEditor} vacio="Todavía no hay mejoras cerradas." />}

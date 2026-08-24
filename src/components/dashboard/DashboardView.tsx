@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
 import { useAuth } from '../../auth/AuthContext'
+import { esDirectorio } from '../../auth/roles'
 import { SECTORES, materialLabel, esSectorBobinado, BOBINADO_SECTORES, type LineaProduccion, type SectorId, type Tarea, type Maquina } from '../../types'
 import { isoWeek } from '../../lib/time'
 import { filtrarPorRango } from '../../lib/kpi'
@@ -13,6 +14,7 @@ import KpiPanel from './KpiPanel'
 import AndonView from './AndonView'
 import AlertaMaterial from './AlertaMaterial'
 import DireccionView from './DireccionView'
+import CuellosView from './CuellosView'
 import SugerenciasEstandar from './SugerenciasEstandar'
 import PlanificacionView from '../planificador/PlanificacionView'
 import AlertaRetrabajos, { useRetrabajosPendientes } from './AlertaRetrabajos'
@@ -56,11 +58,15 @@ function rangoPeriodo(periodo: Periodo, now: Date, diaISO?: string, desdeISO?: s
 
 export default function DashboardView() {
   const { usuario, permisos } = useAuth()
-  const [vista, setVista] = useState<'gantt' | 'kpis' | 'planificacion' | 'andon' | 'direccion' | 'mensajes'>('gantt')
+  // v1.97: 'cuellos' — OEE por estación y cuellos de botella. La MISMA pantalla
+  // se monta también en SGO (un solo componente, no dos copias).
+  const [vista, setVista] = useState<'gantt' | 'kpis' | 'planificacion' | 'andon' | 'direccion' | 'mensajes' | 'cuellos'>('gantt')
   // v1.73: contador de retrabajos para el badge de la pestaña Planificación.
   const nRetrabajos = useRetrabajosPendientes().length
   // v1.16: la vista ejecutiva "Direccion" es exclusiva del usuario lorenzo.
-  const esDireccion = usuario?.usuario === 'lorenzo'
+  // v1.95: la vista ejecutiva es del DIRECTORIO (Lorenzo + la cuenta compartida
+  // 'direccion' de Guillermo y Mario), no de un usuario escrito a mano.
+  const esDireccion = esDirectorio(usuario)
   // v1.18: mensajes. El planificador redacta; el encargado recibe (bandeja).
   const esCompositor = !!permisos?.cargarProgramacion
   const noLeidos = useMensajesNoLeidos()
@@ -179,6 +185,7 @@ export default function DashboardView() {
         <button className={'tab' + (vista === 'gantt' ? ' active' : '')} onClick={() => setVista('gantt')}><span className="nav-ico" aria-hidden="true">📈</span><span className="nav-txt-largo">Gantt operativo</span><span className="nav-txt-corto">Gantt</span></button>
         <button className={'tab' + (vista === 'andon' ? ' active' : '')} onClick={() => setVista('andon')}><span className="nav-ico" aria-hidden="true">🏆</span><span className="nav-txt-largo">🏆 Andon</span><span className="nav-txt-corto">Andon</span></button>
         <button className={'tab' + (vista === 'kpis' ? ' active' : '')} onClick={() => setVista('kpis')}><span className="nav-ico" aria-hidden="true">📊</span><span className="nav-txt-largo">Eficiencia / KPIs</span><span className="nav-txt-corto">KPIs</span></button>
+        <button className={'tab' + (vista === 'cuellos' ? ' active' : '')} onClick={() => setVista('cuellos')}><span className="nav-ico" aria-hidden="true">🔎</span><span className="nav-txt-largo">Cuellos / OEE</span><span className="nav-txt-corto">Cuellos</span></button>
         {(permisos?.cargarProgramacion || permisos?.crearReparacion) && (
           <button className={'tab' + (vista === 'planificacion' ? ' active' : '')} onClick={() => setVista('planificacion')}><span className="nav-ico" aria-hidden="true">🗂</span><span className="nav-txt-largo">Planificacion{nRetrabajos > 0 ? ` (${nRetrabajos})` : ''}</span><span className="nav-txt-corto">Planificar{nRetrabajos > 0 ? ` (${nRetrabajos})` : ''}</span></button>
         )}
@@ -194,6 +201,8 @@ export default function DashboardView() {
 
       {vista === 'mensajes'
         ? (esCompositor ? <MensajesPlanificador /> : <MensajesInbox />)
+        : vista === 'cuellos'
+        ? <CuellosView />
         : vista === 'direccion' && esDireccion
         ? <DireccionView />
         : vista === 'andon'

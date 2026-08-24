@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
 import { fechaLocalISO, sumarDiasLocalISO } from '../../lib/time'
@@ -17,7 +17,11 @@ const fechaAR = (f?: string) => f ? new Intl.DateTimeFormat('es-AR', { dateStyle
 const estadoLabel = (id: EstadoAgendaISO) => ESTADOS_AGENDA_ISO.find((e) => e.id === id)?.label ?? id
 const categoriaLabel = (id: CategoriaAgendaISO) => CATEGORIAS_AGENDA_ISO.find((e) => e.id === id)?.label ?? id
 
-export default function AgendaISOView({ usuario }: { usuario: string }) {
+export default function AgendaISOView({ usuario, actividadInicialId, onActividadInicialConsumida }: {
+  usuario: string
+  actividadInicialId?: string
+  onActividadInicialConsumida?: () => void
+}) {
   const actividades = useLiveQuery(() => db.agendaISO.toArray(), []) ?? []
   const [editor, setEditor] = useState<ActividadAgendaISO | null | undefined>()
   const [buscar, setBuscar] = useState('')
@@ -27,6 +31,13 @@ export default function AgendaISOView({ usuario }: { usuario: string }) {
   // reconoce del papel (R.I.T 6.2/05). Lista y calendario quedan como apoyo.
   const [vista, setVista] = useState<'matriz' | 'lista' | 'calendario'>('matriz')
   const [anio, setAnio] = useState<number>(new Date().getFullYear())
+  useEffect(() => {
+    if (!actividadInicialId) return
+    const actividad = actividades.find((item) => item.id === actividadInicialId)
+    if (!actividad) return
+    setEditor(actividad)
+    onActividadInicialConsumida?.()
+  }, [actividadInicialId, actividades, onActividadInicialConsumida])
   const hoy = fechaLocalISO(), hasta30 = sumarDiasLocalISO(30)
   const puedeGestionar = puedeGestionarAgendaISO(usuario)
   const resumen = useMemo(() => {

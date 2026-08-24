@@ -10,7 +10,8 @@ import { idMedicionIndicador } from '../../sgo/indicadores'
 import {
   AUDITORES_CAMPO, PLANTILLA_5S_RIT_9_2_12, SECCIONES_5S,
   areaSugeridaParaAuditor, areas5SParaAuditor, auditorDesdeUsuario, calcularPorcentajeCampo, calcularPorPilarCampo, calcularPorSeccionCampo,
-  controlCampoCompleto, itemsDeAuditoriaCampo, prepararRespuestasCampo, respuestaEsHallazgo, semaforoCampo,
+  calcularPorcentajePremiableCampo, controlCampoCompleto, itemsDeAuditoriaCampo, prepararRespuestasCampo,
+  respuestaEsHallazgo, revisionAprobadaPuntaje5S, revisionPendientePuntaje5S, semaforoCampo,
   type AuditoriaCampoSGO, type PuntajeControlCampo, type RespuestaControlCampo, type RiesgoHallazgoCampo,
 } from '../../sgo/controlesCampo'
 import {
@@ -24,6 +25,7 @@ import {
   type AccionSGO, type AreaSGOId, type EventoSGO, type PilarSGO,
 } from '../../sgo/types'
 import { usuarioEsLorenzo, usuarioPuedeExportarInformesSGO } from '../../sgo/permisos'
+import RevisionesPuntaje5S from './RevisionesPuntaje5S'
 
 const fechaHora = (iso: string) => new Intl.DateTimeFormat('es-AR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(iso))
 const fechaLarga = (iso: string) => new Intl.DateTimeFormat('es-AR', { dateStyle: 'long' }).format(new Date(`${iso.slice(0, 10)}T12:00:00`))
@@ -376,7 +378,8 @@ export function EjecutarControlCampo({ control, usuario, historial, onClose }: {
 
       const periodo = now.slice(0, 7)
       const indicadores = [
-        { id: `sgo-5s-${area}`, pilar: 'mejora' as PilarSGO, nombre: 'Cumplimiento 5S', valor: porcentaje },
+        { id: `sgo-5s-${area}`, pilar: 'mejora' as PilarSGO, nombre: 'Cumplimiento físico 5S', valor: porcentaje },
+        { id: `sgo-5s-premiable-${area}`, pilar: 'mejora' as PilarSGO, nombre: 'Cumplimiento 5S premiable', valor: porcentaje },
         { id: `sgo-5s-seguridad-${area}`, pilar: 'seguridad' as PilarSGO, nombre: 'Cumplimiento de Seguridad en 5S', valor: porcentajeSeguridad },
         { id: `sgo-5s-ambiente-${area}`, pilar: 'ambiente' as PilarSGO, nombre: 'Cumplimiento Ambiental en 5S', valor: porcentajeAmbiente },
       ]
@@ -450,6 +453,7 @@ export function InformeControlCampo({ ejecucion, usuario, onUpdated, onClose }: 
   const items = itemsDeAuditoriaCampo(auditoria)
   const seguridad = auditoria.porcentajePorPilar?.seguridad ?? calcularPorPilarCampo(auditoria.respuestas, 'seguridad', items)
   const ambiente = auditoria.porcentajePorPilar?.ambiente ?? calcularPorPilarCampo(auditoria.respuestas, 'ambiente', items)
+  const premiable = calcularPorcentajePremiableCampo(auditoria, items)
   const [editandoFotos, setEditandoFotos] = useState(false)
   const [exportandoPdf, setExportandoPdf] = useState<ModoExportacionCampo>()
   const puedeExportar = usuarioPuedeExportarInformesSGO(usuario)
@@ -465,7 +469,8 @@ export function InformeControlCampo({ ejecucion, usuario, onUpdated, onClose }: 
   return <Modal titulo={`Informe · ${areaSGOLabel(auditoria.areaId)}`} onClose={onClose} ancho={1050}>
     <div className="sgo-campo-informe-vista">
       <div className="sgo-campo-doc-mini"><strong>{auditoria.documento.nombre}</strong><span>{auditoria.documento.codigo}</span><span>Versión {auditoria.documento.version}</span></div>
-      <div className="sgo-campo-informe-resumen"><div><span>Fecha</span><strong>{fechaHora(auditoria.finalizadaEn)}</strong></div><div><span>Auditor</span><strong>{auditoria.auditor}</strong></div><div><span>Área</span><strong>{areaSGOLabel(auditoria.areaId)}</strong></div><div><span>Encargado</span><strong>{auditoria.encargadoArea}</strong></div><div><span>Resultado general</span><strong>{auditoria.porcentajeCumplimiento}%</strong></div><div><span>Seguridad</span><strong>{seguridad}%</strong></div><div><span>Medio Ambiente</span><strong>{ambiente}%</strong></div></div>
+      <div className="sgo-campo-informe-resumen"><div><span>Fecha</span><strong>{fechaHora(auditoria.finalizadaEn)}</strong></div><div><span>Auditor</span><strong>{auditoria.auditor}</strong></div><div><span>Área</span><strong>{areaSGOLabel(auditoria.areaId)}</strong></div><div><span>Encargado</span><strong>{auditoria.encargadoArea}</strong></div><div><span>Cumplimiento físico</span><strong>{auditoria.porcentajeCumplimiento}%</strong></div><div><span>Puntaje premiable</span><strong>{premiable}%</strong></div><div><span>Seguridad</span><strong>{seguridad}%</strong></div><div><span>Medio Ambiente</span><strong>{ambiente}%</strong></div></div>
+      <RevisionesPuntaje5S ejecucion={ejecucion} usuario={usuario} items={items} onUpdated={onUpdated} />
       {auditoria.evidenciasActualizadasEn && <div className="sgo-evidencia-traza">Última incorporación de fotos: {fechaHora(auditoria.evidenciasActualizadasEn)} · {auditoria.evidenciasActualizadasPor}</div>}
       {SECCIONES_5S.map((s) => <section key={s.id}><h3>{s.nombre} · {auditoria.porcentajePorSeccion[s.id] ?? 0}%</h3>{items.filter((i) => i.seccion === s.id).map((item) => { const r = auditoria.respuestas.find((x) => x.itemId === item.id); if (!r) return null; return <div className="sgo-campo-informe-item" key={item.id}><span className={`sgo-campo-score score-${r.puntaje === 2 ? 'verde' : r.puntaje === 1 ? 'amarillo' : r.puntaje === 0 ? 'rojo' : 'gris'}`}>{r.puntaje === 'na' ? 'N/A' : `${r.puntaje}/2`}</span><div><strong>{item.pregunta}</strong>{r.observacion && <div>{r.observacion}</div>}{r.justificacionNoAplica && <div className="meta">No aplica: {r.justificacionNoAplica}</div>}{r.accion && <div className="meta">Acción: {r.accion} · {r.responsable} · {r.fechaCompromiso}</div>}{Boolean(r.evidenciaPaths?.length) && <div className="meta">📷 {r.evidenciaPaths!.length} foto(s) adjunta(s)</div>}</div></div> })}</section>)}
     </div>
@@ -564,6 +569,7 @@ async function exportarInformeCampo(ejecucion: EjecucionControlSGO, modo: ModoEx
   const items = itemsDeAuditoriaCampo(a)
   const seguridad = a.porcentajePorPilar?.seguridad ?? calcularPorPilarCampo(a.respuestas, 'seguridad', items)
   const ambiente = a.porcentajePorPilar?.ambiente ?? calcularPorPilarCampo(a.respuestas, 'ambiente', items)
+  const premiable = calcularPorcentajePremiableCampo(a, items)
   const paths = a.respuestas.flatMap((r) => r.evidenciaPaths ?? [])
   const urls = modo === 'liviano'
     ? await prepararEvidenciasPdfLivianas(paths, actualizarProgreso)
@@ -572,16 +578,22 @@ async function exportarInformeCampo(ejecucion: EjecucionControlSGO, modo: ModoEx
   const filas = SECCIONES_5S.map((seccion) => `<tr class="seccion"><td colspan="6">${esc(seccion.nombre)} · ${a.porcentajePorSeccion[seccion.id] ?? 0}%</td></tr>${items.filter((i) => i.seccion === seccion.id).map((item) => {
     const r = a.respuestas.find((x) => x.itemId === item.id)
     if (!r) return ''
+    const aprobada = revisionAprobadaPuntaje5S(a, item.id)
+    const pendiente = revisionPendientePuntaje5S(a, item.id)
+    const puntaje = r.puntaje === 'na' ? 'N/A' : aprobada ? `${esc(r.puntaje)} observado<br><b>${aprobada.puntajePropuesto} premiable</b>` : esc(r.puntaje)
+    const revision = aprobada
+      ? `<div class="revision aprobada"><b>Revisión aprobada:</b> ${esc(aprobada.causaComprobada)}<br>Responsabilidad: ${esc(areaSGOLabel(aprobada.areaResponsableId))} · ${esc(aprobada.responsableReal)}<br>Motivo: ${esc(aprobada.motivoAjuste)}<br>Decisión: ${esc(aprobada.decisionComentario)} · ${esc(aprobada.decididaPor)} · ${esc(aprobada.decididaEn ? fechaHora(aprobada.decididaEn) : '')}</div>`
+      : pendiente ? `<div class="revision pendiente"><b>Revisión de puntaje pendiente:</b> propuesta ${pendiente.puntajePropuesto}/2 · ${esc(areaSGOLabel(pendiente.areaResponsableId))}</div>` : ''
     const fotos = (r.evidenciaPaths ?? []).map((p) => urls[p] ? `<img src="${esc(urls[p])}" alt="Evidencia" />` : `<span>${esc(p)}</span>`).join('')
-    return `<tr><td>${item.numero}</td><td>${esc(item.punto)}</td><td>${esc(item.pregunta)}</td><td class="puntaje">${r.puntaje === 'na' ? 'N/A' : esc(r.puntaje)}</td><td>${esc(r.observacion ?? r.justificacionNoAplica)}</td><td>${esc(r.accion)}${r.responsable ? `<br><b>${esc(r.responsable)}</b> · ${esc(r.fechaCompromiso)}` : ''}${r.evidenciaReferencia ? `<br>Evidencia: ${esc(r.evidenciaReferencia)}` : ''}<div class="fotos">${fotos}</div></td></tr>`
+    return `<tr><td>${item.numero}</td><td>${esc(item.punto)}</td><td>${esc(item.pregunta)}</td><td class="puntaje">${puntaje}</td><td>${esc(r.observacion ?? r.justificacionNoAplica)}${revision}</td><td>${esc(r.accion)}${r.responsable ? `<br><b>${esc(r.responsable)}</b> · ${esc(r.fechaCompromiso)}` : ''}${r.evidenciaReferencia ? `<br>Evidencia: ${esc(r.evidenciaReferencia)}` : ''}<div class="fotos">${fotos}</div></td></tr>`
   }).join('')}`).join('')
   ventana.document.open()
   ventana.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(a.documento.codigo)} · ${esc(areaSGOLabel(a.areaId))} · ${modo === 'liviano' ? 'Liviano' : 'Completo'}</title><style>
-    @page{size:A4 portrait;margin:9mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#111;font-size:9px;margin:0}.cab{width:100%;border-collapse:collapse;margin-bottom:8px}.cab td{border:1px solid #111;padding:5px}.logo{width:22%;text-align:center}.logo img{max-width:100px;max-height:52px}.titulo{font-size:15px;font-weight:800;text-align:center}.doc{width:24%;line-height:1.5}.meta{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid #111;margin-bottom:8px}.meta div{padding:5px;border-right:1px solid #111}.meta div:nth-child(3n){border-right:0}.resultado{font-size:18px;font-weight:900}.tabla{width:100%;border-collapse:collapse}.tabla th,.tabla td{border:1px solid #333;padding:4px;vertical-align:top}.tabla th{background:#e5e7eb}.seccion td{background:#cbd5e1;font-weight:800;font-size:10px}.puntaje{text-align:center;font-size:12px;font-weight:900}.fotos{display:flex;gap:3px;flex-wrap:wrap;margin-top:3px}.fotos img{width:58px;height:44px;object-fit:cover}.firmas{display:grid;grid-template-columns:repeat(3,1fr);gap:25px;margin-top:28px;text-align:center}.firmas div{border-top:1px solid #111;padding-top:4px}.pie{margin-top:8px;text-align:center;color:#444}@media print{thead{display:table-header-group}.seccion{break-after:avoid}tr{break-inside:avoid}}
+    @page{size:A4 portrait;margin:9mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#111;font-size:9px;margin:0}.cab{width:100%;border-collapse:collapse;margin-bottom:8px}.cab td{border:1px solid #111;padding:5px}.logo{width:22%;text-align:center}.logo img{max-width:100px;max-height:52px}.titulo{font-size:15px;font-weight:800;text-align:center}.doc{width:24%;line-height:1.5}.meta{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid #111;margin-bottom:8px}.meta div{padding:5px;border-right:1px solid #111}.meta div:nth-child(3n){border-right:0}.resultado{font-size:18px;font-weight:900}.tabla{width:100%;border-collapse:collapse}.tabla th,.tabla td{border:1px solid #333;padding:4px;vertical-align:top}.tabla th{background:#e5e7eb}.seccion td{background:#cbd5e1;font-weight:800;font-size:10px}.puntaje{text-align:center;font-size:11px;font-weight:900}.revision{margin-top:4px;padding:4px;border-left:3px solid #f59e0b;background:#fffbeb}.revision.aprobada{border-color:#16a34a;background:#f0fdf4}.fotos{display:flex;gap:3px;flex-wrap:wrap;margin-top:3px}.fotos img{width:58px;height:44px;object-fit:cover}.firmas{display:grid;grid-template-columns:repeat(3,1fr);gap:25px;margin-top:28px;text-align:center}.firmas div{border-top:1px solid #111;padding-top:4px}.pie{margin-top:8px;text-align:center;color:#444}@media print{thead{display:table-header-group}.seccion{break-after:avoid}tr{break-inside:avoid}}
   </style></head><body>
     <table class="cab"><tr><td class="logo"><img src="${esc(new URL('/logo.png', window.location.origin).href)}" alt="INELPA"></td><td class="titulo">${esc(a.documento.nombre)}</td><td class="doc"><b>${esc(a.documento.codigo)}</b><br>Versión: ${esc(a.documento.version)}<br>Fecha de emisión: ${esc(a.documento.fechaEmision)}<br>Hoja N° 1</td></tr></table>
-    <div class="meta"><div><b>Fecha control</b><br>${esc(fechaHora(a.finalizadaEn))}</div><div><b>Controlado por</b><br>${esc(a.auditor)}</div><div><b>Sector</b><br>${esc(areaSGOLabel(a.areaId))}</div><div><b>Encargado de área</b><br>${esc(a.encargadoArea)}</div><div><b>Ubicación / turno</b><br>${esc(a.ubicacion)} · ${esc(a.turno)}</div><div><b>Resultado general</b><br><span class="resultado">${a.porcentajeCumplimiento}%</span>${a.calificacionAnterior !== undefined ? `<br>Anterior: ${a.calificacionAnterior}%` : ''}<br>Seguridad: ${seguridad}% · Ambiente: ${ambiente}%</div></div>
-    <table class="tabla"><thead><tr><th>N°</th><th>Punto a verificar</th><th>Descripción</th><th>0/1/2</th><th>Observación</th><th>Acción / evidencia</th></tr></thead><tbody>${filas}</tbody></table>
+    <div class="meta"><div><b>Fecha control</b><br>${esc(fechaHora(a.finalizadaEn))}</div><div><b>Controlado por</b><br>${esc(a.auditor)}</div><div><b>Sector</b><br>${esc(areaSGOLabel(a.areaId))}</div><div><b>Encargado de área</b><br>${esc(a.encargadoArea)}</div><div><b>Ubicación / turno</b><br>${esc(a.ubicacion)} · ${esc(a.turno)}</div><div><b>Cumplimiento físico</b><br><span class="resultado">${a.porcentajeCumplimiento}%</span><br><b>Puntaje premiable: ${premiable}%</b>${a.calificacionAnterior !== undefined ? `<br>Anterior: ${a.calificacionAnterior}%` : ''}<br>Seguridad: ${seguridad}% · Ambiente: ${ambiente}%</div></div>
+    <table class="tabla"><thead><tr><th>N°</th><th>Punto a verificar</th><th>Descripción</th><th>Observado / premiable</th><th>Observación e investigación</th><th>Acción / evidencia</th></tr></thead><tbody>${filas}</tbody></table>
     <div class="firmas"><div>Auditado por<br><b>${esc(a.auditor)}</b></div><div>Encargado del área<br><b>${esc(a.encargadoArea)}</b></div><div>Revisión SGO</div></div>
     <div class="pie"><b>${modo === 'liviano' ? 'PDF liviano para envío · Las evidencias originales permanecen disponibles en SGO.' : 'PDF completo · Evidencias incorporadas en su resolución original.'}</b><br>Emitido: ${esc(a.documento.emitidoPor)} · Aprobado: ${esc(a.documento.aprobadoPor)} · Registro ${esc(ejecucion.id)} · Acceso: ${esc(a.usuarioAcceso)}</div>
     <script>window.addEventListener('load',()=>{const imagenes=Array.from(document.images);Promise.all(imagenes.map((img)=>img.complete?Promise.resolve():new Promise((resolve)=>{img.onload=resolve;img.onerror=resolve}))).then(()=>setTimeout(()=>window.print(),250))})<\/script>

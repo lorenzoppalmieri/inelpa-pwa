@@ -3,6 +3,28 @@ import type { AreaSGOId, PilarSGO } from './types'
 export type Seccion5S = 'seiri' | 'seiton' | 'seiso' | 'seiketsu' | 'shitsuke'
 export type PuntajeControlCampo = 0 | 1 | 2 | 'na' | 'pendiente'
 export type RiesgoHallazgoCampo = 'bajo' | 'medio' | 'alto' | 'critico'
+export type EstadoRevisionPuntaje5S = 'pendiente' | 'aprobada' | 'rechazada'
+
+export interface RevisionPuntaje5S {
+  id: string
+  itemId: string
+  puntajeOriginal: 0 | 1
+  puntajePropuesto: 1 | 2
+  estado: EstadoRevisionPuntaje5S
+  investigadaPor: string
+  resultadoInvestigacion: string
+  causaComprobada: string
+  areaResponsableId: AreaSGOId
+  responsableReal: string
+  evidencia: string
+  motivoAjuste: string
+  solicitadaEn: string
+  solicitadaPor: string
+  decididaEn?: string
+  decididaPor?: string
+  decisionComentario?: string
+  mejoraEventoId?: string
+}
 
 export interface DocumentoControlCampo {
   nombre: string
@@ -67,6 +89,8 @@ export interface AuditoriaCampoSGO {
   porcentajePorPilar?: Partial<Record<PilarSGO, number>>
   calificacionAnterior?: number
   eventoIds?: string[]
+  /** Revisiones posteriores: nunca sustituyen el puntaje observado originalmente. */
+  revisionesPuntaje?: RevisionPuntaje5S[]
   /** Trazabilidad de evidencias agregadas luego del cierre. */
   evidenciasActualizadasEn?: string
   evidenciasActualizadasPor?: string
@@ -249,6 +273,78 @@ export function calcularPorcentajeCampo(respuestas: RespuestaControlCampo[], ite
   if (!aplicables.length) return 0
   const obtenidos = aplicables.reduce((total, r) => total + Number(r.puntaje), 0)
   return Math.round((obtenidos / (aplicables.length * 2)) * 1000) / 10
+}
+
+export function revisionAprobadaPuntaje5S(auditoria: AuditoriaCampoSGO, itemId: string): RevisionPuntaje5S | undefined {
+  return [...(auditoria.revisionesPuntaje ?? [])].reverse()
+    .find((revision) => revision.itemId === itemId && revision.estado === 'aprobada')
+}
+
+export function revisionPendientePuntaje5S(auditoria: AuditoriaCampoSGO, itemId: string): RevisionPuntaje5S | undefined {
+  return (auditoria.revisionesPuntaje ?? []).find((revision) => revision.itemId === itemId && revision.estado === 'pendiente')
+}
+
+export function puntajePremiableRespuesta(auditoria: AuditoriaCampoSGO, respuesta: RespuestaControlCampo): PuntajeControlCampo {
+  return revisionAprobadaPuntaje5S(auditoria, respuesta.itemId)?.puntajePropuesto ?? respuesta.puntaje
+}
+
+export function respuestasPremiablesCampo(auditoria: AuditoriaCampoSGO): RespuestaControlCampo[] {
+  return auditoria.respuestas.map((respuesta) => ({ ...respuesta, puntaje: puntajePremiableRespuesta(auditoria, respuesta) }))
+}
+
+export function calcularPorcentajePremiableCampo(auditoria: AuditoriaCampoSGO, items = itemsDeAuditoriaCampo(auditoria)): number {
+  return calcularPorcentajeCampo(respuestasPremiablesCampo(auditoria), items)
+}
+
+export function solicitarRevisionPuntaje5S(
+  auditoria: AuditoriaCampoSGO,
+  solicitud: Omit<RevisionPuntaje5S, 'id' | 'estado' | 'puntajeOriginal' | 'solicitadaEn' | 'solicitadaPor'>,
+  usuario: string,
+  ahora = new Date().toISOString(),
+  id: string = crypto.randomUUID(),
+): AuditoriaCampoSGO {
+  const respuesta = auditoria.respuestas.find((item) => item.itemId === solicitud.itemId)
+  if (!respuesta || (respuesta.puntaje !== 0 && respuesta.puntaje !== 1)) throw new Error('Solo se revisan hallazgos con puntaje original 0 o 1.')
+  if (revisionPendientePuntaje5S(auditoria, solicitud.itemId)) throw new Error('Este hallazgo ya tiene una revisión pendiente.')
+  if (solicitud.puntajePropuesto <= respuesta.puntaje) throw new Error('El puntaje premiable propuesto debe ser mayor al original.')
+  const obligatorios = [solicitud.investigadaPor, solicitud.resultadoInvestigacion, solicitud.causaComprobada,
+    solicitud.responsableReal, solicitud.evidencia, solicitud.motivoAjuste]
+  if (obligatorios.some((valor) => !valor.trim())) throw new Error('Completá la investigación, la causa, el responsable, la evidencia y el motivo del ajuste.')
+  const revision: RevisionPuntaje5S = {
+    ...solicitud,
+    id,
+    puntajeOriginal: respuesta.puntaje,
+    estado: 'pendiente',
+    solicitadaEn: ahora,
+    solicitadaPor: usuario,
+  }
+  return { ...auditoria, revisionesPuntaje: [...(auditoria.revisionesPuntaje ?? []), revision] }
+}
+
+export function resolverRevisionPuntaje5S(
+  auditoria: AuditoriaCampoSGO,
+  revisionId: string,
+  decision: Exclude<EstadoRevisionPuntaje5S, 'pendiente'>,
+  comentario: string,
+  usuario: string,
+  mejoraEventoId?: string,
+  ahora = new Date().toISOString(),
+): AuditoriaCampoSGO {
+  if (!comentario.trim()) throw new Error('Documentá el fundamento de la decisión.')
+  const actual = auditoria.revisionesPuntaje?.find((revision) => revision.id === revisionId)
+  if (!actual || actual.estado !== 'pendiente') throw new Error('La revisión ya no está pendiente.')
+  if (decision === 'aprobada' && !mejoraEventoId) throw new Error('La aprobación debe quedar vinculada a una mejora continua.')
+  return {
+    ...auditoria,
+    revisionesPuntaje: auditoria.revisionesPuntaje!.map((revision) => revision.id !== revisionId ? revision : {
+      ...revision,
+      estado: decision,
+      decididaEn: ahora,
+      decididaPor: usuario,
+      decisionComentario: comentario.trim(),
+      mejoraEventoId: decision === 'aprobada' ? mejoraEventoId : undefined,
+    }),
+  }
 }
 
 export function calcularPorSeccionCampo(respuestas: RespuestaControlCampo[]): Partial<Record<Seccion5S, number>> {

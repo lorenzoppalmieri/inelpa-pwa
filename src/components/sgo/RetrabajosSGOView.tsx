@@ -43,7 +43,12 @@ const fechaHora = (iso: string) => new Intl.DateTimeFormat('es-AR', { dateStyle:
 const fecha = (iso?: string) => iso ? new Intl.DateTimeFormat('es-AR', { dateStyle: 'medium' }).format(new Date(`${iso.slice(0, 10)}T12:00:00`)) : 'Sin fecha'
 const estadoLabel = (id: EstadoInvestigacionRetrabajo) => ESTADOS_INVESTIGACION_RETRABAJO.find((item) => item.id === id)?.label ?? id
 
-export default function RetrabajosSGOView({ usuario, onOpenEvento }: { usuario: string; onOpenEvento: (id: string) => void }) {
+export default function RetrabajosSGOView({ usuario, onOpenEvento, eventoInicialId, onEventoInicialConsumido }: {
+  usuario: string
+  onOpenEvento: (id: string) => void
+  eventoInicialId?: string
+  onEventoInicialConsumido?: () => void
+}) {
   const eventos = useLiveQuery(() => db.eventosSGO.toArray(), []) ?? []
   const acciones = useLiveQuery(() => db.accionesSGO.toArray(), []) ?? []
   const tareas = useLiveQuery(() => db.tareas.toArray(), []) ?? []
@@ -62,6 +67,15 @@ export default function RetrabajosSGOView({ usuario, onOpenEvento }: { usuario: 
     if (!puedeInvestigar) return
     void conciliarInvestigacionesRetrabajo(usuario).catch((error) => console.error('[SGO] No se pudo conciliar retrabajos', error))
   }, [puedeInvestigar, usuario])
+
+  useEffect(() => {
+    if (!eventoInicialId) return
+    const evento = eventos.find((item) => item.id === eventoInicialId && esEventoRetrabajo(item))
+    if (!evento) return
+    setCerrados(evento.estado === 'cerrado')
+    setEditor(evento)
+    onEventoInicialConsumido?.()
+  }, [eventoInicialId, eventos, onEventoInicialConsumido])
 
   const retrabajos = useMemo(() => eventos.filter(esEventoRetrabajo), [eventos])
   const trazabilidades = useMemo(() => new Map(retrabajos.map((evento) => [evento.id, resolverTrazabilidadProductiva(evento, tareas, maquinas, usuariosPlanta)])), [retrabajos, tareas, maquinas, usuariosPlanta])

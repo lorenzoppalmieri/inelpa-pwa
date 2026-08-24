@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   PLANTILLA_5S_RIT_9_2_12, PLANTILLA_5S_RIT_9_2_12_V01, SECCIONES_5S, calcularPorcentajeCampo, calcularPorPilarCampo,
-  agregarEvidenciasAuditoriaCampo, areas5SParaAuditor, controlCampoCompleto, itemsDeAuditoriaCampo, respuestaVacia, semaforoCampo,
+  agregarEvidenciasAuditoriaCampo, areas5SParaAuditor, calcularPorcentajePremiableCampo, controlCampoCompleto,
+  itemsDeAuditoriaCampo, resolverRevisionPuntaje5S, respuestaVacia, semaforoCampo, solicitarRevisionPuntaje5S,
   type AuditoriaCampoSGO, type RespuestaControlCampo,
 } from '../controlesCampo'
 import { tipoFotoDesdeArchivo } from '../evidenciasCampo'
@@ -100,5 +101,50 @@ describe('controles de campo 5S', () => {
     expect(tipoFotoDesdeArchivo({ name: 'CAMARA_001.JPG', type: '' } as File)).toBe('image/jpeg')
     expect(tipoFotoDesdeArchivo({ name: 'IMG_002.HEIC', type: '' } as File)).toBe('image/heic')
     expect(tipoFotoDesdeArchivo({ name: 'documento.pdf', type: '' } as File)).toBeUndefined()
+  })
+
+  it('conserva el puntaje físico y ajusta solamente el premiable después de aprobar', () => {
+    const item = PLANTILLA_5S_RIT_9_2_12.items[0]
+    const auditoria = {
+      tipo: '5s', plantillaId: PLANTILLA_5S_RIT_9_2_12.id, plantillaVersion: PLANTILLA_5S_RIT_9_2_12.version,
+      documento: PLANTILLA_5S_RIT_9_2_12.documento, areaId: 'bobinado_distribucion', auditor: 'Lara', usuarioAcceso: 'lara',
+      encargadoArea: 'Encargado', iniciadaEn: '', finalizadaEn: '', items: [item],
+      respuestas: [{ itemId: item.id, puntaje: 0 as const, observacion: 'Falta final de carrera.' }],
+      porcentajeCumplimiento: 0, porcentajePorSeccion: { seiri: 0 },
+    } satisfies AuditoriaCampoSGO
+    const solicitada = solicitarRevisionPuntaje5S(auditoria, {
+      itemId: item.id, puntajePropuesto: 2, investigadaPor: 'Lara', resultadoInvestigacion: 'El pedido estaba realizado.',
+      causaComprobada: 'Pendiente de Mantenimiento.', areaResponsableId: 'mantenimiento', responsableReal: 'Mantenimiento',
+      evidencia: 'Pedido MT-25', motivoAjuste: 'El encargado cumplió el circuito.',
+    }, 'lara', '2026-08-24T10:00:00.000Z', 'rev-1')
+    expect(solicitada.respuestas[0].puntaje).toBe(0)
+    expect(calcularPorcentajePremiableCampo(solicitada)).toBe(0)
+
+    const aprobada = resolverRevisionPuntaje5S(
+      solicitada, 'rev-1', 'aprobada', 'Pedido verificado.', 'lorenzo', 'mejora-1', '2026-08-24T11:00:00.000Z',
+    )
+    expect(aprobada.respuestas[0].puntaje).toBe(0)
+    expect(aprobada.porcentajeCumplimiento).toBe(0)
+    expect(calcularPorcentajePremiableCampo(aprobada)).toBe(100)
+    expect(aprobada.revisionesPuntaje?.[0]).toMatchObject({ estado: 'aprobada', mejoraEventoId: 'mejora-1' })
+  })
+
+  it('impide duplicar una revisión pendiente y exige mejora al aprobar', () => {
+    const item = PLANTILLA_5S_RIT_9_2_12.items[0]
+    const auditoria = {
+      tipo: '5s', plantillaId: PLANTILLA_5S_RIT_9_2_12.id, plantillaVersion: PLANTILLA_5S_RIT_9_2_12.version,
+      documento: PLANTILLA_5S_RIT_9_2_12.documento, areaId: 'bobinado_distribucion', auditor: 'Lara', usuarioAcceso: 'lara',
+      encargadoArea: 'Encargado', iniciadaEn: '', finalizadaEn: '', items: [item],
+      respuestas: [{ itemId: item.id, puntaje: 1 as const, observacion: 'Desvío.' }],
+      porcentajeCumplimiento: 50, porcentajePorSeccion: { seiri: 50 },
+    } satisfies AuditoriaCampoSGO
+    const datos = {
+      itemId: item.id, puntajePropuesto: 2 as const, investigadaPor: 'Lara', resultadoInvestigacion: 'Investigado.',
+      causaComprobada: 'Causa externa.', areaResponsableId: 'mantenimiento' as const, responsableReal: 'Mantenimiento',
+      evidencia: 'Pedido 1', motivoAjuste: 'Área sin responsabilidad.',
+    }
+    const solicitada = solicitarRevisionPuntaje5S(auditoria, datos, 'lara', '2026-08-24T10:00:00.000Z', 'rev-1')
+    expect(() => solicitarRevisionPuntaje5S(solicitada, datos, 'lara')).toThrow(/revisión pendiente/)
+    expect(() => resolverRevisionPuntaje5S(solicitada, 'rev-1', 'aprobada', 'Conforme.', 'lorenzo')).toThrow(/mejora continua/)
   })
 })

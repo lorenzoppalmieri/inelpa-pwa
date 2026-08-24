@@ -94,6 +94,27 @@
 .sgo-campo-informe-vista h3 { margin: 8px 0 4px; padding: 7px 9px; border-radius: 7px; background: var(--panel-2); font-size: .85rem; }
 .sgo-pdf-export-help { margin-top: 12px; padding: 9px 11px; border: 1px solid rgba(56,189,248,.28); border-radius: 8px; background: rgba(2,132,199,.08); color: var(--texto-tenue); font-size: .78rem; }
 .sgo-pdf-export-help strong { color: var(--texto); }
+.sgo-revisiones-5s { display: grid; gap: 10px; padding: 12px; border: 1px solid rgba(14,165,233,.35); border-radius: 11px; background: rgba(2,132,199,.06); }
+.sgo-revisiones-cabecera { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.sgo-revisiones-cabecera h3 { margin: 0 0 3px; padding: 0; background: transparent; font-size: 1rem; }
+.sgo-revisiones-kpis { display: flex; gap: 7px; flex-wrap: wrap; justify-content: flex-end; }
+.sgo-revisiones-kpis span { display: grid; min-width: 92px; padding: 7px 9px; border: 1px solid var(--borde); border-radius: 8px; color: var(--texto-tenue); text-align: center; font-size: .68rem; background: var(--panel-2); }
+.sgo-revisiones-kpis b { color: var(--texto); font-size: 1rem; }
+.sgo-revisiones-kpis .pendiente { border-color: #f59e0b; }
+.sgo-revisiones-lista { display: grid; gap: 8px; }
+.sgo-revision-card { display: grid; grid-template-columns: 82px minmax(0,1fr) auto; gap: 10px; align-items: center; padding: 10px; border: 1px solid var(--borde); border-radius: 9px; background: var(--panel); }
+.sgo-revision-score { display: grid; gap: 2px; text-align: center; }
+.sgo-revision-score span { color: var(--texto-tenue); font-size: .65rem; }
+.sgo-revision-score b { font-size: 1.1rem; }
+.sgo-revision-score .premiable { color: #86efac; }
+.sgo-revision-contenido { display: grid; gap: 4px; min-width: 0; }
+.sgo-revision-aprobada, .sgo-revision-pendiente, .sgo-revision-rechazada { padding: 7px 9px; border-left: 4px solid #22c55e; border-radius: 6px; background: rgba(22,163,74,.1); font-size: .75rem; }
+.sgo-revision-pendiente { border-color: #f59e0b; background: rgba(245,158,11,.1); color: #fde68a; }
+.sgo-revision-rechazada { border-color: #ef4444; background: rgba(239,68,68,.08); color: #fecaca; }
+.sgo-revision-form { display: grid; gap: 11px; margin-top: 4px; border-left: 5px solid #0ea5e9; }
+.sgo-revision-form-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 9px; }
+.sgo-revision-ancho { grid-column: 1 / -1; }
+.sgo-revision-aviso { padding: 9px 11px; border-radius: 8px; background: rgba(245,158,11,.1); color: #fde68a; font-size: .76rem; }
 .sgo-campo-informe-item { display: grid; grid-template-columns: 65px 1fr; gap: 9px; align-items: start; padding: 7px 2px; border-bottom: 1px solid var(--borde); }
 .sgo-evidencia-pendiente { margin-top: 6px; color: #fde68a; font-size: .78rem; font-weight: 800; }
 .sgo-evidencia-traza { padding: 9px 11px; border: 1px solid rgba(56,189,248,.35); border-radius: 9px; background: rgba(2,132,199,.1); color: #bae6fd; font-size: .78rem; }
@@ -119,6 +140,13 @@
   .sgo-file-button { width: 100%; justify-content: center; }
   .campo-span-2 { grid-column: auto; }
   .sgo-campo-final-acciones .btn { flex: 1 1 160px; }
+  .sgo-revisiones-cabecera { align-items: stretch; flex-direction: column; }
+  .sgo-revisiones-kpis { justify-content: stretch; }
+  .sgo-revisiones-kpis span { flex: 1; }
+  .sgo-revision-card { grid-template-columns: 72px minmax(0,1fr); }
+  .sgo-revision-card > .row-actions { grid-column: 1 / -1; }
+  .sgo-revision-form-grid { grid-template-columns: 1fr; }
+  .sgo-revision-ancho { grid-column: auto; }
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -2102,3 +2130,74 @@ body.admin-mode .content { max-width: none; padding: 12px 18px; }
 .retrabajo-ayuda .excedido { color: var(--rojo); font-weight: 800; }
 .retrabajo-ayuda strong { color: var(--rojo); }
 .input.input-error { border-color: var(--rojo); box-shadow: inset 0 0 0 1px var(--rojo); }
+
+/* v1.95 — bandeja privada de decisiones de Lorenzo */
+.sgo-tab-autorizaciones { display: inline-flex; align-items: center; gap: 7px; }
+.sgo-tab-autorizaciones > span { min-width: 21px; height: 21px; display: inline-grid; place-items: center; padding: 0 6px; border-radius: 999px; background: var(--rojo); color: #fff; font-size: .7rem; font-weight: 900; }
+.sgo-autorizaciones-cabecera { display: flex; justify-content: space-between; align-items: center; gap: 14px; margin-bottom: 12px; border-left: 5px solid #8b5cf6; }
+.sgo-autorizaciones-privada { white-space: nowrap; padding: 5px 10px; border-radius: 999px; background: rgba(139,92,246,.16); color: #c4b5fd; font-size: .72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+.sgo-autorizaciones-kpis { display: grid; grid-template-columns: repeat(5, minmax(130px, 1fr)); gap: 10px; margin-bottom: 12px; }
+.sgo-autorizacion-kpi { min-height: 82px; display: flex; flex-direction: column; justify-content: center; gap: 2px; border-top: 4px solid var(--borde); }
+.sgo-autorizacion-kpi strong { font-size: 1.45rem; line-height: 1.1; }
+.sgo-autorizacion-kpi span { color: var(--texto-tenue); font-size: .75rem; }
+.sgo-autorizacion-kpi.tono-rojo { border-top-color: var(--rojo); }
+.sgo-autorizacion-kpi.tono-naranja, .sgo-autorizacion-kpi.tono-amarillo { border-top-color: var(--naranja); }
+.sgo-autorizacion-kpi.tono-verde { border-top-color: var(--verde); }
+.sgo-autorizacion-kpi.tono-azul { border-top-color: var(--azul-claro); }
+.sgo-autorizaciones-tabs { margin: 4px 0 10px; }
+.sgo-autorizaciones-filtros { display: grid; grid-template-columns: minmax(240px, 2fr) repeat(2, minmax(170px, 1fr)); gap: 10px; margin-bottom: 12px; }
+.sgo-autorizaciones-lista { display: grid; gap: 10px; }
+.sgo-autorizacion-card { display: grid; grid-template-columns: 145px minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 0; overflow: hidden; border-left: 5px solid var(--borde); }
+.sgo-autorizacion-card.prioridad-critica { border-left-color: var(--rojo); }
+.sgo-autorizacion-card.prioridad-alta { border-left-color: var(--naranja); }
+.sgo-autorizacion-card.prioridad-media { border-left-color: var(--azul-claro); }
+.sgo-autorizacion-card.prioridad-baja { border-left-color: var(--verde); }
+.sgo-autorizacion-marca { align-self: stretch; padding: 14px 12px; background: rgba(15,23,42,.24); border-right: 1px solid var(--borde); display: flex; flex-direction: column; justify-content: center; gap: 5px; }
+.sgo-autorizacion-marca span { color: var(--texto-tenue); font-size: .7rem; font-weight: 700; text-transform: uppercase; }
+.sgo-autorizacion-marca b { font-size: .8rem; text-transform: uppercase; }
+.sgo-autorizacion-contenido { min-width: 0; padding: 13px 0; }
+.sgo-autorizacion-titulo { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
+.sgo-autorizacion-titulo strong { font-size: .94rem; }
+.sgo-autorizacion-contenido p { margin: 5px 0 7px; color: var(--texto-tenue); line-height: 1.4; font-size: .82rem; }
+.sgo-autorizacion-meta { display: flex; flex-wrap: wrap; gap: 5px 14px; font-size: .72rem; color: var(--texto-tenue); }
+.sgo-autorizacion-resultado { margin-top: 8px; padding: 6px 8px; border-radius: 6px; background: rgba(34,197,94,.10); color: #86efac; font-size: .75rem; }
+.sgo-autorizacion-acciones { padding: 12px 14px 12px 0; }
+.estado-chip.autorizacion-pendiente { background: rgba(245,158,11,.16); color: #fcd34d; }
+.estado-chip.autorizacion-resuelta { background: rgba(34,197,94,.14); color: #86efac; }
+.sgo-autorizaciones-vacio { min-height: 180px; display: grid; place-content: center; text-align: center; gap: 6px; border-style: dashed; }
+.sgo-autorizaciones-vacio span { color: var(--texto-tenue); }
+
+@media (max-width: 980px) {
+  .sgo-autorizaciones-kpis { grid-template-columns: repeat(2, minmax(130px, 1fr)); }
+  .sgo-autorizaciones-filtros { grid-template-columns: 1fr; }
+  .sgo-autorizacion-card { grid-template-columns: 110px minmax(0, 1fr); }
+  .sgo-autorizacion-acciones { grid-column: 1 / -1; padding: 0 12px 12px; }
+  .sgo-autorizacion-acciones .btn { width: 100%; }
+}
+
+@media (max-width: 620px) {
+  .sgo-autorizaciones-cabecera { align-items: flex-start; flex-direction: column; }
+  .sgo-autorizaciones-kpis { grid-template-columns: 1fr 1fr; }
+  .sgo-autorizacion-card { display: block; }
+  .sgo-autorizacion-marca { border-right: 0; border-bottom: 1px solid var(--borde); flex-direction: row; align-items: center; justify-content: space-between; padding: 8px 10px; }
+  .sgo-autorizacion-contenido { padding: 11px 10px; }
+  .sgo-autorizacion-titulo { align-items: flex-start; }
+  .sgo-autorizacion-acciones { padding: 0 10px 10px; }
+}
+
+/* ---------- Cuellos de botella y OEE (v1.97) ----------
+   Misma pantalla en Producción y en SGO: un solo componente montado dos veces. */
+.cuellos-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.cuello-fila { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-top: 1px solid var(--borde); }
+.cuello-fila:first-child { border-top: none; }
+.cuello-area { flex: 1; min-width: 180px; font-size: .86rem; }
+.cuello-detalle { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 3px; font-size: .72rem; }
+.cuello-barra { flex: 0 0 34%; height: 10px; background: var(--panel-2); border-radius: 999px; overflow: hidden; }
+.cuello-barra > div { height: 100%; background: var(--azul-claro); border-radius: 999px; }
+.cuello-min { flex: none; min-width: 92px; text-align: right; font-weight: 800; font-variant-numeric: tabular-nums; }
+
+@media (max-width: 768px) {
+  .cuello-fila { flex-wrap: wrap; }
+  .cuello-barra { flex: 1 1 100%; order: 3; }
+  .cuello-min { min-width: 0; }
+}

@@ -10,14 +10,17 @@ import FichaCeldaSGO from './FichaCeldaSGO'
 import AuditoriaLogisticaView from './AuditoriaLogisticaView'
 import ControlesSGOView from './ControlesSGOView'
 import AgendaISOView from './AgendaISOView'
+import CuellosView from '../dashboard/CuellosView'
 import TareasSGOView from './TareasSGOView'
 import MejorasSGOView from './MejorasSGOView'
+import AutorizacionesSGOView from './AutorizacionesSGOView'
 import { defectoSGOLabel, defectosParaArea } from '../../sgo/defectos'
 import { resolverKPIAutomaticos } from '../../sgo/kpiAutomaticos'
 import { aplicarMedicionesIndicadores, type IndicadorSGO } from '../../sgo/indicadores'
 import { validarCierreEvento } from '../../sgo/cierre'
 import { datosMejoraDesdeEvento } from '../../sgo/mejoras'
 import { usuarioEsLorenzo } from '../../sgo/permisos'
+import { construirAutorizacionesSGO, type AutorizacionSGO } from '../../sgo/autorizaciones'
 import { resolverTrazabilidadProductiva, type TrazabilidadProductivaSGO } from '../../sgo/trazabilidad'
 import {
   ID_DIAS_SIN_ACCIDENTES, ID_DIAS_SIN_INCIDENTES, IDS_CONTADORES_SEGURIDAD,
@@ -65,15 +68,29 @@ export default function SGOView() {
   const usuariosPlanta = useLiveQuery(() => db.usuarios.toArray(), []) ?? []
   const laboratorio = useLiveQuery(() => db.laboratorio.toArray(), []) ?? []
   const tareasLogistica = useLiveQuery(() => db.tareasLogistica.toArray(), []) ?? []
+  const tareasSGO = useLiveQuery(() => db.tareasSGO.toArray(), []) ?? []
+  const agendaISO = useLiveQuery(() => db.agendaISO.toArray(), []) ?? []
+  const ejecucionesControles = useLiveQuery(() => db.ejecucionesControlesSGO.toArray(), []) ?? []
   const [nuevo, setNuevo] = useState(false)
   const [configIndicadores, setConfigIndicadores] = useState(false)
   const [seleccionadoId, setSeleccionadoId] = useState<string>()
   const [controlInicialId, setControlInicialId] = useState<string>()
+  const [ejecucionInicialId, setEjecucionInicialId] = useState<string>()
+  const [tareaInicialId, setTareaInicialId] = useState<string>()
+  const [actividadInicialId, setActividadInicialId] = useState<string>()
+  const [mejoraInicial, setMejoraInicial] = useState<{ id: string; vista: 'seguimiento' | 'retrabajos' }>()
   const [celdaSeleccionada, setCeldaSeleccionada] = useState<{ area: AreaSGOId; pilar: PilarSGO }>()
   const [filtroArea, setFiltroArea] = useState('')
   const [filtroPilar, setFiltroPilar] = useState('')
-  const [pestana, setPestana] = useState<'tablero' | 'mejoras' | 'controles' | 'agenda_iso' | 'tareas_sgo' | 'logistica'>('tablero')
+  // v1.97: 'cuellos' — la MISMA pantalla que se ve en Producción. Se monta el
+  // mismo componente en los dos lados: si fueran dos copias, se desincronizarían.
+  const [pestana, setPestana] = useState<'tablero' | 'autorizaciones' | 'mejoras' | 'controles' | 'agenda_iso' | 'tareas_sgo' | 'logistica' | 'cuellos'>('tablero')
   const seleccionado = eventos.find((e) => e.id === seleccionadoId)
+  const lorenzo = usuarioEsLorenzo(usuario?.usuario ?? '')
+  const autorizaciones = useMemo(() => construirAutorizacionesSGO({
+    tareas: tareasSGO, agenda: agendaISO, ejecuciones: ejecucionesControles, eventos, acciones,
+  }), [tareasSGO, agendaISO, ejecucionesControles, eventos, acciones])
+  const autorizacionesPendientes = autorizaciones.filter((item) => item.estado === 'pendiente').length
 
   const abiertos = eventos.filter((e) => e.estado !== 'cerrado')
   const retrabajosPendientes = abiertos.filter((e) => Boolean(e.retrabajo)).length
@@ -92,20 +109,45 @@ export default function SGOView() {
   const abiertosFiltrados = abiertos.filter((e) =>
     (!filtroArea || (e.areaOrigenId ?? e.areaId) === filtroArea) && (!filtroPilar || e.pilar === filtroPilar))
 
+  function abrirAutorizacion(item: AutorizacionSGO) {
+    if (item.tipo === 'tarea_sgo') {
+      setTareaInicialId(item.origenId); setPestana('tareas_sgo'); return
+    }
+    if (item.tipo === 'agenda_iso') {
+      setActividadInicialId(item.origenId); setPestana('agenda_iso'); return
+    }
+    if (item.tipo === 'revision_5s') {
+      setEjecucionInicialId(item.origenId); setPestana('controles'); return
+    }
+    if (item.tipo === 'mejora') {
+      setMejoraInicial({ id: item.origenId, vista: 'seguimiento' }); setPestana('mejoras'); return
+    }
+    if (item.tipo === 'retrabajo') {
+      setMejoraInicial({ id: item.origenId, vista: 'retrabajos' }); setPestana('mejoras'); return
+    }
+    if (item.eventoId) {
+      setSeleccionadoId(item.eventoId); setPestana('tablero')
+    }
+  }
+
   return (
     <div>
       <div className="tabs" role="tablist" aria-label="Secciones SGO">
         <button className={`tab ${pestana === 'tablero' ? 'active' : ''}`} onClick={() => setPestana('tablero')}>Tablero integral</button>
+        <button className={`tab ${pestana === 'cuellos' ? 'active' : ''}`} onClick={() => setPestana('cuellos')}>Cuellos / OEE</button>
+        {lorenzo && <button className={`tab sgo-tab-autorizaciones ${pestana === 'autorizaciones' ? 'active' : ''}`} onClick={() => setPestana('autorizaciones')}>Autorizaciones{autorizacionesPendientes ? <span>{autorizacionesPendientes}</span> : null}</button>}
         <button className={`tab ${pestana === 'mejoras' ? 'active' : ''}`} onClick={() => setPestana('mejoras')}>Mejora continua{retrabajosPendientes ? ` (${retrabajosPendientes})` : ''}</button>
         <button className={`tab ${pestana === 'controles' ? 'active' : ''}`} onClick={() => setPestana('controles')}>Controles SGO</button>
         <button className={`tab ${pestana === 'logistica' ? 'active' : ''}`} onClick={() => setPestana('logistica')}>Auditoría logística</button>
         <button className={`tab ${pestana === 'agenda_iso' ? 'active' : ''}`} onClick={() => setPestana('agenda_iso')}>Agenda ISO</button>
         <button className={`tab ${pestana === 'tareas_sgo' ? 'active' : ''}`} onClick={() => setPestana('tareas_sgo')}>Tareas SGO</button>
       </div>
-      {pestana === 'mejoras' ? <MejorasSGOView usuario={usuario?.usuario ?? 'sin_usuario'} onOpenEvento={(id) => { setPestana('tablero'); setSeleccionadoId(id) }} />
-        : pestana === 'agenda_iso' ? <AgendaISOView usuario={usuario?.usuario ?? 'sin_usuario'} />
-        : pestana === 'tareas_sgo' ? <TareasSGOView usuario={usuario?.usuario ?? 'sin_usuario'} />
-        : pestana === 'controles' ? <ControlesSGOView usuario={usuario?.usuario ?? 'sin_usuario'} controlInicialId={controlInicialId} onControlInicialConsumido={() => setControlInicialId(undefined)} onOpenEvento={(id) => { setPestana('tablero'); setSeleccionadoId(id) }} />
+      {pestana === 'cuellos' ? <CuellosView />
+        : pestana === 'autorizaciones' && lorenzo ? <AutorizacionesSGOView items={autorizaciones} onAbrir={abrirAutorizacion} />
+        : pestana === 'mejoras' ? <MejorasSGOView usuario={usuario?.usuario ?? 'sin_usuario'} registroInicialId={mejoraInicial?.id} vistaInicial={mejoraInicial?.vista} onRegistroInicialConsumido={() => setMejoraInicial(undefined)} onOpenEvento={(id) => { setPestana('tablero'); setSeleccionadoId(id) }} />
+        : pestana === 'agenda_iso' ? <AgendaISOView usuario={usuario?.usuario ?? 'sin_usuario'} actividadInicialId={actividadInicialId} onActividadInicialConsumida={() => setActividadInicialId(undefined)} />
+        : pestana === 'tareas_sgo' ? <TareasSGOView usuario={usuario?.usuario ?? 'sin_usuario'} tareaInicialId={tareaInicialId} onTareaInicialConsumida={() => setTareaInicialId(undefined)} />
+        : pestana === 'controles' ? <ControlesSGOView usuario={usuario?.usuario ?? 'sin_usuario'} controlInicialId={controlInicialId} onControlInicialConsumido={() => setControlInicialId(undefined)} ejecucionInicialId={ejecucionInicialId} onEjecucionInicialConsumida={() => setEjecucionInicialId(undefined)} onOpenEvento={(id) => { setPestana('tablero'); setSeleccionadoId(id) }} />
         : pestana === 'logistica' ? <AuditoriaLogisticaView usuario={usuario?.usuario ?? 'sin_usuario'} onOpenEvento={(id) => { setPestana('tablero'); setSeleccionadoId(id) }} /> : <>
       <div className="card" style={{ marginBottom: 14, borderLeft: '5px solid #2563eb' }}>
         <div className="card-header">

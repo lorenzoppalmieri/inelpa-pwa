@@ -169,6 +169,7 @@ export type AreaSGOId =
   | 'laboratorio'
   | 'gerencia_directorio'
   | 'diseno'
+  | 'rrhh'
 
 export interface CostoNoCalidad {
   material: number
@@ -318,6 +319,8 @@ export const AREAS_SGO: { id: AreaSGOId; label: string }[] = [
   { id: 'laboratorio', label: 'LABORATORIO' },
   { id: 'gerencia_directorio', label: 'GERENCIA Y DIRECTORIO' },
   { id: 'diseno', label: 'DISEÑO' },
+  // v1.96: se imputan acá capacitaciones, reuniones, retiros y accidentes.
+  { id: 'rrhh', label: 'RECURSOS HUMANOS' },
 ]
 
 // El id 'logistica_operativa' se conserva para no invalidar expedientes, KPIs e

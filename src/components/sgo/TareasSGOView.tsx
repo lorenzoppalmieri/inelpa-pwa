@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
 import { fechaLocalISO } from '../../lib/time'
@@ -10,12 +10,23 @@ const fechaAR = (f?: string) => f ? new Intl.DateTimeFormat('es-AR', { dateStyle
 const estadoLabel = (id: EstadoTareaSGO) => ESTADOS_TAREA_SGO.find((x) => x.id === id)?.label ?? id
 const minutosLabel = tiempoTareaSGOLabel
 
-export default function TareasSGOView({ usuario }: { usuario: string }) {
+export default function TareasSGOView({ usuario, tareaInicialId, onTareaInicialConsumida }: {
+  usuario: string
+  tareaInicialId?: string
+  onTareaInicialConsumida?: () => void
+}) {
   const tareas = useLiveQuery(() => db.tareasSGO.toArray(), []) ?? []
   const [editor, setEditor] = useState<TareaSGO | null | undefined>()
   const [buscar, setBuscar] = useState('')
   const [responsable, setResponsable] = useState('')
   const [estado, setEstado] = useState<'abiertas' | EstadoTareaSGO | ''>('abiertas')
+  useEffect(() => {
+    if (!tareaInicialId) return
+    const tarea = tareas.find((item) => item.id === tareaInicialId)
+    if (!tarea) return
+    setEditor(tarea)
+    onTareaInicialConsumida?.()
+  }, [tareaInicialId, tareas, onTareaInicialConsumida])
   const hoy = fechaLocalISO(), lorenzo = usuarioEsLorenzo(usuario)
   const resumen = useMemo(() => ({
     asignadas: tareas.filter((t) => t.estado === 'asignada').length,

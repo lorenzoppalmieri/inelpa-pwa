@@ -40,11 +40,13 @@ function tipoLabel(control: ControlProgramadoSGO) {
   return TIPOS_CONTROL_SGO.find((tipo) => tipo.id === control.tipo)?.label ?? 'Control SGO'
 }
 
-export default function ControlesSGOView({ usuario, onOpenEvento, controlInicialId, onControlInicialConsumido }: {
+export default function ControlesSGOView({ usuario, onOpenEvento, controlInicialId, onControlInicialConsumido, ejecucionInicialId, onEjecucionInicialConsumida }: {
   usuario: string
   onOpenEvento: (id: string) => void
   controlInicialId?: string
   onControlInicialConsumido?: () => void
+  ejecucionInicialId?: string
+  onEjecucionInicialConsumida?: () => void
 }) {
   const controles = useLiveQuery(() => db.controlesProgramadosSGO.toArray(), []) ?? []
   const ejecuciones = useLiveQuery(() => db.ejecucionesControlesSGO.toArray(), []) ?? []
@@ -80,6 +82,15 @@ export default function ControlesSGOView({ usuario, onOpenEvento, controlInicial
     }
     onControlInicialConsumido?.()
   }, [controlInicialId, controles, lorenzo, onControlInicialConsumido])
+
+  useEffect(() => {
+    if (!ejecucionInicialId) return
+    const ejecucion = ejecuciones.find((item) => item.id === ejecucionInicialId)
+    if (!ejecucion?.auditoriaCampo) return
+    setSeccion('historial')
+    setInformeCampo(ejecucion)
+    onEjecucionInicialConsumida?.()
+  }, [ejecucionInicialId, ejecuciones, onEjecucionInicialConsumida])
 
   const resumen = useMemo(() => {
     const recientes = ejecuciones.filter((e) => e.ejecutadoEn.slice(0, 10) >= desde30)
