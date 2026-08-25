@@ -123,7 +123,7 @@ export function estadoGestionMejora(evento: EventoSGO, acciones: AccionSGO[]): E
   if (mejora.decision === 'a_futuro') return 'a_futuro'
   if (mejora.decision === 'no_viable') return 'no_viable'
   if (mejora.decision === 'pendiente') {
-    return mejora.beneficioEsperado || mejora.impacto || mejora.urgencia || mejora.esfuerzo || evento.responsable
+    return mejora.beneficioEsperado || evento.responsable
       ? 'en_evaluacion' : 'detectada'
   }
   const activas = acciones.filter((accion) => accion.estado !== 'cancelada')
@@ -131,11 +131,6 @@ export function estadoGestionMejora(evento: EventoSGO, acciones: AccionSGO[]): E
   if (activas.every((accion) => accion.estado === 'verificada' && accion.eficaz === true)) return 'lista_para_cerrar'
   if (activas.some((accion) => accion.estado === 'completada')) return 'pendiente_verificacion'
   return 'en_ejecucion'
-}
-
-export function puntajePriorizacion(mejora?: DatosMejoraSGO): number | undefined {
-  if (!mejora?.impacto || !mejora.urgencia || !mejora.esfuerzo) return undefined
-  return mejora.impacto * 2 + mejora.urgencia * 2 + (6 - mejora.esfuerzo)
 }
 
 export function seguimientoVencido(evento: EventoSGO, hoy: string): boolean {

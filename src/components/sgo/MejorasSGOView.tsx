@@ -5,7 +5,7 @@ import { eliminarEventoSGO, guardarEventoSGO } from '../../sync/syncEngine'
 import { validarCierreEvento } from '../../sgo/cierre'
 import {
   CLASES_MEJORA, DECISIONES_MEJORA, ESTADOS_GESTION_MEJORA, FUENTES_MEJORA, PRIORIDADES_MEJORA,
-  accionMejoraVencida, crearDatosMejora, estadoGestionMejora, fechaHoyISO, puntajePriorizacion,
+  accionMejoraVencida, crearDatosMejora, estadoGestionMejora, fechaHoyISO,
   seguimientoVencido, type EstadoGestionMejora,
 } from '../../sgo/mejoras'
 import { usuarioEsLorenzo } from '../../sgo/permisos'
@@ -199,7 +199,6 @@ function EditorMejora({ registro, acciones, usuario, onClose: cerrarEditor, onOp
   const actual = JSON.stringify({ evento, mejora })
   const conCambios = registro ? original !== actual : Boolean(evento.titulo.trim() || evento.descripcion.trim() || evento.areaId || mejora.colaborador?.trim() || mejora.fuente !== 'manual' || mejora.clase !== 'oportunidad')
   const estadoActual = registro ? estadoGestionMejora({ ...evento, mejora }, acciones) : 'detectada'
-  const puntaje = puntajePriorizacion(mejora)
   const setEventoCampo = <K extends keyof EventoSGO>(key: K, value: EventoSGO[K]) => setEvento({ ...evento, [key]: value })
   const setMejoraCampo = <K extends keyof DatosMejoraSGO>(key: K, value: DatosMejoraSGO[K]) => setMejora({ ...mejora, [key]: value })
 
@@ -218,7 +217,6 @@ function EditorMejora({ registro, acciones, usuario, onClose: cerrarEditor, onOp
       if (!evento.responsable?.trim()) errores.push('Asignar un responsable.')
       if (!mejora.fechaObjetivo) errores.push('Definir la fecha objetivo.')
       if (!mejora.beneficioEsperado?.trim()) errores.push('Documentar el beneficio esperado.')
-      if (!mejora.impacto || !mejora.urgencia || !mejora.esfuerzo) errores.push('Completar impacto, urgencia y esfuerzo.')
     }
     if (decision === 'a_futuro' && !mejora.fechaRevision) errores.push('Definir cuándo se revisará nuevamente.')
     if (decision === 'no_viable' && !mejora.justificacionDecision?.trim()) errores.push('Justificar por qué no es viable.')
@@ -286,7 +284,7 @@ function EditorMejora({ registro, acciones, usuario, onClose: cerrarEditor, onOp
   }
 
   return <Modal titulo={registro ? `${evento.codigo} · ${evento.titulo}` : 'Nueva detección de mejora'} onClose={onClose}>
-    {registro && <div className="sgo-mejora-editor-resumen"><span className={`estado-chip mejora-${estadoActual}`}>{estadoLabel(estadoActual)}</span><span>Detectada {fechaHora(evento.detectadoEn)} por {evento.detectadoPor}</span>{puntaje && <strong>Prioridad calculada: {puntaje}/25</strong>}</div>}
+    {registro && <div className="sgo-mejora-editor-resumen"><span className={`estado-chip mejora-${estadoActual}`}>{estadoLabel(estadoActual)}</span><span>Detectada {fechaHora(evento.detectadoEn)} por {evento.detectadoPor}</span></div>}
     <div className="section-title">1. Detección</div>
     <div className="sgo-mejora-form-grid">
       <Campo label="Clase"><select className="input" value={mejora.clase} onChange={(e) => setMejoraCampo('clase', e.target.value as ClaseMejoraSGO)}>{CLASES_MEJORA.map((c) => <option value={c.id} key={c.id}>{c.label}</option>)}</select></Campo>
@@ -303,12 +301,8 @@ function EditorMejora({ registro, acciones, usuario, onClose: cerrarEditor, onOp
     <div className="sgo-mejora-form-grid">
       <Campo label="Responsable"><input className="input" value={evento.responsable ?? ''} onChange={(e) => setEventoCampo('responsable', e.target.value || undefined)} /></Campo>
       <Campo label="Prioridad"><select className="input" value={mejora.prioridad} onChange={(e) => { const prioridad = e.target.value as PrioridadMejoraSGO; setMejoraCampo('prioridad', prioridad); setEventoCampo('severidad', prioridad as SeveridadSGO) }}>{PRIORIDADES_MEJORA.map((p) => <option value={p.id} key={p.id}>{p.label}</option>)}</select></Campo>
-      <Escala label="Impacto" value={mejora.impacto} onChange={(v) => setMejoraCampo('impacto', v)} />
-      <Escala label="Urgencia" value={mejora.urgencia} onChange={(v) => setMejoraCampo('urgencia', v)} />
-      <Escala label="Esfuerzo" value={mejora.esfuerzo} onChange={(v) => setMejoraCampo('esfuerzo', v)} />
       <Campo label="Presupuesto estimado"><input className="input" type="number" min="0" value={mejora.presupuestoEstimado ?? ''} onChange={(e) => setMejoraCampo('presupuestoEstimado', e.target.value ? Math.max(0, Number(e.target.value)) : undefined)} /></Campo>
       <Campo label="Fecha objetivo"><input className="input" type="date" value={mejora.fechaObjetivo ?? ''} onChange={(e) => setMejoraCampo('fechaObjetivo', e.target.value || undefined)} /></Campo>
-      <Campo label="Referencia SAP B1"><input className="input" value={mejora.referenciaSAP ?? ''} onChange={(e) => setMejoraCampo('referenciaSAP', e.target.value || undefined)} placeholder="Solicitud, orden o documento" /></Campo>
     </div>
     <div className="sgo-mejora-decision">
       <Campo label="Decisión de Lorenzo"><select className="input" disabled={!lorenzo} value={mejora.decision} onChange={(e) => setMejoraCampo('decision', e.target.value as DecisionMejoraSGO)}>{DECISIONES_MEJORA.map((d) => <option value={d.id} key={d.id}>{d.label}</option>)}</select></Campo>
@@ -346,9 +340,6 @@ function EditorMejora({ registro, acciones, usuario, onClose: cerrarEditor, onOp
 }
 
 function Campo({ label, children }: { label: string; children: React.ReactNode }) { return <div className="field"><label>{label}</label>{children}</div> }
-function Escala({ label, value, onChange }: { label: string; value?: 1 | 2 | 3 | 4 | 5; onChange: (value?: 1 | 2 | 3 | 4 | 5) => void }) {
-  return <Campo label={`${label} (1 a 5)`}><select className="input" value={value ?? ''} onChange={(e) => onChange(e.target.value ? Number(e.target.value) as 1 | 2 | 3 | 4 | 5 : undefined)}><option value="">Sin evaluar</option>{[1, 2, 3, 4, 5].map((n) => <option value={n} key={n}>{n}</option>)}</select></Campo>
-}
 function Modal({ titulo, onClose, children }: { titulo: string; onClose: () => void; children: React.ReactNode }) {
   return <div className="modal-overlay" role="presentation"><div className="modal" role="dialog" aria-modal="true" aria-label={titulo} style={{ width: '96%', maxWidth: 980, maxHeight: '94vh', overflow: 'auto' }}><div className="card-header"><div className="section-title">{titulo}</div><button className="btn" onClick={onClose}>×</button></div>{children}</div></div>
 }

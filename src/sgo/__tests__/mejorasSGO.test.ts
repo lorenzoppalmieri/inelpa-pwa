@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { estadoGestionMejora, crearDatosMejora, puntajePriorizacion, validarCierreMejora } from '../mejoras'
+import { estadoGestionMejora, crearDatosMejora, validarCierreMejora } from '../mejoras'
 import type { AccionSGO, EventoSGO } from '../types'
 
 const eventoBase: EventoSGO = {
@@ -39,8 +39,8 @@ describe('gestión de mejora continua', () => {
     expect(validarCierreMejora(completa, [{ ...accion, estado: 'verificada', eficaz: true }])).toEqual([])
   })
 
-  it('calcula un puntaje auditable de impacto, urgencia y esfuerzo', () => {
-    expect(puntajePriorizacion({ ...eventoBase.mejora!, impacto: 5, urgencia: 4, esfuerzo: 2 })).toBe(22)
-    expect(puntajePriorizacion(eventoBase.mejora)).toBeUndefined()
+  it('ignora los campos históricos retirados al determinar el avance', () => {
+    const legado = { ...eventoBase, mejora: { ...eventoBase.mejora!, impacto: 5 as const, urgencia: 4 as const, esfuerzo: 2 as const, referenciaSAP: 'SOL-123' } }
+    expect(estadoGestionMejora(legado, [])).toBe('detectada')
   })
 })
