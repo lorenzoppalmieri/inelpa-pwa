@@ -10,9 +10,14 @@ import {
 } from '../../sgo/mejoras'
 import { usuarioEsLorenzo } from '../../sgo/permisos'
 import {
+  GESTORES_MEJORA_SGO, gestorMejora, gestorMejoraLabel, gestorSugeridoMejora,
+  mejoraRequiereSegundoControl, usuarioEsGestorMejora, usuarioPuedeCerrarMejora,
+  usuarioPuedeGestionarMejora,
+} from '../../sgo/gestionMejoras'
+import {
   AREAS_SGO, PILARES_SGO, areaSGOLabel, codigoEventoSGO,
   type AccionSGO, type AreaSGOId, type ClaseMejoraSGO, type DatosMejoraSGO,
-  type DecisionMejoraSGO, type EventoSGO, type FuenteMejoraSGO, type PilarSGO,
+  type DecisionMejoraSGO, type EventoSGO, type FuenteMejoraSGO, type GestorMejoraSGO, type PilarSGO,
   type PrioridadMejoraSGO, type SeveridadSGO,
 } from '../../sgo/types'
 import RetrabajosSGOView from './RetrabajosSGOView'
@@ -25,9 +30,8 @@ const fuenteLabel = (id?: FuenteMejoraSGO) => FUENTES_MEJORA.find((f) => f.id ==
 const claseLabel = (id?: ClaseMejoraSGO) => CLASES_MEJORA.find((c) => c.id === id)?.label ?? 'Mejora'
 const estadoLabel = (id: EstadoGestionMejora) => ESTADOS_GESTION_MEJORA.find((e) => e.id === id)?.label ?? id
 
-export default function MejorasSGOView({ usuario, umbralAutorizacion, onOpenEvento, registroInicialId, vistaInicial, onRegistroInicialConsumido }: {
+export default function MejorasSGOView({ usuario, onOpenEvento, registroInicialId, vistaInicial, onRegistroInicialConsumido }: {
   usuario: string
-  umbralAutorizacion: number
   onOpenEvento: (id: string) => void
   registroInicialId?: string
   vistaInicial?: 'seguimiento' | 'retrabajos'
@@ -40,6 +44,7 @@ export default function MejorasSGOView({ usuario, umbralAutorizacion, onOpenEven
   const [buscar, setBuscar] = useState('')
   const [fuente, setFuente] = useState<FuenteMejoraSGO | ''>('')
   const [area, setArea] = useState<AreaSGOId | ''>('')
+  const [gestorFiltro, setGestorFiltro] = useState<GestorMejoraSGO | ''>('')
   const [estado, setEstado] = useState<EstadoGestionMejora | ''>('')
   useEffect(() => {
     if (!registroInicialId) return
@@ -71,15 +76,15 @@ export default function MejorasSGOView({ usuario, umbralAutorizacion, onOpenEven
     const texto = `${evento.codigo} ${evento.titulo} ${evento.descripcion} ${evento.responsable ?? ''} ${evento.mejora?.colaborador ?? ''}`.toLowerCase()
     const estadoActual = estadoGestionMejora(evento, accionesDe(evento.id))
     return (!buscar || texto.includes(buscar.toLowerCase())) && (!fuente || evento.mejora?.fuente === fuente) &&
-      (!area || evento.areaId === area) && (!estado || estadoActual === estado)
+      (!area || evento.areaId === area) && (!gestorFiltro || gestorMejora(evento) === gestorFiltro) && (!estado || estadoActual === estado)
   }).sort((a, b) => b.detectadoEn.localeCompare(a.detectadoEn))
 
   function exportar() {
-    const cabecera = ['Código', 'Fecha', 'Clase', 'Fuente', 'Área', 'Título', 'Estado', 'Decisión', 'Prioridad', 'Responsable', 'Acciones', 'Acciones vencidas', 'Resultado', 'Seguimiento']
+    const cabecera = ['Código', 'Fecha', 'Clase', 'Fuente', 'Área', 'Gestor SGO', 'Título', 'Estado', 'Decisión', 'Decidió', 'Prioridad', 'Responsable', 'Acciones', 'Acciones vencidas', 'Resultado', 'Seguimiento']
     const filas = registros.map((evento) => {
       const acc = accionesDe(evento.id)
-      return [evento.codigo, evento.detectadoEn.slice(0, 10), claseLabel(evento.mejora?.clase), fuenteLabel(evento.mejora?.fuente), areaSGOLabel(evento.areaId), evento.titulo,
-        estadoLabel(estadoGestionMejora(evento, acc)), evento.mejora?.decision ?? '', evento.mejora?.prioridad ?? '', evento.responsable ?? '', acc.length,
+      return [evento.codigo, evento.detectadoEn.slice(0, 10), claseLabel(evento.mejora?.clase), fuenteLabel(evento.mejora?.fuente), areaSGOLabel(evento.areaId), gestorMejoraLabel(gestorMejora(evento)), evento.titulo,
+        estadoLabel(estadoGestionMejora(evento, acc)), evento.mejora?.decision ?? '', evento.mejora?.decisionPor ?? '', evento.mejora?.prioridad ?? '', evento.responsable ?? '', acc.length,
         acc.filter((accion) => accionMejoraVencida(accion, hoy)).length, evento.mejora?.resultado ?? '', evento.mejora?.seguimientoResultado ?? '']
     })
     const escapar = (valor: unknown) => `"${String(valor ?? '').replace(/"/g, '""')}"`
@@ -111,13 +116,14 @@ export default function MejorasSGOView({ usuario, umbralAutorizacion, onOpenEven
       <input className="input" value={buscar} onChange={(e) => setBuscar(e.target.value)} placeholder="Buscar código, mejora, responsable…" />
       <select className="input" value={fuente} onChange={(e) => setFuente(e.target.value as FuenteMejoraSGO | '')}><option value="">Todas las fuentes</option>{FUENTES_MEJORA.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}</select>
       <select className="input" value={area} onChange={(e) => setArea(e.target.value as AreaSGOId | '')}><option value="">Todas las áreas</option>{AREAS_SGO.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}</select>
+      <select className="input" value={gestorFiltro} onChange={(e) => setGestorFiltro(e.target.value as GestorMejoraSGO | '')}><option value="">Todo el equipo SGO</option>{GESTORES_MEJORA_SGO.map((gestor) => <option key={gestor.id} value={gestor.id}>{gestor.label}</option>)}</select>
       <select className="input" value={estado} onChange={(e) => setEstado(e.target.value as EstadoGestionMejora | '')}><option value="">Todos los estados</option>{ESTADOS_GESTION_MEJORA.map((e) => <option key={e.id} value={e.id}>{e.label}</option>)}</select>
     </div>}
     {vista === 'retrabajos' ? <RetrabajosSGOView usuario={usuario} onOpenEvento={onOpenEvento} eventoInicialId={vistaInicial === 'retrabajos' ? registroInicialId : undefined} onEventoInicialConsumido={onRegistroInicialConsumido} />
       : vista === 'tablero' ? <Tablero registros={registros} acciones={acciones} hoy={hoy} />
       : vista === 'seguimiento' ? <Kanban registros={visibles} acciones={acciones} hoy={hoy} onOpen={setEditor} />
         : <Listado registros={visibles} acciones={acciones} hoy={hoy} onOpen={setEditor} vacio="Todavía no hay mejoras cerradas." />}
-    {editor !== undefined && <EditorMejora registro={editor} acciones={editor ? accionesDe(editor.id) : []} usuario={usuario} umbralAutorizacion={umbralAutorizacion}
+    {editor !== undefined && <EditorMejora registro={editor} acciones={editor ? accionesDe(editor.id) : []} usuario={usuario}
       onClose={() => setEditor(undefined)} onOpenEvento={(id) => { setEditor(undefined); onOpenEvento(id) }} />}
   </div>
 }
@@ -129,7 +135,7 @@ function Kpi({ valor, label, tono }: { valor: string | number; label: string; to
 const COLUMNAS: { titulo: string; estados: EstadoGestionMejora[] }[] = [
   { titulo: 'Detectadas y en evaluación', estados: ['detectada', 'en_evaluacion', 'a_futuro'] },
   { titulo: 'Aprobadas y en ejecución', estados: ['aprobada', 'en_ejecucion', 'reincidencia'] },
-  { titulo: 'Verificación y cierre', estados: ['pendiente_verificacion', 'lista_para_cerrar'] },
+  { titulo: 'Verificación y cierre', estados: ['pendiente_verificacion', 'lista_para_cerrar', 'no_viable'] },
 ]
 
 function Kanban({ registros, acciones, hoy, onOpen }: { registros: EventoSGO[]; acciones: AccionSGO[]; hoy: string; onOpen: (e: EventoSGO) => void }) {
@@ -155,7 +161,7 @@ function MejoraCard({ evento, acciones, hoy, onOpen }: { evento: EventoSGO; acci
     <div className="sgo-mejora-card-top"><span className={`estado-chip mejora-${estado}`}>{estadoLabel(estado)}</span><span className="meta">{evento.codigo}</span></div>
     <strong>{evento.titulo}</strong>
     <div className="meta">{claseLabel(evento.mejora?.clase)} · {fuenteLabel(evento.mejora?.fuente)} · {areaSGOLabel(evento.areaId)}</div>
-    <div className="sgo-mejora-card-resumen"><span>Responsable: <strong>{evento.responsable || 'Sin asignar'}</strong></span><span>{acciones.length} acción(es){vencidas ? ` · ${vencidas} vencida(s)` : ''}</span></div>
+    <div className="sgo-mejora-card-resumen"><span>Gestión SGO: <strong>{gestorMejoraLabel(gestorMejora(evento))}</strong></span><span>Responsable: <strong>{evento.responsable || 'Sin asignar'}</strong></span><span>{acciones.length} acción(es){vencidas ? ` · ${vencidas} vencida(s)` : ''}</span></div>
     {acciones.length > 0 && <div className="sgo-mejora-progreso"><span style={{ width: `${progreso}%` }} /></div>}
     {evento.estado === 'cerrado' && <div className="sgo-mejora-resultado">{evento.mejora?.resultado || evento.mejora?.justificacionDecision || 'Cierre sin resultado documentado'}</div>}
   </button>
@@ -187,7 +193,7 @@ function Barras({ titulo, datos }: { titulo: string; datos: [string, number][] }
   return <div className="card"><div className="section-title">{titulo}</div><div className="sgo-mejoras-barras">{datos.map(([label, valor]) => <div key={label}><div><span>{label}</span><strong>{valor}</strong></div><i><span style={{ width: `${valor / max * 100}%` }} /></i></div>)}{!datos.length && <div className="empty">Sin datos todavía.</div>}</div></div>
 }
 
-function EditorMejora({ registro, acciones, usuario, umbralAutorizacion, onClose: cerrarEditor, onOpenEvento }: { registro: EventoSGO | null; acciones: AccionSGO[]; usuario: string; umbralAutorizacion: number; onClose: () => void; onOpenEvento: (id: string) => void }) {
+function EditorMejora({ registro, acciones, usuario, onClose: cerrarEditor, onOpenEvento }: { registro: EventoSGO | null; acciones: AccionSGO[]; usuario: string; onClose: () => void; onOpenEvento: (id: string) => void }) {
   const lorenzo = usuarioEsLorenzo(usuario)
   const ahora = new Date().toISOString()
   const [evento, setEvento] = useState<EventoSGO>(() => registro ?? {
@@ -199,13 +205,14 @@ function EditorMejora({ registro, acciones, usuario, umbralAutorizacion, onClose
   const original = JSON.stringify({ evento: registro, mejora: registro?.mejora })
   const actual = JSON.stringify({ evento, mejora })
   const conCambios = registro ? original !== actual : Boolean(evento.titulo.trim() || evento.descripcion.trim() || evento.areaId || mejora.colaborador?.trim() || mejora.fuente !== 'manual' || mejora.clase !== 'oportunidad')
-  const estadoActual = registro ? estadoGestionMejora({ ...evento, mejora }, acciones) : 'detectada'
-  const presupuesto = Math.max(0, Number(mejora.presupuestoEstimado) || 0)
-  const presupuestoOriginal = Math.max(0, Number(registro?.mejora?.presupuestoEstimado) || 0)
-  const decisionHistorica = presupuesto === presupuestoOriginal && registro?.mejora?.decision !== 'pendiente' && registro?.mejora?.autorizacionRequerida !== undefined
-  const requiereAutorizacion = decisionHistorica
-    ? Boolean(registro?.mejora?.autorizacionRequerida)
-    : presupuesto > umbralAutorizacion
+  const expediente = { ...evento, mejora }
+  const estadoActual = registro ? estadoGestionMejora(expediente, acciones) : 'detectada'
+  const gestorActual = gestorMejora(expediente)
+  const puedeGestionar = usuarioPuedeGestionarMejora(usuario, expediente)
+  const puedeReasignar = usuarioEsGestorMejora(usuario)
+  const editableGestion = !registro || puedeGestionar
+  const segundoControl = mejoraRequiereSegundoControl(expediente)
+  const puedeCerrar = Boolean(registro && mejora.decision !== 'pendiente' && mejora.decision !== 'a_futuro' && usuarioPuedeCerrarMejora(usuario, expediente))
   const setEventoCampo = <K extends keyof EventoSGO>(key: K, value: EventoSGO[K]) => setEvento({ ...evento, [key]: value })
   const setMejoraCampo = <K extends keyof DatosMejoraSGO>(key: K, value: DatosMejoraSGO[K]) => setMejora({ ...mejora, [key]: value })
 
@@ -231,19 +238,14 @@ function EditorMejora({ registro, acciones, usuario, umbralAutorizacion, onClose
   }
 
   function mejoraEvaluada(): DatosMejoraSGO {
-    const decision = requiereAutorizacion && !lorenzo && !registro?.mejora?.autorizacionRequerida ? 'pendiente' : mejora.decision
-    const estadoAutorizacion = !requiereAutorizacion ? 'no_requiere'
-      : decision === 'pendiente' ? 'pendiente'
-        : decision === 'aprobada' ? 'aprobada'
-          : decision === 'a_futuro' ? 'postergada' : 'rechazada'
+    const cambioDecision = mejora.decision !== (registro?.mejora?.decision ?? 'pendiente')
     return {
       ...mejora,
-      decision,
-      autorizacionRequerida: requiereAutorizacion,
-      umbralAutorizacionAplicado: registro?.mejora?.umbralAutorizacionAplicado ?? umbralAutorizacion,
-      autorizacionEstado: estadoAutorizacion,
-      autorizacionDecididaEn: requiereAutorizacion && decision !== 'pendiente' ? (mejora.autorizacionDecididaEn ?? new Date().toISOString()) : undefined,
-      autorizacionDecididaPor: requiereAutorizacion && decision !== 'pendiente' ? (mejora.autorizacionDecididaPor ?? usuario) : undefined,
+      gestorSGO: mejora.gestorSGO ?? gestorSugeridoMejora(expediente),
+      decisionEn: cambioDecision ? new Date().toISOString() : mejora.decisionEn,
+      decisionPor: cambioDecision ? usuario : mejora.decisionPor,
+      autorizacionRequerida: false,
+      autorizacionEstado: 'no_requiere',
     }
   }
 
@@ -263,11 +265,26 @@ function EditorMejora({ registro, acciones, usuario, umbralAutorizacion, onClose
   }
 
   async function guardar() {
-    if (requiereAutorizacion && mejora.decision !== (registro?.mejora?.decision ?? 'pendiente') && !lorenzo) { window.alert(`Esta mejora supera ${umbralAutorizacion.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}. Solo Lorenzo puede decidir su aprobación.`); return }
+    if (registro && !puedeGestionar && !puedeReasignar) { window.alert(`La gestión de esta mejora corresponde a ${gestorMejoraLabel(gestorActual)}.`); return }
+    if (registro && !puedeGestionar && puedeReasignar) {
+      const gestorAnterior = gestorMejora(registro)
+      if (gestorActual === gestorAnterior) { window.alert(`La gestión continúa asignada a ${gestorMejoraLabel(gestorActual)}.`); return }
+      const actualizado: EventoSGO = {
+        ...registro,
+        mejora: {
+          ...registro.mejora!, gestorSGO: gestorActual,
+          autorizacionRequerida: false, autorizacionEstado: 'no_requiere',
+        },
+        actualizadoEn: new Date().toISOString(),
+      }
+      setGuardando(true)
+      try { await guardarEventoSGO(actualizado); cerrarEditor() } finally { setGuardando(false) }
+      return
+    }
+    if (mejora.decision !== (registro?.mejora?.decision ?? 'pendiente') && !puedeGestionar) { window.alert('Solo el integrante SGO asignado puede registrar la decisión.'); return }
     const errores = validar()
     if (errores.length) { window.alert(errores.join('\n')); return }
-    let actualizado = eventoPreparado(mejora.decision === 'no_viable' ? 'cerrado' : undefined)
-    if (mejora.decision === 'no_viable') actualizado = { ...actualizado, cerradoEn: actualizado.cerradoEn ?? new Date().toISOString(), cerradoPor: usuario }
+    const actualizado = eventoPreparado()
     const erroresCierre = validarCierreEvento(actualizado, acciones)
     if (erroresCierre.length) { window.alert(`No se puede cerrar:\n\n• ${erroresCierre.join('\n• ')}`); return }
     setGuardando(true)
@@ -275,10 +292,16 @@ function EditorMejora({ registro, acciones, usuario, umbralAutorizacion, onClose
   }
 
   async function cerrarMejora() {
-    if (!registro || (requiereAutorizacion && !lorenzo)) return
-    const erroresFormulario = validar('aprobada')
+    if (!registro || !puedeCerrar) return
+    const erroresFormulario = validar(mejora.decision)
     if (erroresFormulario.length) { window.alert(erroresFormulario.join('\n')); return }
-    const candidato = { ...eventoPreparado('cerrado'), cerradoEn: evento.cerradoEn ?? new Date().toISOString(), cerradoPor: evento.cerradoPor ?? usuario }
+    const ahoraCierre = new Date().toISOString()
+    const preparado = eventoPreparado('cerrado')
+    const candidato = {
+      ...preparado,
+      mejora: { ...preparado.mejora!, verificacionSGOEn: ahoraCierre, verificacionSGOPor: usuario },
+      cerradoEn: evento.cerradoEn ?? ahoraCierre, cerradoPor: evento.cerradoPor ?? usuario,
+    }
     const errores = validarCierreEvento(candidato, acciones)
     if (errores.length) { window.alert(`No se puede cerrar la mejora:\n\n• ${errores.join('\n• ')}`); return }
     if (!window.confirm('La mejora quedará cerrada y pasará a Resultados e historial. ¿Continuar?')) return
@@ -287,14 +310,14 @@ function EditorMejora({ registro, acciones, usuario, umbralAutorizacion, onClose
   }
 
   async function registrarSeguimiento() {
-    if (!registro || evento.estado !== 'cerrado') return
+    if (!registro || !puedeGestionar || evento.estado !== 'cerrado') return
     if (!['sostenida', 'reincidencia'].includes(mejora.seguimientoResultado ?? '') || !mejora.seguimientoObservacion?.trim()) {
       window.alert('Indicá si la mejora se sostuvo o reincidió y documentá la comprobación.'); return
     }
     const ahoraIso = new Date().toISOString()
     const reincide = mejora.seguimientoResultado === 'reincidencia'
     const actualizado = eventoPreparado(reincide ? 'en_analisis' : 'cerrado')
-    actualizado.mejora = { ...mejora, decision: reincide ? 'aprobada' : mejora.decision, seguimientoEn: ahoraIso, seguimientoPor: usuario }
+    actualizado.mejora = { ...actualizado.mejora!, decision: reincide ? 'aprobada' : mejora.decision, seguimientoEn: ahoraIso, seguimientoPor: usuario }
     if (reincide) { actualizado.cerradoEn = undefined; actualizado.cerradoPor = undefined }
     setGuardando(true)
     try { await guardarEventoSGO(actualizado); cerrarEditor() } finally { setGuardando(false) }
@@ -308,6 +331,12 @@ function EditorMejora({ registro, acciones, usuario, umbralAutorizacion, onClose
 
   return <Modal titulo={registro ? `${evento.codigo} · ${evento.titulo}` : 'Nueva detección de mejora'} onClose={onClose}>
     {registro && <div className="sgo-mejora-editor-resumen"><span className={`estado-chip mejora-${estadoActual}`}>{estadoLabel(estadoActual)}</span><span>Detectada {fechaHora(evento.detectadoEn)} por {evento.detectadoPor}</span></div>}
+    <div className="card sgo-mejora-gestor">
+      <div><strong>Gestión SGO</strong><div className="meta">Responsable de evaluar, aprobar y conducir el expediente.</div></div>
+      <select className="input" value={gestorActual} disabled={!puedeReasignar} onChange={(e) => setMejoraCampo('gestorSGO', e.target.value as GestorMejoraSGO)}>{GESTORES_MEJORA_SGO.map((gestor) => <option key={gestor.id} value={gestor.id}>{gestor.label} · {gestor.alcance}</option>)}</select>
+    </div>
+    {registro && !editableGestion && <div className="card sgo-mejora-solo-lectura"><strong>Vista de consulta</strong><span>La gestión corresponde a {gestorMejoraLabel(gestorActual)}. Podés revisar toda la información sin intervenir en su aprobación.</span></div>}
+    <fieldset className="sgo-mejora-campos" disabled={!editableGestion}>
     <div className="section-title">1. Detección</div>
     <div className="sgo-mejora-form-grid">
       <Campo label="Clase"><select className="input" value={mejora.clase} onChange={(e) => setMejoraCampo('clase', e.target.value as ClaseMejoraSGO)}>{CLASES_MEJORA.map((c) => <option value={c.id} key={c.id}>{c.label}</option>)}</select></Campo>
@@ -327,11 +356,12 @@ function EditorMejora({ registro, acciones, usuario, umbralAutorizacion, onClose
       <Campo label="Presupuesto estimado (ARS)"><input className="input" type="number" min="0" value={mejora.presupuestoEstimado ?? ''} onChange={(e) => setMejoraCampo('presupuestoEstimado', e.target.value ? Math.max(0, Number(e.target.value)) : undefined)} /></Campo>
       <Campo label="Fecha objetivo"><input className="input" type="date" value={mejora.fechaObjetivo ?? ''} onChange={(e) => setMejoraCampo('fechaObjetivo', e.target.value || undefined)} /></Campo>
     </div>
-    <div className={`card sgo-mejora-autorizacion ${requiereAutorizacion ? 'requiere' : 'no-requiere'}`}><strong>{requiereAutorizacion ? 'Requiere autorización de Lorenzo' : 'No requiere autorización económica'}</strong><span>{requiereAutorizacion ? `El presupuesto supera el límite vigente de ${umbralAutorizacion.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}.` : `Puede avanzar dentro del circuito del responsable. Límite vigente: ${umbralAutorizacion.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}.`}</span></div>
+    <div className={`card sgo-mejora-autorizacion ${segundoControl ? 'requiere' : 'no-requiere'}`}><strong>{segundoControl ? 'Requiere segundo control del equipo SGO' : 'Gestión directa del responsable SGO'}</strong><span>{segundoControl ? 'Por criticidad, seguridad, ambiente o costo, el cierre deberá realizarlo otro integrante de SGO. La aprobación técnica no queda bloqueada.' : 'El gestor asignado puede aprobar, ejecutar, verificar y cerrar la mejora.'}</span></div>
     <div className="sgo-mejora-decision">
-      <Campo label={requiereAutorizacion ? 'Decisión de Lorenzo' : 'Decisión operativa'}><select className="input" disabled={requiereAutorizacion && !lorenzo} value={mejora.decision} onChange={(e) => setMejoraCampo('decision', e.target.value as DecisionMejoraSGO)}>{DECISIONES_MEJORA.map((d) => <option value={d.id} key={d.id}>{d.label}</option>)}</select></Campo>
+      <Campo label="Decisión del equipo SGO"><select className="input" disabled={!puedeGestionar} value={mejora.decision} onChange={(e) => setMejoraCampo('decision', e.target.value as DecisionMejoraSGO)}>{DECISIONES_MEJORA.map((d) => <option value={d.id} key={d.id}>{d.label}</option>)}</select></Campo>
       {mejora.decision === 'a_futuro' && <Campo label="Revisar nuevamente el"><input className="input" type="date" value={mejora.fechaRevision ?? ''} onChange={(e) => setMejoraCampo('fechaRevision', e.target.value || undefined)} /></Campo>}
     </div>
+    {mejora.decisionPor && <div className="meta sgo-mejora-trazabilidad">Decisión registrada por <strong>{mejora.decisionPor}</strong>{mejora.decisionEn ? ` el ${fechaHora(mejora.decisionEn)}` : ''}.</div>}
     {['a_futuro', 'no_viable'].includes(mejora.decision) && <Campo label="Justificación de la decisión"><textarea className="input" rows={2} value={mejora.justificacionDecision ?? ''} onChange={(e) => setMejoraCampo('justificacionDecision', e.target.value || undefined)} /></Campo>}
 
     {(registro && (mejora.decision === 'aprobada' || evento.estado === 'cerrado')) && <>
@@ -352,13 +382,15 @@ function EditorMejora({ registro, acciones, usuario, umbralAutorizacion, onClose
       <Campo label="Comprobación realizada"><textarea className="input" rows={2} value={mejora.seguimientoObservacion ?? ''} onChange={(e) => setMejoraCampo('seguimientoObservacion', e.target.value || undefined)} /></Campo>
       <button className="btn btn-primary" onClick={() => void registrarSeguimiento()} disabled={guardando}>Registrar seguimiento</button>
     </div>}
+    </fieldset>
 
     {registro && <div className="card sgo-mejora-acciones-resumen"><div><strong>{acciones.length}</strong><span>acciones</span></div><div><strong>{acciones.filter((a) => a.estado === 'verificada').length}</strong><span>verificadas</span></div><div><strong>{acciones.filter((a) => accionMejoraVencida(a, fechaHoyISO())).length}</strong><span>vencidas</span></div><button className="btn" onClick={() => onOpenEvento(registro.id)}>Abrir expediente y acciones</button></div>}
+    {registro && segundoControl && mejora.decision !== 'pendiente' && <div className="card sgo-mejora-segundo-control"><strong>{puedeCerrar ? 'Podés realizar el segundo control' : 'Segundo control pendiente'}</strong><span>{mejora.verificacionSGOPor ? `Verificado por ${mejora.verificacionSGOPor}.` : `Debe verificar un integrante distinto de ${mejora.decisionPor ?? gestorMejoraLabel(gestorActual)}.`}</span></div>}
     <div className="row-actions sgo-mejora-editor-acciones">
       {registro && lorenzo && <button className="btn btn-rojo" disabled={guardando} onClick={() => void eliminar()}>Eliminar</button>}
       <button className="btn" onClick={onClose} disabled={guardando}>Cancelar</button>
-      <button className="btn btn-primary" disabled={guardando} onClick={() => void guardar()}>{guardando ? 'Guardando…' : registro ? 'Guardar cambios' : 'Registrar detección'}</button>
-      {registro && (!requiereAutorizacion || lorenzo) && mejora.decision === 'aprobada' && evento.estado !== 'cerrado' && <button className="btn btn-verde" disabled={guardando} onClick={() => void cerrarMejora()}>Verificar y cerrar mejora</button>}
+      {(!registro || puedeGestionar || puedeReasignar) && <button className="btn btn-primary" disabled={guardando} onClick={() => void guardar()}>{guardando ? 'Guardando…' : registro ? 'Guardar cambios' : 'Registrar detección'}</button>}
+      {registro && puedeCerrar && evento.estado !== 'cerrado' && <button className="btn btn-verde" disabled={guardando} onClick={() => void cerrarMejora()}>Verificar y cerrar mejora</button>}
     </div>
   </Modal>
 }

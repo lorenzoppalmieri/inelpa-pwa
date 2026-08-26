@@ -17,17 +17,18 @@ describe('bandeja de autorizaciones SGO', () => {
 
     const items = construirAutorizacionesSGO({ tareas: [tarea], agenda: [actividad], ejecuciones: [ejecucion], eventos: [mejora], acciones: [accion] })
 
-    expect(items.filter((item) => item.estado === 'pendiente')).toHaveLength(5)
-    expect(items.filter((item) => item.clase === 'autorizacion_economica')).toHaveLength(1)
+    expect(items.filter((item) => item.estado === 'pendiente')).toHaveLength(4)
     expect(items.filter((item) => item.clase === 'revision_5s')).toHaveLength(1)
     expect(items.filter((item) => item.clase === 'seguimiento')).toHaveLength(3)
     expect(new Set(items.map((item) => item.id)).size).toBe(items.length)
-    expect(items.map((item) => item.tipo)).toEqual(expect.arrayContaining(['tarea_sgo', 'agenda_iso', 'revision_5s', 'mejora', 'accion']))
+    expect(items.map((item) => item.tipo)).toEqual(expect.arrayContaining(['tarea_sgo', 'agenda_iso', 'revision_5s', 'accion']))
+    expect(items.some((item) => item.origenId === mejora.id)).toBe(false)
   })
 
-  it('no envía a autorización económica una mejora de hasta el límite', () => {
+  it('no envía mejoras a la bandeja privada de Lorenzo, cualquiera sea su costo', () => {
     const mejora = { id: 'm-2', titulo: 'Orden visual', detectadoPor: 'lara', detectadoEn: fecha, actualizadoEn: fecha, estado: 'abierto', severidad: 'media', areaId: 'laminado', mejora: { decision: 'pendiente', prioridad: 'media', presupuestoEstimado: 500000 } } as EventoSGO
-    const items = construirAutorizacionesSGO({ tareas: [], agenda: [], ejecuciones: [], eventos: [mejora], acciones: [] }, 500000)
+    const costosa = { ...mejora, id: 'm-3', mejora: { ...mejora.mejora!, presupuestoEstimado: 5000000 } } as EventoSGO
+    const items = construirAutorizacionesSGO({ tareas: [], agenda: [], ejecuciones: [], eventos: [mejora, costosa], acciones: [] })
     expect(items).toHaveLength(0)
   })
 

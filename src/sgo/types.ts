@@ -39,6 +39,7 @@ export type FuenteMejoraSGO =
 export type DecisionMejoraSGO = 'pendiente' | 'aprobada' | 'a_futuro' | 'no_viable'
 export type PrioridadMejoraSGO = 'baja' | 'media' | 'alta' | 'critica'
 export type SeguimientoMejoraSGO = 'pendiente' | 'sostenida' | 'reincidencia'
+export type GestorMejoraSGO = 'lara' | 'nicolas.sgo' | 'azul'
 export type OrigenEntidadMejoraSGO = 'control_5s' | 'auditoria_logistica' | 'control_programado' | 'agenda_iso' | 'indicador' | 'evento_manual' | 'retrabajo'
 
 export type OrigenRetrabajoSGO = 'parada_calidad' | 'defecto_final' | 'laboratorio'
@@ -134,13 +135,17 @@ export interface DatosMejoraSGO {
   fechaObjetivo?: string
   fechaRevision?: string
   presupuestoEstimado?: number
-  /** Copia del umbral vigente al evaluar el expediente; preserva la decisión histórica. */
+  /** Campos heredados del circuito económico anterior; se conservan para leer el historial. */
   umbralAutorizacionAplicado?: number
-  /** Solo las mejoras que superan el umbral requieren una decisión de Lorenzo. */
   autorizacionRequerida?: boolean
   autorizacionEstado?: 'no_requiere' | 'pendiente' | 'aprobada' | 'postergada' | 'rechazada'
   autorizacionDecididaEn?: string
   autorizacionDecididaPor?: string
+  gestorSGO?: GestorMejoraSGO
+  decisionEn?: string
+  decisionPor?: string
+  verificacionSGOEn?: string
+  verificacionSGOPor?: string
   referenciaSAP?: string
   resultado?: string
   beneficioReal?: string

@@ -4,8 +4,8 @@ import { areaSGOLabel, type AccionSGO, type EventoSGO, type SeveridadSGO } from 
 import { estadoInvestigacionRetrabajo, nivelInvestigacionRetrabajo } from './retrabajos'
 import { etiquetaResponsableTareaSGO, type TareaSGO } from './tareasSGO'
 
-export type TipoAutorizacionSGO = 'revision_5s' | 'tarea_sgo' | 'agenda_iso' | 'mejora' | 'retrabajo' | 'accion'
-export type ClaseAutorizacionSGO = 'autorizacion_economica' | 'revision_5s' | 'seguimiento'
+export type TipoAutorizacionSGO = 'revision_5s' | 'tarea_sgo' | 'agenda_iso' | 'retrabajo' | 'accion'
+export type ClaseAutorizacionSGO = 'revision_5s' | 'seguimiento'
 export type EstadoAutorizacionSGO = 'pendiente' | 'resuelta'
 export type PrioridadAutorizacionSGO = 'baja' | 'media' | 'alta' | 'critica'
 
@@ -35,10 +35,7 @@ export interface DatosAutorizacionesSGO {
 
 const prioridadDesdeSeveridad = (severidad: SeveridadSGO): PrioridadAutorizacionSGO => severidad
 
-export function construirAutorizacionesSGO(
-  { tareas, agenda, ejecuciones, eventos, acciones }: DatosAutorizacionesSGO,
-  umbralAutorizacion = 500000,
-): AutorizacionSGO[] {
+export function construirAutorizacionesSGO({ tareas, agenda, ejecuciones, eventos, acciones }: DatosAutorizacionesSGO): AutorizacionSGO[] {
   const items: AutorizacionSGO[] = []
   const eventosPorId = new Map(eventos.map((evento) => [evento.id, evento]))
 
@@ -103,27 +100,6 @@ export function construirAutorizacionesSGO(
   }
 
   for (const evento of eventos) {
-    const presupuesto = Math.max(0, Number(evento.mejora?.presupuestoEstimado) || 0)
-    const requiereAutorizacion = evento.mejora?.autorizacionRequerida ?? presupuesto > (evento.mejora?.umbralAutorizacionAplicado ?? umbralAutorizacion)
-    if (evento.mejora && requiereAutorizacion && (evento.mejora.decision !== 'pendiente' || evento.estado !== 'cerrado')) {
-      const resuelta = evento.mejora.decision !== 'pendiente'
-      items.push({
-        id: `mejora:${evento.id}`,
-        tipo: 'mejora',
-        clase: 'autorizacion_economica',
-        origenId: evento.id,
-        eventoId: evento.id,
-        estado: resuelta ? 'resuelta' : 'pendiente',
-        prioridad: evento.mejora.prioridad,
-        titulo: evento.titulo,
-        detalle: resuelta ? `Decisión económica registrada para un presupuesto de ${presupuesto.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}.` : `Presupuesto estimado: ${presupuesto.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}. Supera el límite autorizado y requiere decisión de Lorenzo.`,
-        solicitadoPor: evento.detectadoPor,
-        fecha: resuelta ? evento.actualizadoEn : evento.detectadoEn,
-        area: areaSGOLabel(evento.areaId),
-        resultado: resuelta ? `Decisión: ${evento.mejora.decision.replace('_', ' ')}` : undefined,
-      })
-    }
-
     if (evento.retrabajo && nivelInvestigacionRetrabajo(evento) === 'critica') {
       const resuelta = evento.estado === 'cerrado'
       const etapa = estadoInvestigacionRetrabajo(evento, acciones.filter((accion) => accion.eventoId === evento.id))
@@ -136,11 +112,11 @@ export function construirAutorizacionesSGO(
         estado: resuelta ? 'resuelta' : 'pendiente',
         prioridad: 'critica',
         titulo: evento.titulo,
-        detalle: resuelta ? 'Investigación crítica verificada y cerrada.' : `Retrabajo crítico en etapa “${etapa.replaceAll('_', ' ')}”. La validación operativa corresponde a Lara o Lorenzo.`,
+        detalle: resuelta ? 'Investigación crítica verificada y cerrada.' : `Retrabajo crítico en etapa “${etapa.replaceAll('_', ' ')}”. La gestión operativa corresponde a Lara y al equipo SGO.`,
         solicitadoPor: evento.retrabajo.tomadoPor ?? evento.retrabajo.asignadoA,
         fecha: resuelta ? (evento.cerradoEn ?? evento.actualizadoEn) : evento.actualizadoEn,
         area: areaSGOLabel(evento.areaOrigenId ?? evento.areaId),
-        resultado: resuelta ? `Cerrado por ${evento.cerradoPor ?? 'Lorenzo'}` : undefined,
+        resultado: resuelta ? `Cerrado por ${evento.cerradoPor ?? 'equipo SGO'}` : undefined,
       })
     }
   }
