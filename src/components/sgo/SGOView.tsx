@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
 import { useAuth } from '../../auth/AuthContext'
@@ -21,6 +21,7 @@ import { validarCierreEvento } from '../../sgo/cierre'
 import { datosMejoraDesdeEvento } from '../../sgo/mejoras'
 import { usuarioEsLorenzo } from '../../sgo/permisos'
 import { construirAutorizacionesSGO, type AutorizacionSGO } from '../../sgo/autorizaciones'
+import { obtenerLimiteAutorizacionMejora, UMBRAL_AUTORIZACION_MEJORAS_BASE } from '../../sgo/limitesAutorizacion'
 import { resolverTrazabilidadProductiva, type TrazabilidadProductivaSGO } from '../../sgo/trazabilidad'
 import {
   ID_DIAS_SIN_ACCIDENTES, ID_DIAS_SIN_INCIDENTES, IDS_CONTADORES_SEGURIDAD,
@@ -82,15 +83,18 @@ export default function SGOView() {
   const [celdaSeleccionada, setCeldaSeleccionada] = useState<{ area: AreaSGOId; pilar: PilarSGO }>()
   const [filtroArea, setFiltroArea] = useState('')
   const [filtroPilar, setFiltroPilar] = useState('')
+  const [umbralAutorizacion, setUmbralAutorizacion] = useState(UMBRAL_AUTORIZACION_MEJORAS_BASE)
   // v1.97: 'cuellos' — la MISMA pantalla que se ve en Producción. Se monta el
   // mismo componente en los dos lados: si fueran dos copias, se desincronizarían.
   const [pestana, setPestana] = useState<'tablero' | 'autorizaciones' | 'mejoras' | 'controles' | 'agenda_iso' | 'tareas_sgo' | 'logistica' | 'cuellos'>('tablero')
   const seleccionado = eventos.find((e) => e.id === seleccionadoId)
   const lorenzo = usuarioEsLorenzo(usuario?.usuario ?? '')
+  useEffect(() => { void obtenerLimiteAutorizacionMejora().then((limite) => setUmbralAutorizacion(limite.monto)) }, [])
   const autorizaciones = useMemo(() => construirAutorizacionesSGO({
     tareas: tareasSGO, agenda: agendaISO, ejecuciones: ejecucionesControles, eventos, acciones,
-  }), [tareasSGO, agendaISO, ejecucionesControles, eventos, acciones])
-  const autorizacionesPendientes = autorizaciones.filter((item) => item.estado === 'pendiente').length
+  }, umbralAutorizacion), [tareasSGO, agendaISO, ejecucionesControles, eventos, acciones, umbralAutorizacion])
+  const autorizacionesPendientes = autorizaciones.filter((item) => item.clase === 'autorizacion_economica' && item.estado === 'pendiente').length
+  const revisiones5SPendientes = autorizaciones.filter((item) => item.clase === 'revision_5s' && item.estado === 'pendiente').length
 
   const abiertos = eventos.filter((e) => e.estado !== 'cerrado')
   const retrabajosPendientes = abiertos.filter((e) => Boolean(e.retrabajo)).length
@@ -135,7 +139,7 @@ export default function SGOView() {
       <div className="tabs" role="tablist" aria-label="Secciones SGO">
         <button className={`tab ${pestana === 'tablero' ? 'active' : ''}`} onClick={() => setPestana('tablero')}>Tablero integral</button>
         <button className={`tab ${pestana === 'cuellos' ? 'active' : ''}`} onClick={() => setPestana('cuellos')}>Cuellos / OEE</button>
-        {lorenzo && <button className={`tab sgo-tab-autorizaciones ${pestana === 'autorizaciones' ? 'active' : ''}`} onClick={() => setPestana('autorizaciones')}>Autorizaciones{autorizacionesPendientes ? <span>{autorizacionesPendientes}</span> : null}</button>}
+        {lorenzo && <button className={`tab sgo-tab-autorizaciones ${pestana === 'autorizaciones' ? 'active' : ''}`} onClick={() => setPestana('autorizaciones')}>Autorizaciones{autorizacionesPendientes ? <span>{autorizacionesPendientes}</span> : null}{revisiones5SPendientes ? <small>5S: {revisiones5SPendientes}</small> : null}</button>}
         <button className={`tab ${pestana === 'mejoras' ? 'active' : ''}`} onClick={() => setPestana('mejoras')}>Mejora continua{retrabajosPendientes ? ` (${retrabajosPendientes})` : ''}</button>
         <button className={`tab ${pestana === 'controles' ? 'active' : ''}`} onClick={() => setPestana('controles')}>Controles SGO</button>
         <button className={`tab ${pestana === 'logistica' ? 'active' : ''}`} onClick={() => setPestana('logistica')}>Auditoría logística</button>
@@ -143,8 +147,8 @@ export default function SGOView() {
         <button className={`tab ${pestana === 'tareas_sgo' ? 'active' : ''}`} onClick={() => setPestana('tareas_sgo')}>Tareas SGO</button>
       </div>
       {pestana === 'cuellos' ? <CuellosView />
-        : pestana === 'autorizaciones' && lorenzo ? <AutorizacionesSGOView items={autorizaciones} onAbrir={abrirAutorizacion} />
-        : pestana === 'mejoras' ? <MejorasSGOView usuario={usuario?.usuario ?? 'sin_usuario'} registroInicialId={mejoraInicial?.id} vistaInicial={mejoraInicial?.vista} onRegistroInicialConsumido={() => setMejoraInicial(undefined)} onOpenEvento={(id) => { setPestana('tablero'); setSeleccionadoId(id) }} />
+        : pestana === 'autorizaciones' && lorenzo ? <AutorizacionesSGOView items={autorizaciones} onAbrir={abrirAutorizacion} umbral={umbralAutorizacion} usuario={usuario?.usuario ?? ''} onUmbralActualizado={setUmbralAutorizacion} />
+        : pestana === 'mejoras' ? <MejorasSGOView usuario={usuario?.usuario ?? 'sin_usuario'} umbralAutorizacion={umbralAutorizacion} registroInicialId={mejoraInicial?.id} vistaInicial={mejoraInicial?.vista} onRegistroInicialConsumido={() => setMejoraInicial(undefined)} onOpenEvento={(id) => { setPestana('tablero'); setSeleccionadoId(id) }} />
         : pestana === 'agenda_iso' ? <AgendaISOView usuario={usuario?.usuario ?? 'sin_usuario'} actividadInicialId={actividadInicialId} onActividadInicialConsumida={() => setActividadInicialId(undefined)} />
         : pestana === 'tareas_sgo' ? <TareasSGOView usuario={usuario?.usuario ?? 'sin_usuario'} tareaInicialId={tareaInicialId} onTareaInicialConsumida={() => setTareaInicialId(undefined)} />
         : pestana === 'controles' ? <ControlesSGOView usuario={usuario?.usuario ?? 'sin_usuario'} controlInicialId={controlInicialId} onControlInicialConsumido={() => setControlInicialId(undefined)} ejecucionInicialId={ejecucionInicialId} onEjecucionInicialConsumida={() => setEjecucionInicialId(undefined)} onOpenEvento={(id) => { setPestana('tablero'); setSeleccionadoId(id) }} />

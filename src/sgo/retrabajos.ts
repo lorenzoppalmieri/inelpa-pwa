@@ -11,7 +11,7 @@ export type EstadoInvestigacionRetrabajo = 'nuevo' | 'en_investigacion' | 'con_a
 export const NIVELES_INVESTIGACION_RETRABAJO: { id: NivelInvestigacionRetrabajoSGO; label: string; ayuda: string }[] = [
   { id: 'simple', label: 'Retrabajo simple', ayuda: 'Corrección puntual, primera vez y sin impacto relevante.' },
   { id: 'con_accion', label: 'Con acción correctiva', ayuda: 'Requiere responsable, plazo y comprobación del resultado.' },
-  { id: 'critica', label: 'Crítico o recurrente', ayuda: 'Investigación formal y cierre exclusivo de Lorenzo.' },
+  { id: 'critica', label: 'Crítico o recurrente', ayuda: 'Investigación formal, verificación y cierre por Lara o Lorenzo.' },
 ]
 
 export const ESTADOS_INVESTIGACION_RETRABAJO: { id: EstadoInvestigacionRetrabajo; label: string }[] = [
@@ -187,7 +187,7 @@ export function requisitosCierreRetrabajo(evento: EventoSGO, acciones: AccionSGO
     if ((costeo.logisticaCosto ?? 0) > 0 && !costeo.logisticaDetalle?.trim()) errores.push('Explicar el costo adicional de logística.')
     if ((costeo.tercerosCosto ?? 0) > 0 && !costeo.tercerosDetalle?.trim()) errores.push('Explicar el costo de terceros.')
     if (nivel === 'critica' && costeo.maquinaEstado === 'pendiente_cotizacion') errores.push('Confirmar con Compras el costo pendiente de máquina o repuesto.')
-    if (nivel === 'critica' && (costeo.estado !== 'confirmado' || costeo.confirmadoPor?.trim().toLowerCase() !== 'lorenzo')) errores.push('Lorenzo debe confirmar el costeo antes de cerrar un retrabajo crítico.')
+    if (nivel === 'critica' && costeo.estado !== 'confirmado') errores.push('Confirmar el costeo antes de cerrar un retrabajo crítico.')
   }
 
   if (nivel === 'simple') {

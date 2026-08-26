@@ -25,8 +25,9 @@ const fuenteLabel = (id?: FuenteMejoraSGO) => FUENTES_MEJORA.find((f) => f.id ==
 const claseLabel = (id?: ClaseMejoraSGO) => CLASES_MEJORA.find((c) => c.id === id)?.label ?? 'Mejora'
 const estadoLabel = (id: EstadoGestionMejora) => ESTADOS_GESTION_MEJORA.find((e) => e.id === id)?.label ?? id
 
-export default function MejorasSGOView({ usuario, onOpenEvento, registroInicialId, vistaInicial, onRegistroInicialConsumido }: {
+export default function MejorasSGOView({ usuario, umbralAutorizacion, onOpenEvento, registroInicialId, vistaInicial, onRegistroInicialConsumido }: {
   usuario: string
+  umbralAutorizacion: number
   onOpenEvento: (id: string) => void
   registroInicialId?: string
   vistaInicial?: 'seguimiento' | 'retrabajos'
@@ -116,7 +117,7 @@ export default function MejorasSGOView({ usuario, onOpenEvento, registroInicialI
       : vista === 'tablero' ? <Tablero registros={registros} acciones={acciones} hoy={hoy} />
       : vista === 'seguimiento' ? <Kanban registros={visibles} acciones={acciones} hoy={hoy} onOpen={setEditor} />
         : <Listado registros={visibles} acciones={acciones} hoy={hoy} onOpen={setEditor} vacio="Todavía no hay mejoras cerradas." />}
-    {editor !== undefined && <EditorMejora registro={editor} acciones={editor ? accionesDe(editor.id) : []} usuario={usuario}
+    {editor !== undefined && <EditorMejora registro={editor} acciones={editor ? accionesDe(editor.id) : []} usuario={usuario} umbralAutorizacion={umbralAutorizacion}
       onClose={() => setEditor(undefined)} onOpenEvento={(id) => { setEditor(undefined); onOpenEvento(id) }} />}
   </div>
 }
@@ -186,7 +187,7 @@ function Barras({ titulo, datos }: { titulo: string; datos: [string, number][] }
   return <div className="card"><div className="section-title">{titulo}</div><div className="sgo-mejoras-barras">{datos.map(([label, valor]) => <div key={label}><div><span>{label}</span><strong>{valor}</strong></div><i><span style={{ width: `${valor / max * 100}%` }} /></i></div>)}{!datos.length && <div className="empty">Sin datos todavía.</div>}</div></div>
 }
 
-function EditorMejora({ registro, acciones, usuario, onClose: cerrarEditor, onOpenEvento }: { registro: EventoSGO | null; acciones: AccionSGO[]; usuario: string; onClose: () => void; onOpenEvento: (id: string) => void }) {
+function EditorMejora({ registro, acciones, usuario, umbralAutorizacion, onClose: cerrarEditor, onOpenEvento }: { registro: EventoSGO | null; acciones: AccionSGO[]; usuario: string; umbralAutorizacion: number; onClose: () => void; onOpenEvento: (id: string) => void }) {
   const lorenzo = usuarioEsLorenzo(usuario)
   const ahora = new Date().toISOString()
   const [evento, setEvento] = useState<EventoSGO>(() => registro ?? {
@@ -199,6 +200,12 @@ function EditorMejora({ registro, acciones, usuario, onClose: cerrarEditor, onOp
   const actual = JSON.stringify({ evento, mejora })
   const conCambios = registro ? original !== actual : Boolean(evento.titulo.trim() || evento.descripcion.trim() || evento.areaId || mejora.colaborador?.trim() || mejora.fuente !== 'manual' || mejora.clase !== 'oportunidad')
   const estadoActual = registro ? estadoGestionMejora({ ...evento, mejora }, acciones) : 'detectada'
+  const presupuesto = Math.max(0, Number(mejora.presupuestoEstimado) || 0)
+  const presupuestoOriginal = Math.max(0, Number(registro?.mejora?.presupuestoEstimado) || 0)
+  const decisionHistorica = presupuesto === presupuestoOriginal && registro?.mejora?.decision !== 'pendiente' && registro?.mejora?.autorizacionRequerida !== undefined
+  const requiereAutorizacion = decisionHistorica
+    ? Boolean(registro?.mejora?.autorizacionRequerida)
+    : presupuesto > umbralAutorizacion
   const setEventoCampo = <K extends keyof EventoSGO>(key: K, value: EventoSGO[K]) => setEvento({ ...evento, [key]: value })
   const setMejoraCampo = <K extends keyof DatosMejoraSGO>(key: K, value: DatosMejoraSGO[K]) => setMejora({ ...mejora, [key]: value })
 
@@ -223,6 +230,23 @@ function EditorMejora({ registro, acciones, usuario, onClose: cerrarEditor, onOp
     return errores
   }
 
+  function mejoraEvaluada(): DatosMejoraSGO {
+    const decision = requiereAutorizacion && !lorenzo && !registro?.mejora?.autorizacionRequerida ? 'pendiente' : mejora.decision
+    const estadoAutorizacion = !requiereAutorizacion ? 'no_requiere'
+      : decision === 'pendiente' ? 'pendiente'
+        : decision === 'aprobada' ? 'aprobada'
+          : decision === 'a_futuro' ? 'postergada' : 'rechazada'
+    return {
+      ...mejora,
+      decision,
+      autorizacionRequerida: requiereAutorizacion,
+      umbralAutorizacionAplicado: registro?.mejora?.umbralAutorizacionAplicado ?? umbralAutorizacion,
+      autorizacionEstado: estadoAutorizacion,
+      autorizacionDecididaEn: requiereAutorizacion && decision !== 'pendiente' ? (mejora.autorizacionDecididaEn ?? new Date().toISOString()) : undefined,
+      autorizacionDecididaPor: requiereAutorizacion && decision !== 'pendiente' ? (mejora.autorizacionDecididaPor ?? usuario) : undefined,
+    }
+  }
+
   function eventoPreparado(estado?: EventoSGO['estado']): EventoSGO {
     const tipo = mejora.clase === 'no_conformidad' ? 'no_conformidad'
       : mejora.clase === 'observacion' && ['auditoria_iso_interna', 'auditoria_iso_externa'].includes(mejora.fuente) ? 'hallazgo_auditoria'
@@ -232,17 +256,16 @@ function EditorMejora({ registro, acciones, usuario, onClose: cerrarEditor, onOp
     return {
       ...evento, codigo: evento.codigo || codigoEventoSGO(new Date(), evento.id), tipo, pilar,
       titulo: evento.titulo.trim(), descripcion: evento.descripcion.trim(), responsable: evento.responsable?.trim() || undefined,
-      areaOrigenId: tipo === 'no_conformidad' ? evento.areaId : evento.areaOrigenId, mejora,
+      areaOrigenId: tipo === 'no_conformidad' ? evento.areaId : evento.areaOrigenId, mejora: mejoraEvaluada(),
       estado: estado ?? (evento.estado === 'cerrado' ? 'cerrado' : mejora.decision === 'a_futuro' ? 'en_analisis' : mejora.decision === 'aprobada' ? (acciones.length ? 'con_acciones' : 'en_analisis') : evento.estado),
       actualizadoEn: ahoraIso,
     }
   }
 
   async function guardar() {
-    if (registro && mejora.decision !== registro.mejora?.decision && !lorenzo) { window.alert('Solo Lorenzo puede aprobar, postergar o declarar no viable una mejora.'); return }
+    if (requiereAutorizacion && mejora.decision !== (registro?.mejora?.decision ?? 'pendiente') && !lorenzo) { window.alert(`Esta mejora supera ${umbralAutorizacion.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}. Solo Lorenzo puede decidir su aprobación.`); return }
     const errores = validar()
     if (errores.length) { window.alert(errores.join('\n')); return }
-    if (mejora.decision === 'no_viable' && !lorenzo) { window.alert('Solo Lorenzo puede declarar una mejora no viable.'); return }
     let actualizado = eventoPreparado(mejora.decision === 'no_viable' ? 'cerrado' : undefined)
     if (mejora.decision === 'no_viable') actualizado = { ...actualizado, cerradoEn: actualizado.cerradoEn ?? new Date().toISOString(), cerradoPor: usuario }
     const erroresCierre = validarCierreEvento(actualizado, acciones)
@@ -252,7 +275,7 @@ function EditorMejora({ registro, acciones, usuario, onClose: cerrarEditor, onOp
   }
 
   async function cerrarMejora() {
-    if (!registro || !lorenzo) return
+    if (!registro || (requiereAutorizacion && !lorenzo)) return
     const erroresFormulario = validar('aprobada')
     if (erroresFormulario.length) { window.alert(erroresFormulario.join('\n')); return }
     const candidato = { ...eventoPreparado('cerrado'), cerradoEn: evento.cerradoEn ?? new Date().toISOString(), cerradoPor: evento.cerradoPor ?? usuario }
@@ -264,7 +287,7 @@ function EditorMejora({ registro, acciones, usuario, onClose: cerrarEditor, onOp
   }
 
   async function registrarSeguimiento() {
-    if (!registro || !lorenzo || evento.estado !== 'cerrado') return
+    if (!registro || evento.estado !== 'cerrado') return
     if (!['sostenida', 'reincidencia'].includes(mejora.seguimientoResultado ?? '') || !mejora.seguimientoObservacion?.trim()) {
       window.alert('Indicá si la mejora se sostuvo o reincidió y documentá la comprobación.'); return
     }
@@ -301,11 +324,12 @@ function EditorMejora({ registro, acciones, usuario, onClose: cerrarEditor, onOp
     <div className="sgo-mejora-form-grid">
       <Campo label="Responsable"><input className="input" value={evento.responsable ?? ''} onChange={(e) => setEventoCampo('responsable', e.target.value || undefined)} /></Campo>
       <Campo label="Prioridad"><select className="input" value={mejora.prioridad} onChange={(e) => { const prioridad = e.target.value as PrioridadMejoraSGO; setMejoraCampo('prioridad', prioridad); setEventoCampo('severidad', prioridad as SeveridadSGO) }}>{PRIORIDADES_MEJORA.map((p) => <option value={p.id} key={p.id}>{p.label}</option>)}</select></Campo>
-      <Campo label="Presupuesto estimado"><input className="input" type="number" min="0" value={mejora.presupuestoEstimado ?? ''} onChange={(e) => setMejoraCampo('presupuestoEstimado', e.target.value ? Math.max(0, Number(e.target.value)) : undefined)} /></Campo>
+      <Campo label="Presupuesto estimado (ARS)"><input className="input" type="number" min="0" value={mejora.presupuestoEstimado ?? ''} onChange={(e) => setMejoraCampo('presupuestoEstimado', e.target.value ? Math.max(0, Number(e.target.value)) : undefined)} /></Campo>
       <Campo label="Fecha objetivo"><input className="input" type="date" value={mejora.fechaObjetivo ?? ''} onChange={(e) => setMejoraCampo('fechaObjetivo', e.target.value || undefined)} /></Campo>
     </div>
+    <div className={`card sgo-mejora-autorizacion ${requiereAutorizacion ? 'requiere' : 'no-requiere'}`}><strong>{requiereAutorizacion ? 'Requiere autorización de Lorenzo' : 'No requiere autorización económica'}</strong><span>{requiereAutorizacion ? `El presupuesto supera el límite vigente de ${umbralAutorizacion.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}.` : `Puede avanzar dentro del circuito del responsable. Límite vigente: ${umbralAutorizacion.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}.`}</span></div>
     <div className="sgo-mejora-decision">
-      <Campo label="Decisión de Lorenzo"><select className="input" disabled={!lorenzo} value={mejora.decision} onChange={(e) => setMejoraCampo('decision', e.target.value as DecisionMejoraSGO)}>{DECISIONES_MEJORA.map((d) => <option value={d.id} key={d.id}>{d.label}</option>)}</select></Campo>
+      <Campo label={requiereAutorizacion ? 'Decisión de Lorenzo' : 'Decisión operativa'}><select className="input" disabled={requiereAutorizacion && !lorenzo} value={mejora.decision} onChange={(e) => setMejoraCampo('decision', e.target.value as DecisionMejoraSGO)}>{DECISIONES_MEJORA.map((d) => <option value={d.id} key={d.id}>{d.label}</option>)}</select></Campo>
       {mejora.decision === 'a_futuro' && <Campo label="Revisar nuevamente el"><input className="input" type="date" value={mejora.fechaRevision ?? ''} onChange={(e) => setMejoraCampo('fechaRevision', e.target.value || undefined)} /></Campo>}
     </div>
     {['a_futuro', 'no_viable'].includes(mejora.decision) && <Campo label="Justificación de la decisión"><textarea className="input" rows={2} value={mejora.justificacionDecision ?? ''} onChange={(e) => setMejoraCampo('justificacionDecision', e.target.value || undefined)} /></Campo>}
@@ -324,9 +348,9 @@ function EditorMejora({ registro, acciones, usuario, onClose: cerrarEditor, onOp
     </>}
     {registro && evento.estado === 'cerrado' && mejora.decision === 'aprobada' && <div className="card sgo-mejora-seguimiento">
       <div className="section-title">Comprobación posterior al cierre</div>
-      <div className="sgo-mejora-form-grid"><Campo label="Resultado"><select className="input" disabled={!lorenzo} value={mejora.seguimientoResultado ?? 'pendiente'} onChange={(e) => setMejoraCampo('seguimientoResultado', e.target.value as DatosMejoraSGO['seguimientoResultado'])}><option value="pendiente">Pendiente</option><option value="sostenida">La mejora se sostiene</option><option value="reincidencia">El problema reincidió</option></select></Campo><Campo label="Fecha programada"><input className="input" type="date" value={mejora.fechaSeguimiento ?? ''} onChange={(e) => setMejoraCampo('fechaSeguimiento', e.target.value || undefined)} /></Campo></div>
-      <Campo label="Comprobación realizada"><textarea className="input" rows={2} disabled={!lorenzo} value={mejora.seguimientoObservacion ?? ''} onChange={(e) => setMejoraCampo('seguimientoObservacion', e.target.value || undefined)} /></Campo>
-      {lorenzo && <button className="btn btn-primary" onClick={() => void registrarSeguimiento()} disabled={guardando}>Registrar seguimiento</button>}
+      <div className="sgo-mejora-form-grid"><Campo label="Resultado"><select className="input" value={mejora.seguimientoResultado ?? 'pendiente'} onChange={(e) => setMejoraCampo('seguimientoResultado', e.target.value as DatosMejoraSGO['seguimientoResultado'])}><option value="pendiente">Pendiente</option><option value="sostenida">La mejora se sostiene</option><option value="reincidencia">El problema reincidió</option></select></Campo><Campo label="Fecha programada"><input className="input" type="date" value={mejora.fechaSeguimiento ?? ''} onChange={(e) => setMejoraCampo('fechaSeguimiento', e.target.value || undefined)} /></Campo></div>
+      <Campo label="Comprobación realizada"><textarea className="input" rows={2} value={mejora.seguimientoObservacion ?? ''} onChange={(e) => setMejoraCampo('seguimientoObservacion', e.target.value || undefined)} /></Campo>
+      <button className="btn btn-primary" onClick={() => void registrarSeguimiento()} disabled={guardando}>Registrar seguimiento</button>
     </div>}
 
     {registro && <div className="card sgo-mejora-acciones-resumen"><div><strong>{acciones.length}</strong><span>acciones</span></div><div><strong>{acciones.filter((a) => a.estado === 'verificada').length}</strong><span>verificadas</span></div><div><strong>{acciones.filter((a) => accionMejoraVencida(a, fechaHoyISO())).length}</strong><span>vencidas</span></div><button className="btn" onClick={() => onOpenEvento(registro.id)}>Abrir expediente y acciones</button></div>}
@@ -334,7 +358,7 @@ function EditorMejora({ registro, acciones, usuario, onClose: cerrarEditor, onOp
       {registro && lorenzo && <button className="btn btn-rojo" disabled={guardando} onClick={() => void eliminar()}>Eliminar</button>}
       <button className="btn" onClick={onClose} disabled={guardando}>Cancelar</button>
       <button className="btn btn-primary" disabled={guardando} onClick={() => void guardar()}>{guardando ? 'Guardando…' : registro ? 'Guardar cambios' : 'Registrar detección'}</button>
-      {registro && lorenzo && mejora.decision === 'aprobada' && evento.estado !== 'cerrado' && <button className="btn btn-verde" disabled={guardando} onClick={() => void cerrarMejora()}>Verificar y cerrar mejora</button>}
+      {registro && (!requiereAutorizacion || lorenzo) && mejora.decision === 'aprobada' && evento.estado !== 'cerrado' && <button className="btn btn-verde" disabled={guardando} onClick={() => void cerrarMejora()}>Verificar y cerrar mejora</button>}
     </div>
   </Modal>
 }

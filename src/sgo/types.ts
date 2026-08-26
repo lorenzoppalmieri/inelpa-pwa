@@ -134,6 +134,13 @@ export interface DatosMejoraSGO {
   fechaObjetivo?: string
   fechaRevision?: string
   presupuestoEstimado?: number
+  /** Copia del umbral vigente al evaluar el expediente; preserva la decisión histórica. */
+  umbralAutorizacionAplicado?: number
+  /** Solo las mejoras que superan el umbral requieren una decisión de Lorenzo. */
+  autorizacionRequerida?: boolean
+  autorizacionEstado?: 'no_requiere' | 'pendiente' | 'aprobada' | 'postergada' | 'rechazada'
+  autorizacionDecididaEn?: string
+  autorizacionDecididaPor?: string
   referenciaSAP?: string
   resultado?: string
   beneficioReal?: string

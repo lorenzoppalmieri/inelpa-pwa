@@ -5,12 +5,14 @@ import { estadoInvestigacionRetrabajo, nivelInvestigacionRetrabajo } from './ret
 import { etiquetaResponsableTareaSGO, type TareaSGO } from './tareasSGO'
 
 export type TipoAutorizacionSGO = 'revision_5s' | 'tarea_sgo' | 'agenda_iso' | 'mejora' | 'retrabajo' | 'accion'
+export type ClaseAutorizacionSGO = 'autorizacion_economica' | 'revision_5s' | 'seguimiento'
 export type EstadoAutorizacionSGO = 'pendiente' | 'resuelta'
 export type PrioridadAutorizacionSGO = 'baja' | 'media' | 'alta' | 'critica'
 
 export interface AutorizacionSGO {
   id: string
   tipo: TipoAutorizacionSGO
+  clase: ClaseAutorizacionSGO
   origenId: string
   eventoId?: string
   estado: EstadoAutorizacionSGO
@@ -33,7 +35,10 @@ export interface DatosAutorizacionesSGO {
 
 const prioridadDesdeSeveridad = (severidad: SeveridadSGO): PrioridadAutorizacionSGO => severidad
 
-export function construirAutorizacionesSGO({ tareas, agenda, ejecuciones, eventos, acciones }: DatosAutorizacionesSGO): AutorizacionSGO[] {
+export function construirAutorizacionesSGO(
+  { tareas, agenda, ejecuciones, eventos, acciones }: DatosAutorizacionesSGO,
+  umbralAutorizacion = 500000,
+): AutorizacionSGO[] {
   const items: AutorizacionSGO[] = []
   const eventosPorId = new Map(eventos.map((evento) => [evento.id, evento]))
 
@@ -43,6 +48,7 @@ export function construirAutorizacionesSGO({ tareas, agenda, ejecuciones, evento
     items.push({
       id: `tarea:${tarea.id}`,
       tipo: 'tarea_sgo',
+      clase: 'seguimiento',
       origenId: tarea.id,
       estado: resuelta ? 'resuelta' : 'pendiente',
       prioridad: tarea.importancia,
@@ -60,6 +66,7 @@ export function construirAutorizacionesSGO({ tareas, agenda, ejecuciones, evento
     items.push({
       id: `agenda:${actividad.id}`,
       tipo: 'agenda_iso',
+      clase: 'seguimiento',
       origenId: actividad.id,
       estado: resuelta ? 'resuelta' : 'pendiente',
       prioridad: actividad.criticidad,
@@ -80,6 +87,7 @@ export function construirAutorizacionesSGO({ tareas, agenda, ejecuciones, evento
       items.push({
         id: `revision5s:${ejecucion.id}:${revision.id}`,
         tipo: 'revision_5s',
+        clase: 'revision_5s',
         origenId: ejecucion.id,
         eventoId: revision.mejoraEventoId,
         estado: resuelta ? 'resuelta' : 'pendiente',
@@ -95,17 +103,20 @@ export function construirAutorizacionesSGO({ tareas, agenda, ejecuciones, evento
   }
 
   for (const evento of eventos) {
-    if (evento.mejora && (evento.mejora.decision !== 'pendiente' || evento.estado !== 'cerrado')) {
+    const presupuesto = Math.max(0, Number(evento.mejora?.presupuestoEstimado) || 0)
+    const requiereAutorizacion = evento.mejora?.autorizacionRequerida ?? presupuesto > (evento.mejora?.umbralAutorizacionAplicado ?? umbralAutorizacion)
+    if (evento.mejora && requiereAutorizacion && (evento.mejora.decision !== 'pendiente' || evento.estado !== 'cerrado')) {
       const resuelta = evento.mejora.decision !== 'pendiente'
       items.push({
         id: `mejora:${evento.id}`,
         tipo: 'mejora',
+        clase: 'autorizacion_economica',
         origenId: evento.id,
         eventoId: evento.id,
         estado: resuelta ? 'resuelta' : 'pendiente',
         prioridad: evento.mejora.prioridad,
         titulo: evento.titulo,
-        detalle: resuelta ? 'La decisión de viabilidad ya fue registrada.' : 'Mejora detectada pendiente de aprobar, postergar o declarar no viable.',
+        detalle: resuelta ? `Decisión económica registrada para un presupuesto de ${presupuesto.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}.` : `Presupuesto estimado: ${presupuesto.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}. Supera el límite autorizado y requiere decisión de Lorenzo.`,
         solicitadoPor: evento.detectadoPor,
         fecha: resuelta ? evento.actualizadoEn : evento.detectadoEn,
         area: areaSGOLabel(evento.areaId),
@@ -119,12 +130,13 @@ export function construirAutorizacionesSGO({ tareas, agenda, ejecuciones, evento
       items.push({
         id: `retrabajo:${evento.id}`,
         tipo: 'retrabajo',
+        clase: 'seguimiento',
         origenId: evento.id,
         eventoId: evento.id,
         estado: resuelta ? 'resuelta' : 'pendiente',
         prioridad: 'critica',
         titulo: evento.titulo,
-        detalle: resuelta ? 'Investigación crítica verificada y cerrada.' : `Retrabajo crítico en etapa “${etapa.replaceAll('_', ' ')}”. Requiere validación final de Lorenzo.`,
+        detalle: resuelta ? 'Investigación crítica verificada y cerrada.' : `Retrabajo crítico en etapa “${etapa.replaceAll('_', ' ')}”. La validación operativa corresponde a Lara o Lorenzo.`,
         solicitadoPor: evento.retrabajo.tomadoPor ?? evento.retrabajo.asignadoA,
         fecha: resuelta ? (evento.cerradoEn ?? evento.actualizadoEn) : evento.actualizadoEn,
         area: areaSGOLabel(evento.areaOrigenId ?? evento.areaId),
@@ -140,6 +152,7 @@ export function construirAutorizacionesSGO({ tareas, agenda, ejecuciones, evento
     items.push({
       id: `accion:${accion.id}`,
       tipo: 'accion',
+      clase: 'seguimiento',
       origenId: accion.id,
       eventoId: accion.eventoId,
       estado: resuelta ? 'resuelta' : 'pendiente',
@@ -158,4 +171,3 @@ export function construirAutorizacionesSGO({ tareas, agenda, ejecuciones, evento
     return Number(a.estado === 'resuelta') - Number(b.estado === 'resuelta') || orden[a.prioridad] - orden[b.prioridad] || b.fecha.localeCompare(a.fecha)
   })
 }
-

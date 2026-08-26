@@ -1,4 +1,3 @@
-import { nivelInvestigacionRetrabajo } from './retrabajos'
 import type { EventoSGO } from './types'
 
 export function usuarioEsLorenzo(usuario: string): boolean {
@@ -26,7 +25,7 @@ export function usuarioPuedeInvestigarRetrabajo(usuario: string): boolean {
 export function usuarioPuedeCerrarRetrabajo(usuario: string, evento: EventoSGO): boolean {
   const normalizado = usuario.trim().toLowerCase()
   if (normalizado === 'lorenzo') return true
-  return normalizado === 'lara' && Boolean(evento.retrabajo) && nivelInvestigacionRetrabajo(evento) !== 'critica'
+  return normalizado === 'lara' && Boolean(evento.retrabajo)
 }
 
 export function exigirPermisoBorradoSGO(usuario: string): void {

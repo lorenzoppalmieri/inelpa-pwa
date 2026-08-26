@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  PLANTILLA_5S_RIT_9_2_12, PLANTILLA_5S_RIT_9_2_12_V01, SECCIONES_5S, calcularPorcentajeCampo, calcularPorPilarCampo,
+  PLANTILLA_5S_RIT_9_2_12, PLANTILLA_5S_RIT_9_2_12_V01, PLANTILLA_5S_RIT_9_2_12_V02, SECCIONES_5S, calcularPorcentajeCampo, calcularPorPilarCampo,
   agregarEvidenciasAuditoriaCampo, areas5SParaAuditor, calcularPorcentajePremiableCampo, controlCampoCompleto,
   itemsDeAuditoriaCampo, resolverRevisionPuntaje5S, respuestaVacia, semaforoCampo, solicitarRevisionPuntaje5S,
   type AuditoriaCampoSGO, type RespuestaControlCampo,
@@ -11,8 +11,9 @@ describe('controles de campo 5S', () => {
   it('incluye las cinco S y conserva el encabezado documental', () => {
     expect(SECCIONES_5S.map((s) => s.id)).toEqual(['seiri', 'seiton', 'seiso', 'seiketsu', 'shitsuke'])
     expect(PLANTILLA_5S_RIT_9_2_12.documento.codigo).toBe('R.I.T. 9.2/12')
-    expect(PLANTILLA_5S_RIT_9_2_12.version).toBe('02-digital')
-    expect(PLANTILLA_5S_RIT_9_2_12.documento.version).toBe('02')
+    expect(PLANTILLA_5S_RIT_9_2_12.version).toBe('03-digital')
+    expect(PLANTILLA_5S_RIT_9_2_12.documento.version).toBe('03')
+    expect(PLANTILLA_5S_RIT_9_2_12_V02.documento.version).toBe('02')
     expect(PLANTILLA_5S_RIT_9_2_12_V01.documento.version).toBe('01')
     expect(new Set(PLANTILLA_5S_RIT_9_2_12.items.map((i) => i.seccion))).toEqual(new Set(SECCIONES_5S.map((s) => s.id)))
   })
@@ -28,6 +29,17 @@ describe('controles de campo 5S', () => {
     expect(items.find((i) => i.id === '5s-seiso-01')?.pregunta).not.toContain('derrames')
   })
 
+  it('simplifica la versión 03 sin alterar las versiones históricas', () => {
+    const items = PLANTILLA_5S_RIT_9_2_12.items
+    expect(items).toHaveLength(39)
+    expect(items.find((i) => i.id === '5s-seiri-01a')?.pregunta).toBe('¿El área contiene únicamente materiales, partes, equipos y elementos necesarios para la operación?')
+    expect(items.find((i) => i.id === '5s-seiso-01')?.pregunta).toBe('¿Los pisos y superficies se encuentran limpios y libres de residuos?')
+    expect(items.find((i) => i.id === '5s-seiso-03c')?.pregunta).toBe('¿Las condiciones anormales que puedan generar suciedad se encuentran identificadas y gestionadas?')
+    expect(items.find((i) => i.id === '5s-shitsuke-03')?.pregunta).toBe('¿Las acciones correctivas de controles anteriores se encuentran cerradas y verificadas?')
+    expect(items.some((i) => ['5s-seiri-01b', '5s-seiri-05', '5s-shitsuke-04', '5s-shitsuke-05'].includes(i.id))).toBe(false)
+    expect(PLANTILLA_5S_RIT_9_2_12_V02.items).toHaveLength(43)
+  })
+
   it('conserva las preguntas de auditorías históricas de la versión anterior', () => {
     const respuestas = PLANTILLA_5S_RIT_9_2_12_V01.items.map((i) => ({ itemId: i.id, puntaje: 2 as const }))
     const auditoria = {
@@ -36,6 +48,16 @@ describe('controles de campo 5S', () => {
       encargadoArea: 'Encargado', iniciadaEn: '', finalizadaEn: '', respuestas, porcentajeCumplimiento: 100, porcentajePorSeccion: {},
     } satisfies AuditoriaCampoSGO
     expect(itemsDeAuditoriaCampo(auditoria)).toEqual(PLANTILLA_5S_RIT_9_2_12_V01.items)
+  })
+
+  it('conserva las preguntas de auditorías históricas de la versión 02', () => {
+    const respuestas = PLANTILLA_5S_RIT_9_2_12_V02.items.map((i) => ({ itemId: i.id, puntaje: 2 as const }))
+    const auditoria = {
+      tipo: '5s', plantillaId: PLANTILLA_5S_RIT_9_2_12_V02.id, plantillaVersion: '02-digital',
+      documento: PLANTILLA_5S_RIT_9_2_12_V02.documento, areaId: 'laminado', auditor: 'Lara', usuarioAcceso: 'lara',
+      encargadoArea: 'Encargado', iniciadaEn: '', finalizadaEn: '', respuestas, porcentajeCumplimiento: 100, porcentajePorSeccion: {},
+    } satisfies AuditoriaCampoSGO
+    expect(itemsDeAuditoriaCampo(auditoria)).toEqual(PLANTILLA_5S_RIT_9_2_12_V02.items)
   })
 
   it('calcula resultados independientes de Seguridad y Medio Ambiente', () => {

@@ -234,7 +234,7 @@ const ITEMS_5S_V02: ItemPlantillaCampo[] = [
   item('5s-shitsuke-07', 'shitsuke', 7, 'Elementos de protección personal', '¿Las personas del área cuentan con los elementos de seguridad adecuados y los utilizan correctamente?', 'seguridad', true),
 ]
 
-export const PLANTILLA_5S_RIT_9_2_12: PlantillaControlCampo = {
+export const PLANTILLA_5S_RIT_9_2_12_V02: PlantillaControlCampo = {
   ...PLANTILLA_5S_RIT_9_2_12_V01,
   version: '02-digital',
   documento: {
@@ -244,12 +244,54 @@ export const PLANTILLA_5S_RIT_9_2_12: PlantillaControlCampo = {
   items: ITEMS_5S_V02,
 }
 
+const reemplazosV03: Record<string, Pick<ItemPlantillaCampo, 'pregunta' | 'pilar' | 'critico'>> = {
+  '5s-seiri-01a': {
+    pregunta: '¿El área contiene únicamente materiales, partes, equipos y elementos necesarios para la operación?',
+    pilar: 'mejora', critico: false,
+  },
+  '5s-seiso-01': {
+    pregunta: '¿Los pisos y superficies se encuentran limpios y libres de residuos?',
+    pilar: 'seguridad', critico: true,
+  },
+  '5s-seiso-03c': {
+    pregunta: '¿Las condiciones anormales que puedan generar suciedad se encuentran identificadas y gestionadas?',
+    pilar: 'ambiente', critico: false,
+  },
+  '5s-shitsuke-03': {
+    pregunta: '¿Las acciones correctivas de controles anteriores se encuentran cerradas y verificadas?',
+    pilar: 'mejora', critico: false,
+  },
+}
+
+const ITEMS_ELIMINADOS_V03 = new Set([
+  '5s-seiri-01b',
+  '5s-seiri-05',
+  '5s-shitsuke-04',
+  '5s-shitsuke-05',
+])
+
+const ITEMS_5S_V03: ItemPlantillaCampo[] = ITEMS_5S_V02
+  .filter((anterior) => !ITEMS_ELIMINADOS_V03.has(anterior.id))
+  .map((anterior) => ({ ...anterior, ...(reemplazosV03[anterior.id] ?? {}) }))
+
+export const PLANTILLA_5S_RIT_9_2_12: PlantillaControlCampo = {
+  ...PLANTILLA_5S_RIT_9_2_12_V02,
+  version: '03-digital',
+  documento: {
+    ...PLANTILLA_5S_RIT_9_2_12_V02.documento,
+    version: '03',
+  },
+  items: ITEMS_5S_V03,
+}
+
 export function itemsDeAuditoriaCampo(auditoria: AuditoriaCampoSGO): ItemPlantillaCampo[] {
   if (auditoria.items?.length) return auditoria.items
   const respuestas = new Set(auditoria.respuestas.map((r) => r.itemId))
   const plantilla = auditoria.plantillaVersion === PLANTILLA_5S_RIT_9_2_12_V01.version
     ? PLANTILLA_5S_RIT_9_2_12_V01
-    : PLANTILLA_5S_RIT_9_2_12
+    : auditoria.plantillaVersion === PLANTILLA_5S_RIT_9_2_12_V02.version
+      ? PLANTILLA_5S_RIT_9_2_12_V02
+      : PLANTILLA_5S_RIT_9_2_12
   return plantilla.items.filter((i) => respuestas.has(i.id))
 }
 
