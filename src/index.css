@@ -115,6 +115,10 @@
 .sgo-revision-form-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 9px; }
 .sgo-revision-ancho { grid-column: 1 / -1; }
 .sgo-revision-aviso { padding: 9px 11px; border-radius: 8px; background: rgba(245,158,11,.1); color: #fde68a; font-size: .76rem; }
+.sgo-revision-dialog-overlay { position: fixed; inset: 0; z-index: 140; display: grid; place-items: center; padding: 16px; background: rgba(2,6,23,.82); }
+.sgo-revision-dialog { display: grid; gap: 14px; width: min(620px,100%); max-width: 620px; max-height: calc(100dvh - 32px); overflow: auto; border-left: 5px solid #0ea5e9; box-shadow: 0 24px 70px rgba(0,0,0,.55); }
+.sgo-revision-dialog > .card-header { position: static; margin: 0; padding: 0 0 10px; }
+.sgo-revision-dialog > .row-actions { justify-content: flex-end; }
 .sgo-campo-informe-item { display: grid; grid-template-columns: 65px 1fr; gap: 9px; align-items: start; padding: 7px 2px; border-bottom: 1px solid var(--borde); }
 .sgo-evidencia-pendiente { margin-top: 6px; color: #fde68a; font-size: .78rem; font-weight: 800; }
 .sgo-evidencia-traza { padding: 9px 11px; border: 1px solid rgba(56,189,248,.35); border-radius: 9px; background: rgba(2,132,199,.1); color: #bae6fd; font-size: .78rem; }
@@ -147,6 +151,9 @@
   .sgo-revision-card > .row-actions { grid-column: 1 / -1; }
   .sgo-revision-form-grid { grid-template-columns: 1fr; }
   .sgo-revision-ancho { grid-column: auto; }
+  .sgo-revision-dialog-overlay { place-items: end center; padding: 0; }
+  .sgo-revision-dialog { width: 100%; max-width: 100%; max-height: 92dvh; border-radius: 16px 16px 0 0; padding-bottom: calc(16px + env(safe-area-inset-bottom,0px)); }
+  .sgo-revision-dialog > .row-actions { display: grid; grid-template-columns: 1fr 1fr; }
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }

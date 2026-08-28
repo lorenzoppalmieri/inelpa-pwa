@@ -179,7 +179,7 @@ export default function RevisionesPuntaje5S({ ejecucion, usuario, items, onUpdat
         </div>
         <div className="row-actions">
           {!pendiente && !aprobada && puedeSolicitar && <button className="btn" onClick={() => comenzar(item)}>Solicitar revisión</button>}
-          {pendiente && puedeResolver && <><button className="btn btn-primary" onClick={() => { setItemEditando(undefined); setDecision({ revision: pendiente, estado: 'aprobada' }); setComentarioDecision('') }}>Aprobar y crear mejora</button><button className="btn" onClick={() => { setItemEditando(undefined); setDecision({ revision: pendiente, estado: 'rechazada' }); setComentarioDecision('') }}>Rechazar</button></>}
+          {pendiente && puedeResolver && <><button type="button" className="btn btn-primary" disabled={guardando} onClick={() => { setItemEditando(undefined); setDecision({ revision: pendiente, estado: 'aprobada' }); setComentarioDecision('') }}>Aprobar y crear mejora</button><button type="button" className="btn" disabled={guardando} onClick={() => { setItemEditando(undefined); setDecision({ revision: pendiente, estado: 'rechazada' }); setComentarioDecision('') }}>Rechazar</button></>}
         </div>
       </article>
     })}</div>
@@ -200,11 +200,16 @@ export default function RevisionesPuntaje5S({ ejecucion, usuario, items, onUpdat
       <div className="row-actions"><button className="btn" disabled={guardando} onClick={() => { setItemEditando(undefined); setForm(undefined) }}>Cancelar</button><button className="btn btn-primary" disabled={guardando} onClick={() => void solicitar()}>{guardando ? 'Guardando…' : 'Enviar a revisión'}</button></div>
     </div>}
 
-    {decision && <div className="card sgo-revision-form">
-      <div><strong>{decision.estado === 'aprobada' ? 'Aprobar ajuste premiable' : 'Rechazar revisión'}</strong><div className="meta">Puntaje observado {decision.revision.puntajeOriginal}/2 → propuesta {decision.revision.puntajePropuesto}/2 · {areaSGOLabel(decision.revision.areaResponsableId)}</div></div>
-      <Campo label="Fundamento de la decisión *"><textarea className="input" rows={3} value={comentarioDecision} onChange={(e) => setComentarioDecision(e.target.value)} placeholder="Dejá documentado por qué se aprueba o rechaza" /></Campo>
-      {decision.estado === 'aprobada' && <div className="sgo-revision-aviso">La aprobación ajustará el puntaje premiable y creará automáticamente una mejora continua asignada a {areaSGOLabel(decision.revision.areaResponsableId)}.</div>}
-      <div className="row-actions"><button className="btn" disabled={guardando} onClick={() => setDecision(undefined)}>Cancelar</button><button className={`btn ${decision.estado === 'aprobada' ? 'btn-primary' : ''}`} disabled={guardando} onClick={() => void resolver()}>{guardando ? 'Guardando…' : decision.estado === 'aprobada' ? 'Confirmar aprobación' : 'Confirmar rechazo'}</button></div>
+    {decision && <div className="sgo-revision-dialog-overlay" role="presentation">
+      <div className="modal sgo-revision-dialog" role="dialog" aria-modal="true" aria-labelledby="sgo-revision-dialog-title">
+        <div className="card-header">
+          <div><div id="sgo-revision-dialog-title" className="section-title">{decision.estado === 'aprobada' ? 'Aprobar ajuste premiable' : 'Rechazar revisión'}</div><div className="meta">Puntaje observado {decision.revision.puntajeOriginal}/2 → propuesta {decision.revision.puntajePropuesto}/2 · {areaSGOLabel(decision.revision.areaResponsableId)}</div></div>
+          <button type="button" className="btn" disabled={guardando} aria-label="Cerrar decisión" onClick={() => setDecision(undefined)}>×</button>
+        </div>
+        <Campo label="Fundamento de la decisión *"><textarea className="input" autoFocus rows={4} value={comentarioDecision} onChange={(e) => setComentarioDecision(e.target.value)} placeholder="Dejá documentado por qué se aprueba o rechaza" /></Campo>
+        {decision.estado === 'aprobada' && <div className="sgo-revision-aviso">La aprobación ajustará el puntaje premiable y creará automáticamente una mejora continua asignada a {areaSGOLabel(decision.revision.areaResponsableId)}.</div>}
+        <div className="row-actions"><button type="button" className="btn" disabled={guardando} onClick={() => setDecision(undefined)}>Cancelar</button><button type="button" className={`btn ${decision.estado === 'aprobada' ? 'btn-primary' : ''}`} disabled={guardando} onClick={() => void resolver()}>{guardando ? 'Guardando…' : decision.estado === 'aprobada' ? 'Confirmar aprobación' : 'Confirmar rechazo'}</button></div>
+      </div>
     </div>}
   </section>
 }
