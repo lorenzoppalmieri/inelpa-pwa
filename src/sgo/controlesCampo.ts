@@ -431,7 +431,7 @@ export function areaSugeridaParaAuditor(auditor: string): AreaSGOId {
 export const AREAS_5S_POR_AUDITOR: Record<AuditorCampo['id'], AreaSGOId[]> = {
   lara: [
     'bobinado_rural', 'bobinado_distribucion', 'montaje_distribucion', 'montaje_rural',
-    'herreria_pintura', 'laminado', 'carpinteria', 'corte_aislacion',
+    'herreria_pintura', 'laminado', 'carpinteria', 'corte_aislacion', 'laboratorio',
   ],
   nicolas: ['logistica_operativa', 'logistica_despacho'],
   azul: ['administracion'],

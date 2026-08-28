@@ -4,9 +4,8 @@ import { db } from '../../db/dexie'
 import { fechaLocalISO, sumarDiasLocalISO } from '../../lib/time'
 import {
   guardarAccionSGO, guardarControlProgramadoSGO, guardarEjecucionControlSGO,
-  guardarEventoSGO, guardarIndicadorSGO, guardarMedicionIndicadorSGO,
+  guardarEventoSGO,
 } from '../../sync/syncEngine'
-import { idMedicionIndicador } from '../../sgo/indicadores'
 import {
   AUDITORES_CAMPO, PLANTILLA_5S_RIT_9_2_12, SECCIONES_5S,
   areaSugeridaParaAuditor, areas5SParaAuditor, auditorDesdeUsuario, calcularPorcentajeCampo, calcularPorPilarCampo, calcularPorSeccionCampo,
@@ -19,6 +18,7 @@ import {
   prepararEvidenciasPdfLivianas, sincronizarEvidenciasPendientesCampo, type EvidenciaPendienteCampo,
 } from '../../sgo/evidenciasCampo'
 import { datosMejoraDesdeEvento } from '../../sgo/mejoras'
+import { actualizarIndicadoresMensuales5S } from '../../sgo/indicadoresMensuales5S'
 import { proximaFechaControl, tipoEventoDesdeControl, type ControlProgramadoSGO, type EjecucionControlSGO } from '../../sgo/controles'
 import {
   AREAS_SGO, PILARES_SGO, areaSGOLabel, codigoEventoSGO,
@@ -377,25 +377,9 @@ export function EjecutarControlCampo({ control, usuario, historial, onClose }: {
       })
 
       const periodo = now.slice(0, 7)
-      const indicadores = [
-        { id: `sgo-5s-${area}`, pilar: 'mejora' as PilarSGO, nombre: 'Cumplimiento físico 5S', valor: porcentaje },
-        { id: `sgo-5s-premiable-${area}`, pilar: 'mejora' as PilarSGO, nombre: 'Cumplimiento 5S premiable', valor: porcentaje },
-        { id: `sgo-5s-seguridad-${area}`, pilar: 'seguridad' as PilarSGO, nombre: 'Cumplimiento de Seguridad en 5S', valor: porcentajeSeguridad },
-        { id: `sgo-5s-ambiente-${area}`, pilar: 'ambiente' as PilarSGO, nombre: 'Cumplimiento Ambiental en 5S', valor: porcentajeAmbiente },
-      ]
-      for (const indicador of indicadores) {
-        await guardarIndicadorSGO({
-          id: indicador.id, areaId: area, pilar: indicador.pilar, nombre: indicador.nombre, unidad: '%', direccion: 'mayor_mejor',
-          meta: 90, umbralAmarillo: 75, valorActual: indicador.valor, origen: 'manual', periodo, frecuencia: 'mensual', activo: true,
-          actualizadoEn: now, actualizadoPor: auditor.trim(),
-        })
-        await guardarMedicionIndicadorSGO({
-          id: idMedicionIndicador(indicador.id, periodo), indicadorId: indicador.id, periodo, valor: indicador.valor,
-          explicacion: `Último control semanal 5S realizado por ${auditor.trim()} en ${areaSGOLabel(area)}.`,
-          evidencia: `Ejecución ${ejecucionId} · ${PLANTILLA_5S_RIT_9_2_12.documento.codigo}`, cerrado: false,
-          registradoEn: now, registradoPor: auditor.trim(), actualizadoEn: now, actualizadoPor: auditor.trim(),
-        })
-      }
+      await actualizarIndicadoresMensuales5S(
+        area, periodo, auditor.trim(), `Ejecución ${ejecucionId} · ${PLANTILLA_5S_RIT_9_2_12.documento.codigo}`,
+      )
       localStorage.removeItem(claveBorrador)
       onClose()
     } catch (e) {

@@ -97,6 +97,7 @@ describe('controles de campo 5S', () => {
     expect(areas5SParaAuditor('Nicolás')).toEqual(['logistica_operativa', 'logistica_despacho'])
     expect(areas5SParaAuditor('Lara')).toContain('carpinteria')
     expect(areas5SParaAuditor('Lara')).toContain('corte_aislacion')
+    expect(areas5SParaAuditor('Lara')).toContain('laboratorio')
   })
 
   it('permite anexar fotos después del cierre sin alterar respuestas ni puntajes', () => {

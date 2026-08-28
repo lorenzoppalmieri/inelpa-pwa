@@ -6,11 +6,11 @@ import {
 } from '../../sgo/controlesCampo'
 import type { EjecucionControlSGO } from '../../sgo/controles'
 import { datosMejoraDesdeEvento } from '../../sgo/mejoras'
-import { idMedicionIndicador } from '../../sgo/indicadores'
+import { actualizarIndicadoresMensuales5S } from '../../sgo/indicadoresMensuales5S'
 import { usuarioPuedeResolverRevision5S, usuarioPuedeSolicitarRevision5S } from '../../sgo/permisos'
 import { actualizarRevisionAuditoriaCampo } from '../../sgo/revisionesCampo'
 import { AREAS_SGO, areaSGOLabel, codigoEventoSGO, type AreaSGOId, type EventoSGO } from '../../sgo/types'
-import { guardarEventoSGO, guardarIndicadorSGO, guardarMedicionIndicadorSGO } from '../../sync/syncEngine'
+import { guardarEventoSGO } from '../../sync/syncEngine'
 
 const fechaHora = (iso: string) => new Intl.DateTimeFormat('es-AR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(iso))
 
@@ -127,26 +127,11 @@ export default function RevisionesPuntaje5S({ ejecucion, usuario, items, onUpdat
         const item = items.find((candidato) => candidato.id === decision.revision.itemId)
         if (item) await guardarEventoSGO(construirMejora(decision.revision, item, mejoraId, ahora))
         const auditoriaActualizada = actualizada.auditoriaCampo!
-        const indicadorId = `sgo-5s-premiable-${auditoriaActualizada.areaId}`
         const periodo = auditoriaActualizada.finalizadaEn.slice(0, 7)
-        const valor = calcularPorcentajePremiableCampo(auditoriaActualizada, items)
-        await guardarIndicadorSGO({
-          id: `sgo-5s-${auditoriaActualizada.areaId}`, areaId: auditoriaActualizada.areaId, pilar: 'mejora',
-          nombre: 'Cumplimiento físico 5S', unidad: '%', direccion: 'mayor_mejor', meta: 90, umbralAmarillo: 75,
-          valorActual: auditoriaActualizada.porcentajeCumplimiento, origen: 'manual', periodo, frecuencia: 'mensual',
-          activo: true, actualizadoEn: ahora, actualizadoPor: usuario,
-        })
-        await guardarIndicadorSGO({
-          id: indicadorId, areaId: auditoriaActualizada.areaId, pilar: 'mejora', nombre: 'Cumplimiento 5S premiable',
-          unidad: '%', direccion: 'mayor_mejor', meta: 90, umbralAmarillo: 75, valorActual: valor,
-          origen: 'manual', periodo, frecuencia: 'mensual', activo: true, actualizadoEn: ahora, actualizadoPor: usuario,
-        })
-        await guardarMedicionIndicadorSGO({
-          id: idMedicionIndicador(indicadorId, periodo), indicadorId, periodo, valor,
-          explicacion: `Recalculado por revisión 5S aprobada. El cumplimiento físico original permanece en ${auditoriaActualizada.porcentajeCumplimiento}%.`,
-          evidencia: `${auditoriaActualizada.documento.codigo} · ${ejecucion.id} · revisión ${decision.revision.id}`,
-          cerrado: false, registradoEn: ahora, registradoPor: usuario, actualizadoEn: ahora, actualizadoPor: usuario,
-        })
+        await actualizarIndicadoresMensuales5S(
+          auditoriaActualizada.areaId, periodo, usuario,
+          `${auditoriaActualizada.documento.codigo} · ${ejecucion.id} · revisión ${decision.revision.id}`,
+        )
       }
       onUpdated(actualizada)
       setDecision(undefined)
