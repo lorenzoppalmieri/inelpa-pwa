@@ -5,6 +5,8 @@ import { esSuperAdmin } from '../auth/roles'
 import { SimboloActivo } from './simbolos'
 import { comoLineas } from './types'
 import TimelineActivo from './TimelineActivo'
+import InstructivoGama from './InstructivoGama'
+import ComponentesActivo from './ComponentesActivo'
 import { fechaCorta, fechaLocalISO } from '../lib/time'
 import { estadoDeActivo, ESTADOS } from './estado'
 import { cargarAlertasTempranas, estadoDeGama, resumenPorGama, textoAlerta, type AlertaTemprana } from './alertas'
@@ -421,6 +423,9 @@ export default function FichaEquipo({ activoId, onVolver, onVerActivo }: {
         <TimelineActivo activo={activo} refreshKey={otRefresh} />
       </div>
 
+      {/* ---------- Repuestos / partes con foto (catálogo de la máquina) ---------- */}
+      <ComponentesActivo activoId={activo.id} />
+
       {/* ---------- Gamas preventivas (con estado: al dia / proxima / vencida) ---------- */}
       <div className="card">
         <div className="section-title" style={{ margin: '0 0 10px', fontSize: '1.05rem' }}>🔁 Gamas preventivas</div>
@@ -453,6 +458,7 @@ export default function FichaEquipo({ activoId, onVolver, onVerActivo }: {
                   </span>
                 </div>
                 <div className="mant-hist-trabajo">{g.tarea}</div>
+                <InstructivoGama gama={g} />
               </div>
             )
           })

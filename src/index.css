@@ -2218,3 +2218,22 @@ body.admin-mode .content { max-width: none; padding: 12px 18px; }
   .cuello-barra { flex: 1 1 100%; order: 3; }
   .cuello-min { min-width: 0; }
 }
+
+/* ============================================================
+   MANTENIMIENTO v1.66 — instructivo de gama + repuestos con foto
+   ============================================================ */
+.mant-instr{ margin-top:6px; border:1px solid var(--borde,#243049); border-radius:10px; background:rgba(255,255,255,.02); }
+.mant-instr summary{ cursor:pointer; padding:10px 12px; font-weight:700; font-size:.9rem; color:var(--azul-claro); list-style:none; min-height:44px; display:flex; align-items:center; }
+.mant-instr summary::-webkit-details-marker{ display:none; }
+.mant-instr[open] summary{ border-bottom:1px solid var(--borde,#243049); }
+.mant-instr-body{ padding:12px; display:flex; flex-direction:column; gap:12px; }
+.mant-instr-lbl{ font-size:.78rem; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:.4px; margin-bottom:2px; }
+.mant-instr-val{ font-size:.95rem; line-height:1.5; white-space:pre-line; }
+
+.mant-comp-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:12px; }
+.mant-comp-card{ border:1px solid var(--borde,#243049); border-radius:12px; overflow:hidden; background:rgba(255,255,255,.02); display:flex; flex-direction:column; }
+.mant-comp-foto{ width:100%; aspect-ratio:4/3; object-fit:cover; background:#0a1120; display:block; }
+.mant-comp-foto.sin{ display:flex; align-items:center; justify-content:center; color:#64748b; font-size:.78rem; }
+.mant-comp-txt{ padding:8px 10px; display:flex; flex-direction:column; gap:2px; }
+.mant-comp-txt strong{ font-size:.9rem; line-height:1.25; }
+@media (max-width:768px){ .mant-comp-grid{ grid-template-columns:repeat(auto-fill, minmax(120px,1fr)); } }

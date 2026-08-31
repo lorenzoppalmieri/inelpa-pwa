@@ -89,6 +89,24 @@ export interface MantGama {
   duracion_est_min: number | null
   orden: number
   activa: boolean
+  // v1.66 · instructivo detallado (planilla de Herrería). Opcionales: las
+  // gamas viejas (cronograma RIT 51) no los tienen y la UI los oculta.
+  tarea_tipo?: string | null    // Limpieza / Inspección / Cambio de aceite...
+  proposito?: string | null     // por qué se hace
+  componente?: string | null    // sobre qué componente
+  ejecucion?: string | null     // paso a paso
+  herramienta?: string | null   // herramientas necesarias
+  consumible?: string | null    // consumibles / repuestos
+}
+
+// Componente / repuesto de una máquina (catálogo con foto). v1.66.
+export interface MantComponente {
+  id: string
+  activo_id: string
+  cantidad: string | null
+  nombre: string
+  foto_path: string | null      // ruta en Storage (bucket 'mantenimiento'); null = sin foto
+  orden: number
 }
 
 export type OtEstado = 'creada' | 'planificada' | 'en_ejecucion' | 'en_espera' | 'cerrada' | 'cancelada'
