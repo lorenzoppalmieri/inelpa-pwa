@@ -20,9 +20,9 @@ describe('gestión distribuida de mejora continua', () => {
     expect(gestorMejora(evento('administracion', 'auditoria_logistica'))).toBe('nicolas.sgo')
   })
 
-  it('normaliza el usuario de Nicolás y excluye a Lorenzo y GestionSGO', () => {
+  it('normaliza el usuario de Nicolás e incluye a Lorenzo como gestor', () => {
     expect(normalizarGestorMejora('Nicolás')).toBe('nicolas.sgo')
-    expect(normalizarGestorMejora('lorenzo')).toBeUndefined()
+    expect(normalizarGestorMejora('lorenzo')).toBe('lorenzo')
     expect(normalizarGestorMejora('GestionSGO')).toBeUndefined()
   })
 
@@ -31,6 +31,8 @@ describe('gestión distribuida de mejora continua', () => {
     expect(usuarioPuedeGestionarMejora('nicolas.sgo', mejora)).toBe(true)
     expect(usuarioPuedeGestionarMejora('lara', mejora)).toBe(false)
     expect(usuarioPuedeGestionarMejora('lorenzo', mejora)).toBe(false)
+    mejora.mejora = { ...mejora.mejora!, gestorSGO: 'lorenzo' }
+    expect(usuarioPuedeGestionarMejora('lorenzo', mejora)).toBe(true)
   })
 
   it('exige otro integrante SGO para cerrar mejoras críticas, de seguridad o costosas', () => {
@@ -39,7 +41,24 @@ describe('gestión distribuida de mejora continua', () => {
     expect(mejoraRequiereSegundoControl(critica)).toBe(true)
     expect(usuarioPuedeCerrarMejora('lara', critica)).toBe(false)
     expect(usuarioPuedeCerrarMejora('azul', critica)).toBe(true)
-    expect(usuarioPuedeCerrarMejora('lorenzo', critica)).toBe(false)
+    expect(usuarioPuedeCerrarMejora('lorenzo', critica)).toBe(true)
+  })
+
+  it('permite a Lorenzo aprobar y gestionar una mejora asignada a él', () => {
+    const propia = evento('gerencia_directorio', 'manual')
+    propia.mejora = { ...propia.mejora!, gestorSGO: 'lorenzo' }
+    expect(gestorMejora(propia)).toBe('lorenzo')
+    expect(usuarioPuedeGestionarMejora('Lorenzo', propia)).toBe(true)
+  })
+
+  it('mantiene el segundo control independiente cuando Lorenzo aprueba una mejora costosa', () => {
+    const costosa = evento('bobinado_distribucion', 'manual')
+    costosa.mejora = {
+      ...costosa.mejora!, gestorSGO: 'lorenzo', decision: 'aprobada', decisionPor: 'lorenzo', presupuestoEstimado: 18000000,
+    }
+    expect(mejoraRequiereSegundoControl(costosa)).toBe(true)
+    expect(usuarioPuedeCerrarMejora('lorenzo', costosa)).toBe(false)
+    expect(usuarioPuedeCerrarMejora('lara', costosa)).toBe(true)
   })
 
   it('permite al gestor cerrar directamente una mejora normal', () => {

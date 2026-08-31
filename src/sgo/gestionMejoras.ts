@@ -1,6 +1,7 @@
 import type { EventoSGO, GestorMejoraSGO } from './types'
 
 export const GESTORES_MEJORA_SGO: { id: GestorMejoraSGO; label: string; alcance: string }[] = [
+  { id: 'lorenzo', label: 'Lorenzo', alcance: 'Gerencia de Operaciones y seguimiento integral' },
   { id: 'lara', label: 'Lara', alcance: 'Producción, semielaborados y retrabajos' },
   { id: 'nicolas.sgo', label: 'Nicolás', alcance: 'Abastecimiento, stock, embalaje y despacho' },
   { id: 'azul', label: 'Azul', alcance: 'ISO, administración y sistema de gestión' },

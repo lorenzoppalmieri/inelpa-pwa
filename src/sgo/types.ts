@@ -39,7 +39,7 @@ export type FuenteMejoraSGO =
 export type DecisionMejoraSGO = 'pendiente' | 'aprobada' | 'a_futuro' | 'no_viable'
 export type PrioridadMejoraSGO = 'baja' | 'media' | 'alta' | 'critica'
 export type SeguimientoMejoraSGO = 'pendiente' | 'sostenida' | 'reincidencia'
-export type GestorMejoraSGO = 'lara' | 'nicolas.sgo' | 'azul'
+export type GestorMejoraSGO = 'lorenzo' | 'lara' | 'nicolas.sgo' | 'azul'
 export type OrigenEntidadMejoraSGO = 'control_5s' | 'auditoria_logistica' | 'control_programado' | 'agenda_iso' | 'indicador' | 'evento_manual' | 'retrabajo'
 
 export type OrigenRetrabajoSGO = 'parada_calidad' | 'defecto_final' | 'laboratorio'
