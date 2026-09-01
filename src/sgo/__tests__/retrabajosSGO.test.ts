@@ -45,6 +45,20 @@ describe('circuito simplificado de investigaciones de retrabajo', () => {
     expect(estadoInvestigacionRetrabajo(resuelto, [accion])).toBe('con_acciones')
   })
 
+  it('acepta la verificación documentada como resultado en expedientes anteriores', () => {
+    const historico: EventoSGO = {
+      ...eventoBase,
+      causaRaiz: 'Se utilizó una cuba alternativa.', contencion: 'Se adecuaron los prensayugos.', disposicion: 'retrabajo',
+      retrabajo: {
+        ...eventoBase.retrabajo!, tomadoEn: '2026-08-31T10:00:00.000Z', tomadoPor: 'Lara',
+        modalidadCosto: 'sin_costo', costosRevisados: true, resultadoVerificacion: 'eficaz',
+        observacionVerificacion: 'Se verificó la adecuación y la unidad quedó conforme.',
+      },
+    }
+    expect(estadoInvestigacionRetrabajo(historico, [])).toBe('listo_cierre')
+    expect(validarCierreRetrabajo({ ...historico, estado: 'cerrado' }, [])).toEqual([])
+  })
+
   it('eleva automáticamente a crítica una reincidencia', () => {
     const reincidente: EventoSGO = {
       ...eventoBase,

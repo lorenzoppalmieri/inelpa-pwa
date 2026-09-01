@@ -161,6 +161,15 @@ function costoDefinido(evento: EventoSGO): boolean {
   return Boolean(evento.retrabajo?.modalidadCosto || evento.retrabajo?.costosRevisados)
 }
 
+/**
+ * Compatibilidad con investigaciones creadas antes de que el formulario mostrara
+ * un campo específico de resultado. En esos casos la comprobación quedó
+ * documentada correctamente en la observación de verificación.
+ */
+export function resultadoDocumentadoRetrabajo(datos: DatosRetrabajoSGO): string | undefined {
+  return datos.resultadoResolucion?.trim() || datos.observacionVerificacion?.trim() || undefined
+}
+
 export function requisitosCierreRetrabajo(evento: EventoSGO, acciones: AccionSGO[]): string[] {
   const datos = evento.retrabajo
   if (!datos) return []
@@ -172,7 +181,7 @@ export function requisitosCierreRetrabajo(evento: EventoSGO, acciones: AccionSGO
   if (!evento.contencion?.trim()) errores.push(nivel === 'simple' ? 'Registrar la corrección realizada.' : 'Registrar la contención inmediata.')
   if (!evento.causaRaiz?.trim()) errores.push(nivel === 'simple' ? 'Describir brevemente la causa o motivo.' : 'Completar la causa raíz.')
   if (!evento.disposicion || evento.disposicion === 'pendiente') errores.push('Definir la disposición del producto.')
-  if (!datos.resultadoResolucion?.trim()) errores.push('Documentar el resultado obtenido.')
+  if (!resultadoDocumentadoRetrabajo(datos)) errores.push('Documentar el resultado obtenido.')
   if (!costoDefinido(evento)) errores.push('Elegir cómo se registrará el costo del retrabajo.')
   if (datos.modalidadCosto === 'total_estimado' && !(evento.costoEstimado && evento.costoEstimado > 0)) errores.push('Ingresar el costo total estimado.')
   if (datos.modalidadCosto === 'detallado' && datos.costeo) {
@@ -223,7 +232,7 @@ export function estadoInvestigacionRetrabajo(evento: EventoSGO, acciones: Accion
   if (datos.resultadoVerificacion === 'reincidencia') return 'reincidencia'
   if (!datos.tomadoEn) return 'nuevo'
   const nivel = nivelInvestigacionRetrabajo(evento)
-  if (!evento.causaRaiz?.trim() || !evento.contencion?.trim() || !evento.disposicion || evento.disposicion === 'pendiente' || !datos.resultadoResolucion?.trim() || !costoDefinido(evento)) return 'en_investigacion'
+  if (!evento.causaRaiz?.trim() || !evento.contencion?.trim() || !evento.disposicion || evento.disposicion === 'pendiente' || !resultadoDocumentadoRetrabajo(datos) || !costoDefinido(evento)) return 'en_investigacion'
   const activas = acciones.filter((accion) => accion.estado !== 'cancelada')
   if (nivel === 'simple') return activas.some((accion) => accion.estado !== 'verificada') ? 'con_acciones' : 'listo_cierre'
   if (!evento.metodoAnalisis || !datos.clasificacionCausa || !activas.length || activas.some((accion) => ['pendiente', 'en_curso'].includes(accion.estado))) return 'con_acciones'

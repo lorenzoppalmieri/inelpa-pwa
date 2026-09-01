@@ -13,7 +13,7 @@ import { resolverTrazabilidadProductiva, type TrazabilidadProductivaSGO } from '
 import {
   ESTADOS_INVESTIGACION_RETRABAJO, NIVELES_INVESTIGACION_RETRABAJO, costoRetrabajoTotal,
   estadoInvestigacionRetrabajo, esEventoRetrabajo, nivelInvestigacionRetrabajo,
-  requisitosCierreRetrabajo, semaforoSLAInvestigacion, tiempoRetrabajoDesdePlanta,
+  requisitosCierreRetrabajo, resultadoDocumentadoRetrabajo, semaforoSLAInvestigacion, tiempoRetrabajoDesdePlanta,
   type EstadoInvestigacionRetrabajo,
 } from '../../sgo/retrabajos'
 import {
@@ -233,6 +233,7 @@ function EditorRetrabajo({ eventoInicial, acciones, trazabilidad, usuario, onClo
     const candidato: EventoSGO = {
       ...evento, retrabajo: {
         ...datos,
+        resultadoResolucion: resultadoDocumentadoRetrabajo(datos),
         resultadoVerificacion: nivel === 'simple' ? 'eficaz' : datos.resultadoVerificacion,
         fechaVerificacion: nivel === 'critica' ? datos.fechaVerificacion : now.slice(0, 10),
         verificadoEn: now, verificadoPor: usuario,
@@ -275,7 +276,7 @@ function EditorRetrabajo({ eventoInicial, acciones, trazabilidad, usuario, onClo
         onChange={setEvento}
       />
 
-      <div className="section-title">4. Evidencia y verificación</div><Campo label="Evidencias / referencias (una por línea)"><textarea className="input" rows={2} value={(evento.evidenciaUrls ?? []).join('\n')} onChange={(e) => setCampo('evidenciaUrls', e.target.value.split('\n').map((item) => item.trim()).filter(Boolean))} /></Campo><div className="sgo-retrabajo-form-grid"><Campo label="Fecha real de verificación *"><input className="input" type="date" max={new Date().toISOString().slice(0, 10)} value={datos.fechaVerificacion ?? ''} onChange={(e) => setDato('fechaVerificacion', e.target.value || undefined)} /></Campo><Campo label="Resultado de la verificación"><select className="input" disabled={!cierrePermitido} value={datos.resultadoVerificacion ?? 'pendiente'} onChange={(e) => setDato('resultadoVerificacion', e.target.value as DatosRetrabajoSGO['resultadoVerificacion'])}><option value="pendiente">Pendiente</option><option value="eficaz">Acciones eficaces</option><option value="reincidencia">Reincidencia</option></select></Campo></div><Campo label="Observación de verificación *"><textarea className="input" rows={2} disabled={!cierrePermitido} value={datos.observacionVerificacion ?? ''} onChange={(e) => setDato('observacionVerificacion', e.target.value || undefined)} /></Campo>
+      <div className="section-title">4. Resultado, evidencia y verificación</div><Campo label="Resultado obtenido / corrección realizada *"><textarea className="input" rows={2} value={datos.resultadoResolucion ?? ''} onChange={(e) => setDato('resultadoResolucion', e.target.value || undefined)} placeholder="Qué se corrigió y en qué condición quedó el producto o proceso." /></Campo><Campo label="Evidencias / referencias (una por línea)"><textarea className="input" rows={2} value={(evento.evidenciaUrls ?? []).join('\n')} onChange={(e) => setCampo('evidenciaUrls', e.target.value.split('\n').map((item) => item.trim()).filter(Boolean))} /></Campo><div className="sgo-retrabajo-form-grid"><Campo label="Fecha real de verificación *"><input className="input" type="date" max={new Date().toISOString().slice(0, 10)} value={datos.fechaVerificacion ?? ''} onChange={(e) => setDato('fechaVerificacion', e.target.value || undefined)} /></Campo><Campo label="Resultado de la verificación"><select className="input" disabled={!cierrePermitido} value={datos.resultadoVerificacion ?? 'pendiente'} onChange={(e) => setDato('resultadoVerificacion', e.target.value as DatosRetrabajoSGO['resultadoVerificacion'])}><option value="pendiente">Pendiente</option><option value="eficaz">Acciones eficaces</option><option value="reincidencia">Reincidencia</option></select></Campo></div><Campo label="Observación de verificación *"><textarea className="input" rows={2} disabled={!cierrePermitido} value={datos.observacionVerificacion ?? ''} onChange={(e) => setDato('observacionVerificacion', e.target.value || undefined)} /></Campo>
     </fieldset>
 
     <div className="card sgo-retrabajo-acciones"><div><strong>{acciones.length}</strong><span>acciones</span></div><div><strong>{acciones.filter((accion) => accion.estado === 'verificada').length}</strong><span>verificadas</span></div><div><strong>{acciones.filter((accion) => !['verificada', 'cancelada'].includes(accion.estado) && accion.fechaCompromiso < new Date().toISOString().slice(0, 10)).length}</strong><span>vencidas</span></div><button className="btn" onClick={onOpenEvento}>Abrir expediente y acciones</button></div>
