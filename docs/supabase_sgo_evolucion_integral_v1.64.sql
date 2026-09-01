@@ -93,9 +93,54 @@ declare
   acciones_activas integer;
   acciones_pendientes integer;
   acciones_ineficaces integer;
+  retrabajo_simple boolean;
 begin
   if new.estado <> 'cerrado' or (tg_op = 'UPDATE' and old.estado = 'cerrado') then
     return new;
+  end if;
+
+  -- Los retrabajos simples documentan una corrección inmediata y pueden no
+  -- requerir una acción adicional. Se validan con su propio circuito antes de
+  -- aplicar las exigencias generales de una no conformidad.
+  if new.retrabajo is not null then
+    if nullif(trim(new.retrabajo ->> 'tomadoEn'), '') is null then
+      raise exception 'No se puede cerrar: falta tomar la investigacion de retrabajo';
+    end if;
+    if nullif(trim(new.contencion), '') is null then
+      raise exception 'No se puede cerrar: falta registrar la correccion o contencion';
+    end if;
+    if nullif(trim(new.causa_raiz), '') is null then
+      raise exception 'No se puede cerrar: falta documentar la causa';
+    end if;
+    if coalesce(new.disposicion, 'pendiente') = 'pendiente' then
+      raise exception 'No se puede cerrar: falta disposicion';
+    end if;
+    if nullif(trim(coalesce(new.retrabajo ->> 'resultadoResolucion', new.retrabajo ->> 'observacionVerificacion')), '') is null then
+      raise exception 'No se puede cerrar: falta documentar el resultado obtenido';
+    end if;
+    if nullif(trim(new.retrabajo ->> 'modalidadCosto'), '') is null
+       and not coalesce((new.retrabajo ->> 'costosRevisados')::boolean, false) then
+      raise exception 'No se puede cerrar: falta definir el costo del retrabajo';
+    end if;
+
+    retrabajo_simple :=
+      coalesce(new.retrabajo ->> 'nivelInvestigacion', 'simple') = 'simple'
+      and coalesce(new.severidad, '') not in ('alta', 'critica')
+      and not coalesce((new.retrabajo ->> 'reincidente')::boolean, false)
+      and coalesce(new.retrabajo ->> 'origen', '') <> 'laboratorio'
+      and coalesce(new.retrabajo ->> 'resultadoVerificacion', 'pendiente') <> 'reincidencia';
+
+    if retrabajo_simple then
+      select count(*) filter (where estado not in ('verificada', 'cancelada'))
+      into acciones_pendientes
+      from public.sgo_acciones
+      where evento_id = new.id;
+
+      if acciones_pendientes > 0 then
+        raise exception 'No se puede cerrar: existen acciones sin verificar';
+      end if;
+      return new;
+    end if;
   end if;
 
   requiere_investigacion :=

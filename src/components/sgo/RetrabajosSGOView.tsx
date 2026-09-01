@@ -132,6 +132,8 @@ function RetrabajoCard({ evento, acciones, trazabilidad, ahora, onOpen }: { even
 function EditorRetrabajo({ eventoInicial, acciones, trazabilidad, usuario, onClose, onOpenEvento }: { eventoInicial: EventoSGO; acciones: AccionSGO[]; trazabilidad: TrazabilidadProductivaSGO; usuario: string; onClose: () => void; onOpenEvento: () => void }) {
   const [evento, setEvento] = useState(eventoInicial)
   const [guardando, setGuardando] = useState(false)
+  const [cierrePendiente, setCierrePendiente] = useState<EventoSGO>()
+  const [erroresCierre, setErroresCierre] = useState<string[]>([])
   const datos = evento.retrabajo!
   const puede = usuarioPuedeInvestigarRetrabajo(usuario)
   const lorenzo = usuarioEsLorenzo(usuario)
@@ -141,8 +143,14 @@ function EditorRetrabajo({ eventoInicial, acciones, trazabilidad, usuario, onClo
   const editable = puede && Boolean(datos.tomadoEn) && evento.estado !== 'cerrado'
   const modalidadCosto = datos.modalidadCosto ?? (datos.costosRevisados ? (costoNoCalidadTotal(evento.costoDetalle) > 0 ? 'detallado' : 'sin_costo') : '')
   const requisitos = requisitosCierreRetrabajo(evento, acciones)
-  const setCampo = <K extends keyof EventoSGO>(campo: K, valor: EventoSGO[K]) => setEvento({ ...evento, [campo]: valor, actualizadoEn: new Date().toISOString() })
-  const setDato = <K extends keyof DatosRetrabajoSGO>(campo: K, valor: DatosRetrabajoSGO[K]) => setEvento({ ...evento, retrabajo: { ...datos, [campo]: valor }, actualizadoEn: new Date().toISOString() })
+  const setCampo = <K extends keyof EventoSGO>(campo: K, valor: EventoSGO[K]) => {
+    setCierrePendiente(undefined); setErroresCierre([])
+    setEvento({ ...evento, [campo]: valor, actualizadoEn: new Date().toISOString() })
+  }
+  const setDato = <K extends keyof DatosRetrabajoSGO>(campo: K, valor: DatosRetrabajoSGO[K]) => {
+    setCierrePendiente(undefined); setErroresCierre([])
+    setEvento({ ...evento, retrabajo: { ...datos, [campo]: valor }, actualizadoEn: new Date().toISOString() })
+  }
   const setNivel = (valor: NivelInvestigacionRetrabajoSGO) => {
     if (nivelForzado && valor !== 'critica') return
     setDato('nivelInvestigacion', valor)
@@ -227,7 +235,7 @@ function EditorRetrabajo({ eventoInicial, acciones, trazabilidad, usuario, onClo
     } finally { setGuardando(false) }
   }
 
-  async function cerrar() {
+  function prepararCierre() {
     if (!cierrePermitido) return
     const now = new Date().toISOString()
     const candidato: EventoSGO = {
@@ -241,8 +249,13 @@ function EditorRetrabajo({ eventoInicial, acciones, trazabilidad, usuario, onClo
       estado: 'cerrado', cerradoEn: now, cerradoPor: usuario, actualizadoEn: now,
     }
     const errores = validarCierreEvento(candidato, acciones)
-    if (errores.length) { window.alert(`No se puede cerrar la investigación:\n\n• ${errores.join('\n• ')}`); return }
-    if (!window.confirm('La investigación quedará cerrada y pasará al historial. ¿Continuar?')) return
+    setErroresCierre(errores)
+    setCierrePendiente(errores.length ? undefined : candidato)
+  }
+
+  async function confirmarCierre() {
+    if (!cierrePendiente || guardando) return
+    const now = cierrePendiente.actualizadoEn
     setGuardando(true)
     try {
       if (nivel === 'con_accion') {
@@ -250,8 +263,11 @@ function EditorRetrabajo({ eventoInicial, acciones, trazabilidad, usuario, onClo
           await guardarAccionSGO({ ...accion, estado: 'verificada', eficaz: true, verificadaEn: now, verificadaPor: usuario, comentarioVerificacion: datos.observacionVerificacion, actualizadoEn: now })
         }
       }
-      await guardarEventoSGO(candidato)
+      await guardarEventoSGO(cierrePendiente)
       onClose()
+    } catch (error) {
+      setErroresCierre([error instanceof Error ? error.message : 'No se pudo cerrar la investigación. La información permanece abierta.'])
+      setCierrePendiente(undefined)
     } finally { setGuardando(false) }
   }
 
@@ -281,7 +297,9 @@ function EditorRetrabajo({ eventoInicial, acciones, trazabilidad, usuario, onClo
 
     <div className="card sgo-retrabajo-acciones"><div><strong>{acciones.length}</strong><span>acciones</span></div><div><strong>{acciones.filter((accion) => accion.estado === 'verificada').length}</strong><span>verificadas</span></div><div><strong>{acciones.filter((accion) => !['verificada', 'cancelada'].includes(accion.estado) && accion.fechaCompromiso < new Date().toISOString().slice(0, 10)).length}</strong><span>vencidas</span></div><button className="btn" onClick={onOpenEvento}>Abrir expediente y acciones</button></div>
     <div className="card sgo-retrabajo-mejora"><div><strong>Oportunidad de mejora continua</strong><div className="meta">Se crea como expediente vinculado solo si la investigación identifica una mejora que merece seguimiento propio.</div></div>{datos.mejoraEventoId ? <span className="estado-chip mejora-detectada">Propuesta creada</span> : editable ? <button className="btn" disabled={guardando} onClick={() => void proponerMejora()}>Proponer mejora</button> : <span className="meta">Sin propuesta</span>}</div>
-    <div className="row-actions sgo-retrabajo-editor-pie"><button className="btn" onClick={onClose}>Cerrar ventana</button>{editable && <button className="btn btn-primary" disabled={guardando} onClick={() => void guardar()}>{guardando ? 'Guardando…' : 'Guardar investigación'}</button>}{cierrePermitido && evento.estado !== 'cerrado' && <button className="btn btn-verde" disabled={guardando} onClick={() => void cerrar()}>Verificar y cerrar</button>}</div>
+    {erroresCierre.length > 0 && <div className="card" style={{ borderLeft: '4px solid var(--rojo)' }}><strong>No se puede cerrar todavía</strong><ul>{erroresCierre.map((error) => <li key={error}>{error}</li>)}</ul><button className="btn" onClick={() => setErroresCierre([])}>Entendido</button></div>}
+    {cierrePendiente && <div className="card" style={{ borderLeft: '4px solid var(--verde)' }}><strong>La investigación está lista para cerrar</strong><div className="meta">Al confirmar pasará al historial. La ventana permanecerá abierta si ocurre algún error.</div><div className="row-actions" style={{ marginTop: 10 }}><button className="btn" disabled={guardando} onClick={() => setCierrePendiente(undefined)}>Seguir revisando</button><button className="btn btn-verde" disabled={guardando} onClick={() => void confirmarCierre()}>{guardando ? 'Cerrando…' : 'Confirmar cierre'}</button></div></div>}
+    <div className="row-actions sgo-retrabajo-editor-pie"><button className="btn" onClick={onClose}>Cerrar ventana</button>{editable && <button className="btn btn-primary" disabled={guardando} onClick={() => void guardar()}>{guardando ? 'Guardando…' : 'Guardar investigación'}</button>}{cierrePermitido && evento.estado !== 'cerrado' && <button className="btn btn-verde" disabled={guardando || Boolean(cierrePendiente)} onClick={prepararCierre}>Verificar y cerrar</button>}</div>
   </div></div>
 }
 

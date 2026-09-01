@@ -772,12 +772,28 @@ async function empujar(op: SyncOp): Promise<EmpujeResultado> {
         return error ? fallo('upsert plantilla', error.message) : OK_EMPUJE
       }
       case 'evento_sgo': {
-        const { error } = await supabase.from('sgo_eventos').upsert(eventoSGOToRow(op.payload as EventoSGO), { onConflict: 'id' })
-        return error ? fallo('upsert evento_sgo', error.message) : OK_EMPUJE
+        const row = eventoSGOToRow(op.payload as EventoSGO)
+        // Un cierre siempre modifica un expediente existente. Usar upsert hacía
+        // que PostgREST evaluara también la política INSERT y algunos cierres
+        // válidos quedaran rechazados por RLS. Primero intentamos UPDATE; solo si
+        // la fila todavía no existe (detección nueva) hacemos INSERT.
+        const upd = await supabase.from('sgo_eventos').update(row).eq('id', row.id).select('id')
+        if (upd.error) return fallo('update evento_sgo', upd.error.message)
+        if (!upd.data?.length) {
+          const ins = await supabase.from('sgo_eventos').insert(row)
+          if (ins.error) return fallo('insert evento_sgo', ins.error.message)
+        }
+        return OK_EMPUJE
       }
       case 'accion_sgo': {
-        const { error } = await supabase.from('sgo_acciones').upsert(accionSGOToRow(op.payload as AccionSGO), { onConflict: 'id' })
-        return error ? fallo('upsert accion_sgo', error.message) : OK_EMPUJE
+        const row = accionSGOToRow(op.payload as AccionSGO)
+        const upd = await supabase.from('sgo_acciones').update(row).eq('id', row.id).select('id')
+        if (upd.error) return fallo('update accion_sgo', upd.error.message)
+        if (!upd.data?.length) {
+          const ins = await supabase.from('sgo_acciones').insert(row)
+          if (ins.error) return fallo('insert accion_sgo', ins.error.message)
+        }
+        return OK_EMPUJE
       }
       case 'indicador_sgo': {
         const { error } = await supabase.from('sgo_indicadores').upsert(indicadorSGOToRow(op.payload as IndicadorSGO), { onConflict: 'id' })

@@ -73,6 +73,11 @@ const CAUSA_A_DEFECTO: Record<string, string> = {
   taco_defectuoso: 'MON_COMPONENTE', calidad_alambre: 'BOB_CONDUCTOR',
   bobina_bt_defectuosa: 'BOB_DEFORMACION', mon_retrabajo_bobina: 'BOB_DEFORMACION',
   mon_no_da_relacion: 'LAB_RELACION', mon_insumos_defectuosos: 'MON_COMPONENTE',
+  // v1.99: reemplazan a la generica 'mon_insumos_defectuosos'. Mismo codigo de
+  // defecto; sin esto la no conformidad se abriria con 'OTRO'.
+  mon_chapa_nucleo_defectuosa: 'MON_COMPONENTE',
+  mon_prensayugo_defectuoso: 'MON_COMPONENTE',
+  mon_conmutador_defectuoso: 'MON_COMPONENTE',
   her_perdidas_hermetizado: 'MON_PERDIDA', pin_retrabajo: 'PIN_ACABADO',
 }
 

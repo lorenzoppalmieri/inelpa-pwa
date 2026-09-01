@@ -202,6 +202,8 @@ function EditorMejora({ registro, acciones, usuario, onClose: cerrarEditor, onOp
   })
   const [mejora, setMejora] = useState<DatosMejoraSGO>(() => registro?.mejora ?? crearDatosMejora({ clase: 'oportunidad', fuente: 'manual' }))
   const [guardando, setGuardando] = useState(false)
+  const [cierrePendiente, setCierrePendiente] = useState<EventoSGO>()
+  const [erroresCierre, setErroresCierre] = useState<string[]>([])
   const original = JSON.stringify({ evento: registro, mejora: registro?.mejora })
   const actual = JSON.stringify({ evento, mejora })
   const conCambios = registro ? original !== actual : Boolean(evento.titulo.trim() || evento.descripcion.trim() || evento.areaId || mejora.colaborador?.trim() || mejora.fuente !== 'manual' || mejora.clase !== 'oportunidad')
@@ -213,8 +215,14 @@ function EditorMejora({ registro, acciones, usuario, onClose: cerrarEditor, onOp
   const editableGestion = !registro || puedeGestionar
   const segundoControl = mejoraRequiereSegundoControl(expediente)
   const puedeCerrar = Boolean(registro && mejora.decision !== 'pendiente' && mejora.decision !== 'a_futuro' && usuarioPuedeCerrarMejora(usuario, expediente))
-  const setEventoCampo = <K extends keyof EventoSGO>(key: K, value: EventoSGO[K]) => setEvento({ ...evento, [key]: value })
-  const setMejoraCampo = <K extends keyof DatosMejoraSGO>(key: K, value: DatosMejoraSGO[K]) => setMejora({ ...mejora, [key]: value })
+  const setEventoCampo = <K extends keyof EventoSGO>(key: K, value: EventoSGO[K]) => {
+    setCierrePendiente(undefined); setErroresCierre([])
+    setEvento({ ...evento, [key]: value })
+  }
+  const setMejoraCampo = <K extends keyof DatosMejoraSGO>(key: K, value: DatosMejoraSGO[K]) => {
+    setCierrePendiente(undefined); setErroresCierre([])
+    setMejora({ ...mejora, [key]: value })
+  }
 
   function onClose() {
     if (conCambios && !window.confirm('¿Descartar los cambios de esta mejora?')) return
@@ -291,10 +299,14 @@ function EditorMejora({ registro, acciones, usuario, onClose: cerrarEditor, onOp
     try { await guardarEventoSGO(actualizado); cerrarEditor() } finally { setGuardando(false) }
   }
 
-  async function cerrarMejora() {
+  function prepararCierreMejora() {
     if (!registro || !puedeCerrar) return
     const erroresFormulario = validar(mejora.decision)
-    if (erroresFormulario.length) { window.alert(erroresFormulario.join('\n')); return }
+    if (erroresFormulario.length) {
+      setErroresCierre(erroresFormulario)
+      setCierrePendiente(undefined)
+      return
+    }
     const ahoraCierre = new Date().toISOString()
     const preparado = eventoPreparado('cerrado')
     const candidato = {
@@ -303,10 +315,20 @@ function EditorMejora({ registro, acciones, usuario, onClose: cerrarEditor, onOp
       cerradoEn: evento.cerradoEn ?? ahoraCierre, cerradoPor: evento.cerradoPor ?? usuario,
     }
     const errores = validarCierreEvento(candidato, acciones)
-    if (errores.length) { window.alert(`No se puede cerrar la mejora:\n\n• ${errores.join('\n• ')}`); return }
-    if (!window.confirm('La mejora quedará cerrada y pasará a Resultados e historial. ¿Continuar?')) return
+    setErroresCierre(errores)
+    setCierrePendiente(errores.length ? undefined : candidato)
+  }
+
+  async function confirmarCierreMejora() {
+    if (!cierrePendiente || guardando) return
     setGuardando(true)
-    try { await guardarEventoSGO(candidato); cerrarEditor() } finally { setGuardando(false) }
+    try {
+      await guardarEventoSGO(cierrePendiente)
+      cerrarEditor()
+    } catch (error) {
+      setErroresCierre([error instanceof Error ? error.message : 'No se pudo cerrar la mejora. La información permanece abierta.'])
+      setCierrePendiente(undefined)
+    } finally { setGuardando(false) }
   }
 
   async function registrarSeguimiento() {
@@ -386,11 +408,13 @@ function EditorMejora({ registro, acciones, usuario, onClose: cerrarEditor, onOp
 
     {registro && <div className="card sgo-mejora-acciones-resumen"><div><strong>{acciones.length}</strong><span>acciones</span></div><div><strong>{acciones.filter((a) => a.estado === 'verificada').length}</strong><span>verificadas</span></div><div><strong>{acciones.filter((a) => accionMejoraVencida(a, fechaHoyISO())).length}</strong><span>vencidas</span></div><button className="btn" onClick={() => onOpenEvento(registro.id)}>Abrir expediente y acciones</button></div>}
     {registro && segundoControl && mejora.decision !== 'pendiente' && <div className="card sgo-mejora-segundo-control"><strong>{puedeCerrar ? 'Podés realizar el segundo control' : 'Segundo control pendiente'}</strong><span>{mejora.verificacionSGOPor ? `Verificado por ${mejora.verificacionSGOPor}.` : `Debe verificar un integrante distinto de ${mejora.decisionPor ?? gestorMejoraLabel(gestorActual)}.`}</span></div>}
+    {erroresCierre.length > 0 && <div className="card" style={{ borderLeft: '4px solid var(--rojo)' }}><strong>No se puede cerrar todavía</strong><ul>{erroresCierre.map((error) => <li key={error}>{error}</li>)}</ul><button className="btn" onClick={() => setErroresCierre([])}>Entendido</button></div>}
+    {cierrePendiente && <div className="card" style={{ borderLeft: '4px solid var(--verde)' }}><strong>La mejora está lista para cerrar</strong><div className="meta">Al confirmar pasará a Resultados e historial. Si ocurre un error, el expediente seguirá visible y editable.</div><div className="row-actions" style={{ marginTop: 10 }}><button className="btn" disabled={guardando} onClick={() => setCierrePendiente(undefined)}>Seguir revisando</button><button className="btn btn-verde" disabled={guardando} onClick={() => void confirmarCierreMejora()}>{guardando ? 'Cerrando…' : 'Confirmar cierre'}</button></div></div>}
     <div className="row-actions sgo-mejora-editor-acciones">
       {registro && lorenzo && <button className="btn btn-rojo" disabled={guardando} onClick={() => void eliminar()}>Eliminar</button>}
       <button className="btn" onClick={onClose} disabled={guardando}>Cancelar</button>
       {(!registro || puedeGestionar || puedeReasignar) && <button className="btn btn-primary" disabled={guardando} onClick={() => void guardar()}>{guardando ? 'Guardando…' : registro ? 'Guardar cambios' : 'Registrar detección'}</button>}
-      {registro && puedeCerrar && evento.estado !== 'cerrado' && <button className="btn btn-verde" disabled={guardando} onClick={() => void cerrarMejora()}>Verificar y cerrar mejora</button>}
+      {registro && puedeCerrar && evento.estado !== 'cerrado' && <button className="btn btn-verde" disabled={guardando || Boolean(cierrePendiente)} onClick={prepararCierreMejora}>Verificar y cerrar mejora</button>}
     </div>
   </Modal>
 }

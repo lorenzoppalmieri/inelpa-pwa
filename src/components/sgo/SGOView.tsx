@@ -101,7 +101,6 @@ export default function SGOView() {
   })), [eventos])
   const vencidas = acciones.filter(vencida).length
   const ajusteDiasSinAccidentes = indicadores.find((i) => i.id === ID_DIAS_SIN_ACCIDENTES)
-  const ajusteDiasSinIncidentes = indicadores.find((i) => i.id === ID_DIAS_SIN_INCIDENTES)
   const indicadoresResueltos = useMemo(() => resolverKPIAutomaticos(
     aplicarMedicionesIndicadores(indicadores.filter((i) => !IDS_CONTADORES_SEGURIDAD.has(i.id)), mediciones),
     { tareas, laboratorio, tareasLogistica, eventos, acciones, mediciones },
@@ -158,7 +157,6 @@ export default function SGOView() {
 
       <div className="sgo-dias-grid">
         <ContadorDiasSeguridad tipo="accidentes" eventos={eventos} ajuste={ajusteDiasSinAccidentes} usuario={usuario?.usuario ?? 'sin_usuario'} />
-        <ContadorDiasSeguridad tipo="incidentes" eventos={eventos} ajuste={ajusteDiasSinIncidentes} usuario={usuario?.usuario ?? 'sin_usuario'} />
       </div>
 
       <div className="logi-kpis" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(145px, 1fr))' }}>
@@ -473,6 +471,8 @@ function DetalleEvento({ evento, acciones, auditoria, usuario, trazabilidad, onC
   const [costos, setCostos] = useState<CostoNoCalidad>(evento.costoDetalle ?? { material: 0, manoObra: 0, maquina: 0, ensayos: 0, logistica: 0, terceros: 0 })
   const [nuevaAccion, setNuevaAccion] = useState(false)
   const [eliminando, setEliminando] = useState(false)
+  const [guardando, setGuardando] = useState(false)
+  const [mensajeGuardado, setMensajeGuardado] = useState<{ tipo: 'ok' | 'error'; texto: string }>()
   const puedeEliminar = usuarioEsLorenzo(usuario)
   const vinculos = useLiveQuery(async () => ({
     controles: await db.ejecucionesControlesSGO.where('eventoId').equals(evento.id).count(),
@@ -490,10 +490,18 @@ function DetalleEvento({ evento, acciones, auditoria, usuario, trazabilidad, onC
       cerradoPor: estado === 'cerrado' ? (evento.cerradoPor ?? usuario) : undefined }
     const errores = validarCierreEvento(actualizado, acciones)
     if (errores.length) {
-      window.alert(`No se puede cerrar el expediente:\n\n• ${errores.join('\n• ')}`)
+      setMensajeGuardado({ tipo: 'error', texto: `No se puede cerrar todavía: ${errores.join(' · ')}` })
       return
     }
-    await guardarEventoSGO(actualizado)
+    setGuardando(true)
+    setMensajeGuardado(undefined)
+    try {
+      await guardarEventoSGO(actualizado)
+      if (estado === 'cerrado') onClose()
+      else setMensajeGuardado({ tipo: 'ok', texto: 'Expediente guardado correctamente.' })
+    } catch (error) {
+      setMensajeGuardado({ tipo: 'error', texto: error instanceof Error ? error.message : 'No se pudo guardar el expediente.' })
+    } finally { setGuardando(false) }
   }
 
   async function eliminar() {
@@ -538,9 +546,10 @@ function DetalleEvento({ evento, acciones, auditoria, usuario, trazabilidad, onC
     <div className="field"><label>Causa raíz</label><textarea className="input" rows={3} value={causaRaiz} onChange={(e) => setCausaRaiz(e.target.value)} placeholder="Completar después del análisis; no confundir con el síntoma" /></div>
     <div className="field"><label>Método de análisis</label><select className="input" value={metodoAnalisis ?? ''} onChange={(e) => setMetodoAnalisis((e.target.value || undefined) as EventoSGO['metodoAnalisis'])}><option value="">Sin seleccionar</option><option value="5_porques">5 porqués</option><option value="ishikawa">Ishikawa</option><option value="a3">A3</option><option value="8d">8D</option><option value="otro">Otro</option></select></div>
     <div className="field"><label>Evidencias / referencias</label><textarea className="input" rows={3} value={evidencias} onChange={(e) => setEvidencias(e.target.value)} placeholder="Una referencia o enlace por línea" /></div>
+    {mensajeGuardado && <div className="card" style={{ borderLeft: `4px solid ${mensajeGuardado.tipo === 'ok' ? 'var(--verde)' : 'var(--rojo)'}` }}>{mensajeGuardado.texto}</div>}
     <div className="row-actions" style={{ justifyContent: 'space-between' }}>
-      {puedeEliminar && <button className="btn" disabled={eliminando} style={{ color: '#fca5a5', borderColor: '#ef4444' }} onClick={() => void eliminar()}>{eliminando ? 'Eliminando…' : 'Eliminar evento'}</button>}
-      <button className="btn btn-primary" style={{ marginLeft: 'auto' }} disabled={eliminando} onClick={() => void actualizar()}>Guardar expediente</button>
+      {puedeEliminar && <button className="btn" disabled={eliminando || guardando} style={{ color: '#fca5a5', borderColor: '#ef4444' }} onClick={() => void eliminar()}>{eliminando ? 'Eliminando…' : 'Eliminar evento'}</button>}
+      <button className="btn btn-primary" style={{ marginLeft: 'auto' }} disabled={eliminando || guardando} onClick={() => void actualizar()}>{guardando ? 'Guardando…' : estado === 'cerrado' ? 'Verificar y cerrar expediente' : 'Guardar expediente'}</button>
     </div>
 
     <div className="section-title" style={{ marginTop: 18 }}>Acciones ({acciones.length})</div>

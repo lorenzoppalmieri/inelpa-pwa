@@ -1180,7 +1180,14 @@ export const CAUSAS_PARADA: CausaParadaDef[] = [
   { id: 'mon_retiro', label: 'Retiro', categoria: 'personal', areas: ['montaje'] },
   { id: 'mon_retrabajo_bobina', label: 'Retrabajo bobina', categoria: 'calidad', areas: ['montaje'] , esRetrabajo: true },
   { id: 'mon_no_da_relacion', label: 'No da relacion la/s bobina/s', categoria: 'calidad', areas: ['montaje'] },
-  { id: 'mon_insumos_defectuosos', label: 'Materiales o insumos defectuosos (chapa, prensayugos, llave, angulos)', categoria: 'calidad', areas: ['montaje'] },
+  // v1.99: se REEMPLAZA por tres causas especificas. La generica juntaba chapa,
+  // prensayugos, llave y angulos en una sola linea, asi que el Pareto decia
+  // "insumos defectuosos" sin poder accionar sobre nada. Se RETIRA (no se borra):
+  // hay paradas historicas con este id y causaLabel caeria al id crudo.
+  { id: 'mon_insumos_defectuosos', label: 'Materiales o insumos defectuosos (chapa, prensayugos, llave, angulos)', categoria: 'calidad', areas: ['montaje'], retirada: true },
+  { id: 'mon_chapa_nucleo_defectuosa', label: 'Chapa nucleo defectuoso', categoria: 'calidad', areas: ['montaje'] },
+  { id: 'mon_prensayugo_defectuoso', label: 'Prensayugo defectuoso', categoria: 'calidad', areas: ['montaje'] },
+  { id: 'mon_conmutador_defectuoso', label: 'Conmutador defectuoso', categoria: 'calidad', areas: ['montaje'] },
   { id: 'mon_modif_materiales', label: 'Modificacion de materiales / insumos recibidos', categoria: 'calidad', areas: ['montaje'] },
   { id: 'mon_solucionando_retrabajo', label: 'Solucionando retrabajo', categoria: 'calidad', areas: ['montaje'] , esRetrabajo: true },
   { id: 'mon_pintaron_prensayugo', label: 'Pintaron prensayugo en el sector', categoria: 'otra', areas: ['montaje'] },
@@ -1237,6 +1244,9 @@ export const CAUSAS_LOGISTICA = new Set<CausaParada>([
   // espera un insumo, y a Giuliano le llegaria un pedido que no puede resolver.
   'mon_espera_aceite',
   'mon_insumos_defectuosos', 'mon_modif_materiales', 'mon_espera_consumibles',
+  // v1.99: las tres que reemplazan a 'mon_insumos_defectuosos'. Siguen pidiendo
+  // material al pañol: si la pieza vino fallada, hace falta el repuesto.
+  'mon_chapa_nucleo_defectuosa', 'mon_prensayugo_defectuoso', 'mon_conmutador_defectuoso',
   // Herreria
   'her_espera_cuba', 'her_espera_materiales', 'her_falta_tapa',
   'her_espera_consumibles', 'her_espera_materia_prima', 'her_espera_gas',

@@ -270,7 +270,7 @@ button { font-family: inherit; cursor: pointer; border: none; }
 
 /* Indicador principal de Seguridad en la portada SGO. */
 .sgo-dias-grid {
-  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px;
   margin: 0 0 16px;
 }
 .sgo-dias-cartel {
