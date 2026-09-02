@@ -255,6 +255,30 @@ export interface MetricasTarea {
   sinJustificar: number
   /** Almuerzo y pausas programadas, fusionadas. Informativo. */
   noProductivo: number
+
+  // ----------------------------------------------------------------
+  // v2.01 — DESCOMPOSICION PARA QUE LOS TOTALES CIERREN.
+  //
+  // El problema que resuelven: sumar las 5 metricas de arriba NO balancea, y
+  // no por un error de codigo sino por dos decisiones de definicion:
+  //   (a) `demorado` esta clampeado en 0, asi que una tarea terminada ANTES del
+  //       estandar aporta 0 al demorado pero negativo a (Real - Estimado);
+  //   (b) `justificada` NO es una parte de `demorado`: es la suma real de
+  //       paradas, medida aparte. Si el operario se paso 1 h pero cargo 3 h de
+  //       paradas legitimas, justificada + sinJustificar = 3 != demorado = 1.
+  //
+  // Estos tres campos parten esos dos numeros en sus componentes. NO cambian
+  // ningun valor: solo los hacen sumables. Con ellos valen SIEMPRE:
+  //   demorado  - adelanto  === real - estimado
+  //   aplicada  + sinJustificar === demorado
+  //   aplicada  + excedente === justificada
+  // ----------------------------------------------------------------
+  /** MAX(0, estimado − real). Lo que se ganó cuando la tarea salió antes. */
+  adelanto: number
+  /** MIN(justificada, demorado). La parte de lo justificado que tapa el exceso. */
+  justificadaAplicada: number
+  /** MAX(0, justificada − demorado). Justificó MÁS de lo que se pasó. */
+  justificadaExcedente: number
 }
 
 /**
@@ -265,24 +289,32 @@ export function metricasTarea(t: Tarea, hastaISO?: string): MetricasTarea {
   const estimado = tiempoEstimadoMin(t)
   const vacio: MetricasTarea = {
     estimado, real: 0, demorado: 0, justificada: 0, sinJustificar: 0, noProductivo: 0,
+    adelanto: Math.max(0, estimado), justificadaAplicada: 0, justificadaExcedente: 0,
   }
   const fin = hastaISO ?? t.finReal
   if (!t.inicioReal || !fin) return vacio
 
-  const real = tiempoRealHasta(t, fin)
-  const justificada = minutosParada(t, fin)
-  const noProductivo = minutosNoProductivos(t, fin)
+  // v2.01: se REDONDEA PRIMERO y todo lo demas se deriva de los enteros. Antes
+  // cada campo se redondeaba por separado y las identidades se iban 1 minuto
+  // por tarea; con 200 tareas en pantalla eso son 3 horas de descuadre.
+  const real = Math.round(tiempoRealHasta(t, fin))
+  const justificada = Math.round(minutosParada(t, fin))
+  const noProductivo = Math.round(minutosNoProductivos(t, fin))
   const demorado = Math.max(0, real - estimado)
+  const adelanto = Math.max(0, estimado - real)
   // Las reparaciones no penalizan: son trabajo no productivo por definición.
-  const sinJustificar = esReparacion(t) ? 0 : Math.max(0, Math.round(demorado - justificada))
+  const sinJustificar = esReparacion(t) ? 0 : Math.max(0, demorado - justificada)
+  // Se despeja de sinJustificar (en vez de MIN(justificada, demorado)) para que
+  // `aplicada + sinJustificar === demorado` valga TAMBIEN en las reparaciones,
+  // donde sinJustificar se fuerza a 0. Contrapartida: en una reparacion
+  // `aplicada + excedente` puede no dar `justificada`. No afecta a la tabla de
+  // detalle, que excluye las reparaciones.
+  const justificadaAplicada = Math.max(0, demorado - sinJustificar)
+  const justificadaExcedente = Math.max(0, justificada - justificadaAplicada)
 
   return {
-    estimado,
-    real: Math.round(real),
-    demorado: Math.round(demorado),
-    justificada: Math.round(justificada),
-    sinJustificar,
-    noProductivo: Math.round(noProductivo),
+    estimado, real, demorado, justificada, sinJustificar, noProductivo,
+    adelanto, justificadaAplicada, justificadaExcedente,
   }
 }
 

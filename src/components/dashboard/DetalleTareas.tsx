@@ -4,10 +4,9 @@ import type { Tarea } from '../../types'
 import { esReparacion, nombreSemielaborado, causaLabel } from '../../types'
 import { componentePorCodigo } from '../../data/catalogo'
 import { fmtDur, hhmm, fechaCorta } from '../../lib/time'
-import {
-  tiempoEstimadoMin, tiempoRealMin, totalDemoradoMin, demoraSinJustificarMin,
-  desglosePausas,
-} from '../../lib/kpi'
+import { metricasTarea, desglosePausas } from '../../lib/kpi'
+import { auditarTiempos } from '../../lib/auditoriaTiempos'
+import TimeBalanceAlert from './TimeBalanceAlert'
 import { exportarDetalleTareasCSV } from '../../lib/export'
 import { db } from '../../db/dexie'
 import { useAuth } from '../../auth/AuthContext'
@@ -30,6 +29,9 @@ export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina }:
   const eventosSGO = useLiveQuery(() => db.eventosSGO.toArray(), []) ?? []
   const [q, setQ] = useState('')
   const [soloDemora, setSoloDemora] = useState(false)
+  // v2.01: cuando el banner auditor encuentra tareas con datos sospechosos,
+  // guarda acá sus ids para poder dejar la tabla solo con ellas.
+  const [idsAuditoria, setIdsAuditoria] = useState<string[] | null>(null)
   const [creandoNC, setCreandoNC] = useState<string>()
   // v1.91: parada de calidad que se está por descartar + el motivo tipeado.
   const [descartando, setDescartando] = useState<{ t: Tarea; paradaId: string; label: string } | null>(null)
@@ -74,6 +76,11 @@ export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina }:
     return fin.map((t) => {
       const comp = componentePorCodigo(t.componenteCodigo)
       const nombre = nombreSemielaborado(t, comp?.descripcion)
+      // v2.01: UNA sola llamada a metricasTarea por tarea. Antes esta fila
+      // recalculaba el demorado por su cuenta (`Real - Estimado`) y llamaba tres
+      // veces a las funciones de kpi; con eso ya habia dos versiones de la misma
+      // cuenta conviviendo, que es exactamente como empiezan los descuadres.
+      const m = metricasTarea(t)
       return {
         t,
         id: t.id,
@@ -81,21 +88,33 @@ export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina }:
         nro: t.nroTransformador ?? '',
         operario: t.operarioId ? nombreOperario(t.operarioId) : '—',
         maquina: nombreMaquina(t.maquinaId),
-        estimado: tiempoEstimadoMin(t),
-        real: tiempoRealMin(t),
-        demorado: Math.max(0, tiempoRealMin(t) - tiempoEstimadoMin(t)), // exceso total sobre estandar
-        justificada: totalDemoradoMin(t),                               // suma de paradas registradas
-        sinJust: demoraSinJustificarMin(t),                             // = Demorado - justificada
+        estimado: m.estimado,
+        real: m.real,
+        demorado: m.demorado,          // exceso sobre el estandar (0 si salio antes)
+        justificada: m.justificada,    // suma de paradas registradas
+        sinJust: m.sinJustificar,      // = demorado - justificada (0 si justifico todo)
+        adelanto: m.adelanto,          // lo que se gano cuando salio antes
+        aplicada: m.justificadaAplicada,
+        excedente: m.justificadaExcedente,
       }
     })
       .filter((r) => !txt || `${r.nombre} ${r.nro} ${r.operario} ${r.maquina}`.toLowerCase().includes(txt))
       .filter((r) => !soloDemora || r.sinJust > 0)
+      .filter((r) => !idsAuditoria || idsAuditoria.includes(r.id))
       .sort((a, b) => b.sinJust - a.sinJust)
-  }, [tareas, q, soloDemora, nombreOperario, nombreMaquina])
+  }, [tareas, q, soloDemora, idsAuditoria, nombreOperario, nombreMaquina])
 
   // v1.44: TOTALES del acumulado. Se calculan SOLO sobre las filas que están
   // efectivamente en pantalla (ya filtradas por el buscador y el check de demora),
   // así al tipear el nombre de un colaborador se ve al instante su acumulado.
+  // v2.01: se suman TAMBIÉN los tres componentes de la descomposición, porque
+  // sin ellos las tarjetas no balancean. No es un error de acumulación: es que
+  // `demorado` está clampeado en 0 (una tarea que sale antes del estándar aporta
+  // 0 y no un negativo) y que `justificada` no es una parte de `demorado` sino
+  // una medición aparte. Con adelanto/aplicada/excedente, valen siempre:
+  //     demorado − adelanto  = real − estimado
+  //     aplicada + sinJust   = demorado
+  //     aplicada + excedente = justificada
   const tot = useMemo(() => {
     const suma = (f: (r: (typeof filas)[number]) => number) => filas.reduce((a, r) => a + f(r), 0)
     const estimado = suma((r) => r.estimado)
@@ -103,8 +122,12 @@ export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina }:
     const demorado = suma((r) => r.demorado)
     const justificada = suma((r) => r.justificada)
     const sinJust = suma((r) => r.sinJust)
+    const adelanto = suma((r) => r.adelanto)
+    const aplicada = suma((r) => r.aplicada)
+    const excedente = suma((r) => r.excedente)
     return {
       n: filas.length, estimado, real, demorado, justificada, sinJust,
+      adelanto, aplicada, excedente,
       // % de exceso sobre lo estimado (cuánto se pasó del estándar en conjunto).
       desvioPct: estimado > 0 ? Math.round((demorado / estimado) * 100) : 0,
       // De todo lo que se demoró, cuánto quedó SIN justificar.
@@ -112,8 +135,14 @@ export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina }:
     }
   }, [filas])
 
+  // v2.01: auditoría del conjunto que se está viendo (no de toda la base).
+  const auditoria = useMemo(
+    () => auditarTiempos(filas.map((r) => r.t), tot),
+    [filas, tot],
+  )
+
   // ¿Hay algún filtro activo? Sirve para aclarar que el total es del subconjunto.
-  const filtrado = q.trim().length > 0 || soloDemora
+  const filtrado = q.trim().length > 0 || soloDemora || idsAuditoria !== null
 
   return (
     <div className="card" style={{ overflowX: 'auto' }}>
@@ -135,9 +164,19 @@ export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina }:
       {/* v1.44: acumulado de lo que se ve en pantalla (responde al buscador). */}
       {filas.length > 0 && (
         <div className="tot-wrap">
+          {/* v2.01: el auditor va ARRIBA de los totales, no abajo: la idea es
+              que el planificador sepa si puede confiar en los números ANTES de
+              leerlos. */}
+          <TimeBalanceAlert auditoria={auditoria} onFiltrar={(ids) => { setIdsAuditoria(ids); setQ(''); setSoloDemora(false) }} />
+
           <div className="tot-cab">
             Σ Acumulado{filtrado ? ' del filtro actual' : ''} · <strong>{tot.n}</strong> tarea(s)
             {q.trim() && <> · <strong style={{ color: 'var(--azul-claro)' }}>“{q.trim()}”</strong></>}
+            {idsAuditoria && (
+              <> · <strong style={{ color: 'var(--naranja)' }}>solo observadas</strong>
+                {' '}<button className="ba-link" onClick={() => setIdsAuditoria(null)}>quitar filtro</button>
+              </>
+            )}
           </div>
           <div className="tot-cards">
             <div className="tot-card">
@@ -147,15 +186,27 @@ export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina }:
             <div className="tot-card">
               <div className="l">Real</div>
               <div className="n">{fmtDur(tot.real)}</div>
+              <div className="s">{tot.real >= tot.estimado ? '+' : '−'}{fmtDur(Math.abs(tot.real - tot.estimado))} vs estimado</div>
             </div>
             <div className="tot-card">
               <div className="l">Demorado</div>
               <div className="n" style={{ color: 'var(--naranja)' }}>{tot.demorado > 0 ? fmtDur(tot.demorado) : '—'}</div>
               {tot.estimado > 0 && <div className="s">+{tot.desvioPct}% sobre estimado</div>}
+              {/* Sin esta línea, Real − Estimado nunca coincide con Demorado:
+                  las tareas que salieron antes del estándar están acá. */}
+              <div className="sub-desc" title="Tiempo ganado en las tareas que terminaron antes del estándar. Demorado − Adelanto = Real − Estimado.">
+                Adelanto <b>{tot.adelanto > 0 ? fmtDur(tot.adelanto) : '—'}</b>
+              </div>
             </div>
             <div className="tot-card">
               <div className="l">Demora justif.</div>
               <div className="n">{tot.justificada > 0 ? fmtDur(tot.justificada) : '—'}</div>
+              <div className="s">{tot.aplicada > 0 ? `${fmtDur(tot.aplicada)} aplicada al exceso` : 'nada aplicada al exceso'}</div>
+              {/* El excedente es lo que el operario justificó DE MÁS: paradas
+                  válidas en tareas que igual terminaron dentro del estándar. */}
+              <div className="sub-desc" title="Paradas justificadas en tareas que igual cerraron dentro del estándar. No tapan ningún exceso, por eso no entran en el Demorado.">
+                Excedente <b>{tot.excedente > 0 ? fmtDur(tot.excedente) : '—'}</b>
+              </div>
             </div>
             <div className="tot-card destacada">
               <div className="l">Demora s/just.</div>

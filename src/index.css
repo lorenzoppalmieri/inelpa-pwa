@@ -751,6 +751,26 @@ button.logi-kpi, button.card { color: inherit; font: inherit; }
 .tot-card .l { font-size: .72rem; color: var(--texto-tenue); text-transform: uppercase; letter-spacing: .3px; }
 .tot-card .n { font-size: 1.25rem; font-weight: 800; margin-top: 2px; font-variant-numeric: tabular-nums; }
 .tot-card .s { font-size: .7rem; color: var(--texto-tenue); margin-top: 2px; }
+/* v2.01: sub-linea de descomposicion (Adelanto / Justif. excedente). Va dentro
+   de la tarjeta y no como tarjeta nueva: 7 tarjetas no entran en tablet. */
+.tot-card .sub-desc { font-size: .7rem; color: var(--texto-tenue); margin-top: 4px; padding-top: 4px; border-top: 1px dashed var(--borde); }
+.tot-card .sub-desc b { color: var(--texto); font-variant-numeric: tabular-nums; }
+
+/* ---------- v2.01: BANNER AUDITOR DE TIEMPOS ---------- */
+.balance-alert { border-radius: 10px; padding: 9px 12px; margin-bottom: 10px; font-size: .82rem; border: 1px solid transparent; }
+/* Verde DISCRETO a proposito: si grita cuando todo esta bien, en dos semanas
+   nadie lo mira y el rojo tampoco se ve. */
+.balance-alert.ok { background: color-mix(in srgb, var(--estado-fin) 10%, transparent); border-color: color-mix(in srgb, var(--estado-fin) 35%, transparent); color: var(--texto-tenue); display: flex; align-items: center; gap: 8px; }
+.balance-alert.ok .ba-ico { color: var(--estado-fin); font-weight: 900; }
+.balance-alert.warn { background: color-mix(in srgb, var(--naranja) 14%, transparent); border-color: var(--naranja); color: var(--texto); }
+.balance-alert .ba-linea { display: flex; align-items: flex-start; gap: 8px; flex-wrap: wrap; }
+.balance-alert.warn .ba-ico { color: var(--naranja); font-weight: 900; font-size: 1rem; line-height: 1.2; }
+.balance-alert .ba-txt { flex: 1; min-width: 200px; line-height: 1.45; }
+.balance-alert .ba-link { background: none; border: none; color: var(--azul-claro); cursor: pointer; font-size: .8rem; font-weight: 700; padding: 0; text-decoration: underline; white-space: nowrap; }
+.balance-alert .ba-detalle { margin-top: 10px; padding-top: 10px; border-top: 1px solid color-mix(in srgb, var(--naranja) 40%, transparent); display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.balance-alert .ba-grupo-cab { font-size: .8rem; margin-bottom: 3px; }
+.balance-alert .ba-lista { margin: 0; padding-left: 18px; color: var(--texto-tenue); font-size: .78rem; line-height: 1.5; }
+.balance-alert .ba-mas { font-style: italic; }
 
 /* ---------- DIRECCION (tablero ejecutivo, solo lorenzo) ---------- */
 .dir-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
