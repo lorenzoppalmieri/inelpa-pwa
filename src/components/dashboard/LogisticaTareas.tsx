@@ -516,8 +516,11 @@ export default function LogisticaTareas({
               <h3><span className={'prio-chip prio-' + t.prioridad}>{PRIO_LABEL[t.prioridad]}</span> {t.titulo}</h3>
               <div className="meta">
                 {respTxt(t)} · Pedida {fechaCorta(t.creada)} {hhmm(t.creada)} · <strong style={{ color: 'var(--naranja)' }}>hace {fmtDur(minutosEsperaLog(t, ahoraISO))}</strong>
-                {t.detalle ? <> · {t.detalle}</> : null}
               </div>
+              {/* v1.81: el detalle sale de la línea de metadatos y va en su
+                  propio bloque, para poder respetar saltos de línea y espacios
+                  (Giuliano pega tablas acá). Ver `.texto-libre` en index.css. */}
+              {t.detalle ? <div className="meta texto-libre">{t.detalle}</div> : null}
               {t.fechaProgramada && (
                 <div className="meta" style={{ marginTop: 4 }}>
                   🗓 Programada para: <strong style={{ color: disponible ? 'var(--estado-fin)' : 'var(--naranja)' }}>{fmtFechaProg(t.fechaProgramada)}</strong>
@@ -555,8 +558,8 @@ export default function LogisticaTareas({
                 {respTxt(t)} · Iniciada {t.iniciada ? `${fechaCorta(t.iniciada)} ${hhmm(t.iniciada)}` : '—'} · <strong style={{ color: 'var(--naranja)' }}>activa {fmtDur(minsActivos(t))}</strong>
                 {detenida ? <> · <strong style={{ color: 'var(--rojo)' }}>{bloqueada ? 'bloqueada' : 'en pausa'} hace {fmtDur(minutosLaboralesLogistica(t.pausadaEn ?? ahoraISO, ahoraISO))}</strong></>
                   : (t.minutosPausada ? <> · pausas: {fmtDur(t.minutosPausada)}</> : null)}
-                {t.detalle ? <> · {t.detalle}</> : null}
               </div>
+              {t.detalle ? <div className="meta texto-libre">{t.detalle}</div> : null}
               {bloqueada && t.bloqueoMotivo && (
                 <div className="meta" style={{ marginTop: 4, color: 'var(--rojo)' }}>⛔ Bloqueada: <strong>{t.bloqueoMotivo}</strong></div>
               )}
@@ -597,9 +600,10 @@ export default function LogisticaTareas({
             <div>
               <h3><span className={'prio-chip prio-' + t.prioridad}>{PRIO_LABEL[t.prioridad]}</span> {t.titulo}</h3>
               <div className="meta">
-                {respTxt(t)} · Pedida {fechaCorta(t.creada)} {hhmm(t.creada)} · Finalizada {t.finalizada ? `${fechaCorta(t.finalizada)} ${hhmm(t.finalizada)}` : '—'} · <strong style={{ color: 'var(--estado-fin)' }}>resuelta en {fmtDur(minsActivos(t))}</strong>{t.estimadoMin ? <> · estimado {fmtDur(t.estimadoMin)}</> : null}{t.minutosPausada ? <> · pausas: {fmtDur(t.minutosPausada)}</> : null}{t.detalle ? <> · {t.detalle}</> : null}
+                {respTxt(t)} · Pedida {fechaCorta(t.creada)} {hhmm(t.creada)} · Finalizada {t.finalizada ? `${fechaCorta(t.finalizada)} ${hhmm(t.finalizada)}` : '—'} · <strong style={{ color: 'var(--estado-fin)' }}>resuelta en {fmtDur(minsActivos(t))}</strong>{t.estimadoMin ? <> · estimado {fmtDur(t.estimadoMin)}</> : null}{t.minutosPausada ? <> · pausas: {fmtDur(t.minutosPausada)}</> : null}
               </div>
-              {t.notaCierre && <div className="meta" style={{ marginTop: 4, fontStyle: 'italic' }}>📝 {t.notaCierre}</div>}
+              {t.detalle ? <div className="meta texto-libre">{t.detalle}</div> : null}
+              {t.notaCierre && <div className="meta texto-libre" style={{ fontStyle: 'italic' }}>📝 {t.notaCierre}</div>}
             </div>
             <span className="estado-chip e-finalizado">Finalizada</span>
           </div>

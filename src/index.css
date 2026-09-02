@@ -251,6 +251,24 @@ button { font-family: inherit; cursor: pointer; border: none; }
 .meta { color: var(--texto-tenue); font-size: .85rem; line-height: 1.5; }
 .meta strong { color: var(--texto); }
 
+/* v1.81 — TEXTO LIBRE ESCRITO POR EL USUARIO (detalle de una tarea, nota de
+   cierre). Giuliano pega tablas en el detalle con espacios y Enter, y el HTML
+   los colapsaba: quedaba todo en un renglón.
+   · pre-wrap  = respeta saltos de línea y espacios seguidos, pero SÍ hace wrap
+                 al llegar al borde (a diferencia de `pre`, que desborda).
+   · overflow-wrap: anywhere = una fila larguísima sin espacios (un código, una
+                 URL) se corta en vez de estirar la tarjeta y romper el layout.
+   · tabular-nums = los dígitos ocupan lo mismo, así una tabla pegada queda
+                 alineada sin necesidad de fuente monoespaciada.
+   NO se usa <pre> a propósito: traería fuente monoespaciada y márgenes propios
+   que no pegan con el resto de las tarjetas. */
+.texto-libre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+  margin-top: 4px;
+}
+
 /* Tarjetas clickeables del listado SGO: los botones no deben heredar texto negro del navegador. */
 .sgo-evento-card {
   appearance: none; color: var(--texto); font: inherit;
