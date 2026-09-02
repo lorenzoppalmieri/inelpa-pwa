@@ -1,5 +1,5 @@
 import type { Tarea } from '../../types'
-import { calcularOEE, desviosPorModelo, eficienciaPorOperario, pct } from '../../lib/kpi'
+import { calcularOEE, desviosPorModelo, eficienciaPorOperario, excedeTolerancia, pct } from '../../lib/kpi'
 import { fmtDur } from '../../lib/time'
 import ParetoDemoras from './ParetoDemoras'
 import EstimadoVsRealizado from './EstimadoVsRealizado'
@@ -50,26 +50,37 @@ export default function KpiPanel({ tareas, nombreOperario, nombreMaquina }: {
       <div className="section-title">Tiempo estimado vs realizado</div>
       <EstimadoVsRealizado tareas={tareas} nombreMaquina={nombreMaquina} />
 
-      {/* Real vs Estandar por modelo */}
-      <div className="section-title">Tiempos reales vs estandar por modelo</div>
+      {/* Neto vs Estandar por modelo.
+          v2.00: la barra graficaba el Real CRUDO (con las esperas ya justificadas
+          adentro) y por eso mostraba +495%. Ahora grafica el NETO. */}
+      <div className="section-title">Tiempo neto vs estandar por modelo</div>
       <div className="card">
-        {desvios.length === 0 ? <div className="empty">Sin tareas finalizadas aun.</div> : desvios.map((d) => (
-          <div key={d.modelo} className="pareto-row">
-            <div className="pareto-lbl">{d.modelo}<div className="sub meta">{d.n} u.</div></div>
-            <div className="pareto-bar-wrap">
-              <div className="pareto-bar" style={{
-                width: `${Math.min(100, (d.realNeto / Math.max(d.estandar, d.realNeto)) * 100)}%`,
-                background: d.desvioPct > 0.1 ? 'var(--rojo)' : 'var(--estado-fin)',
-                color: '#fff',
-              }}>
-                real {fmtDur(d.realNeto)} vs est {fmtDur(d.estandar)}
+        {desvios.length === 0 ? <div className="empty">Sin tareas finalizadas aun.</div> : desvios.map((d) => {
+          const sobre = excedeTolerancia(d.neto, d.estandar)
+          const detalle =
+            `${d.modelo} · ${d.n} u.\n` +
+            `Tiempo Real crudo: ${fmtDur(d.real)}\n` +
+            `Demoras justificadas: ${fmtDur(d.justificada)}\n` +
+            `Tiempo Neto: ${fmtDur(d.neto)}\n` +
+            `Estimado: ${fmtDur(d.estandar)}`
+          return (
+            <div key={d.modelo} className="pareto-row" title={detalle}>
+              <div className="pareto-lbl">{d.modelo}<div className="sub meta">{d.n} u.</div></div>
+              <div className="pareto-bar-wrap">
+                <div className="pareto-bar" style={{
+                  width: `${Math.min(100, (d.neto / Math.max(1, d.estandar, d.neto)) * 100)}%`,
+                  background: sobre ? 'var(--rojo)' : 'var(--estado-fin)',
+                  color: '#fff',
+                }}>
+                  neto {fmtDur(d.neto)} vs est {fmtDur(d.estandar)}
+                </div>
+              </div>
+              <div style={{ width: 70, textAlign: 'right', fontWeight: 800, color: sobre ? 'var(--rojo)' : 'var(--estado-fin)' }}>
+                {d.desvioPct > 0 ? '+' : ''}{(d.desvioPct * 100).toFixed(0)}%
               </div>
             </div>
-            <div style={{ width: 70, textAlign: 'right', fontWeight: 800, color: d.desvioPct > 0 ? 'var(--rojo)' : 'var(--estado-fin)' }}>
-              {d.desvioPct > 0 ? '+' : ''}{(d.desvioPct * 100).toFixed(0)}%
-            </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       {/* v1.16: detalle por tarea con las 5 metricas canonicas (filtrable). */}

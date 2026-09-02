@@ -328,33 +328,66 @@ export function calcularOEE(tareas: Tarea[]): OEE {
   return { disponibilidad, rendimiento, calidad, oee: disponibilidad * rendimiento * calidad }
 }
 
+// v2.00 — Tolerancia unica de desvio para TODOS los graficos de estimado vs neto.
+// Sin ella, un desvio de 3 minutos sobre un estandar de 8 horas pintaba una
+// maquina de rojo. Vive aca (y no en cada componente) para que los dos graficos
+// no puedan volver a usar umbrales distintos, como pasaba antes.
+export const TOLERANCIA_DESVIO = 0.10
+
+/** true = el neto se paso del estandar MAS ALLA de la tolerancia -> rojo. */
+export function excedeTolerancia(neto: number, estimado: number): boolean {
+  return estimado > 0 ? neto > estimado * (1 + TOLERANCIA_DESVIO) : neto > 0
+}
+
 export interface DesvioModelo {
   modelo: string
   estandar: number
-  realNeto: number
-  desvioPct: number // (real-estandar)/estandar
+  /** Tiempo Real crudo (laborable, sin almuerzo). Informativo / tooltip. */
+  real: number
+  /** Suma de paradas justificadas (fusionadas, sin los tramos del almuerzo). */
+  justificada: number
+  /** Tiempo Neto = real - justificada. Es contra esto que se mide el desvio. */
+  neto: number
+  /** (neto - estandar) / estandar. v2.00: antes usaba el Real crudo. */
+  desvioPct: number
   n: number
 }
 
-// Real vs estandar agrupado por modelo de transformador.
+// Neto vs estandar agrupado por modelo de transformador.
+//
+// v2.00 — ANTES esto comparaba el Tiempo Real CRUDO contra el estandar, y por
+// eso mostraba desvios de +495%: el Real incluye las horas que el operario ya
+// justifico (falta de insumos, corte de luz, espera de puente grua). El grafico
+// terminaba castigando al operario por esperas que no dependian de el.
+// Ahora se mide contra el NETO (real - justificada), que es el trabajo efectivo.
+// La justificada sale de minutosParada(), que fusiona intervalos superpuestos y
+// le da prioridad al almuerzo: los numeros coinciden por construccion con la
+// tabla "Detalle por tarea" y con el Gantt.
 export function desviosPorModelo(tareas: Tarea[]): DesvioModelo[] {
   const fin = tareas.filter((t) => t.estado === 'finalizada' && t.inicioReal && t.finReal && !esReparacion(t))
-  const map = new Map<string, { est: number; real: number; n: number }>()
+  const map = new Map<string, { est: number; real: number; just: number; n: number }>()
   for (const t of fin) {
     const k = t.modelo
-    const cur = map.get(k) ?? { est: 0, real: 0, n: 0 }
-    cur.est += t.tiempoEstandarMin
-    cur.real += tiempoRealMin(t) // v1.16: Tiempo Real (no Neto), segun definicion de direccion
+    const m = metricasTarea(t) // fuente unica de la cuenta
+    const cur = map.get(k) ?? { est: 0, real: 0, just: 0, n: 0 }
+    cur.est += m.estimado
+    cur.real += m.real
+    cur.just += m.justificada
     cur.n++
     map.set(k, cur)
   }
-  return [...map.entries()].map(([modelo, v]) => ({
-    modelo,
-    estandar: v.est,
-    realNeto: v.real,
-    desvioPct: v.est > 0 ? (v.real - v.est) / v.est : 0,
-    n: v.n,
-  })).sort((a, b) => b.desvioPct - a.desvioPct)
+  return [...map.entries()].map(([modelo, v]) => {
+    const neto = Math.max(0, v.real - v.just)
+    return {
+      modelo,
+      estandar: v.est,
+      real: v.real,
+      justificada: v.just,
+      neto,
+      desvioPct: v.est > 0 ? (neto - v.est) / v.est : 0,
+      n: v.n,
+    }
+  }).sort((a, b) => b.desvioPct - a.desvioPct)
 }
 
 export interface ParetoItem {
