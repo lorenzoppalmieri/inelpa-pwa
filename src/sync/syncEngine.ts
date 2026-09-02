@@ -878,6 +878,16 @@ export async function guardarTarea(t: Tarea): Promise<void> {
   await encolar({ entidad: 'tarea', entidadId: t.id, tipo: 'upsert', payload: t })
 }
 
+/** Actualiza solo una parada y su copia embebida local, sin reescribir la tarea completa en Supabase. */
+export async function guardarDecisionParadaCalidad(p: Parada): Promise<void> {
+  await db.transaction('rw', db.tareas, async () => {
+    const tarea = await db.tareas.get(p.tareaId)
+    if (!tarea) throw new Error('No se encontró la tarea productiva vinculada a la parada.')
+    await db.tareas.put({ ...tarea, paradas: tarea.paradas.map((item) => item.id === p.id ? p : item) })
+  })
+  await encolar({ entidad: 'parada', entidadId: p.id, tipo: 'upsert', payload: p })
+}
+
 // Borra una tarea planificada (aun NO iniciada). Quita de Dexie y encola el
 // delete contra Supabase. La validacion de "no iniciada" la hace quien llama.
 export async function eliminarTarea(t: Tarea): Promise<void> {

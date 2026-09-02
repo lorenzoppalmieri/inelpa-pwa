@@ -21,6 +21,7 @@ import {
   type PrioridadMejoraSGO, type SeveridadSGO,
 } from '../../sgo/types'
 import RetrabajosSGOView from './RetrabajosSGOView'
+import { esEventoRetrabajo } from '../../sgo/retrabajos'
 
 type VistaMejoras = 'seguimiento' | 'retrabajos' | 'resultados' | 'tablero'
 
@@ -60,7 +61,7 @@ export default function MejorasSGOView({ usuario, onOpenEvento, registroInicialI
   }, [registroInicialId, vistaInicial, eventos, onRegistroInicialConsumido])
   const hoy = fechaHoyISO()
   const registros = useMemo(() => eventos.filter((evento) => Boolean(evento.mejora)), [eventos])
-  const retrabajosPendientes = eventos.filter((evento) => evento.retrabajo && evento.estado !== 'cerrado').length
+  const retrabajosPendientes = eventos.filter((evento) => esEventoRetrabajo(evento) && evento.estado !== 'cerrado').length
   const accionesDe = (id: string) => acciones.filter((accion) => accion.eventoId === id)
   const abiertos = registros.filter((evento) => evento.estado !== 'cerrado')
   const cerrados = registros.filter((evento) => evento.estado === 'cerrado')
@@ -108,7 +109,7 @@ export default function MejorasSGOView({ usuario, onOpenEvento, registroInicialI
     </div>
     <div className="tabs sgo-mejoras-tabs">
       <button className={`tab ${vista === 'seguimiento' ? 'active' : ''}`} onClick={() => setVista('seguimiento')}>Seguimiento activo</button>
-      <button className={`tab ${vista === 'retrabajos' ? 'active' : ''}`} onClick={() => setVista('retrabajos')}>Retrabajos{retrabajosPendientes ? ` (${retrabajosPendientes})` : ''}</button>
+      <button className={`tab ${vista === 'retrabajos' ? 'active' : ''}`} onClick={() => setVista('retrabajos')}>Calidad productiva{retrabajosPendientes ? ` (${retrabajosPendientes} retrabajos)` : ''}</button>
       <button className={`tab ${vista === 'resultados' ? 'active' : ''}`} onClick={() => setVista('resultados')}>Resultados e historial</button>
       <button className={`tab ${vista === 'tablero' ? 'active' : ''}`} onClick={() => setVista('tablero')}>Tablero</button>
     </div>

@@ -3,6 +3,7 @@ import {
   type NivelInvestigacionRetrabajoSGO, type OrigenRetrabajoSGO,
 } from './types'
 import { calcularTiempoNetoProductivo } from '../lib/calendario'
+import { CAUSAS_PARADA, esCausaRetrabajo } from '../types'
 
 export const INICIO_CIRCUITO_RETRABAJOS = '2026-08-19T00:00:00.000-03:00'
 export const RESPONSABLE_INVESTIGACION_RETRABAJO = 'Lara'
@@ -38,7 +39,18 @@ export function crearDatosRetrabajo(origen: OrigenRetrabajoSGO, detectadoEn: str
 }
 
 export function esEventoRetrabajo(evento: EventoSGO): boolean {
-  return Boolean(evento.retrabajo)
+  const datos = evento.retrabajo
+  if (!datos) return false
+  if (datos.origen !== 'parada_calidad') return true
+  if (datos.decisionCalidad === 'descartada' || datos.decisionCalidad === 'pendiente') return false
+  if (datos.decisionCalidad === 'investigar' || datos.tomadoEn) return true
+  if (datos.causaId) return esCausaRetrabajo(datos.causaId)
+  const causa = CAUSAS_PARADA.find((item) => item.label.trim().toLocaleLowerCase('es') === datos.causaRegistrada?.trim().toLocaleLowerCase('es'))
+  return causa?.esRetrabajo === true
+}
+
+export function esParadaCalidadDescartada(evento: EventoSGO): boolean {
+  return evento.retrabajo?.origen === 'parada_calidad' && evento.retrabajo.decisionCalidad === 'descartada'
 }
 
 /**

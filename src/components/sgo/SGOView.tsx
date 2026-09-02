@@ -22,6 +22,7 @@ import { datosMejoraDesdeEvento } from '../../sgo/mejoras'
 import { usuarioEsLorenzo } from '../../sgo/permisos'
 import { construirAutorizacionesSGO, type AutorizacionSGO } from '../../sgo/autorizaciones'
 import { resolverTrazabilidadProductiva, type TrazabilidadProductivaSGO } from '../../sgo/trazabilidad'
+import { esEventoRetrabajo, esParadaCalidadDescartada } from '../../sgo/retrabajos'
 import {
   ID_DIAS_SIN_ACCIDENTES, ID_DIAS_SIN_INCIDENTES, IDS_CONTADORES_SEGURIDAD,
   estadoContadorSeguridad, type TipoContadorSeguridad,
@@ -86,25 +87,26 @@ export default function SGOView() {
   // mismo componente en los dos lados: si fueran dos copias, se desincronizarían.
   const [pestana, setPestana] = useState<'tablero' | 'autorizaciones' | 'mejoras' | 'controles' | 'agenda_iso' | 'tareas_sgo' | 'logistica' | 'cuellos'>('tablero')
   const seleccionado = eventos.find((e) => e.id === seleccionadoId)
+  const eventosGestionables = useMemo(() => eventos.filter((evento) => !esParadaCalidadDescartada(evento)), [eventos])
   const lorenzo = usuarioEsLorenzo(usuario?.usuario ?? '')
   const autorizaciones = useMemo(() => construirAutorizacionesSGO({
-    tareas: tareasSGO, agenda: agendaISO, ejecuciones: ejecucionesControles, eventos, acciones,
-  }), [tareasSGO, agendaISO, ejecucionesControles, eventos, acciones])
+    tareas: tareasSGO, agenda: agendaISO, ejecuciones: ejecucionesControles, eventos: eventosGestionables, acciones,
+  }), [tareasSGO, agendaISO, ejecucionesControles, eventosGestionables, acciones])
   const revisiones5SPendientes = autorizaciones.filter((item) => item.clase === 'revision_5s' && item.estado === 'pendiente').length
 
-  const abiertos = eventos.filter((e) => e.estado !== 'cerrado')
-  const retrabajosPendientes = abiertos.filter((e) => Boolean(e.retrabajo)).length
+  const abiertos = eventosGestionables.filter((e) => e.estado !== 'cerrado')
+  const retrabajosPendientes = abiertos.filter(esEventoRetrabajo).length
   const resumen = useMemo(() => PILARES_SGO.map((p) => ({
     ...p,
     abiertos: abiertos.filter((e) => e.pilar === p.id).length,
     criticos: abiertos.filter((e) => e.pilar === p.id && e.severidad === 'critica').length,
-  })), [eventos])
+  })), [abiertos])
   const vencidas = acciones.filter(vencida).length
   const ajusteDiasSinAccidentes = indicadores.find((i) => i.id === ID_DIAS_SIN_ACCIDENTES)
   const indicadoresResueltos = useMemo(() => resolverKPIAutomaticos(
     aplicarMedicionesIndicadores(indicadores.filter((i) => !IDS_CONTADORES_SEGURIDAD.has(i.id)), mediciones),
-    { tareas, laboratorio, tareasLogistica, eventos, acciones, mediciones },
-  ), [indicadores, mediciones, tareas, laboratorio, tareasLogistica, eventos, acciones])
+    { tareas, laboratorio, tareasLogistica, eventos: eventosGestionables, acciones, mediciones },
+  ), [indicadores, mediciones, tareas, laboratorio, tareasLogistica, eventosGestionables, acciones])
   const abiertosFiltrados = abiertos.filter((e) =>
     (!filtroArea || (e.areaOrigenId ?? e.areaId) === filtroArea) && (!filtroPilar || e.pilar === filtroPilar))
 
@@ -172,7 +174,7 @@ export default function SGOView() {
         </div>
       </div>
 
-      <MatrizSGO eventos={eventos} acciones={acciones} indicadores={indicadoresResueltos} controles={controles} onSelect={(area, pilar) => setCeldaSeleccionada({ area, pilar })} />
+      <MatrizSGO eventos={eventosGestionables} acciones={acciones} indicadores={indicadoresResueltos} controles={controles} onSelect={(area, pilar) => setCeldaSeleccionada({ area, pilar })} />
 
       <div className="card" style={{ marginTop: 18, marginBottom: 10 }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 10 }}>
@@ -227,9 +229,9 @@ export default function SGOView() {
       {configIndicadores && <IndicadoresSGO indicadores={indicadoresResueltos} mediciones={mediciones} usuario={usuario?.usuario ?? 'sin_usuario'} onClose={() => setConfigIndicadores(false)} />}
       {celdaSeleccionada && <FichaCeldaSGO
         areaId={celdaSeleccionada.area} pilarId={celdaSeleccionada.pilar}
-        indicadores={indicadoresResueltos} eventos={eventos} acciones={acciones}
+        indicadores={indicadoresResueltos} eventos={eventosGestionables} acciones={acciones}
         controles={controles}
-        datos={{ tareas, laboratorio, tareasLogistica, eventos, acciones, mediciones }}
+        datos={{ tareas, laboratorio, tareasLogistica, eventos: eventosGestionables, acciones, mediciones }}
         usuario={usuario?.usuario ?? 'sin_usuario'}
         onClose={() => setCeldaSeleccionada(undefined)}
         onFiltrarEventos={() => { setFiltroArea(celdaSeleccionada.area); setFiltroPilar(celdaSeleccionada.pilar); setCeldaSeleccionada(undefined) }}

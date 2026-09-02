@@ -46,6 +46,7 @@ export type OrigenRetrabajoSGO = 'parada_calidad' | 'defecto_final' | 'laborator
 export type ClasificacionCausaRetrabajoSGO = 'persona' | 'metodo' | 'maquina' | 'material' | 'medicion' | 'ambiente' | 'diseno' | 'otro'
 export type ResultadoVerificacionRetrabajoSGO = 'pendiente' | 'eficaz' | 'reincidencia'
 export type NivelInvestigacionRetrabajoSGO = 'simple' | 'con_accion' | 'critica'
+export type DecisionParadaCalidadSGO = 'pendiente' | 'investigar' | 'descartada'
 export type ModalidadCostoRetrabajoSGO = 'sin_costo' | 'total_estimado' | 'detallado'
 export type MaterialCostoRetrabajoSGO = 'ninguno' | 'cobre' | 'aluminio' | 'otro'
 export type EstadoCostoMaquinaSGO = 'no_aplica' | 'pendiente_cotizacion' | 'estimado' | 'confirmado'
@@ -97,9 +98,15 @@ export interface DatosRetrabajoSGO {
   operarioNombre?: string
   sectorNombre?: string
   maquinaNombre?: string
+  causaId?: string
   causaRegistrada?: string
   observacionOrigen?: string
   minutosRetrabajo?: number
+  /** Clasificación realizada en SGO para una parada operativa de Calidad. */
+  decisionCalidad?: DecisionParadaCalidadSGO
+  decisionCalidadEn?: string
+  decisionCalidadPor?: string
+  decisionCalidadMotivo?: string
   procesoOrigen?: string
   procesoDeteccion?: string
   clasificacionCausa?: ClasificacionCausaRetrabajoSGO

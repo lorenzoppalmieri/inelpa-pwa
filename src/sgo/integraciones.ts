@@ -1,5 +1,5 @@
 import { db } from '../db/dexie'
-import { CAUSAS_PARADA, ENSAYOS_LAB, SECTORES, causaLabel, estadoEnsayo, type Parada, type SectorId, type Tarea, type TareaLaboratorio } from '../types'
+import { CAUSAS_PARADA, ENSAYOS_LAB, SECTORES, causaLabel, esCausaRetrabajo, estadoEnsayo, type Parada, type SectorId, type Tarea, type TareaLaboratorio } from '../types'
 import { guardarEventoSGO } from '../sync/syncEngine'
 import { ENSAYO_A_DEFECTO } from './defectos'
 import { crearDatosRetrabajo, INICIO_CIRCUITO_RETRABAJOS, minutosDeParada, RESPONSABLE_INVESTIGACION_RETRABAJO } from './retrabajos'
@@ -69,6 +69,10 @@ const SECTOR_A_AREA: Record<SectorId, AreaSGOId> = {
   laboratorio: 'laboratorio',
 }
 
+export function areaSGODesdeSector(sectorId: SectorId): AreaSGOId | undefined {
+  return SECTOR_A_AREA[sectorId]
+}
+
 const CAUSA_A_DEFECTO: Record<string, string> = {
   taco_defectuoso: 'MON_COMPONENTE', calidad_alambre: 'BOB_CONDUCTOR',
   bobina_bt_defectuosa: 'BOB_DEFORMACION', mon_retrabajo_bobina: 'BOB_DEFORMACION',
@@ -87,6 +91,7 @@ export function paradasCalidad(t: Tarea): Parada[] {
 
 export async function noConformidadDesdeParada(t: Tarea, p: Parada, usuario: string): Promise<{ evento: EventoSGO; creado: boolean }> {
   const ubicacion = await ubicacionDesdeTarea(t)
+  const decisionCalidad = esCausaRetrabajo(p.causa) ? 'investigar' as const : 'pendiente' as const
   const existente = await db.eventosSGO.where('paradaId').equals(p.id).first()
   if (existente) {
     const minutos = minutosDeParada(p.inicio, p.fin)
@@ -99,7 +104,8 @@ export async function noConformidadDesdeParada(t: Tarea, p: Parada, usuario: str
       const actualizado: EventoSGO = {
         ...existente, responsable: RESPONSABLE_INVESTIGACION_RETRABAJO,
         retrabajo: crearDatosRetrabajo('parada_calidad', p.inicio, {
-          ...existente.retrabajo, ...ubicacion, causaRegistrada: causaLabel(p.causa),
+          ...existente.retrabajo, ...ubicacion, causaId: p.causa, causaRegistrada: causaLabel(p.causa),
+          decisionCalidad: existente.retrabajo?.decisionCalidad ?? decisionCalidad,
           observacionOrigen: p.observacion, minutosRetrabajo: minutos,
           procesoOrigen: areaSGOLabel(existente.areaOrigenId ?? existente.areaId),
           procesoDeteccion: areaSGOLabel(existente.areaId),
@@ -125,7 +131,8 @@ export async function noConformidadDesdeParada(t: Tarea, p: Parada, usuario: str
     costoEstimado: 0, detectadoEn: p.inicio, detectadoPor: usuario,
     responsable: RESPONSABLE_INVESTIGACION_RETRABAJO, disposicion: 'pendiente',
     retrabajo: crearDatosRetrabajo('parada_calidad', p.inicio, {
-      ...ubicacion, causaRegistrada: causaLabel(p.causa), observacionOrigen: p.observacion,
+      ...ubicacion, causaId: p.causa, causaRegistrada: causaLabel(p.causa), decisionCalidad,
+      observacionOrigen: p.observacion,
       minutosRetrabajo: minutosDeParada(p.inicio, p.fin), procesoOrigen: areaSGOLabel(area), procesoDeteccion: areaSGOLabel(area),
     }),
     creadoEn: now, actualizadoEn: now,
@@ -183,7 +190,7 @@ export async function conciliarInvestigacionesRetrabajo(usuario: string): Promis
   let creados = 0, actualizados = 0
   const tareas = await db.tareas.toArray()
   for (const tarea of tareas) {
-    for (const parada of paradasCalidad(tarea).filter((item) => item.inicio >= INICIO_CIRCUITO_RETRABAJOS)) {
+    for (const parada of paradasCalidad(tarea).filter((item) => item.inicio >= INICIO_CIRCUITO_RETRABAJOS && esCausaRetrabajo(item.causa) && !item.ncDescartada)) {
       const resultado = await noConformidadDesdeParada(tarea, parada, usuario)
       if (resultado.creado) creados += 1
       else if (resultado.evento.retrabajo) actualizados += 1

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   crearDatosRetrabajo,
+  esEventoRetrabajo,
   estadoInvestigacionRetrabajo,
   nivelInvestigacionRetrabajo,
   semaforoSLAInvestigacion,
@@ -28,6 +29,13 @@ describe('circuito simplificado de investigaciones de retrabajo', () => {
     expect(eventoBase.retrabajo?.asignadoA).toBe('Lara')
     expect(eventoBase.retrabajo?.fechaLimiteToma).toBe('2026-08-20T10:00:00.000Z')
     expect(eventoBase.retrabajo?.fechaLimiteInvestigacion).toBe('2026-08-22T10:00:00.000Z')
+  })
+
+  it('separa una parada de calidad común de un retrabajo explícito', () => {
+    expect(esEventoRetrabajo({ ...eventoBase, retrabajo: { ...eventoBase.retrabajo!, causaId: 'calidad_alambre', causaRegistrada: 'Problemas calidad del alambre o planchuela' } })).toBe(false)
+    expect(esEventoRetrabajo({ ...eventoBase, retrabajo: { ...eventoBase.retrabajo!, causaId: 'retrabajo', causaRegistrada: 'Retrabajo' } })).toBe(true)
+    expect(esEventoRetrabajo({ ...eventoBase, retrabajo: { ...eventoBase.retrabajo!, causaId: 'calidad_alambre', decisionCalidad: 'investigar' } })).toBe(true)
+    expect(esEventoRetrabajo({ ...eventoBase, retrabajo: { ...eventoBase.retrabajo!, causaId: 'retrabajo', decisionCalidad: 'descartada' } })).toBe(false)
   })
 
   it('permite resolver un caso simple sin exigir una acción correctiva', () => {

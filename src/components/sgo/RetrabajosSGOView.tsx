@@ -23,6 +23,7 @@ import {
   type TarifarioCostosRetrabajoSGO,
 } from '../../sgo/types'
 import { guardarAccionSGO, guardarEventoSGO } from '../../sync/syncEngine'
+import ParadasCalidadSGOView from './ParadasCalidadSGOView'
 
 const ORIGEN_LABEL: Record<DatosRetrabajoSGO['origen'], string> = {
   parada_calidad: 'Parada de calidad', defecto_final: 'Defecto al finalizar', laboratorio: 'Rechazo de laboratorio',
@@ -58,6 +59,7 @@ export default function RetrabajosSGOView({ usuario, onOpenEvento, eventoInicial
   const [area, setArea] = useState<AreaSGOId | ''>('')
   const [estado, setEstado] = useState<EstadoInvestigacionRetrabajo | ''>('')
   const [cerrados, setCerrados] = useState(false)
+  const [seccion, setSeccion] = useState<'paradas' | 'retrabajos'>('paradas')
   const [editor, setEditor] = useState<EventoSGO>()
   const puedeInvestigar = usuarioPuedeInvestigarRetrabajo(usuario)
   const ahora = new Date().toISOString()
@@ -72,6 +74,7 @@ export default function RetrabajosSGOView({ usuario, onOpenEvento, eventoInicial
     if (!eventoInicialId) return
     const evento = eventos.find((item) => item.id === eventoInicialId && esEventoRetrabajo(item))
     if (!evento) return
+    setSeccion('retrabajos')
     setCerrados(evento.estado === 'cerrado')
     setEditor(evento)
     onEventoInicialConsumido?.()
@@ -96,6 +99,11 @@ export default function RetrabajosSGOView({ usuario, onOpenEvento, eventoInicial
   }).sort((a, b) => b.detectadoEn.localeCompare(a.detectadoEn))
 
   return <div className="sgo-retrabajos">
+    <div className="tabs sgo-calidad-tabs" role="tablist" aria-label="Calidad productiva">
+      <button className={`tab ${seccion === 'paradas' ? 'active' : ''}`} onClick={() => setSeccion('paradas')}>Paradas de calidad</button>
+      <button className={`tab ${seccion === 'retrabajos' ? 'active' : ''}`} onClick={() => setSeccion('retrabajos')}>Retrabajos ({activos.length})</button>
+    </div>
+    {seccion === 'paradas' ? <ParadasCalidadSGOView usuario={usuario} onInvestigar={(evento) => { setSeccion('retrabajos'); setCerrados(false); setEditor(evento) }} /> : <>
     <div className="card sgo-retrabajos-cabecera"><div><div className="section-title">INVESTIGACIONES DE RETRABAJO</div><div className="meta">Cada retrabajo registrado en producción o laboratorio genera un expediente automático asignado a Lara.</div></div><div className="row-actions"><button className={`btn ${!cerrados ? 'btn-primary' : ''}`} onClick={() => setCerrados(false)}>Activos ({activos.length})</button><button className={`btn ${cerrados ? 'btn-primary' : ''}`} onClick={() => setCerrados(true)}>Historial ({finalizados.length})</button></div></div>
     {!puedeInvestigar && <div className="card sgo-retrabajo-aviso">Vista de seguimiento. La investigación puede ser modificada únicamente por Lara y Lorenzo.</div>}
     <div className="sgo-retrabajos-kpis">
@@ -111,7 +119,8 @@ export default function RetrabajosSGOView({ usuario, onOpenEvento, eventoInicial
       const items = visibles.filter((evento) => columna.estados.includes(estadoInvestigacionRetrabajo(evento, accionesDe(evento.id))))
       return <section className="sgo-retrabajos-columna" key={columna.titulo}><div className="sgo-retrabajos-columna-titulo"><strong>{columna.titulo}</strong><span>{items.length}</span></div><div className="sgo-retrabajos-lista">{items.map((evento) => <RetrabajoCard key={evento.id} evento={evento} acciones={accionesDe(evento.id)} trazabilidad={trazabilidades.get(evento.id)!} ahora={ahora} onOpen={() => setEditor(evento)} />)}{!items.length && <div className="empty">Sin casos</div>}</div></section>
     })}</div>}
-    {editor && <EditorRetrabajo eventoInicial={editor} acciones={accionesDe(editor.id)} trazabilidad={trazabilidades.get(editor.id)!} usuario={usuario} onClose={() => setEditor(undefined)} onOpenEvento={() => { setEditor(undefined); onOpenEvento(editor.id) }} />}
+    </>}
+    {editor && <EditorRetrabajo eventoInicial={editor} acciones={accionesDe(editor.id)} trazabilidad={trazabilidades.get(editor.id) ?? resolverTrazabilidadProductiva(editor, tareas, maquinas, usuariosPlanta)} usuario={usuario} onClose={() => setEditor(undefined)} onOpenEvento={() => { setEditor(undefined); onOpenEvento(editor.id) }} />}
   </div>
 }
 
