@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { TareaLaboratorio, MedicionesEnsayo, MaterialBobina } from '../../types'
 import { MATERIALES, diferenciasConRegistro } from '../../types'
 import { guardarLaboratorio } from '../../sync/syncEngine'
@@ -12,6 +12,7 @@ import {
   type Nominales, type ConfigEnsayo, type Nf, type Arrollamiento, type Conexion,
 } from '../../lib/ensayoPerdidas'
 import Aguja from './Aguja'
+import { subirProtocolo, abrirProtocolo, MAX_PDF_MB } from '../../lib/archivos'
 
 // ============================================================
 // PROTOCOLO DE ENSAYO DE TRANSFORMADOR (v1.83) — RPH 8.6/03 V03
@@ -25,6 +26,21 @@ import Aguja from './Aguja'
 // hace falta ninguna libreria (en este proyecto no hay ninguna de xlsx, y no se
 // pueden agregar dependencias). El PDF resultante es el que despues se adjunta
 // para liberar el trafo a Despacho (ver v1.47).
+//
+// v1.102 — POR QUE EL PDF NO SE GENERA SOLO.
+//
+// El navegador no puede fabricar un PDF por su cuenta: `window.print()` abre el
+// dialogo del sistema y el usuario elige "Guardar como PDF". Esos bytes nunca
+// pasan por JavaScript, asi que no hay forma de agarrarlos y subirlos al bucket.
+// Generarlo desde el codigo pediria una libreria (jsPDF) o un servidor, y ademas
+// dejaria de ser el formulario oficial: lo que se imprime hoy es el HTML ya
+// maquetado, o sea el RPH 8.6/03 V03 tal cual, con texto real y seleccionable.
+//
+// Entonces el paso manual se conserva, pero se le sacan las piedras del camino:
+//   1. Antes de imprimir se le pone al documento el nombre del archivo, porque
+//      Chrome usa `document.title` como nombre por defecto al guardar el PDF.
+//   2. Al volver de imprimir aparece acá mismo el boton para adjuntarlo, sin
+//      tener que cerrar la planilla y buscar la seccion en la ficha.
 // ============================================================
 
 const T_REF = 75
@@ -110,6 +126,70 @@ export default function ProtocoloEnsayo({ tarea, soloLectura = false, onCerrar }
   const [conmut, setConmut] = useState(c0?.conmutacion ?? '')
   const [grupo, setGrupo] = useState(c0?.grupoConexion ?? 'Dyn11')
   const [arroll, setArroll] = useState(c0?.arrollamientos ?? 'DOS')
+
+  // ---------- v1.102: exportar e inmediatamente adjuntar ----------
+  // Va DESPUES de la cabecera a proposito: `nombreSugerido` usa `nroFab`, y una
+  // const de arriba no puede leerse antes de declararse (zona muerta temporal).
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [subiendo, setSubiendo] = useState(false)
+  const [errPdf, setErrPdf] = useState('')
+  // Se enciende al volver de imprimir: es el momento en que el laboratorista
+  // TIENE el archivo recien guardado y todavia se acuerda de donde lo puso.
+  const [volvioDeImprimir, setVolvioDeImprimir] = useState(false)
+
+  /** Referencia con la que se identifica esta unidad en el nombre del archivo. */
+  const refUnidad = tarea.nroSerie?.trim() || nroFab.trim() || tarea.modelo || 'protocolo'
+
+  /** Nombre que se le sugiere al navegador al guardar el PDF. */
+  const nombreSugerido = useMemo(() => {
+    const limpio = (s: string) => s
+      .normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
+    return `Protocolo_${limpio(refUnidad)}_${new Date().toISOString().slice(0, 10)}`
+  }, [refUnidad])
+
+  /**
+   * Imprime pidiendole al navegador que sugiera nuestro nombre de archivo.
+   *
+   * Chrome toma `document.title` como nombre por defecto en "Guardar como PDF".
+   * Se cambia justo antes de imprimir y se restaura en `afterprint`, que dispara
+   * tanto si guardo como si cancelo. Un `finally` despues de `print()` no
+   * alcanzaria: no en todos los navegadores `print()` bloquea hasta que se
+   * cierra el dialogo, asi que el titulo podria restaurarse ANTES de que el
+   * usuario llegue a guardar.
+   */
+  function exportarPDF() {
+    const titulo = document.title
+    const alTerminar = () => {
+      document.title = titulo
+      setVolvioDeImprimir(true)
+      window.removeEventListener('afterprint', alTerminar)
+    }
+    window.addEventListener('afterprint', alTerminar)
+    document.title = nombreSugerido
+    window.print()
+  }
+
+  async function adjuntarPdf(file?: File | null) {
+    if (!file || dis) return
+    setErrPdf(''); setSubiendo(true)
+    const r = await subirProtocolo(file, refUnidad, tarea.id)
+    setSubiendo(false)
+    if (fileRef.current) fileRef.current.value = ''   // permite re-elegir el mismo archivo
+    if (!r.ok) { setErrPdf(r.error ?? 'No se pudo subir el archivo.'); return }
+    // OJO: se parte de `tarea` (lo ultimo que bajo del padre) y se tocan SOLO
+    // los tres campos del adjunto. Nada de mediciones ni de protocolo: si aca se
+    // mandara el estado local de la planilla, adjuntar el PDF guardaria de
+    // rebote ediciones que el laboratorista todavia no confirmo.
+    await guardarLaboratorio({
+      ...tarea,
+      protocoloPath: r.path,
+      protocoloNombre: r.nombre,
+      protocoloSubido: new Date().toISOString(),
+    })
+    setVolvioDeImprimir(false)
+    setMsg('Protocolo adjuntado. Ya se puede liberar a Despacho desde la ficha.')
+  }
 
   // ---------- 1. relacion ----------
   const [relDiv, setRelDiv] = useState(String(g?.relacion?.relDivisor ?? 231))
@@ -319,7 +399,10 @@ export default function ProtocoloEnsayo({ tarea, soloLectura = false, onCerrar }
       {/* ---- barra de acciones: no sale impresa ---- */}
       <div className="proto-acciones no-print">
         {!dis && <button className="btn btn-primary" onClick={() => void guardar()}>💾 Guardar protocolo</button>}
-        <button className="btn" onClick={() => window.print()}>🖨 Exportar PDF</button>
+        <button className="btn" onClick={exportarPDF}
+          title={`Se va a sugerir el nombre ${nombreSugerido}.pdf`}>
+          🖨 Exportar PDF
+        </button>
         {!dis && editado && (
           <button className="btn" onClick={() => void restaurarReales()}
             title="Descartar las ediciones del papel y volver a los valores medidos">
@@ -355,6 +438,82 @@ export default function ProtocoloEnsayo({ tarea, soloLectura = false, onCerrar }
             {tarea.protocolo.guardadoPor ? ` por ${tarea.protocolo.guardadoPor}` : ''}.
           </div>
         )}
+      </div>
+
+      {/* ================================================================
+          v1.102 — ADJUNTAR EL PDF SIN SALIR DE LA PLANILLA.
+          El archivo que se sube es el que el navegador acaba de guardar. No se
+          puede automatizar (ver la cabecera del archivo), pero al menos el
+          laboratorista no tiene que cerrar esto, volver a la ficha y buscar la
+          seccion del adjunto.
+          ================================================================ */}
+      <div className="no-print card" style={{
+        margin: '0 0 12px',
+        borderLeft: '4px solid ' + (tarea.protocoloPath ? 'var(--estado-fin)' : 'var(--rojo)'),
+      }}>
+        <input
+          ref={fileRef} type="file" accept="application/pdf,.pdf" style={{ display: 'none' }}
+          onChange={(e) => void adjuntarPdf(e.target.files?.[0])}
+        />
+
+        {tarea.protocoloPath ? (
+          <>
+            <div className="meta" style={{ color: 'var(--estado-fin)', fontWeight: 700 }}>
+              ✓ Protocolo adjunto{tarea.protocoloNombre ? `: ${tarea.protocoloNombre}` : ''}
+              {tarea.protocoloSubido ? ` · ${new Date(tarea.protocoloSubido).toLocaleString()}` : ''}
+            </div>
+            <div className="row-actions" style={{ marginTop: 8 }}>
+              <button className="btn" onClick={() => void abrirProtocolo(tarea.protocoloPath).then((e) => e && setErrPdf(e))}>
+                👁 Ver el PDF adjunto
+              </button>
+              {!dis && (
+                <button className="btn" disabled={subiendo} onClick={() => fileRef.current?.click()}>
+                  {subiendo ? 'Subiendo…' : '↻ Reemplazar'}
+                </button>
+              )}
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="meta" style={{ color: 'var(--rojo)', fontWeight: 700 }}>
+              ✗ Todavía no hay PDF adjunto — sin esto el transformador no se libera a Despacho.
+            </div>
+            {volvioDeImprimir ? (
+              <>
+                <div className="meta" style={{ marginTop: 6 }}>
+                  Si lo guardaste, buscalo con este botón. Debería llamarse{' '}
+                  <strong>{nombreSugerido}.pdf</strong> y estar en tu carpeta de descargas.
+                </div>
+                <button className="btn btn-primary btn-bloque" style={{ marginTop: 8 }}
+                  disabled={subiendo || dis} onClick={() => fileRef.current?.click()}>
+                  {subiendo ? 'Subiendo…' : '📎 Adjuntar el PDF que acabás de guardar'}
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="meta" style={{ marginTop: 6 }}>
+                  Apretá <strong>Exportar PDF</strong>, elegí «Guardar como PDF» y volvé acá:
+                  el botón para adjuntarlo aparece solo.
+                </div>
+                {!dis && (
+                  <button className="btn" style={{ marginTop: 8 }}
+                    disabled={subiendo} onClick={() => fileRef.current?.click()}>
+                    📎 Adjuntar un PDF que ya tengo
+                  </button>
+                )}
+              </>
+            )}
+          </>
+        )}
+
+        {errPdf && (
+          <div className="meta" style={{ marginTop: 8, color: 'var(--rojo)', fontWeight: 700 }}>
+            ⚠ {errPdf}
+          </div>
+        )}
+        <div className="meta" style={{ marginTop: 6 }}>
+          Tiene que ser un PDF de hasta {MAX_PDF_MB} MB.
+        </div>
       </div>
 
       <div className="proto-hoja">
