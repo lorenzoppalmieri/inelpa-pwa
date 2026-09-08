@@ -3,11 +3,12 @@ import type { TareaLaboratorio, MedicionesEnsayo, MaterialBobina } from '../../t
 import { MATERIALES, diferenciasConRegistro } from '../../types'
 import { guardarLaboratorio } from '../../sync/syncEngine'
 import { useAuth } from '../../auth/AuthContext'
-import { buscarDatosTecnicos, campoNum, NOMINALES_FICHA, type DatoTecnico } from '../../lib/datosTecnicos'
+import {
+  buscarDatosTecnicos, campoNum, toleranciasDe, NOMINALES_FICHA, type DatoTecnico,
+} from '../../lib/datosTecnicos'
 import {
   calcularVacio, calcularCortocircuito, perdidasTotales,
-  porcentajeDeNominal, zonaDe,
-  ESCALA_PERDIDAS, ESCALA_IO, ESCALA_UCC,
+  porcentajeDeNominal, zonaDe, escalasDeModelo,
   nfDesdeModelo, materialDesdeModelo,
   type Nominales, type ConfigEnsayo, type Nf, type Arrollamiento, type Conexion,
 } from '../../lib/ensayoPerdidas'
@@ -269,6 +270,11 @@ export default function ProtocoloEnsayo({ tarea, soloLectura = false, onCerrar }
     for (const c of NOMINALES_FICHA) out[c.key] = campoNum(fila, ...c.alias)
     return out
   }, [fila])
+
+  // v1.103: los cortes de las agujas salen de las tolerancias del catalogo. Con
+  // la tabla vieja (sin columnas tol_*) caen a las del documento de calculo, asi
+  // que la planilla se ve igual que siempre hasta que se corra el SQL nuevo.
+  const esc = useMemo(() => escalasDeModelo(toleranciasDe(fila)), [fila])
 
   const nom: Nominales = useMemo(() => ({
     snKVA: nominal.sn, u1nKV: nominal.un1, u2nKV: nominal.un2,
@@ -816,10 +822,10 @@ export default function ProtocoloEnsayo({ tarea, soloLectura = false, onCerrar }
       <div className="no-print">
         <div className="section-title" style={{ margin: '16px 0 8px' }}>Control contra el valor garantizado</div>
         <div className="agujas">
-          <Aguja titulo="Pérdidas en vacío (P0)" valor={resV.p0} nominal={nominal.po} unidad="W" escala={ESCALA_PERDIDAS} />
-          <Aguja titulo="Corriente de vacío (io%)" valor={resV.ioPct} nominal={nominal.io} unidad="%" escala={ESCALA_IO} decimales={2} />
-          <Aguja titulo="Pérdidas en carga Pcc(75)" valor={resCC.pccRef} nominal={nominal.pcc} unidad="W" escala={ESCALA_PERDIDAS} />
-          <Aguja titulo="Tensión de cortocircuito ucc%" valor={resCC.uccPct} nominal={nominal.ucc} unidad="%" escala={ESCALA_UCC} decimales={2} />
+          <Aguja titulo="Pérdidas en vacío (P0)" valor={resV.p0} nominal={nominal.po} unidad="W" escala={esc.po} />
+          <Aguja titulo="Corriente de vacío (io%)" valor={resV.ioPct} nominal={nominal.io} unidad="%" escala={esc.io} decimales={2} />
+          <Aguja titulo="Pérdidas en carga Pcc(75)" valor={resCC.pccRef} nominal={nominal.pcc} unidad="W" escala={esc.pcc} />
+          <Aguja titulo="Tensión de cortocircuito ucc%" valor={resCC.uccPct} nominal={nominal.ucc} unidad="%" escala={esc.ucc} decimales={2} />
         </div>
       </div>
     </div>

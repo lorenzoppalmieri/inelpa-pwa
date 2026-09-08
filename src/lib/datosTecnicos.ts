@@ -92,6 +92,50 @@ export const NOMINALES_CONTEXTO: CampoNominal[] = [
 export const NOMINALES_TODOS = [...NOMINALES_TENSION, ...NOMINALES_PERDIDAS]
 export const NOMINALES_FICHA = [...NOMINALES_TODOS, ...NOMINALES_CONTEXTO]
 
+// ============================================================
+// v1.103 — COLUMNAS QUE ANTES NO SE IMPORTABAN.
+//
+// Las trae `supabase_datos_tecnicos_v1.103.sql`. No se muestran como celdas de
+// "valores nominales" porque no son valores a medir: son los CRITERIOS con los
+// que se juzga lo medido y los parametros del banco de ensayo.
+//
+// Se leen por alias igual que el resto, asi que si la tabla todavia es la
+// version vieja (v1.55, 15 columnas) devuelven undefined y la app cae a los
+// valores por defecto del documento de calculo. Correr el SQL nuevo no es
+// obligatorio para que la app siga funcionando.
+// ============================================================
+
+/** Tolerancias del modelo, en % sobre el nominal. */
+export function toleranciasDe(fila?: DatoTecnico) {
+  return {
+    po: campoNum(fila, 'tol_po_pct', 'tolPo', 'Tol Po'),
+    pcc: campoNum(fila, 'tol_pcc_pct', 'tolPcc', 'Tol Pcc'),
+    io: campoNum(fila, 'tol_io_pct', 'tolIo', 'Tol Io(%)'),
+    ucc: campoNum(fila, 'tol_ucc_pct', 'tolUcc', 'Tol Ucc(%)'),
+    pt: campoNum(fila, 'tol_pt_pct', 'tolPt', 'Tol PT'),
+  }
+}
+
+/**
+ * Criterio del ensayo de sobreexcitacion (vacio a tension mayor que la nominal).
+ * `usUn` es cuantas veces la nominal se aplica (1,05 o 1,10 segun familia) y
+ * `isIo` cuantas veces la corriente de vacio puede subir como maximo.
+ */
+export function sobreexcitacionDe(fila?: DatoTecnico) {
+  return {
+    usUn: campoNum(fila, 'us_un', 'usUn', 'Us/Un'),
+    isIo: campoNum(fila, 'is_io', 'isIo', 'Is/Io'),
+  }
+}
+
+/** Potencia de los instrumentos de medicion del banco, en VA, por modelo. */
+export function instrumentosDe(fila?: DatoTecnico) {
+  return {
+    pinsO: campoNum(fila, 'pins_po', 'pinsPo', 'P instrumentos en Po', 'en Po'),
+    pinsCC: campoNum(fila, 'pins_pcc', 'pinsPcc', 'P instrumentos en Pcc', 'en Pcc'),
+  }
+}
+
 // ------------------------------------------------------------
 // Búsqueda del modelo.
 // El ensayo trae el modelo tal cual viene de producción, que puede ser el nombre

@@ -343,6 +343,100 @@ export const ESCALA_UCC: EscalaAguja = { min: 80, max: 120, verdeHasta: 110, ama
 /** Perdidas totales: tolerancia +10%. No lleva aguja, solo semaforo. */
 export const ESCALA_TOTALES: EscalaAguja = { min: 50, max: 130, verdeHasta: 100, amarilloHasta: 110 }
 
+// ============================================================
+// TOLERANCIAS POR MODELO (v1.103)
+//
+// Las cuatro escalas de arriba son las de "CALCULO PARA ENSAYO DE PERDIDAS" y
+// siguen siendo el RESPALDO. Lo que cambia es de donde salen los cortes: la
+// planilla de datos tecnicos garantizados trae una tolerancia por modelo
+// (tol_po_pct, tol_pcc_pct, tol_io_pct, tol_ucc_pct, tol_pt_pct), asi que el
+// dia que un modelo tenga otra tolerancia la app se entera sola.
+//
+// Los RANGOS de las escalas (min y max) NO salen del catalogo: los fija el
+// documento de calculo y son los mismos para todos los modelos. La tolerancia
+// mueve unicamente el corte amarillo/rojo.
+// ============================================================
+
+/** Tolerancias de un modelo, en % sobre el valor nominal. */
+export interface ToleranciasModelo {
+  po?: number
+  pcc?: number
+  io?: number
+  ucc?: number
+  pt?: number
+}
+
+/** Lo que dice el documento de calculo. Se usa cuando el catalogo no trae dato. */
+export const TOLERANCIAS_NORMA: Required<ToleranciasModelo> = {
+  po: 15, pcc: 15, io: 30, ucc: 10, pt: 10,
+}
+
+/**
+ * Una tolerancia solo se toma del catalogo si es un numero POSITIVO.
+ *
+ * OJO CON EL CERO: la planilla trae `tol_io_pct = 0` en los 87 modelos, y el
+ * documento de calculo dice +30%. Decision de Lorenzo (8/9/2026): manda el
+ * documento, o sea que el 0 se lee como "columna sin cargar" y no como
+ * "tolerancia nula". La contra honesta de esto es que si algun dia Laboratorio
+ * quisiera de verdad una tolerancia CERO para algun valor, no habria forma de
+ * expresarla en esta planilla: habria que agregar una convencion aparte.
+ */
+function tolValida(x?: number): x is number {
+  return x !== undefined && Number.isFinite(x) && x > 0
+}
+
+/**
+ * Escala unilateral (Po, Pcc, io%, PT): verde hasta el nominal, amarillo hasta
+ * el nominal + tolerancia, rojo despues.
+ *
+ * `max` se estira si hiciera falta: con una tolerancia grande, el corte amarillo
+ * podria caer fuera de la escala y la zona roja desapareceria de la vista.
+ */
+export function escalaUnilateral(tol: number | undefined, porDefecto: number, base: EscalaAguja): EscalaAguja {
+  const t = tolValida(tol) ? tol : porDefecto
+  const amarilloHasta = 100 + t
+  return { ...base, verdeHasta: 100, amarilloHasta, max: Math.max(base.max, amarilloHasta + 15) }
+}
+
+/**
+ * Escala bilateral (ucc%): el nominal va al centro y se admite desvio para los
+ * dos lados. La escala abarca el doble de la tolerancia, como en el documento
+ * (tolerancia ±10% -> escala ±20%).
+ */
+export function escalaBilateral(tol: number | undefined, porDefecto: number): EscalaAguja {
+  const t = tolValida(tol) ? tol : porDefecto
+  return {
+    min: 100 - 2 * t, max: 100 + 2 * t,
+    verdeHasta: 100 + t, amarilloHasta: 100 + t,
+    bilateral: true,
+  }
+}
+
+export interface EscalasModelo {
+  po: EscalaAguja
+  pcc: EscalaAguja
+  io: EscalaAguja
+  ucc: EscalaAguja
+  totales: EscalaAguja
+}
+
+/**
+ * Las cinco escalas de un modelo.
+ *
+ * Po y Pcc quedan SEPARADAS aunque hoy compartan el +15%: la planilla trae una
+ * columna para cada una, asi que pueden divergir sin avisar. Antes las dos
+ * usaban la misma constante `ESCALA_PERDIDAS`.
+ */
+export function escalasDeModelo(t: ToleranciasModelo = {}): EscalasModelo {
+  return {
+    po: escalaUnilateral(t.po, TOLERANCIAS_NORMA.po, ESCALA_PERDIDAS),
+    pcc: escalaUnilateral(t.pcc, TOLERANCIAS_NORMA.pcc, ESCALA_PERDIDAS),
+    io: escalaUnilateral(t.io, TOLERANCIAS_NORMA.io, ESCALA_IO),
+    ucc: escalaBilateral(t.ucc, TOLERANCIAS_NORMA.ucc),
+    totales: escalaUnilateral(t.pt, TOLERANCIAS_NORMA.pt, ESCALA_TOTALES),
+  }
+}
+
 /** Valor medido como % del nominal. undefined si falta alguno de los dos. */
 export function porcentajeDeNominal(valor?: number, nominal?: number): number | undefined {
   if (valor === undefined || nominal === undefined || nominal === 0) return undefined

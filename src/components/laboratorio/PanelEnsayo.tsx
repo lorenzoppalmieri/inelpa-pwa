@@ -11,15 +11,14 @@ import {
   FACTORES_CONMUTACION, relacionTeorica, desvioPct, relacionEnNorma,
 } from '../../lib/ensayosNorma'
 import {
-  buscarDatosTecnicos, campoNum, codigoCorto,
+  buscarDatosTecnicos, campoNum, codigoCorto, toleranciasDe,
   NOMINALES_TENSION, NOMINALES_PERDIDAS, NOMINALES_CONTEXTO, NOMINALES_TODOS, NOMINALES_FICHA, campo,
   type DatoTecnico, type CampoNominal,
 } from '../../lib/datosTecnicos'
 import {
   calcularVacio, calcularCortocircuito, perdidasTotales,
-  pccATemperatura, calcularEficiencia,
+  pccATemperatura, calcularEficiencia, escalasDeModelo,
   porcentajeDeNominal, zonaDe, apruebaZona,
-  ESCALA_PERDIDAS, ESCALA_IO, ESCALA_UCC, ESCALA_TOTALES,
   nfDesdeModelo, materialDesdeModelo,
   type Nominales, type ConfigEnsayo, type Nf, type Arrollamiento, type Conexion,
 } from '../../lib/ensayoPerdidas'
@@ -65,6 +64,19 @@ function n(v: string): number | undefined {
 }
 function fmt(v?: number, d = 2): string {
   return v === undefined || !Number.isFinite(v) ? '—' : v.toFixed(d)
+}
+
+/**
+ * v1.103: la tolerancia que se muestra sale de la escala que se esta usando.
+ *
+ * Antes los textos decian "+15%" y "+30%" escritos a mano. Si el catalogo trae
+ * otra tolerancia para un modelo, la aguja se pintaria con el corte nuevo y el
+ * texto de abajo seguiria diciendo el viejo: la pantalla se contradiria a si
+ * misma y le daria la razon al numero equivocado.
+ */
+function tolTxt(esc: { amarilloHasta: number; verdeHasta: number; bilateral?: boolean }): string {
+  const t = (esc.bilateral ? esc.verdeHasta : esc.amarilloHasta) - 100
+  return `${Number.isInteger(t) ? t : t.toFixed(1)}%`
 }
 
 export default function PanelEnsayo({ tarea, soloLectura = false }: {
@@ -221,16 +233,29 @@ export default function PanelEnsayo({ tarea, soloLectura = false }: {
     return calcularEficiencia(nom, resVacio.p0, pccT, n(fCarga) ?? 1)
   }, [resCC, cfg.material, tcc, tEfic, nom, resVacio.p0, fCarga])
 
+  // v1.103: las tolerancias salen del catalogo del modelo. Si la tabla todavia
+  // es la vieja (sin las columnas tol_*), caen a las del documento de calculo.
+  const tol = useMemo(() => toleranciasDe(fila), [fila])
+  const esc = useMemo(() => escalasDeModelo(tol), [tol])
+  // Se aclara de donde salieron los cortes. Sin esto, el laboratorista no tiene
+  // como distinguir una tolerancia que vino del catalogo de una que es el valor
+  // por defecto del documento porque la columna estaba vacia.
+  const hayTolCatalogo = [tol.po, tol.pcc, tol.io, tol.ucc, tol.pt]
+    .some((x) => x !== undefined && Number.isFinite(x) && x > 0)
+  const origenTol = hayTolCatalogo
+    ? ' (del catálogo)'
+    : ' (por norma: el catálogo no las trae)'
+
   // Zonas -> sugerencia de aprobado/rechazado para los 2 ensayos del documento.
   const zVacio = [
-    zonaDe(porcentajeDeNominal(resVacio.p0, nominal.po), ESCALA_PERDIDAS),
-    zonaDe(porcentajeDeNominal(resVacio.ioPct, nominal.io), ESCALA_IO),
+    zonaDe(porcentajeDeNominal(resVacio.p0, nominal.po), esc.po),
+    zonaDe(porcentajeDeNominal(resVacio.ioPct, nominal.io), esc.io),
   ]
   const zCC = [
-    zonaDe(porcentajeDeNominal(resCC.pccRef, nominal.pcc), ESCALA_PERDIDAS),
-    zonaDe(porcentajeDeNominal(resCC.uccPct, nominal.ucc), ESCALA_UCC),
+    zonaDe(porcentajeDeNominal(resCC.pccRef, nominal.pcc), esc.pcc),
+    zonaDe(porcentajeDeNominal(resCC.uccPct, nominal.ucc), esc.ucc),
   ]
-  const zTotal = zonaDe(porcentajeDeNominal(pTotal, pTotalN), ESCALA_TOTALES)
+  const zTotal = zonaDe(porcentajeDeNominal(pTotal, pTotalN), esc.totales)
 
   // v1.99: sin versión de diseño la fila no entra al Registro General — no se
   // podría filtrar ni comparar con otras máquinas del mismo modelo.
@@ -612,11 +637,11 @@ export default function PanelEnsayo({ tarea, soloLectura = false }: {
         </>
       )}
       <div className="agujas">
-        <Aguja titulo="Pérdidas en vacío (P0)" valor={resVacio.p0} nominal={nominal.po} unidad="W" escala={ESCALA_PERDIDAS} />
-        <Aguja titulo="Corriente de vacío (io%)" valor={resVacio.ioPct} nominal={nominal.io} unidad="%" escala={ESCALA_IO} decimales={2} />
+        <Aguja titulo="Pérdidas en vacío (P0)" valor={resVacio.p0} nominal={nominal.po} unidad="W" escala={esc.po} />
+        <Aguja titulo="Corriente de vacío (io%)" valor={resVacio.ioPct} nominal={nominal.io} unidad="%" escala={esc.io} decimales={2} />
       </div>
       <div className="meta">
-        I0 = <strong>{fmt(resVacio.i0)} A</strong> · Tolerancias de norma: P0 +15%, io% +30%.
+        I0 = <strong>{fmt(resVacio.i0)} A</strong> · Tolerancias: P0 +{tolTxt(esc.po)}, io% +{tolTxt(esc.io)}.{origenTol}
       </div>
       {obsEnsayo('perdidas_vacio')}
 
@@ -715,8 +740,8 @@ export default function PanelEnsayo({ tarea, soloLectura = false }: {
       </div>
 
       <div className="agujas">
-        <Aguja titulo="Pérdidas en cortocircuito Pcc(T)" valor={resCC.pccRef} nominal={nominal.pcc} unidad="W" escala={ESCALA_PERDIDAS} />
-        <Aguja titulo="Tensión de cortocircuito ucc%(T)" valor={resCC.uccPct} nominal={nominal.ucc} unidad="%" escala={ESCALA_UCC} decimales={2} />
+        <Aguja titulo="Pérdidas en cortocircuito Pcc(T)" valor={resCC.pccRef} nominal={nominal.pcc} unidad="W" escala={esc.pcc} />
+        <Aguja titulo="Tensión de cortocircuito ucc%(T)" valor={resCC.uccPct} nominal={nominal.ucc} unidad="%" escala={esc.ucc} decimales={2} />
       </div>
 
       {/* Desglose: sirve para entender de donde sale Pcc(T) si algo no cierra. */}
@@ -735,7 +760,7 @@ export default function PanelEnsayo({ tarea, soloLectura = false }: {
           Las pérdidas Joule suben con la temperatura y las Skin bajan: por eso se corrigen en sentidos opuestos.
         </div>
       </details>
-      <div className="meta" style={{ marginTop: 6 }}>Tolerancias de norma: Pcc +15%, ucc% ±10%.</div>
+      <div className="meta" style={{ marginTop: 6 }}>Tolerancias: Pcc +{tolTxt(esc.pcc)}, ucc% ±{tolTxt(esc.ucc)}.{origenTol}</div>
       {obsEnsayo('perdida_cc')}
       {obsEnsayo('res_arrollamiento')}
 
@@ -758,7 +783,7 @@ export default function PanelEnsayo({ tarea, soloLectura = false }: {
                 {((pTotal / pTotalN) * 100).toFixed(1)}%
               </strong>{zTotal === 'fuera' ? ' · FUERA DE NORMA' : ''}</>
             : null}
-          {' · '}Tolerancia +10%.
+          {' · '}Tolerancia +{tolTxt(esc.totales)}.
         </div>
       </div>
 
