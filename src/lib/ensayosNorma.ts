@@ -102,6 +102,49 @@ export const LABEL_AISLAMIENTO: Record<LecturaAislamiento, string> = {
   excelente: 'Excelente (> 4)',
 }
 
+// ------------------------------------------------------------
+// Ensayo de vacio a sobretension (control de saturacion del nucleo)
+// ------------------------------------------------------------
+//
+// Se repite el ensayo de vacio a una tension mayor que la nominal — `usUn` veces
+// (1,05 o 1,10 segun la familia) — y se mira cuanto sube la corriente. Un nucleo
+// que ya trabaja cerca de la saturacion pega un salto de corriente muy grande
+// ante un aumento chico de tension, y eso se ve ACA aunque el ensayo de vacio
+// normal haya dado bien.
+//
+// Hasta la v1.103 el 1,05 estaba escrito a mano en el protocolo y la relacion se
+// calculaba sin compararse contra nada. `us_un` e `is_io` salen del catalogo.
+
+export const US_UN_DEFECTO = 1.05
+export const IS_IO_DEFECTO = 2.2
+
+/**
+ * Relacion Is/Io del ensayo a sobretension.
+ *
+ * La corriente medida se corrige a la tension exacta de ensayo (`um * usUn`),
+ * porque en la practica no se alcanza el punto justo: se aplica lo que se puede
+ * y despues se lleva al valor teorico.
+ *
+ * @param iSobre corriente medida a sobretension, en A
+ * @param uSobre tension a la que se midio esa corriente, en V
+ * @param um     tension del ensayo de vacio normal, en V
+ * @param i0     corriente de vacio ya calculada, en A
+ */
+export function relacionSobreexcitacion(
+  iSobre?: number, uSobre?: number, um?: number, i0?: number, usUn = US_UN_DEFECTO,
+): number | undefined {
+  if (!iSobre || !uSobre || !um || !i0) return undefined
+  if (!Number.isFinite(usUn) || usUn <= 0) return undefined
+  return (iSobre * (um * usUn) / uSobre) / i0
+}
+
+/** ¿La corriente a sobretension se mantuvo por debajo del maximo admitido? */
+export function sobreexcitacionEnNorma(rel?: number, isIo = IS_IO_DEFECTO): boolean | undefined {
+  if (rel === undefined || !Number.isFinite(rel)) return undefined
+  if (!Number.isFinite(isIo) || isIo <= 0) return undefined
+  return rel <= isIo
+}
+
 /** Color de la lectura, usando las variables de tema del proyecto. */
 export function colorAislamiento(l: LecturaAislamiento): string | undefined {
   if (l === 'pobre') return 'var(--rojo)'

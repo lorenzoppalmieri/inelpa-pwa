@@ -3,6 +3,7 @@ import {
   FACTORES_CONMUTACION, TOL_RELACION_PCT,
   tensionTeorica, relacionTeorica, desvioPct, relacionEnNorma,
   radDe, ipDe, lecturaIP,
+  relacionSobreexcitacion, sobreexcitacionEnNorma, US_UN_DEFECTO, IS_IO_DEFECTO,
 } from '../ensayosNorma'
 
 // ============================================================
@@ -106,6 +107,84 @@ describe('aislamiento · RAD e IP', () => {
     expect(radDe(undefined, 150)).toBeUndefined()
     expect(ipDe(150, undefined)).toBeUndefined()
     expect(ipDe(0, 450)).toBeUndefined()
+  })
+})
+
+describe('vacío a sobretensión · relación Is/Io', () => {
+  // Ensayo de vacío normal a 400 V con I0 = 2 A. La verificación se hizo a 418 V
+  // (algo menos que los 420 = 1,05 × 400) midiendo 3 A.
+  const UM = 400
+  const I0 = 2
+
+  it('corrige la corriente al punto teórico de ensayo', () => {
+    // A 418 V dio 3 A; llevado a 420 V da 3 × 420/418 = 3,0143 A.
+    const r = relacionSobreexcitacion(3, 418, UM, I0, 1.05)!
+    expect(r).toBeCloseTo((3 * (UM * 1.05) / 418) / I0, 9)
+    expect(r).toBeCloseTo(1.5072, 4)
+  })
+
+  it('medir justo en el punto no necesita corrección', () => {
+    // A 420 V exactos, la relación es simplemente I/I0.
+    expect(relacionSobreexcitacion(3, 420, UM, I0, 1.05)).toBeCloseTo(1.5, 9)
+  })
+
+  it('el punto de ensayo sale del catálogo, no de un 1,05 fijo', () => {
+    // Las TTS se verifican a 1,10 Un; el resto a 1,05. Con la misma medición la
+    // relación tiene que dar distinto, porque el punto teórico es otro.
+    const a = relacionSobreexcitacion(3, 420, UM, I0, 1.05)!
+    const b = relacionSobreexcitacion(3, 420, UM, I0, 1.10)!
+    expect(b).toBeGreaterThan(a)
+    expect(b / a).toBeCloseTo(1.10 / 1.05, 9)
+  })
+
+  it('los valores por defecto son los de la familia mayoritaria', () => {
+    expect(US_UN_DEFECTO).toBe(1.05)
+    expect(IS_IO_DEFECTO).toBe(2.2)
+  })
+
+  it('sin alguna de las cuatro medidas no hay relación', () => {
+    expect(relacionSobreexcitacion(undefined, 420, UM, I0)).toBeUndefined()
+    expect(relacionSobreexcitacion(3, undefined, UM, I0)).toBeUndefined()
+    expect(relacionSobreexcitacion(3, 420, undefined, I0)).toBeUndefined()
+    expect(relacionSobreexcitacion(3, 420, UM, undefined)).toBeUndefined()
+  })
+
+  it('con I0 en cero no divide por cero', () => {
+    expect(relacionSobreexcitacion(3, 420, UM, 0)).toBeUndefined()
+  })
+
+  it('un usUn inválido no produce un número inventado', () => {
+    expect(relacionSobreexcitacion(3, 420, UM, I0, 0)).toBeUndefined()
+    expect(relacionSobreexcitacion(3, 420, UM, I0, NaN)).toBeUndefined()
+  })
+})
+
+describe('vacío a sobretensión · veredicto', () => {
+  it('por debajo del máximo aprueba y por encima no', () => {
+    expect(sobreexcitacionEnNorma(1.5, 2.2)).toBe(true)
+    expect(sobreexcitacionEnNorma(2.5, 2.2)).toBe(false)
+  })
+
+  it('el borde exacto entra', () => {
+    expect(sobreexcitacionEnNorma(2.2, 2.2)).toBe(true)
+    expect(sobreexcitacionEnNorma(2.21, 2.2)).toBe(false)
+  })
+
+  it('el máximo también sale del catálogo', () => {
+    // 2,5 rebota con el 2,2 del resto de las familias pero entra con el 3 de las TTS.
+    expect(sobreexcitacionEnNorma(2.5, 2.2)).toBe(false)
+    expect(sobreexcitacionEnNorma(2.5, 3)).toBe(true)
+  })
+
+  it('sin relación no opina', () => {
+    // Es la diferencia entre "no hice la verificación" y "la hice y falló".
+    expect(sobreexcitacionEnNorma(undefined, 2.2)).toBeUndefined()
+    expect(sobreexcitacionEnNorma(NaN, 2.2)).toBeUndefined()
+  })
+
+  it('sin máximo admitido tampoco opina', () => {
+    expect(sobreexcitacionEnNorma(1.5, 0)).toBeUndefined()
+    expect(sobreexcitacionEnNorma(1.5, NaN)).toBeUndefined()
   })
 })
 

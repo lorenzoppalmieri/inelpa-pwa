@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { TareaLaboratorio, MedicionesEnsayo, MaterialBobina, OrigenResistencia } from '../../types'
 import { MATERIALES, ENSAYOS_LAB } from '../../types'
 import { guardarLaboratorio } from '../../sync/syncEngine'
@@ -9,9 +9,10 @@ import {
 import BuscadorResistencias from './BuscadorResistencias'
 import {
   FACTORES_CONMUTACION, relacionTeorica, desvioPct, relacionEnNorma,
+  relacionSobreexcitacion, sobreexcitacionEnNorma, US_UN_DEFECTO, IS_IO_DEFECTO,
 } from '../../lib/ensayosNorma'
 import {
-  buscarDatosTecnicos, campoNum, codigoCorto, toleranciasDe,
+  buscarDatosTecnicos, campoNum, codigoCorto, toleranciasDe, instrumentosDe, sobreexcitacionDe,
   NOMINALES_TENSION, NOMINALES_PERDIDAS, NOMINALES_CONTEXTO, NOMINALES_TODOS, NOMINALES_FICHA, campo,
   type DatoTecnico, type CampoNominal,
 } from '../../lib/datosTecnicos'
@@ -108,6 +109,13 @@ export default function PanelEnsayo({ tarea, soloLectura = false }: {
   const [versiones, setVersiones] = useState<string[]>([])
   const [pinsO, setPinsO] = useState(String(guardado?.pinsO ?? leerLS(LS_PINS_O, 0)))
   const [pinsCC, setPinsCC] = useState(String(guardado?.pinsCC ?? leerLS(LS_PINS_CC, 0)))
+  // v1.103: de donde salio la potencia de instrumentos que se esta usando.
+  const [pinsOrigen, setPinsOrigen] = useState<'ensayo' | 'catalogo' | 'equipo'>(
+    guardado?.pinsO !== undefined || guardado?.pinsCC !== undefined ? 'ensayo' : 'equipo')
+  // Si el laboratorista ya toco el campo, el catalogo NO lo pisa cuando termine
+  // de cargar. La tabla llega despues del primer render, asi que sin esta marca
+  // podria borrarle un numero recien tipeado.
+  const pinsTocado = useRef(false)
 
   // ---------- Ensayo de vacio (por defecto Baja / Y) ----------
   const [vArr, setVArr] = useState<Arrollamiento>(guardado?.vacio?.arrollamiento ?? 'baja')
@@ -121,6 +129,11 @@ export default function PanelEnsayo({ tarea, soloLectura = false }: {
   const [iU, setIU] = useState(guardado?.vacio?.iU?.toString() ?? '')
   const [iV, setIV] = useState(guardado?.vacio?.iV?.toString() ?? '')
   const [iW, setIW] = useState(guardado?.vacio?.iW?.toString() ?? '')
+  // v1.103: ensayo de vacio a sobretension. Hasta ahora SOLO se podia cargar
+  // desde el protocolo, y desde la v1.99 el protocolo escribe en su propio campo
+  // — o sea que esta medicion nunca llegaba al Registro General.
+  const [v105U, setV105U] = useState(guardado?.vacio105?.tension?.toString() ?? '')
+  const [v105I, setV105I] = useState(guardado?.vacio105?.corriente?.toString() ?? '')
 
   // ---------- Ensayo de cortocircuito (por defecto Alta / Δ) ----------
   const [cArr, setCArr] = useState<Arrollamiento>(guardado?.cc?.arrollamiento ?? 'alta')
@@ -233,10 +246,55 @@ export default function PanelEnsayo({ tarea, soloLectura = false }: {
     return calcularEficiencia(nom, resVacio.p0, pccT, n(fCarga) ?? 1)
   }, [resCC, cfg.material, tcc, tEfic, nom, resVacio.p0, fCarga])
 
+  // ============================================================
+  // v1.103 — POTENCIA DE INSTRUMENTOS DESDE EL CATALOGO.
+  //
+  // Hasta ahora `pinsO`/`pinsCC` eran una constante del BANCO guardada en el
+  // localStorage de cada navegador, igual para todos los modelos. La planilla
+  // de datos tecnicos las trae POR MODELO y varian (0, 1, 2, 3, 7, 8, 11, 15).
+  //
+  // Precedencia, de mayor a menor:
+  //   1. El ensayo ya guardado. Un protocolo emitido no puede cambiar de valores
+  //      porque despues se corrigio la planilla.
+  //   2. El catalogo del modelo.
+  //   3. El ultimo valor usado en este equipo (localStorage), que es el
+  //      comportamiento viejo y sigue sirviendo si el catalogo no trae la columna.
+  //
+  // OJO CON EL CERO: aca 0 SI es un valor real (instrumentos que no consumen o
+  // ya compensados) y la mayoria de los modelos lo tienen. Al reves que con las
+  // tolerancias, no se puede leer como "sin dato".
+  // ============================================================
+  useEffect(() => {
+    if (!fila) return
+    if (guardado?.pinsO !== undefined || guardado?.pinsCC !== undefined) return
+    if (pinsTocado.current) return
+    const ins = instrumentosDe(fila)
+    if (ins.pinsO === undefined && ins.pinsCC === undefined) return
+    if (ins.pinsO !== undefined) setPinsO(String(ins.pinsO))
+    if (ins.pinsCC !== undefined) setPinsCC(String(ins.pinsCC))
+    setPinsOrigen('catalogo')
+  }, [fila, guardado?.pinsO, guardado?.pinsCC])
+
+  /** Setter de los Pins que deja marcado que el valor lo puso una persona. */
+  const editarPins = (set: (s: string) => void) => (s: string) => {
+    pinsTocado.current = true
+    setPinsOrigen('equipo')
+    set(s)
+  }
+
   // v1.103: las tolerancias salen del catalogo del modelo. Si la tabla todavia
   // es la vieja (sin las columnas tol_*), caen a las del documento de calculo.
   const tol = useMemo(() => toleranciasDe(fila), [fila])
   const esc = useMemo(() => escalasDeModelo(tol), [tol])
+
+  // v1.103: criterio del ensayo a sobretension, tambien del catalogo.
+  const sob = useMemo(() => sobreexcitacionDe(fila), [fila])
+  const usUn = sob.usUn ?? US_UN_DEFECTO
+  const isIo = sob.isIo ?? IS_IO_DEFECTO
+  const rel105 = useMemo(
+    () => relacionSobreexcitacion(n(v105I), n(v105U), n(vUm), resVacio.i0, usUn),
+    [v105I, v105U, vUm, resVacio.i0, usUn])
+  const ok105 = sobreexcitacionEnNorma(rel105, isIo)
   // Se aclara de donde salieron los cortes. Sin esto, el laboratorista no tiene
   // como distinguir una tolerancia que vino del catalogo de una que es el valor
   // por defecto del documento porque la columna estaba vacia.
@@ -287,7 +345,8 @@ export default function PanelEnsayo({ tarea, soloLectura = false }: {
       // planilla. Con el protocolo escribiendo en su propio campo eso ya no se
       // notaría, pero el dato viejo se seguiría perdiendo igual.
       cabecera: { ...guardado?.cabecera, nroFabricacion: nroFab.trim() || undefined },
-      vacio105: guardado?.vacio105,
+      // v1.103: ahora se carga acá, así que la medición entra al Registro General.
+      vacio105: { tension: n(v105U), corriente: n(v105I) },
       estanqueidad: guardado?.estanqueidad,
       pintura: guardado?.pintura,
       conclusion: guardado?.conclusion,
@@ -589,8 +648,25 @@ export default function PanelEnsayo({ tarea, soloLectura = false }: {
           </select>
         </div>
         {campoNumInput('Temperatura de referencia (T)', tRef, setTRef, '°C', '0.1')}
-        {campoNumInput('Potencia instrumentos — vacío', pinsO, setPinsO, 'VA', '0.1')}
-        {campoNumInput('Potencia instrumentos — cortocircuito', pinsCC, setPinsCC, 'VA', '0.1')}
+        {campoNumInput('Potencia instrumentos — vacío', pinsO, editarPins(setPinsO), 'VA', '0.1')}
+        {campoNumInput('Potencia instrumentos — cortocircuito', pinsCC, editarPins(setPinsCC), 'VA', '0.1')}
+      </div>
+
+      {/* v1.103: de donde salio la potencia de instrumentos. Sin esto, un 0 del
+          catalogo y un 0 que quedo de otro ensayo se ven exactamente igual. */}
+      <div className="meta" style={{ marginTop: 6 }}>
+        Potencia de instrumentos:{' '}
+        {pinsOrigen === 'ensayo' ? (
+          <strong>la que se usó en este ensayo</strong>
+        ) : pinsOrigen === 'catalogo' ? (
+          <><strong style={{ color: 'var(--estado-fin)' }}>del catálogo de {codigoCorto(tarea.modelo)}</strong>
+            {' '}— corregila si el banco de ensayo cambió.</>
+        ) : (
+          <><strong style={{ color: 'var(--naranja)' }}>del último ensayo en este equipo</strong>
+            {' '}— el catálogo no trae el dato para este modelo, o lo editaste a mano.</>
+        )}
+        {' '}El valor que uses queda guardado dentro del ensayo, así que el protocolo
+        no cambia si mañana se corrige la planilla.
       </div>
 
       {/* ============ v1.100: RELACION DE TRANSFORMACION ============ */}
@@ -643,6 +719,31 @@ export default function PanelEnsayo({ tarea, soloLectura = false }: {
       <div className="meta">
         I0 = <strong>{fmt(resVacio.i0)} A</strong> · Tolerancias: P0 +{tolTxt(esc.po)}, io% +{tolTxt(esc.io)}.{origenTol}
       </div>
+      {/* v1.103: vacío a sobretensión — control de saturación del núcleo. */}
+      <div className="meta" style={{ margin: '12px 0 6px' }}>
+        Verificación a <strong>{(usUn * 100).toFixed(0)}% de Un</strong> (opcional) · el núcleo
+        no debe pedir más de <strong>{isIo}× la corriente de vacío</strong>
+        {sob.usUn === undefined ? ' · valores por defecto: el catálogo no los trae' : ' · del catálogo'}
+      </div>
+      <div className="form-grid">
+        {campoNumInput('Tensión aplicada en la verificación', v105U, setV105U, 'V', '0.1')}
+        {campoNumInput('Corriente medida en la verificación', v105I, setV105I, 'A', '0.01')}
+      </div>
+      <div className="card" style={{
+        borderLeft: '4px solid ' + (ok105 === false ? 'var(--rojo)' : ok105 ? 'var(--estado-fin)' : 'var(--borde)'),
+      }}>
+        <div className="meta">Relación I0({usUn.toString().replace('.', ',')}·Un) / I0</div>
+        <h3 style={{ margin: '4px 0', color: ok105 === false ? 'var(--rojo)' : undefined }}>
+          {fmt(rel105)}
+          {ok105 === false ? ' ✗ fuera de norma' : ok105 ? ' ✓' : ''}
+        </h3>
+        <div className="meta">
+          Máximo admitido {isIo}. Un salto grande de corriente ante un aumento chico de
+          tensión delata un núcleo trabajando cerca de la saturación, aunque el ensayo
+          de vacío normal haya dado bien.
+        </div>
+      </div>
+
       {obsEnsayo('perdidas_vacio')}
 
       {/* ============ ENSAYO DE CORTOCIRCUITO ============ */}

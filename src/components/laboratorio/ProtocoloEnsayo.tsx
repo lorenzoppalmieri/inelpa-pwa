@@ -4,8 +4,12 @@ import { MATERIALES, diferenciasConRegistro } from '../../types'
 import { guardarLaboratorio } from '../../sync/syncEngine'
 import { useAuth } from '../../auth/AuthContext'
 import {
-  buscarDatosTecnicos, campoNum, toleranciasDe, NOMINALES_FICHA, type DatoTecnico,
+  buscarDatosTecnicos, campoNum, toleranciasDe, instrumentosDe, sobreexcitacionDe,
+  NOMINALES_FICHA, type DatoTecnico,
 } from '../../lib/datosTecnicos'
+import {
+  relacionSobreexcitacion, sobreexcitacionEnNorma, US_UN_DEFECTO, IS_IO_DEFECTO,
+} from '../../lib/ensayosNorma'
 import {
   calcularVacio, calcularCortocircuito, perdidasTotales,
   porcentajeDeNominal, zonaDe, escalasDeModelo,
@@ -110,8 +114,20 @@ export default function ProtocoloEnsayo({ tarea, soloLectura = false, onCerrar }
   const [nf, setNf] = useState<Nf>(g?.nf ?? nfDesdeModelo(tarea.modelo) ?? 3)
   const [material, setMaterial] = useState<MaterialBobina>(g?.material ?? materialDesdeModelo(tarea.modelo) ?? 'cobre')
   const [tRef, setTRef] = useState(String(g?.tRef ?? T_REF))
-  const [pinsO, setPinsO] = useState(String(g?.pinsO ?? leerLS(LS_PINS_O, 3)))
-  const [pinsCC, setPinsCC] = useState(String(g?.pinsCC ?? leerLS(LS_PINS_CC, 3)))
+  // v1.103: el respaldo pasa de 3 a 0. La pantalla de carga siempre uso 0 y esta
+  // usaba 3, asi que con el localStorage vacio el MISMO transformador daba dos P0
+  // distintos segun por que pantalla se lo mirara (Pins se RESTA de la potencia
+  // medida). Cero es ademas el default honesto: restar 3 W que nadie midio es
+  // inventar una correccion.
+  const [pinsO, setPinsO] = useState(String(g?.pinsO ?? leerLS(LS_PINS_O, 0)))
+  const [pinsCC, setPinsCC] = useState(String(g?.pinsCC ?? leerLS(LS_PINS_CC, 0)))
+  // Marca que el laboratorista toco el campo, para que el catalogo no le pise
+  // un valor recien tipeado cuando termine de cargar la tabla.
+  const pinsTocado = useRef(false)
+  const editarPins = (set: (s: string) => void) => (s: string) => {
+    pinsTocado.current = true
+    set(s)
+  }
 
   // ---------- cabecera ----------
   const c0 = g?.cabecera
@@ -276,6 +292,19 @@ export default function ProtocoloEnsayo({ tarea, soloLectura = false, onCerrar }
   // que la planilla se ve igual que siempre hasta que se corra el SQL nuevo.
   const esc = useMemo(() => escalasDeModelo(toleranciasDe(fila)), [fila])
 
+  // v1.103: misma precedencia de Pins que la pantalla de carga (ensayo guardado
+  // -> catalogo -> ultimo valor del equipo). Si la planilla calculara con un
+  // Pins distinto al del panel, el mismo transformador daria dos P0 diferentes
+  // segun por que pantalla se lo mire.
+  useEffect(() => {
+    if (!fila) return
+    if (g?.pinsO !== undefined || g?.pinsCC !== undefined) return
+    if (pinsTocado.current) return
+    const ins = instrumentosDe(fila)
+    if (ins.pinsO !== undefined) setPinsO(String(ins.pinsO))
+    if (ins.pinsCC !== undefined) setPinsCC(String(ins.pinsCC))
+  }, [fila, g?.pinsO, g?.pinsCC])
+
   const nom: Nominales = useMemo(() => ({
     snKVA: nominal.sn, u1nKV: nominal.un1, u2nKV: nominal.un2,
     i1n: nominal.i1n, i2n: nominal.i2n,
@@ -306,12 +335,16 @@ export default function ProtocoloEnsayo({ tarea, soloLectura = false, onCerrar }
 
   const pT = perdidasTotales(resV, resCC)
   const pTn = nominal.po !== undefined && nominal.pcc !== undefined ? nominal.po + nominal.pcc : undefined
-  // Relacion Io(1,05)/Io — control de saturacion del nucleo.
-  const rel105 = useMemo(() => {
-    const u = n(v105U), i = n(v105I), um = n(vUm)
-    if (!u || !i || !um || !resV.i0) return undefined
-    return (i * (um * 1.05) / u) / resV.i0
-  }, [v105U, v105I, vUm, resV.i0])
+  // Relacion Io(us/Un)/Io — control de saturacion del nucleo.
+  // v1.103: el 1,05 estaba escrito a mano y la relacion no se comparaba contra
+  // nada. Ahora el punto de ensayo y el maximo admitido salen del catalogo.
+  const sob = useMemo(() => sobreexcitacionDe(fila), [fila])
+  const usUn = sob.usUn ?? US_UN_DEFECTO
+  const isIo = sob.isIo ?? IS_IO_DEFECTO
+  const rel105 = useMemo(
+    () => relacionSobreexcitacion(n(v105I), n(v105U), n(vUm), resV.i0, usUn),
+    [v105I, v105U, vUm, resV.i0, usUn])
+  const ok105 = sobreexcitacionEnNorma(rel105, isIo)
 
   // v1.99: el veredicto de aprobado/rechazado ya NO se recalcula acá. El
   // protocolo es el papel del cliente: si desde esta pantalla se pudiera
@@ -698,7 +731,7 @@ export default function ProtocoloEnsayo({ tarea, soloLectura = false, onCerrar }
                 </td>
               </>}
               <th>TEMP. [°C]</th><td><Ent v={tcc} set={setTcc} dis={dis} ancho={50} /></td>
-              <th>P. INST. [W]</th><td><Ent v={pinsCC} set={setPinsCC} dis={dis} ancho={50} /></td>
+              <th>P. INST. [W]</th><td><Ent v={pinsCC} set={editarPins(setPinsCC)} dis={dis} ancho={50} /></td>
             </tr>
             <tr>
               <th>MEDIDO · TENSIÓN [V]</th><td><Ent v={ccU} set={setCcU} dis={dis} /></td>
@@ -742,7 +775,7 @@ export default function ProtocoloEnsayo({ tarea, soloLectura = false, onCerrar }
                   </select>
                 </td>
               </>}
-              <th>P. INST. [W]</th><td colSpan={3}><Ent v={pinsO} set={setPinsO} dis={dis} ancho={50} /></td>
+              <th>P. INST. [W]</th><td colSpan={3}><Ent v={pinsO} set={editarPins(setPinsO)} dis={dis} ancho={50} /></td>
             </tr>
             <tr>
               <th>CORRIENTE POR FASE [A]</th>
@@ -759,11 +792,14 @@ export default function ProtocoloEnsayo({ tarea, soloLectura = false, onCerrar }
             <tr className="proto-final">
               <th>PO</th><td><Calc v={resV.p0} u="W" /></td>
               <th>IO(%)</th><td><Calc v={resV.ioPct} u="%" /></td>
-              <th>A 1,05 Un · I0(1,05)/I0</th>
+              <th>A {usUn.toString().replace('.', ',')} Un · I0/I0</th>
               <td colSpan={3}>
                 <Ent v={v105U} set={setV105U} dis={dis} ancho={58} ph="U" />{' '}
                 <Ent v={v105I} set={setV105I} dis={dis} ancho={58} ph="I" />{' '}
                 <Calc v={rel105} />
+                {ok105 === false
+                  ? <span style={{ color: 'var(--rojo)', fontWeight: 700 }}> ✗ &gt; {isIo}</span>
+                  : ok105 ? <span style={{ color: 'var(--estado-fin)' }}> ✓</span> : null}
               </td>
             </tr>
           </tbody>
