@@ -241,6 +241,83 @@ export function perdidasTotales(v: ResultadoVacio, cc: ResultadoCortocircuito): 
 }
 
 // ============================================================
+// EFICIENCIA DE LA MAQUINA (v1.101)
+//
+// "Aquí se realiza la suma de pérdidas en vacío y en cortocircuito; y se calcula
+//  la eficiencia de la máquina. Para esto se deberá ingresar: factor de carga
+//  para el cálculo de eficiencia, temperatura para el cálculo de eficiencia."
+//
+// La temperatura de eficiencia NO tiene por qué ser la de referencia del
+// protocolo (75 °C): se puede querer el rendimiento a la temperatura real de
+// operación. Por eso `pccATemperatura` vuelve a corregir desde los valores a
+// temperatura de ensayo en vez de reusar `pccRef`.
+// ============================================================
+
+/**
+ * Pcc llevada a una temperatura cualquiera, a partir de los resultados ya
+ * calculados a temperatura de ensayo.
+ *
+ * Joule SUBE con la temperatura y Skin BAJA — el mismo par de correcciones en
+ * sentidos opuestos que usa `calcularCortocircuito`. Si se corrigieran las dos
+ * para el mismo lado, el rendimiento saldría optimista.
+ */
+export function pccATemperatura(
+  r: ResultadoCortocircuito, material: Material, tcc?: number, temp?: number,
+): number | undefined {
+  const k = constanteMaterial(material)
+  if (tcc === undefined || temp === undefined || k + tcc === 0) return undefined
+  if (r.pj === undefined || r.ps === undefined) return undefined
+  const subir = (k + temp) / (k + tcc)
+  const bajar = (k + tcc) / (k + temp)
+  return r.pj * subir + r.ps * bajar
+}
+
+export interface ResultadoEficiencia {
+  /** Pcc a la temperatura pedida para el cálculo, en W. */
+  pccTemp?: number
+  /** Pérdidas totales a esa temperatura y a ese factor de carga, en W. */
+  perdidas?: number
+  /** Potencia entregada a la carga, en W. */
+  salida?: number
+  /** Rendimiento, en %. */
+  rendimientoPct?: number
+}
+
+/**
+ * Rendimiento del transformador.
+ *
+ *   η = S·fc·cosφ / (S·fc·cosφ + P0 + fc²·Pcc(T))
+ *
+ * Las pérdidas en vacío NO dependen de la carga (el núcleo está excitado
+ * siempre), pero las de cortocircuito van con el CUADRADO del factor de carga,
+ * porque son pérdidas por corriente. Confundir eso da rendimientos altísimos a
+ * media carga.
+ *
+ * Se calcula a cosφ = 1, que es la convención con la que se declara el
+ * rendimiento de estos transformadores. Si algún día hace falta otro, entra
+ * como parámetro sin tocar el resto.
+ */
+export function calcularEficiencia(
+  n: Nominales, p0?: number, pccTemp?: number, factorCarga = 1, cosPhi = 1,
+): ResultadoEficiencia {
+  const out: ResultadoEficiencia = { pccTemp }
+  const Sn = snVA(n)
+  const fc = num(factorCarga)
+  if (Sn === undefined || Sn === 0 || fc === undefined || fc < 0) return out
+  if (p0 === undefined || pccTemp === undefined) return out
+
+  const salida = Sn * fc * cosPhi
+  const perdidas = p0 + Math.pow(fc, 2) * pccTemp
+  out.salida = salida
+  out.perdidas = perdidas
+  // Con carga cero la salida es 0 y el rendimiento no está definido (sería 0/P0
+  // = 0, que es cierto pero no dice nada). Se prefiere no mostrar número.
+  if (salida <= 0 || salida + perdidas <= 0) return out
+  out.rendimientoPct = (salida / (salida + perdidas)) * 100
+  return out
+}
+
+// ============================================================
 // TOLERANCIAS Y ESCALAS DE LAS AGUJAS
 //
 // Todas las magnitudes se evaluan como PORCENTAJE DEL NOMINAL. Cada indicador

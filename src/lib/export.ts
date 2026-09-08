@@ -6,6 +6,7 @@ import {
 import { programar } from './programacion'
 import { componentePorCodigo } from '../data/catalogo'
 import { fmtDur } from './time'
+import type { RegistroLab } from './registroLab'
 
 const ESTADO_LABEL: Record<EstadoTarea, string> = {
   pendiente: 'Pendiente',
@@ -196,5 +197,53 @@ export function exportarProgramacionCSV(
   }
 
   descargarCSV(`Programacion_${sello()}.csv`, filas)
+  return true
+}
+
+// ---------- 4) Registro General de Laboratorio (v1.99) ----------
+// El documento de Laboratorio pide que el registro sea "fácil de consultar, de
+// filtrar, y de extraer datos". Esto último es esto: se baja EXACTAMENTE lo que
+// quedó en pantalla después de los filtros, no la tabla entera, así el que
+// exporta se lleva lo que estaba mirando.
+//
+// Los números van con COMA decimal a propósito: Excel en es-AR los toma como
+// número y se pueden ordenar y graficar; con punto los lee como texto.
+function num(v?: number, d = 2): string {
+  return v === undefined || !Number.isFinite(v) ? '' : v.toFixed(d).replace('.', ',')
+}
+
+export function exportarRegistroLabCSV(filas: RegistroLab[]): boolean {
+  if (filas.length === 0) return false
+
+  const out: Celda[][] = []
+  out.push(['Registro General de Laboratorio - INELPA'])
+  out.push(['Generado', new Date().toLocaleString('es-AR')])
+  out.push(['Ensayos exportados', filas.length])
+  out.push(['Fuera de norma', filas.filter((f) => f.fueraDeNorma).length])
+  out.push([])
+  out.push([
+    'Fecha', 'Modelo', 'Version de diseno', 'N de fabricacion', 'N de serie', 'Cliente', 'OT',
+    'Sn (kVA)', 'Un1 (kV)', 'Un2 (kV)', 'Material', 'Fases',
+    'Po (W)', 'io (%)', 'Pcc (W)', 'ucc (%)', 'uR (%)', 'uX (%)', 'Perdidas totales (W)', 'Rendimiento (%)',
+    'Origen resistencias', 'Temp. resistencias (C)',
+    'R 1U-1V (ohm)', 'R 1V-1W (ohm)', 'R 1W-1U (ohm)', 'R 1U-1N (ohm)',
+    'R 2u-2n (mohm)', 'R 2v-2n (mohm)', 'R 2w-2n (mohm)',
+    'Fuera de norma', 'Ensayos rechazados', 'Observaciones de bobinado', 'Cargado por',
+  ])
+  for (const f of filas) {
+    out.push([
+      f.fecha, f.modelo, f.versionDiseno, f.nroFabricacion ?? '', f.nroSerie ?? '',
+      f.cliente ?? '', f.ot ?? '',
+      num(f.snKVA, 0), num(f.un1KV, 3), num(f.un2KV, 3), f.material ?? '', f.nf ?? '',
+      num(f.po, 1), num(f.ioPct), num(f.pcc, 1), num(f.uccPct), num(f.urccPct), num(f.uxccPct),
+      num(f.pTotal, 1), num(f.rendimientoPct),
+      f.resOrigen ?? '', num(f.resTemp, 1),
+      num(f.rUV, 4), num(f.rVW, 4), num(f.rWU, 4), num(f.rUN, 4),
+      num(f.rUn, 3), num(f.rVn, 3), num(f.rWn, 3),
+      f.fueraDeNorma ? 'SI' : 'NO', f.ensayosRechazados ?? '', f.obsBobinado ?? '', f.guardadoPor ?? '',
+    ])
+  }
+
+  descargarCSV(`Registro_Laboratorio_${sello()}.csv`, out)
   return true
 }

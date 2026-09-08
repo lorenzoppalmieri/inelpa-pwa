@@ -10,6 +10,7 @@ import { fechaCorta, hhmm, fmtDur } from '../../lib/time'
 import { calcularTiempoProductivo } from '../../lib/calendario'
 import { PERIODOS_HISTORIAL, rangoReporte, enRango, type PeriodoReporte } from '../../lib/periodoReporte'
 import FichaLaboratorio from './FichaLaboratorio'
+import RegistroGeneral from './RegistroGeneral'
 
 // ============================================================
 // VISTA DEL LABORATORISTA (v1.37) — cola de ensayos. Las tareas llegan solas
@@ -66,6 +67,8 @@ export default function LaboratorioView() {
   const [periodo, setPeriodo] = useState<PeriodoReporte>('mes_actual')
   const [buscar, setBuscar] = useState('')
   const [tope, setTope] = useState(PAGINA)
+  // v1.99: cola de ensayos vs Registro General.
+  const [pestana, setPestana] = useState<'cola' | 'registro'>('cola')
 
   // Reloj para la antigüedad de la cola (se refresca solo cada 30").
   const [ahora, setAhora] = useState(() => Date.now())
@@ -149,8 +152,30 @@ export default function LaboratorioView() {
   // lo note: antes solo se veía la fecha de ingreso.
   const espera = (t: TareaLaboratorio) => calcularTiempoProductivo(t.creada, ahoraISO)
 
+  // v1.99: el Registro General es otra pantalla, no otro módulo. Vive acá para
+  // que lo alcancen tanto el laboratorista como el layout de admin (que ya
+  // monta esta misma vista en el ítem "Laboratorio" del sidebar).
+  if (pestana === 'registro') {
+    return (
+      <div>
+        <div className="tabs-nav" style={{ margin: '4px 0 12px' }}>
+          <button className="btn" onClick={() => setPestana('cola')}>🔬 Cola de ensayos</button>
+          <button className="btn btn-primary">📊 Registro General</button>
+        </div>
+        <RegistroGeneral />
+      </div>
+    )
+  }
+
   return (
     <div>
+      <div className="tabs-nav" style={{ margin: '4px 0 12px' }}>
+        <button className="btn btn-primary">🔬 Cola de ensayos</button>
+        <button className="btn" onClick={() => setPestana('registro')}
+          title="Valores reales de todos los ensayos — consulta para Diseño">
+          📊 Registro General
+        </button>
+      </div>
       <div className="section-title" style={{ margin: '4px 0 12px' }}>🔬 Laboratorio · cola de ensayos</div>
 
       <div className="logi-kpis">

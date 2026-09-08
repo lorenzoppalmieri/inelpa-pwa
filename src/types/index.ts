@@ -647,6 +647,9 @@ export const ENSAYOS_LAB: { key: string; label: string }[] = [
   { key: 'calentamiento', label: 'Calentamiento' },
 ]
 
+// v1.99: de dónde salen las resistencias de arrollamiento cargadas.
+export type OrigenResistencia = 'medido' | 'copiado'
+
 // ============================================================
 // v1.82 — MEDICIONES DEL ENSAYO DE PERDIDAS.
 // Se guarda como un unico JSON en la columna `mediciones` de `laboratorio`.
@@ -657,6 +660,16 @@ export const ENSAYOS_LAB: { key: string; label: string }[] = [
 export interface MedicionesEnsayo {
   nf?: 1 | 3
   material?: MaterialBobina
+  // ---- v1.99: identidad del espécimen dentro del REGISTRO GENERAL ----
+  // La versión de diseño es la clave con la que Diseño compara la evolución de
+  // un mismo modelo (ucc, P0, Pcc) y con la que el laboratorista busca
+  // resistencias medidas en máquinas equivalentes. Sin esto el registro no se
+  // puede filtrar, así que es OBLIGATORIA para guardar el ensayo.
+  versionDiseno?: string
+  /** Observaciones que dejó Bobinado sobre esta máquina (ej. "vueltas dudosas"). */
+  obsBobinado?: string
+  /** Observación / defecto / falla por ensayo. Clave = key de ENSAYOS_LAB. */
+  observaciones?: Record<string, string>
   tRef?: number                    // temperatura de referencia T, en °C
   pinsO?: number                   // potencia de instrumentos en vacio, en VA
   pinsCC?: number                  // idem cortocircuito, en VA
@@ -664,6 +677,16 @@ export interface MedicionesEnsayo {
     arrollamiento: 'alta' | 'baja'
     conexion: 'Y' | 'D'
     p0m?: number; i0m?: number; um?: number
+    /**
+     * v1.101: corriente de vacío POR FASE. El documento pide que en un trifásico
+     * se pueda cargar por fase o un promedio de las tres. `i0m` sigue siendo el
+     * promedio (es lo que usa el motor de cálculo); estas tres son el detalle.
+     *
+     * Antes existían en la planilla del protocolo pero NO se guardaban: se
+     * promediaban al vuelo y las tres lecturas se perdían. El desbalance entre
+     * fases es justamente lo que delata un problema de núcleo.
+     */
+    iU?: number; iV?: number; iW?: number
   }
   cc?: {
     arrollamiento: 'alta' | 'baja'
@@ -671,12 +694,31 @@ export interface MedicionesEnsayo {
     pccm?: number; im?: number; um?: number; tcc?: number; tR?: number
     rUV?: number; rVW?: number; rWU?: number; rUN?: number
     rUn?: number; rVn?: number; rWn?: number
+    // v1.99: la resistencia de arrollamiento NO siempre se mide sobre la máquina
+    // bajo ensayo, pero hace falta para calcular las pérdidas en carga. Cuando se
+    // copia de otra unidad hay que decirlo: el buscador de resistencias solo
+    // puede ofrecer valores efectivamente MEDIDOS, o se propagaría una copia de
+    // una copia y el registro dejaría de servirle a Diseño.
+    origenResistencias?: OrigenResistencia
+    /** Sólo si origenResistencias === 'copiado'. De qué unidad se tomaron. */
+    copiadaDe?: { registroId?: string; nroFabricacion?: string; fecha?: string }
   }
+  /** v1.99: pérdidas totales y rendimiento de la máquina. */
+  eficiencia?: { factorCarga?: number; temp?: number; rendimientoPct?: number }
   resultados?: {
     p0?: number; i0?: number; ioPct?: number
     pcc?: number; pj?: number; ps?: number; pccRef?: number
     ucc?: number; uccPct?: number; urccPct?: number; uxccPct?: number
     pTotal?: number
+    /**
+     * v1.101: pérdidas Joule a temperatura de referencia, separadas por
+     * arrollamiento (Pj1 = primario/AT, Pj2 = secundario/BT), y las Skin a esa
+     * misma temperatura. El motor ya las calculaba; sólo se guardaba la suma,
+     * así que el desglose se perdía al cerrar la pantalla.
+     */
+    pj1?: number; pj2?: number; psRef?: number
+    /** Potencia de consumo de los instrumentos, en VA, tal como se usó. */
+    pinsO?: number; pinsCC?: number
   }
   // ---- v1.83: resto del PROTOCOLO DE ENSAYO (RPH 8.6/03 V03) ----
   // Secciones que no dependen del motor de perdidas pero salen en la misma hoja.
@@ -688,16 +730,49 @@ export interface MedicionesEnsayo {
   }
   /** 1. Relacion de transformacion: 5 posiciones del conmutador x 3 fases. */
   relacion?: { tensionNominal?: number; relDivisor?: number; medidas?: (number | null)[][] }
-  /** 3. Resistencia de aislamiento: 3 tiempos x 3 combinaciones. */
+  /**
+   * 3. Resistencia de aislamiento: 3 tiempos x 3 combinaciones.
+   *
+   * v1.100: el documento separa lo INDISPENSABLE de lo adicional. Obligatorios
+   * son la temperatura de la máquina y un valor mínimo medido para cada una de
+   * las tres combinaciones (`minAtbt`/`minAtMasa`/`minBtMasa`). Los valores a
+   * 30/60/600 s (`atbt`/`atMasa`/`btMasa`) y el RAD/IP son opcionales.
+   *
+   * Los campos viejos se conservan tal cual para no romper los protocolos ya
+   * cargados en la v1.83 ni la planilla que los lee.
+   */
   aislamiento?: {
     tiempos?: number[]; tensionKV?: number; temp?: number
     atbt?: (string | null)[]; atMasa?: (string | null)[]; btMasa?: (string | null)[]
+    // --- v1.100: mínimos obligatorios, en MΩ ---
+    minAtbt?: number; minAtMasa?: number; minBtMasa?: number
+    // --- v1.100: RAD (R60/R30) e IP (R600/R60), opcionales ---
+    radAtbt?: number; radAtMasa?: number; radBtMasa?: number
+    ipAtbt?: number; ipAtMasa?: number; ipBtMasa?: number
   }
   /** 5b. Verificacion a 1,05 Un (relacion Io(1,05)/Io). */
   vacio105?: { tension?: number; corriente?: number }
-  /** 6 y 7. Tension aplicada e inducida. */
-  aplicada?: { atKV?: number; btKV?: number; tiempoS?: number; frecuencia?: number }
-  inducida?: { atKV?: number; btKV?: number; tiempoS?: number; frecuencia?: number }
+  /**
+   * 6. Tensión aplicada. Se hace sobre AT y sobre BT.
+   * v1.100: el documento pide, además de la tensión, la CORRIENTE DEMANDADA
+   * durante el ensayo (en mA) y si el ensayo fue satisfactorio. La corriente es
+   * el dato que delata una aislación en camino de fallar aunque aguante.
+   */
+  aplicada?: {
+    atKV?: number; btKV?: number; tiempoS?: number; frecuencia?: number
+    atMA?: number; btMA?: number
+    atOk?: boolean; btOk?: boolean
+  }
+  /**
+   * 7. Tensión inducida.
+   * v1.100: `tensionV` es la tensión eficaz aplicada al arrollamiento bajo
+   * ensayo, en V, que es como la pide el documento. `atKV`/`btKV` quedan por
+   * compatibilidad con la planilla del protocolo ya cargada.
+   */
+  inducida?: {
+    atKV?: number; btKV?: number; tiempoS?: number; frecuencia?: number
+    tensionV?: number; ok?: boolean
+  }
   /** 8. Estanqueidad en frio. */
   estanqueidad?: { presionKPa?: number; tiempoH?: number }
   /** 9. Espesor de pintura y conclusion. */
@@ -705,6 +780,54 @@ export interface MedicionesEnsayo {
   conclusion?: string
   guardadoEn?: string
   guardadoPor?: string
+}
+
+// ============================================================
+// v1.99 — PROTOCOLO DEL CLIENTE, SEPARADO DEL REGISTRO REAL.
+//
+// Criterio general que bajó Laboratorio: el protocolo es un DOCUMENTO CON
+// DESTINO AL CLIENTE, no un registro de valores reales. A veces existe el
+// protocolo antes de que se hayan corrido los ensayos, y a veces el valor que
+// va al papel no es exactamente el medido. Eso tiene que poder pasar sin
+// ensuciar la fuente de verdad.
+//
+// Hasta la v1.83 el protocolo escribía sobre `mediciones`: tocar un número en
+// la vista del cliente PISABA la medición real. Desde la v1.99 el protocolo
+// guarda acá y sólo acá.
+//
+// `snapshot` es la MISMA forma que `mediciones`, pero es la copia que se va a
+// imprimir. Mientras no exista, el protocolo se abre precargado con los valores
+// reales; en cuanto el laboratorista guarda, queda esta copia y a partir de ahí
+// el documento tiene vida propia. "Restaurar valores reales" borra el snapshot
+// y el protocolo vuelve a espejar el registro.
+//
+// Se guarda una copia entera y no sólo los campos pisados a propósito: un
+// protocolo que ya se le mandó al cliente no puede cambiarle un número solo
+// porque tres meses después se corrigió el catálogo de datos técnicos.
+// ============================================================
+export interface ProtocoloCliente {
+  snapshot?: MedicionesEnsayo
+  guardadoEn?: string
+  guardadoPor?: string
+  /** ISO de la última exportación a PDF, si se registró. */
+  emitidoEn?: string
+}
+
+/** Campos del protocolo que quedaron distintos del valor realmente medido. */
+export function diferenciasConRegistro(t: TareaLaboratorio): string[] {
+  const s = t.protocolo?.snapshot
+  const m = t.mediciones
+  if (!s || !m) return []
+  const comparables: [string, number | undefined, number | undefined][] = [
+    ['Pérdidas en vacío P0', s.resultados?.p0, m.resultados?.p0],
+    ['Corriente de vacío io%', s.resultados?.ioPct, m.resultados?.ioPct],
+    ['Pérdidas en carga Pcc', s.resultados?.pccRef, m.resultados?.pccRef],
+    ['Tensión de cortocircuito ucc%', s.resultados?.uccPct, m.resultados?.uccPct],
+    ['Pérdidas totales', s.resultados?.pTotal, m.resultados?.pTotal],
+  ]
+  return comparables
+    .filter(([, a, b]) => a !== undefined && b !== undefined && Math.abs(a - b) > 1e-6)
+    .map(([label]) => label)
 }
 
 export interface TareaLaboratorio {
@@ -732,7 +855,11 @@ export interface TareaLaboratorio {
   reaperturas?: { en: string; por?: string }[]
   // v1.82: mediciones del ENSAYO DE PERDIDAS (vacio + cortocircuito). Antes el
   // panel solo hacia console.log y no se guardaba nada.
+  // v1.99: esto es el REGISTRO REAL. Nunca lo escribe la vista de protocolo.
   mediciones?: MedicionesEnsayo
+  // v1.99: retoques hechos sobre el documento que se le entrega al cliente.
+  // Viven aparte para que editar el papel no altere lo que se midió.
+  protocolo?: ProtocoloCliente
   // v1.80: auditoria de anulacion. Solo se completan cuando estado === 'anulada'.
   anuladaEn?: string
   anuladaPor?: string

@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { TareaLaboratorio, MedicionesEnsayo, MaterialBobina } from '../../types'
-import { MATERIALES } from '../../types'
+import { MATERIALES, diferenciasConRegistro } from '../../types'
 import { guardarLaboratorio } from '../../sync/syncEngine'
 import { useAuth } from '../../auth/AuthContext'
 import { buscarDatosTecnicos, campoNum, NOMINALES_FICHA, type DatoTecnico } from '../../lib/datosTecnicos'
 import {
   calcularVacio, calcularCortocircuito, perdidasTotales,
-  porcentajeDeNominal, zonaDe, apruebaZona,
+  porcentajeDeNominal, zonaDe,
   ESCALA_PERDIDAS, ESCALA_IO, ESCALA_UCC,
   nfDesdeModelo, materialDesdeModelo,
   type Nominales, type ConfigEnsayo, type Nf, type Arrollamiento, type Conexion,
@@ -68,7 +68,12 @@ export default function ProtocoloEnsayo({ tarea, soloLectura = false, onCerrar }
   onCerrar?: () => void
 }) {
   const { usuario } = useAuth()
-  const g = tarea.mediciones
+  // v1.99: el protocolo se abre precargado con los VALORES REALES; si ya se
+  // editó y guardó alguna vez, se abre con esa copia. Nunca al revés: esta
+  // pantalla no vuelve a escribir sobre `mediciones`.
+  const g = tarea.protocolo?.snapshot ?? tarea.mediciones
+  const editado = tarea.protocolo?.snapshot !== undefined
+  const difs = diferenciasConRegistro(tarea)
   const [fila, setFila] = useState<DatoTecnico | undefined>()
   const [msg, setMsg] = useState('')
   // v1.83: la planilla es ancha por naturaleza. Ampliada ocupa toda la pantalla
@@ -147,9 +152,12 @@ export default function ProtocoloEnsayo({ tarea, soloLectura = false, onCerrar }
   // ---------- 5. perdidas en vacio ----------
   const [vArr, setVArr] = useState<Arrollamiento>(g?.vacio?.arrollamiento ?? 'baja')
   const [vCon, setVCon] = useState<Conexion>(g?.vacio?.conexion ?? 'Y')
-  const [iU, setIU] = useState('')
-  const [iV, setIV] = useState('')
-  const [iW, setIW] = useState('')
+  // v1.101: se inicializan desde lo guardado. Antes arrancaban SIEMPRE vacías y
+  // no se persistían: se tipeaban las tres corrientes, se promediaban al vuelo
+  // para el cálculo y las tres lecturas se perdían al cerrar la planilla.
+  const [iU, setIU] = useState(g?.vacio?.iU?.toString() ?? '')
+  const [iV, setIV] = useState(g?.vacio?.iV?.toString() ?? '')
+  const [iW, setIW] = useState(g?.vacio?.iW?.toString() ?? '')
   const [vUm, setVUm] = useState(g?.vacio?.um?.toString() ?? '')
   const [vP, setVP] = useState(g?.vacio?.p0m?.toString() ?? '')
   const [v105U, setV105U] = useState(g?.vacio105?.tension?.toString() ?? '')
@@ -219,15 +227,18 @@ export default function ProtocoloEnsayo({ tarea, soloLectura = false, onCerrar }
     return (i * (um * 1.05) / u) / resV.i0
   }, [v105U, v105I, vUm, resV.i0])
 
-  const zV = [zonaDe(porcentajeDeNominal(resV.p0, nominal.po), ESCALA_PERDIDAS),
-              zonaDe(porcentajeDeNominal(resV.ioPct, nominal.io), ESCALA_IO)]
-  const zC = [zonaDe(porcentajeDeNominal(resCC.pccRef, nominal.pcc), ESCALA_PERDIDAS),
-              zonaDe(porcentajeDeNominal(resCC.uccPct, nominal.ucc), ESCALA_UCC)]
+  // v1.99: el veredicto de aprobado/rechazado ya NO se recalcula acá. El
+  // protocolo es el papel del cliente: si desde esta pantalla se pudiera
+  // cambiar el resultado del ensayo, alcanzaría con retocar un número del
+  // documento para liberar a despacho un transformador que no aprobó.
 
   async function guardar() {
     const meds: MedicionesEnsayo = {
       nf, material, tRef: n(tRef), pinsO: n(pinsO), pinsCC: n(pinsCC),
-      vacio: { arrollamiento: vArr, conexion: vCon, p0m: n(vP), i0m: i0Prom, um: n(vUm) },
+      vacio: {
+        arrollamiento: vArr, conexion: vCon, p0m: n(vP), i0m: i0Prom, um: n(vUm),
+        iU: n(iU), iV: n(iV), iW: n(iW),
+      },
       cc: {
         arrollamiento: cArr, conexion: cCon, pccm: n(ccP), im: n(ccI), um: n(ccU),
         tcc: n(tcc), tR: n(tR),
@@ -267,16 +278,37 @@ export default function ProtocoloEnsayo({ tarea, soloLectura = false, onCerrar }
     if (n(pinsO) !== undefined) localStorage.setItem(LS_PINS_O, String(n(pinsO)))
     if (n(pinsCC) !== undefined) localStorage.setItem(LS_PINS_CC, String(n(pinsCC)))
 
-    // Sugerencia de resultado para los 2 ensayos de perdidas (editable despues).
-    const ensayos = { ...(tarea.ensayos ?? {}) }
-    if (resV.p0 !== undefined && !zV.includes('sin_dato')) {
-      ensayos.perdidas_vacio = zV.every(apruebaZona) ? 'aprobado' : 'rechazado'
-    }
-    if (resCC.pccRef !== undefined && !zC.includes('sin_dato')) {
-      ensayos.perdida_cc = zC.every(apruebaZona) ? 'aprobado' : 'rechazado'
-    }
-    await guardarLaboratorio({ ...tarea, mediciones: meds, ensayos })
-    setMsg('Protocolo guardado.')
+    // ============================================================
+    // v1.99 — ACÁ ESTABA EL PROBLEMA QUE MARCÓ LABORATORIO.
+    //
+    // Hasta la v1.83 esta función hacía `guardarLaboratorio({...tarea,
+    // mediciones: meds, ensayos})`: retocar un número en el papel del cliente
+    // PISABA la medición real y además re-decidía si el ensayo aprobaba.
+    //
+    // Ahora el protocolo escribe SÓLO en `tarea.protocolo`. El registro real
+    // (`mediciones`) y el veredicto de los ensayos son intocables desde acá:
+    // se cargan en la pantalla de ensayo y en la ficha, que son las que mandan.
+    // ============================================================
+    await guardarLaboratorio({
+      ...tarea,
+      protocolo: {
+        snapshot: meds,
+        guardadoEn: new Date().toISOString(),
+        guardadoPor: usuario?.usuario,
+        emitidoEn: tarea.protocolo?.emitidoEn,
+      },
+    })
+    setMsg('Protocolo guardado. Los valores reales del ensayo no se tocaron.')
+  }
+
+  /** Descarta las ediciones del papel y vuelve a espejar el registro real. */
+  async function restaurarReales() {
+    if (!confirm(
+      'Se van a descartar las ediciones hechas sobre el protocolo y el documento ' +
+      'va a volver a mostrar los valores reales del ensayo.\n\n¿Seguís?'
+    )) return
+    await guardarLaboratorio({ ...tarea, protocolo: undefined })
+    setMsg('Protocolo restaurado a los valores reales. Cerrá y volvé a abrirlo para verlos.')
   }
 
   const FASES = ['U', 'V', 'W']
@@ -288,12 +320,41 @@ export default function ProtocoloEnsayo({ tarea, soloLectura = false, onCerrar }
       <div className="proto-acciones no-print">
         {!dis && <button className="btn btn-primary" onClick={() => void guardar()}>💾 Guardar protocolo</button>}
         <button className="btn" onClick={() => window.print()}>🖨 Exportar PDF</button>
+        {!dis && editado && (
+          <button className="btn" onClick={() => void restaurarReales()}
+            title="Descartar las ediciones del papel y volver a los valores medidos">
+            ↺ Restaurar valores reales
+          </button>
+        )}
         <button className="btn" onClick={() => setAmpliado((v) => !v)}
           title={ampliado ? 'Volver a la ficha (Esc)' : 'Ver la planilla en toda la pantalla'}>
           {ampliado ? '🗕 Reducir' : '🗖 Pantalla completa'}
         </button>
         {onCerrar && !ampliado && <button className="btn" onClick={onCerrar}>Cerrar</button>}
         {msg && <span className="meta" style={{ color: 'var(--estado-fin)', fontWeight: 700 }}>✓ {msg}</span>}
+      </div>
+
+      {/* v1.99: aviso permanente de que esto NO es el registro. No sale impreso. */}
+      <div className="no-print card" style={{
+        margin: '0 0 12px',
+        borderLeft: '4px solid ' + (difs.length ? 'var(--naranja)' : 'var(--azul-claro)'),
+      }}>
+        <div className="meta">
+          Este es el <strong>documento que se le entrega al cliente</strong>. Lo que edites acá
+          no modifica los valores medidos: el Registro General de Laboratorio queda intacto.
+          {!editado && ' Todavía está espejando los valores reales del ensayo.'}
+        </div>
+        {difs.length > 0 && (
+          <div className="meta" style={{ marginTop: 6, color: 'var(--naranja)', fontWeight: 700 }}>
+            ⚠ Difiere del ensayo real en: {difs.join(' · ')}
+          </div>
+        )}
+        {editado && tarea.protocolo?.guardadoEn && (
+          <div className="meta" style={{ marginTop: 6 }}>
+            Editado el {new Date(tarea.protocolo.guardadoEn).toLocaleString()}
+            {tarea.protocolo.guardadoPor ? ` por ${tarea.protocolo.guardadoPor}` : ''}.
+          </div>
+        )}
       </div>
 
       <div className="proto-hoja">

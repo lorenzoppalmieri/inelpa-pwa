@@ -1,8 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { TareaLaboratorio, MedicionesEnsayo, MaterialBobina } from '../../types'
-import { MATERIALES } from '../../types'
+import type { TareaLaboratorio, MedicionesEnsayo, MaterialBobina, OrigenResistencia } from '../../types'
+import { MATERIALES, ENSAYOS_LAB } from '../../types'
 import { guardarLaboratorio } from '../../sync/syncEngine'
 import { useAuth } from '../../auth/AuthContext'
+import {
+  guardarRegistro, registroDesdeFicha, versionesDeModelo, type RegistroLab,
+} from '../../lib/registroLab'
+import BuscadorResistencias from './BuscadorResistencias'
+import {
+  FACTORES_CONMUTACION, relacionTeorica, desvioPct, relacionEnNorma,
+} from '../../lib/ensayosNorma'
 import {
   buscarDatosTecnicos, campoNum, codigoCorto,
   NOMINALES_TENSION, NOMINALES_PERDIDAS, NOMINALES_CONTEXTO, NOMINALES_TODOS, NOMINALES_FICHA, campo,
@@ -10,12 +17,20 @@ import {
 } from '../../lib/datosTecnicos'
 import {
   calcularVacio, calcularCortocircuito, perdidasTotales,
+  pccATemperatura, calcularEficiencia,
   porcentajeDeNominal, zonaDe, apruebaZona,
   ESCALA_PERDIDAS, ESCALA_IO, ESCALA_UCC, ESCALA_TOTALES,
   nfDesdeModelo, materialDesdeModelo,
   type Nominales, type ConfigEnsayo, type Nf, type Arrollamiento, type Conexion,
 } from '../../lib/ensayoPerdidas'
 import Aguja from './Aguja'
+import SeccionAislamiento, {
+  aisInicial, aisAMediciones, aisIncompleto, aisIniciado, type AisState,
+} from './SeccionAislamiento'
+import SeccionRelacion, { relInicial, relAMediciones, type RelState } from './SeccionRelacion'
+import SeccionDielectricos, {
+  dielInicial, dielAplicada, dielInducida, dielRechazado, type DielState,
+} from './SeccionDielectricos'
 
 // ============================================================
 // PANEL DE ENSAYO DE PERDIDAS (v1.82)
@@ -70,6 +85,15 @@ export default function PanelEnsayo({ tarea, soloLectura = false }: {
   const [material, setMaterial] = useState<MaterialBobina>(
     guardado?.material ?? materialDesdeModelo(tarea.modelo) ?? 'cobre')
   const [tRef, setTRef] = useState(String(guardado?.tRef ?? T_REF_DEFECTO))
+  // v1.99: identidad del especimen dentro del REGISTRO GENERAL. Obligatoria.
+  const [versionDiseno, setVersionDiseno] = useState(guardado?.versionDiseno ?? '')
+  const [obsBobinado, setObsBobinado] = useState(guardado?.obsBobinado ?? '')
+  // v1.100: el N° de fabricación se cargaba SOLO en la cabecera del protocolo.
+  // Al separar protocolo y registro (v1.99) dejó de llegar al Registro General,
+  // y es justo el dato con el que el buscador de resistencias identifica de qué
+  // máquina se están copiando los valores. Ahora se carga acá.
+  const [nroFab, setNroFab] = useState(guardado?.cabecera?.nroFabricacion ?? '')
+  const [versiones, setVersiones] = useState<string[]>([])
   const [pinsO, setPinsO] = useState(String(guardado?.pinsO ?? leerLS(LS_PINS_O, 0)))
   const [pinsCC, setPinsCC] = useState(String(guardado?.pinsCC ?? leerLS(LS_PINS_CC, 0)))
 
@@ -79,6 +103,12 @@ export default function PanelEnsayo({ tarea, soloLectura = false }: {
   const [p0m, setP0m] = useState(guardado?.vacio?.p0m?.toString() ?? '')
   const [i0m, setI0m] = useState(guardado?.vacio?.i0m?.toString() ?? '')
   const [vUm, setVUm] = useState(guardado?.vacio?.um?.toString() ?? '')
+  // v1.101: corriente de vacio por fase (solo trifasico). Si se cargan las tres,
+  // el promedio manda sobre lo tipeado en I0m.
+  const [porFase, setPorFase] = useState(guardado?.vacio?.iU !== undefined)
+  const [iU, setIU] = useState(guardado?.vacio?.iU?.toString() ?? '')
+  const [iV, setIV] = useState(guardado?.vacio?.iV?.toString() ?? '')
+  const [iW, setIW] = useState(guardado?.vacio?.iW?.toString() ?? '')
 
   // ---------- Ensayo de cortocircuito (por defecto Alta / Δ) ----------
   const [cArr, setCArr] = useState<Arrollamiento>(guardado?.cc?.arrollamiento ?? 'alta')
@@ -88,6 +118,21 @@ export default function PanelEnsayo({ tarea, soloLectura = false }: {
   const [cUm, setCUm] = useState(guardado?.cc?.um?.toString() ?? '')
   const [tcc, setTcc] = useState(guardado?.cc?.tcc?.toString() ?? '')
   const [tR, setTR] = useState(guardado?.cc?.tR?.toString() ?? '')
+  // v1.99: la resistencia de arrollamiento no siempre se mide sobre la maquina
+  // bajo ensayo. Hay que declararlo, porque el buscador de resistencias solo
+  // puede ofrecer valores efectivamente MEDIDOS.
+  const [origenRes, setOrigenRes] = useState<OrigenResistencia>(
+    guardado?.cc?.origenResistencias ?? 'medido')
+  // v1.101: buscador de resistencias en maquinas equivalentes.
+  const [buscando, setBuscando] = useState(false)
+  const [copiadaDe, setCopiadaDe] = useState<RegistroLab | undefined>()
+
+  // ---------- v1.100: los otros tres ensayos del documento ----------
+  const [ais, setAis] = useState<AisState>(() => aisInicial(guardado))
+  const [rel, setRel] = useState<RelState>(() => relInicial(guardado))
+  const [diel, setDiel] = useState<DielState>(() => dielInicial(guardado))
+  // Observación / defecto / falla por ensayo (clave = key de ENSAYOS_LAB).
+  const [obs, setObs] = useState<Record<string, string>>(guardado?.observaciones ?? {})
   const [rUV, setRUV] = useState(guardado?.cc?.rUV?.toString() ?? '')
   const [rVW, setRVW] = useState(guardado?.cc?.rVW?.toString() ?? '')
   const [rWU, setRWU] = useState(guardado?.cc?.rWU?.toString() ?? '')
@@ -105,6 +150,19 @@ export default function PanelEnsayo({ tarea, soloLectura = false }: {
       if (!vivo) return
       setFila(r.fila); setOrigen(r.origen); setError(r.error ?? '')
       setCargando(false)
+    })()
+    return () => { vivo = false }
+  }, [tarea.modelo])
+
+  // v1.99: versiones de diseño ya usadas para este modelo. Es solo una AYUDA
+  // para no terminar con '2', 'v2' y 'V 2' como si fueran tres versiones
+  // distintas — el campo sigue siendo libre, porque una versión nueva tiene que
+  // poder cargarse la primera vez que aparece.
+  useEffect(() => {
+    let vivo = true
+    void (async () => {
+      const vs = await versionesDeModelo(tarea.modelo)
+      if (vivo) setVersiones(vs)
     })()
     return () => { vivo = false }
   }, [tarea.modelo])
@@ -130,9 +188,18 @@ export default function PanelEnsayo({ tarea, soloLectura = false }: {
     tRef: n(tRef) ?? T_REF_DEFECTO, pinsO: n(pinsO) ?? 0, pinsCC: n(pinsCC) ?? 0,
   }), [nf, material, tRef, pinsO, pinsCC])
 
+  // v1.101: corriente de vacio efectiva. Con carga por fase se promedian las
+  // que esten cargadas (no las 3 a la fuerza: si una fase no se midio, promediar
+  // sobre 3 la contaria como 0 y hundiria el io%).
+  const i0Fases = useMemo(() => {
+    const xs = [n(iU), n(iV), n(iW)].filter((x): x is number => x !== undefined)
+    return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : undefined
+  }, [iU, iV, iW])
+  const i0Efectiva = porFase && nf === 3 ? i0Fases : n(i0m)
+
   const resVacio = useMemo(
-    () => calcularVacio(nom, cfg, { arrollamiento: vArr, conexion: vCon, p0m: n(p0m), i0m: n(i0m), um: n(vUm) }),
-    [nom, cfg, vArr, vCon, p0m, i0m, vUm])
+    () => calcularVacio(nom, cfg, { arrollamiento: vArr, conexion: vCon, p0m: n(p0m), i0m: i0Efectiva, um: n(vUm) }),
+    [nom, cfg, vArr, vCon, p0m, i0Efectiva, vUm])
 
   const resCC = useMemo(
     () => calcularCortocircuito(nom, cfg, {
@@ -146,6 +213,14 @@ export default function PanelEnsayo({ tarea, soloLectura = false }: {
   const pTotal = perdidasTotales(resVacio, resCC)
   const pTotalN = nominal.po !== undefined && nominal.pcc !== undefined ? nominal.po + nominal.pcc : undefined
 
+  // ---------- v1.101: eficiencia ----------
+  const [fCarga, setFCarga] = useState(String(guardado?.eficiencia?.factorCarga ?? 1))
+  const [tEfic, setTEfic] = useState(String(guardado?.eficiencia?.temp ?? T_REF_DEFECTO))
+  const efic = useMemo(() => {
+    const pccT = pccATemperatura(resCC, cfg.material, n(tcc), n(tEfic))
+    return calcularEficiencia(nom, resVacio.p0, pccT, n(fCarga) ?? 1)
+  }, [resCC, cfg.material, tcc, tEfic, nom, resVacio.p0, fCarga])
+
   // Zonas -> sugerencia de aprobado/rechazado para los 2 ensayos del documento.
   const zVacio = [
     zonaDe(porcentajeDeNominal(resVacio.p0, nominal.po), ESCALA_PERDIDAS),
@@ -157,15 +232,70 @@ export default function PanelEnsayo({ tarea, soloLectura = false }: {
   ]
   const zTotal = zonaDe(porcentajeDeNominal(pTotal, pTotalN), ESCALA_TOTALES)
 
+  // v1.99: sin versión de diseño la fila no entra al Registro General — no se
+  // podría filtrar ni comparar con otras máquinas del mismo modelo.
+  const faltaVersion = !versionDiseno.trim()
+  // Se exige temperatura y mínimos SOLO si se empezó a cargar el aislamiento.
+  const faltaAislamiento = aisIniciado(ais) && aisIncompleto(ais)
+  const noPuedeGuardar = faltaVersion || faltaAislamiento
+
   async function guardar() {
+    if (noPuedeGuardar) { setMsg(''); return }
     const meds: MedicionesEnsayo = {
       nf, material, tRef: n(tRef), pinsO: n(pinsO), pinsCC: n(pinsCC),
-      vacio: { arrollamiento: vArr, conexion: vCon, p0m: n(p0m), i0m: n(i0m), um: n(vUm) },
+      versionDiseno: versionDiseno.trim(),
+      obsBobinado: obsBobinado.trim() || undefined,
+      // v1.100: los otros tres ensayos del documento.
+      aislamiento: aisAMediciones(ais),
+      relacion: relAMediciones(rel, nf),
+      aplicada: dielAplicada(diel, guardado?.cabecera?.frecuencia),
+      inducida: dielInducida(diel, guardado?.inducida, guardado?.cabecera?.frecuencia),
+      // Sólo las observaciones con texto: un mapa lleno de strings vacíos
+      // engorda el jsonb que se espeja en cada tablet sin decir nada.
+      observaciones: Object.fromEntries(
+        Object.entries(obs).map(([k, t]) => [k, t.trim()]).filter(([, t]) => t),
+      ),
+      // Se conserva lo que ya venía cargado desde la planilla del protocolo y
+      // que esta pantalla todavía no edita. ANTES DE LA v1.100 NO SE CONSERVABA:
+      // guardar desde acá reconstruía `mediciones` de cero y borraba cabecera,
+      // relación, aislamiento y dieléctricos que se hubieran cargado en la
+      // planilla. Con el protocolo escribiendo en su propio campo eso ya no se
+      // notaría, pero el dato viejo se seguiría perdiendo igual.
+      cabecera: { ...guardado?.cabecera, nroFabricacion: nroFab.trim() || undefined },
+      vacio105: guardado?.vacio105,
+      estanqueidad: guardado?.estanqueidad,
+      pintura: guardado?.pintura,
+      conclusion: guardado?.conclusion,
+      vacio: {
+        arrollamiento: vArr, conexion: vCon, p0m: n(p0m), um: n(vUm),
+        // i0m guarda SIEMPRE el valor que se usó para calcular, venga del
+        // promedio de las fases o de la carga directa. Así el protocolo y el
+        // registro leen un solo campo y no tienen que rehacer la decisión.
+        i0m: i0Efectiva,
+        iU: porFase ? n(iU) : undefined,
+        iV: porFase ? n(iV) : undefined,
+        iW: porFase ? n(iW) : undefined,
+      },
       cc: {
         arrollamiento: cArr, conexion: cCon, pccm: n(pccm), im: n(cIm), um: n(cUm),
         tcc: n(tcc), tR: n(tR),
         rUV: n(rUV), rVW: n(rVW), rWU: n(rWU), rUN: n(rUN),
         rUn: n(rUn), rVn: n(rVn), rWn: n(rWn),
+        origenResistencias: origenRes,
+        // Sólo tiene sentido si son copiadas. Si el laboratorista vuelve a
+        // 'medido' después de haber copiado, la trazabilidad vieja mentiría.
+        // Si en esta sesión no se usó el buscador, se CONSERVA la trazabilidad
+        // que ya venía guardada: si no, reabrir la ficha y volver a guardar
+        // borraría el rastro de dónde salieron los números.
+        copiadaDe: origenRes !== 'copiado'
+          ? undefined
+          : copiadaDe
+            ? {
+              registroId: copiadaDe.laboratorioId,
+              nroFabricacion: copiadaDe.nroFabricacion ?? copiadaDe.nroSerie,
+              fecha: copiadaDe.fecha,
+            }
+            : guardado?.cc?.copiadaDe,
       },
       // Resultados CONGELADOS: si mañana se corrige el catalogo, el protocolo ya
       // emitido no cambia solo.
@@ -174,6 +304,12 @@ export default function PanelEnsayo({ tarea, soloLectura = false }: {
         pcc: resCC.pcc, pj: resCC.pj, ps: resCC.ps, pccRef: resCC.pccRef,
         ucc: resCC.ucc, uccPct: resCC.uccPct, urccPct: resCC.urccPct, uxccPct: resCC.uxccPct,
         pTotal,
+        // v1.101: desglose que el motor ya calculaba y se tiraba.
+        pj1: resCC.pjATRef, pj2: resCC.pjBTRef, psRef: resCC.psRef,
+        pinsO: n(pinsO), pinsCC: n(pinsCC),
+      },
+      eficiencia: {
+        factorCarga: n(fCarga), temp: n(tEfic), rendimientoPct: efic.rendimientoPct,
       },
       guardadoEn: new Date().toISOString(),
       guardadoPor: usuario?.usuario,
@@ -192,8 +328,51 @@ export default function PanelEnsayo({ tarea, soloLectura = false }: {
     if (resCC.pccRef !== undefined && !zCC.includes('sin_dato')) {
       ensayos.perdida_cc = zCC.every(apruebaZona) ? 'aprobado' : 'rechazado'
     }
-    await guardarLaboratorio({ ...tarea, mediciones: meds, ensayos })
-    setMsg(`Ensayo guardado ${meds.guardadoEn ? new Date(meds.guardadoEn).toLocaleTimeString() : ''}. Revisá los toggles de arriba: se pre-marcaron según la tolerancia.`)
+    // v1.100: mismas reglas para los ensayos nuevos.
+    // RELACIÓN: sólo se pre-marca si hay al menos un punto medido. Un punto
+    // fuera de la tolerancia de ±0,5% alcanza para rechazar todo el ensayo.
+    const puntos = meds.relacion?.medidas?.flat().filter((x): x is number => x !== null) ?? []
+    if (puntos.length > 0) {
+      const teo = FACTORES_CONMUTACION.map((_, j) =>
+        relacionTeorica(meds.relacion?.tensionNominal, meds.relacion?.relDivisor, j))
+      let evaluado = false, algunoMal = false
+      meds.relacion?.medidas?.forEach((fila) => fila.forEach((x, j) => {
+        const ok = relacionEnNorma(desvioPct(x ?? undefined, teo[j]))
+        if (ok === undefined) return
+        evaluado = true
+        if (!ok) algunoMal = true
+      }))
+      if (evaluado) ensayos.relacion = algunoMal ? 'rechazado' : 'aprobado'
+    }
+    // DIELÉCTRICOS: acá no hay tolerancia que calcular, el veredicto lo puso la
+    // persona en el selector. Sólo se traslada a la ficha.
+    const rDiel = dielRechazado(diel)
+    if (diel.apAtOk !== 'sin' || diel.apBtOk !== 'sin') {
+      ensayos.tension_aplicada = rDiel.aplicada ? 'rechazado' : 'aprobado'
+    }
+    if (diel.inOk !== 'sin') {
+      ensayos.tension_inducida = rDiel.inducida ? 'rechazado' : 'aprobado'
+    }
+    const actualizada = { ...tarea, mediciones: meds, ensayos }
+    await guardarLaboratorio(actualizada)
+
+    // ---- v1.99: espejo en el REGISTRO GENERAL DE LABORATORIO ----
+    // Va DESPUÉS de guardar la ficha y nunca la bloquea: si esto falla (sin red,
+    // por ejemplo) el ensayo ya está a salvo en `laboratorio.mediciones` y la
+    // fila del registro se puede regenerar desde ahí. El registro es un índice
+    // consultable, no la fuente de verdad.
+    const fueraDeNorma = zVacio.some((z) => z === 'fuera') || zCC.some((z) => z === 'fuera') || zTotal === 'fuera'
+    const r = await guardarRegistro(registroDesdeFicha(
+      actualizada,
+      { snKVA: nominal.sn, un1KV: nominal.un1, un2KV: nominal.un2 },
+      fueraDeNorma,
+    ))
+
+    const hora = meds.guardadoEn ? new Date(meds.guardadoEn).toLocaleTimeString() : ''
+    setMsg(
+      `Ensayo guardado ${hora}. Revisá los toggles de arriba: se pre-marcaron según la tolerancia.` +
+      (r.ok ? ' Registro General actualizado.' : ` No se pudo actualizar el Registro General (${r.error ?? 'error desconocido'}) — el ensayo sí quedó guardado.`)
+    )
   }
 
   const celda = (c: CampoNominal) => (
@@ -211,6 +390,30 @@ export default function PanelEnsayo({ tarea, soloLectura = false }: {
         value={v} disabled={soloLectura} onChange={(e) => set(e.target.value)} />
     </div>
   )
+
+  // v1.100: "Agregar en forma de texto cualquier observación, defecto o falla
+  // durante los ensayos." Va pegado a cada ensayo y no en un comentario único
+  // al final: un defecto anotado bajo el ensayo que lo destapó se puede cruzar
+  // después contra el histórico de ese ensayo; en un campo suelto, no.
+  //
+  // OJO: es una FUNCIÓN que devuelve JSX, no un componente declarado adentro del
+  // render. Un componente definido acá sería un tipo nuevo en cada render, así
+  // que React desmontaría y volvería a montar el textarea en cada tecla y se
+  // perdería el foco a la primera letra.
+  const obsEnsayo = (k: string) => {
+    const label = ENSAYOS_LAB.find((e) => e.key === k)?.label ?? k
+    return (
+      <div className="field" style={{ marginTop: 8 }}>
+        <label>Observaciones, defectos o fallas · {label}</label>
+        <textarea
+          className="input" rows={2} value={obs[k] ?? ''} disabled={soloLectura}
+          placeholder="opcional — qué se vio durante este ensayo"
+          style={{ width: '100%', resize: 'vertical' }}
+          onChange={(e) => setObs((o) => ({ ...o, [k]: e.target.value }))}
+        />
+      </div>
+    )
+  }
 
   const selArr = (v: Arrollamiento, set: (a: Arrollamiento) => void) => (
     <div className="field">
@@ -290,6 +493,56 @@ export default function PanelEnsayo({ tarea, soloLectura = false }: {
         </>
       )}
 
+      {/* --- v1.99: version de diseño y observaciones de bobinado --- */}
+      <div className="section-title" style={{ margin: '18px 0 8px' }}>
+        Versión de diseño y observaciones de bobinado
+      </div>
+      <div className="card" style={{ borderLeft: '4px solid ' + (faltaVersion ? 'var(--rojo)' : 'var(--estado-fin)') }}>
+        <div className="meta" style={{ marginBottom: 8 }}>
+          La versión de diseño es la clave con la que Diseño compara este transformador
+          contra los demás del mismo modelo. Sin ella el ensayo se guarda igual, pero
+          <strong> no entra al Registro General</strong> y nadie lo va a poder encontrar después.
+        </div>
+        <div className="form-grid">
+          <div className="field">
+            <label>
+              Versión de diseño <span style={{ color: 'var(--rojo)' }}>*</span>
+            </label>
+            <input
+              className="input" list="lab-versiones" value={versionDiseno} disabled={soloLectura}
+              placeholder="ej. 2" onChange={(e) => setVersionDiseno(e.target.value)}
+              style={faltaVersion ? { borderColor: 'var(--rojo)' } : undefined}
+            />
+            {/* Sugerencias de versiones ya usadas para este modelo: evita que
+                '2', 'v2' y 'V 2' terminen como tres versiones distintas. */}
+            <datalist id="lab-versiones">
+              {versiones.map((v) => <option key={v} value={v} />)}
+            </datalist>
+            {versiones.length > 0 && (
+              <div className="meta" style={{ marginTop: 4 }}>
+                Ya usadas en {codigoCorto(tarea.modelo)}: {versiones.join(' · ')}
+              </div>
+            )}
+          </div>
+          <div className="field">
+            <label>N° de fabricación</label>
+            <input
+              className="input" value={nroFab} disabled={soloLectura}
+              placeholder="con el que se identifica esta unidad"
+              onChange={(e) => setNroFab(e.target.value)}
+            />
+          </div>
+          <div className="field">
+            <label>Observaciones de Bobinado (opcional)</label>
+            <input
+              className="input" value={obsBobinado} disabled={soloLectura}
+              placeholder="ej. vueltas dudosas en la fase V"
+              onChange={(e) => setObsBobinado(e.target.value)}
+            />
+          </div>
+        </div>
+      </div>
+
       {/* --- Configuracion del ensayo --- */}
       <div className="section-title" style={{ margin: '18px 0 8px' }}>Configuración del ensayo</div>
       <div className="meta" style={{ marginBottom: 8 }}>
@@ -315,15 +568,49 @@ export default function PanelEnsayo({ tarea, soloLectura = false }: {
         {campoNumInput('Potencia instrumentos — cortocircuito', pinsCC, setPinsCC, 'VA', '0.1')}
       </div>
 
+      {/* ============ v1.100: RELACION DE TRANSFORMACION ============ */}
+      <SeccionRelacion v={rel} set={setRel} nf={nf} soloLectura={soloLectura} />
+      {obsEnsayo('relacion')}
+
+      {/* ============ v1.100: RESISTENCIA DE AISLAMIENTO ============ */}
+      <SeccionAislamiento v={ais} set={setAis} soloLectura={soloLectura} />
+      {obsEnsayo('res_aislamiento')}
+
       {/* ============ ENSAYO DE VACIO ============ */}
       <div className="section-title" style={{ margin: '18px 0 8px' }}>Ensayo de pérdidas en vacío</div>
       <div className="form-grid">
         {selArr(vArr, setVArr)}
         {selCon(vCon, setVCon)}
         {campoNumInput('Potencia medida (P0m)', p0m, setP0m, 'W', '0.1')}
-        {campoNumInput('Corriente medida (I0m)', i0m, setI0m, 'A', '0.01')}
+        {!porFase || nf !== 3 ? campoNumInput('Corriente medida (I0m)', i0m, setI0m, 'A', '0.01') : null}
         {campoNumInput('Tensión medida (Um, simple)', vUm, setVUm, 'V', '0.1')}
       </div>
+
+      {/* v1.101: carga por fase. Solo tiene sentido en trifasico. */}
+      {nf === 3 && (
+        <>
+          <label className="meta" style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', margin: '6px 0' }}>
+            <input type="checkbox" checked={porFase} disabled={soloLectura}
+              onChange={(e) => setPorFase(e.target.checked)} />
+            Cargar la corriente de vacío por fase en vez de un promedio
+          </label>
+          {porFase && (
+            <>
+              <div className="form-grid">
+                {campoNumInput('Corriente fase U', iU, setIU, 'A', '0.01')}
+                {campoNumInput('Corriente fase V', iV, setIV, 'A', '0.01')}
+                {campoNumInput('Corriente fase W', iW, setIW, 'A', '0.01')}
+              </div>
+              <div className="meta" style={{ marginBottom: 6 }}>
+                Promedio usado en el cálculo: <strong>{fmt(i0Fases)} A</strong>
+                {i0Fases !== undefined && [n(iU), n(iV), n(iW)].filter((x) => x !== undefined).length < 3
+                  ? ' · se promedian sólo las fases cargadas'
+                  : ''}
+              </div>
+            </>
+          )}
+        </>
+      )}
       <div className="agujas">
         <Aguja titulo="Pérdidas en vacío (P0)" valor={resVacio.p0} nominal={nominal.po} unidad="W" escala={ESCALA_PERDIDAS} />
         <Aguja titulo="Corriente de vacío (io%)" valor={resVacio.ioPct} nominal={nominal.io} unidad="%" escala={ESCALA_IO} decimales={2} />
@@ -331,6 +618,7 @@ export default function PanelEnsayo({ tarea, soloLectura = false }: {
       <div className="meta">
         I0 = <strong>{fmt(resVacio.i0)} A</strong> · Tolerancias de norma: P0 +15%, io% +30%.
       </div>
+      {obsEnsayo('perdidas_vacio')}
 
       {/* ============ ENSAYO DE CORTOCIRCUITO ============ */}
       <div className="section-title" style={{ margin: '18px 0 8px' }}>Ensayo de pérdidas en cortocircuito</div>
@@ -347,6 +635,67 @@ export default function PanelEnsayo({ tarea, soloLectura = false }: {
       <div className="meta" style={{ margin: '10px 0 6px' }}>
         Resistencias de arrollamiento · <strong>AT en Ω</strong>, <strong>BT en mΩ</strong>
       </div>
+      {/* v1.99: medido vs copiado. Esta marca es la que hace confiable al
+          buscador de resistencias: si no se distinguiera, se podría terminar
+          copiando de una copia y propagando un valor que nadie midió nunca. */}
+      <div className="form-grid">
+        <div className="field">
+          <label>Origen de las resistencias</label>
+          <select className="input" value={origenRes} disabled={soloLectura}
+            onChange={(e) => setOrigenRes(e.target.value as OrigenResistencia)}>
+            <option value="medido">Medidas sobre esta máquina</option>
+            <option value="copiado">Copiadas de otra unidad igual</option>
+          </select>
+        </div>
+      </div>
+      {origenRes === 'copiado' && (
+        <>
+          <div className="meta" style={{ marginBottom: 6, color: 'var(--naranja)' }}>
+            ⚠ Estos valores no se midieron sobre el espécimen bajo ensayo. Quedan marcados
+            como copiados y <strong>no se van a ofrecer</strong> a otros ensayos desde el buscador.
+          </div>
+          {!soloLectura && (
+            <div className="row-actions" style={{ marginBottom: 8 }}>
+              <button className="btn" disabled={faltaVersion}
+                title={faltaVersion ? 'Primero cargá la versión de diseño' : 'Buscar máquinas equivalentes ya medidas'}
+                onClick={() => setBuscando((v) => !v)}>
+                {buscando ? '✕ Cerrar buscador' : '🔎 Buscar en máquinas equivalentes'}
+              </button>
+              {faltaVersion && (
+                <span className="meta">La búsqueda cruza modelo + versión de diseño: cargá la versión primero.</span>
+              )}
+              {(copiadaDe || guardado?.cc?.copiadaDe) && (
+                <span className="meta">
+                  Copiadas de <strong>{copiadaDe
+                    ? (copiadaDe.nroFabricacion ?? copiadaDe.nroSerie ?? copiadaDe.laboratorioId)
+                    : (guardado?.cc?.copiadaDe?.nroFabricacion ?? guardado?.cc?.copiadaDe?.registroId)}</strong>
+                  {' '}({copiadaDe ? copiadaDe.fecha : guardado?.cc?.copiadaDe?.fecha})
+                </span>
+              )}
+            </div>
+          )}
+          {buscando && !soloLectura && (
+            <BuscadorResistencias
+              modelo={tarea.modelo} versionDiseno={versionDiseno.trim()}
+              material={material} nf={nf} excluirId={tarea.id}
+              nom={{ snKVA: nominal.sn, un1KV: nominal.un1, un2KV: nominal.un2 }}
+              onCerrar={() => setBuscando(false)}
+              onCopiar={(r, origen) => {
+                const s = (x?: number) => (x === undefined ? '' : String(x))
+                setRUV(s(r.rUV)); setRVW(s(r.rVW)); setRWU(s(r.rWU)); setRUN(s(r.rUN))
+                setRUn(s(r.rUn)); setRVn(s(r.rVn)); setRWn(s(r.rWn))
+                // La temperatura a la que se midieron viaja con los valores: sin
+                // ella la corrección térmica usaría la de otra medición y las
+                // pérdidas Joule saldrían mal.
+                if (r.tR !== undefined) setTR(String(r.tR))
+                setCopiadaDe(origen)
+                setBuscando(false)
+                setMsg(`Resistencias copiadas de ${origen.nroFabricacion ?? origen.nroSerie ?? 'otra unidad'} (${origen.fecha}). Acordate de guardar.`)
+              }}
+            />
+          )}
+        </>
+      )}
       <div className="form-grid">
         {nf === 3 ? (
           <>
@@ -387,6 +736,13 @@ export default function PanelEnsayo({ tarea, soloLectura = false }: {
         </div>
       </details>
       <div className="meta" style={{ marginTop: 6 }}>Tolerancias de norma: Pcc +15%, ucc% ±10%.</div>
+      {obsEnsayo('perdida_cc')}
+      {obsEnsayo('res_arrollamiento')}
+
+      {/* ============ v1.100: DIELECTRICOS (aplicada e inducida) ============ */}
+      <SeccionDielectricos v={diel} set={setDiel} soloLectura={soloLectura} />
+      {obsEnsayo('tension_aplicada')}
+      {obsEnsayo('tension_inducida')}
 
       {/* ============ TOTALES ============ */}
       <div className="section-title" style={{ margin: '18px 0 8px' }}>Pérdidas totales</div>
@@ -406,6 +762,37 @@ export default function PanelEnsayo({ tarea, soloLectura = false }: {
         </div>
       </div>
 
+      {/* ============ v1.101: EFICIENCIA ============ */}
+      <div className="section-title" style={{ margin: '18px 0 8px' }}>Eficiencia de la máquina</div>
+      <div className="form-grid">
+        {campoNumInput('Factor de carga', fCarga, setFCarga, '0 a 1', '0.05')}
+        {campoNumInput('Temperatura para el cálculo', tEfic, setTEfic, '°C', '0.1')}
+      </div>
+      <div className="tot-cards">
+        <div className="tot-card">
+          <div className="l">Pcc a {fmt(n(tEfic), 0)} °C (W)</div>
+          <div className="n">{fmt(efic.pccTemp, 1)}</div>
+        </div>
+        <div className="tot-card">
+          <div className="l">Pérdidas a esa carga (W)</div>
+          <div className="n">{fmt(efic.perdidas, 1)}</div>
+        </div>
+        <div className="tot-card" style={{ borderLeft: '4px solid var(--azul-claro)' }}>
+          <div className="l">Rendimiento (%)</div>
+          <div className="n">{fmt(efic.rendimientoPct, 3)}</div>
+        </div>
+      </div>
+      <div className="meta" style={{ marginTop: 6 }}>
+        η = S·fc / (S·fc + P0 + fc²·Pcc), a cosφ = 1. Las pérdidas en vacío no dependen de
+        la carga, pero las de cortocircuito van con el <strong>cuadrado</strong> del factor de carga.
+      </div>
+      {efic.rendimientoPct === undefined && (
+        <div className="meta" style={{ marginTop: 4, color: 'var(--naranja)' }}>
+          Falta algún dato para el rendimiento: hacen falta P0, las pérdidas Joule y Skin
+          (o sea las resistencias y la temperatura del ensayo) y la potencia nominal del catálogo.
+        </div>
+      )}
+
       {msg && <div className="meta" style={{ marginTop: 10, color: 'var(--estado-fin)', fontWeight: 700 }}>✓ {msg}</div>}
       {guardado?.guardadoEn && !msg && (
         <div className="meta" style={{ marginTop: 10 }}>
@@ -415,9 +802,23 @@ export default function PanelEnsayo({ tarea, soloLectura = false }: {
       )}
 
       {!soloLectura && (
-        <button className="btn btn-primary btn-bloque" style={{ marginTop: 12 }} onClick={() => void guardar()}>
-          💾 Guardar ensayo
-        </button>
+        <>
+          {faltaVersion && (
+            <div className="meta" style={{ marginTop: 10, color: 'var(--rojo)', fontWeight: 700 }}>
+              ✗ Falta la versión de diseño — sin eso el ensayo no entra al Registro General.
+            </div>
+          )}
+          {faltaAislamiento && (
+            <div className="meta" style={{ marginTop: 10, color: 'var(--rojo)', fontWeight: 700 }}>
+              ✗ Empezaste a cargar el aislamiento: faltan la temperatura de la máquina
+              y/o algún valor mínimo. Completalos o borrá lo cargado.
+            </div>
+          )}
+          <button className="btn btn-primary btn-bloque" style={{ marginTop: 12 }}
+            disabled={noPuedeGuardar} onClick={() => void guardar()}>
+            💾 Guardar ensayo
+          </button>
+        </>
       )}
     </div>
   )

@@ -15,7 +15,7 @@ import type {
   Mensaje, MensajeDestinoTipo, MensajeLectura,
   TiempoEstandar, AreaDemora, BloqueoLog,
   DespachoTrafo, EstadoDespacho, DemoraDespacho, ChecklistDespacho, FleteInterno, MovimientoDeposito,
-  TareaLaboratorio, EstadoLab, EnsayoEstado, MedicionesEnsayo,
+  TareaLaboratorio, EstadoLab, EnsayoEstado, MedicionesEnsayo, ProtocoloCliente,
   PlantillaRecurrente,
 } from '../types'
 import type { AccionSGO, AuditoriaSGO, EventoSGO } from '../sgo/types'
@@ -850,8 +850,10 @@ export interface LaboratorioRow {
   protocolo_nombre: string | null
   protocolo_subido_en: string | null
   reaperturas: { en: string; por?: string }[] | null
-  // v1.82/83: protocolo de ensayo completo (jsonb).
+  // v1.82/83: mediciones del ensayo (jsonb). v1.99: es el REGISTRO REAL.
   mediciones: MedicionesEnsayo | null
+  // v1.99: retoques del documento del cliente, separados del registro real.
+  protocolo: ProtocoloCliente | null
   // v1.80: anulacion de ficha (super admin). Ver EstadoLab en types.
   anulada_en: string | null
   anulada_por: string | null
@@ -881,6 +883,7 @@ export function laboratorioFromRow(r: LaboratorioRow): TareaLaboratorio {
     protocoloSubido: u(r.protocolo_subido_en),
     reaperturas: r.reaperturas ?? undefined,
     mediciones: r.mediciones ?? undefined,
+    protocolo: r.protocolo ?? undefined,
     anuladaEn: u(r.anulada_en),
     anuladaPor: u(r.anulada_por),
     motivoAnulacion: u(r.motivo_anulacion),
@@ -910,6 +913,7 @@ export function laboratorioToRow(t: TareaLaboratorio): LaboratorioRow {
     protocolo_subido_en: t.protocoloSubido ?? null,
     reaperturas: t.reaperturas ?? null,
     mediciones: t.mediciones ?? null,
+    protocolo: t.protocolo ?? null,
     anulada_en: t.anuladaEn ?? null,
     anulada_por: t.anuladaPor ?? null,
     motivo_anulacion: t.motivoAnulacion ?? null,
