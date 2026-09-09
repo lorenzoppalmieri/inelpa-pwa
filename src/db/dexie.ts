@@ -197,6 +197,10 @@ export class InelpaDB extends Dexie {
     this.version(28).stores({
       ausencias: 'id, usuarioId, fecha, motivo',
     })
+    // v2.05: periodoId agrupa los dias de una misma licencia / vacaciones.
+    this.version(29).stores({
+      ausencias: 'id, usuarioId, fecha, motivo, periodoId',
+    })
   }
 }
 

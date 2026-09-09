@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Tarea } from '../../types'
-import { setAusencias } from '../calendario'
+import { setAusencias, setFeriados, diasLaborablesDelRango } from '../calendario'
 import { metricasTarea } from '../kpi'
 import { huecosPorTarea } from '../huecos'
 
@@ -72,6 +72,37 @@ describe('el día de ausencia no cuenta', () => {
     const m = metricasTarea(conParada)
     // martes 15:00-15:45 = 45' + jueves 07:00-08:00 = 60'. El miércoles no cuenta.
     expect(m.justificada).toBe(45 + 60)
+  })
+})
+
+describe('rangos de ausencia (v2.05)', () => {
+  it('un solo día devuelve ese día', () => {
+    expect(diasLaborablesDelRango('2026-09-01', '2026-09-01')).toEqual(['2026-09-01'])
+  })
+
+  it('saltea sábados y domingos', () => {
+    // Vie 4/9 a lun 7/9 → viernes y lunes, sin el fin de semana.
+    expect(diasLaborablesDelRango('2026-09-04', '2026-09-07')).toEqual(['2026-09-04', '2026-09-07'])
+  })
+
+  it('una licencia de 15 días corridos son 11 días hábiles', () => {
+    // Mar 1/9 al mar 15/9: 15 días corridos, 2 fines de semana.
+    expect(diasLaborablesDelRango('2026-09-01', '2026-09-15')).toHaveLength(11)
+  })
+
+  it('saltea feriados cargados', () => {
+    setFeriados(['2026-09-02'])
+    const dias = diasLaborablesDelRango('2026-09-01', '2026-09-03')
+    setFeriados([])
+    expect(dias).toEqual(['2026-09-01', '2026-09-03'])
+  })
+
+  it('si el hasta es anterior al desde, no devuelve nada', () => {
+    expect(diasLaborablesDelRango('2026-09-10', '2026-09-01')).toEqual([])
+  })
+
+  it('un rango que cae entero en fin de semana no devuelve días', () => {
+    expect(diasLaborablesDelRango('2026-09-05', '2026-09-06')).toEqual([])
   })
 })
 

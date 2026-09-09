@@ -957,6 +957,7 @@ export interface AusenciaRow {
   nota: string | null
   cargada_por: string
   actualizado_en: string | null
+  periodo_id: string | null
 }
 export function ausenciaFromRow(r: AusenciaRow): Ausencia {
   return {
@@ -967,6 +968,7 @@ export function ausenciaFromRow(r: AusenciaRow): Ausencia {
     nota: u(r.nota),
     cargadaPor: r.cargada_por,
     actualizado: r.actualizado_en ?? new Date().toISOString(),
+    periodoId: u(r.periodo_id),
   }
 }
 export function ausenciaToRow(a: Ausencia): AusenciaRow {
@@ -978,6 +980,7 @@ export function ausenciaToRow(a: Ausencia): AusenciaRow {
     nota: a.nota ?? null,
     cargada_por: a.cargadaPor,
     actualizado_en: a.actualizado,
+    periodo_id: a.periodoId ?? null,
   }
 }
 

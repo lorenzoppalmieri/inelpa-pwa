@@ -76,6 +76,34 @@ export function estaAusente(operarioId: string | undefined, d: Date): boolean {
  * está cerrado (finde o feriado), `minutosLaborablesEntre` devuelve 0 igual: no
  * hace falta chequearlo acá.
  */
+/**
+ * v2.05 — Días LABORABLES de un rango, como 'YYYY-MM-DD'.
+ *
+ * Para cargar ausencias largas (vacaciones, licencia médica, maternidad) sin
+ * generar filas de sábados, domingos ni feriados: esos días ya están cerrados
+ * para todos, marcarlos como ausencia no cambia ningún cálculo y solo ensucia
+ * el listado. Una licencia de 15 días corridos son ~11 filas, no 15.
+ *
+ * @param desde 'YYYY-MM-DD' inclusive
+ * @param hasta 'YYYY-MM-DD' inclusive. Si es anterior a `desde`, devuelve [].
+ */
+export function diasLaborablesDelRango(desde: string, hasta: string): string[] {
+  const out: string[] = []
+  if (!desde || !hasta || hasta < desde) return out
+  // Se construye en hora local del mediodía para que ningún corrimiento de
+  // huso empuje la fecha al día anterior.
+  const cursor = new Date(`${desde}T12:00:00`)
+  const fin = new Date(`${hasta}T12:00:00`)
+  let guard = 0
+  while (cursor <= fin && guard++ < 3000) {
+    const dia = cursor.getDay()
+    const finde = dia === 0 || dia === 6
+    if (!finde && !esFeriado(cursor)) out.push(fechaLocalISO(cursor))
+    cursor.setDate(cursor.getDate() + 1)
+  }
+  return out
+}
+
 export function aperturaDelDia(iso: string): string {
   const d = new Date(iso)
   d.setHours(Math.floor(APERTURA_MIN / 60), APERTURA_MIN % 60, 0, 0)

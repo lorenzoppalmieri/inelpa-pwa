@@ -1111,6 +1111,29 @@ export async function eliminarAusencia(id: string): Promise<void> {
   await encolar({ entidad: 'ausencia', entidadId: id, tipo: 'delete', payload: { id } })
 }
 
+// v2.05: alta de un PERIODO (vacaciones, licencia médica, maternidad). Se guarda
+// una fila por día hábil: el motor de calendario razona por día, y guardar el
+// rango obligaría a expandirlo en cada cálculo de cada tarea.
+// Se recarga el calendario UNA sola vez al final, no una vez por día.
+export async function guardarAusencias(as: Ausencia[]): Promise<void> {
+  if (as.length === 0) return
+  await db.ausencias.bulkPut(as)
+  await recargarAusenciasCalendario()
+  for (const a of as) {
+    await encolar({ entidad: 'ausencia', entidadId: a.id, tipo: 'upsert', payload: a })
+  }
+}
+
+export async function eliminarPeriodoAusencia(periodoId: string): Promise<void> {
+  const ids = (await db.ausencias.where('periodoId').equals(periodoId).toArray()).map((a) => a.id)
+  if (ids.length === 0) return
+  await db.ausencias.bulkDelete(ids)
+  await recargarAusenciasCalendario()
+  for (const id of ids) {
+    await encolar({ entidad: 'ausencia', entidadId: id, tipo: 'delete', payload: { id } })
+  }
+}
+
 // v1.12: tareas logisticas (organizador de abastecimiento).
 export async function guardarTareaLogistica(t: TareaLogistica): Promise<void> {
   await db.tareasLogistica.put(t)

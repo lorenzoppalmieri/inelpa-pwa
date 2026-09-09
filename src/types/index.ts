@@ -1164,6 +1164,12 @@ export interface Ausencia {
   nota?: string              // detalle libre (opcional)
   cargadaPor: string         // usuario que la registro (auditoria)
   actualizado: string
+  // v2.05: id del PERIODO al que pertenece esta ausencia. Vacaciones, licencia
+  // medica o maternidad se cargan como rango y se guardan como una fila POR DIA
+  // habil (el motor de calendario razona por dia; un rango obligaria a expandirlo
+  // en cada calculo). Este campo las agrupa para mostrarlas y borrarlas juntas.
+  // Vacio = ausencia suelta de un solo dia.
+  periodoId?: string
 }
 
 /** Id determinista: evita dos filas para el mismo dia y persona. */
