@@ -774,6 +774,31 @@ button.logi-kpi, button.card { color: inherit; font: inherit; }
 .tot-card .sub-desc { font-size: .7rem; color: var(--texto-tenue); margin-top: 4px; padding-top: 4px; border-top: 1px dashed var(--borde); }
 .tot-card .sub-desc b { color: var(--texto); font-variant-numeric: tabular-nums; }
 
+/* ---------- v2.08: SECCIONES DE ESTADO PLEGABLES (Asignar tareas) ----------
+   Todo el renglón es un <button>: en una tablet, apuntarle solo a la flecha es
+   una tortura. El borde izquierdo de color repite el codigo del chip de estado,
+   asi se reconoce la seccion de un vistazo sin leer. */
+.estado-seccion {
+  width: 100%; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  background: var(--panel-2); border: 1px solid var(--borde);
+  border-left: 5px solid var(--ec, var(--azul-claro));
+  border-radius: 10px; padding: 10px 14px; margin-bottom: 10px;
+  cursor: pointer; text-align: left; font-family: inherit; color: var(--texto);
+  min-height: 44px; /* objetivo tactil comodo */
+}
+.estado-seccion:hover { border-color: var(--ec, var(--azul-claro)); }
+.estado-seccion.e-proceso   { --ec: var(--azul-claro); }
+.estado-seccion.e-pausa     { --ec: var(--naranja); }
+.estado-seccion.e-pendiente { --ec: var(--texto-tenue); }
+.estado-seccion.e-finalizado{ --ec: var(--estado-fin); }
+.estado-seccion .es-flecha { color: var(--texto-tenue); font-size: .8rem; width: 12px; }
+.estado-seccion .es-lbl { font-weight: 800; font-size: .95rem; }
+.estado-seccion .es-n {
+  background: var(--ec, var(--azul-claro)); color: #fff;
+  border-radius: 999px; padding: 1px 10px; font-size: .75rem; font-weight: 700;
+}
+.estado-seccion .es-resumen { color: var(--texto-tenue); font-size: .8rem; }
+
 /* ---------- v2.01: BANNER AUDITOR DE TIEMPOS ---------- */
 .balance-alert { border-radius: 10px; padding: 9px 12px; margin-bottom: 10px; font-size: .82rem; border: 1px solid transparent; }
 /* Verde DISCRETO a proposito: si grita cuando todo esta bien, en dos semanas

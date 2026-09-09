@@ -653,9 +653,83 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
   // v1.44: cada grupo calcula su AVANCE = finalizadas / programadas. Es dinamico:
   // si la planificadora suma tareas sube el denominador, y a medida que el
   // colaborador cierra tareas sube el numerador y se llena la barra.
-  const grupos = useMemo(() => {
-    const m = new Map<string, { label: string; items: Tarea[] }>()
+  // v1.44 (reubicado en v2.08): AVANCE por grupo = finalizadas / programadas.
+  // Antes vivía en el encabezado de cada grupo, pero al partir el listado en
+  // secciones por estado la misma barra se habría repetido idéntica en cada
+  // sección. Ahora va UNA vez, arriba de todo, y sigue siendo dinámico: sumar
+  // tareas sube el denominador y cerrarlas sube el numerador.
+  const avance = useMemo(() => {
+    const m = new Map<string, { label: string; total: number; fin: number; curso: number }>()
     for (const t of visibles) {
+      let key: string, label: string
+      if (agruparPor === 'maquina') { key = t.maquinaId; label = nombreMaquina(t.maquinaId) }
+      else if (agruparPor === 'operario') { key = t.operarioId ?? '__sin__'; label = t.operarioId ? nombreOperario(t.operarioId) : 'Sin asignar' }
+      else if (agruparPor === 'modelo') { key = t.modelo || '__sin__'; label = t.modelo || 'Sin modelo' }
+      else { key = t.sectorId; label = sectorById(t.sectorId).nombre }
+      const g = m.get(key) ?? { label, total: 0, fin: 0, curso: 0 }
+      g.total++
+      if (t.estado === 'finalizada') g.fin++
+      else if (t.estado === 'en_proceso' || t.estado === 'pausada') g.curso++
+      m.set(key, g)
+    }
+    return [...m.values()]
+      .map((g) => ({ ...g, pct: g.total > 0 ? Math.round((g.fin / g.total) * 100) : 0 }))
+      .sort((a, b) => a.label.localeCompare(b.label))
+  }, [visibles, agruparPor, nombreMaquina, nombreOperario])
+
+  // ============================================================
+  // v2.08 — SECCIONES POR ESTADO, PLEGABLES.
+  //
+  // El listado se volvió inmanejable: las finalizadas se acumulan mes a mes y
+  // tapaban a las pendientes y a las que están en curso, que son las únicas
+  // sobre las que la planificadora puede hacer algo hoy.
+  //
+  // Ahora se parte en secciones por estado, con el agrupamiento elegido
+  // (sector / estación / colaborador / modelo) ADENTRO de cada una. Las
+  // finalizadas arrancan CERRADAS: son el 80% del volumen y las que menos se
+  // tocan. El resto arranca abierto.
+  //
+  // El filtro de estado de la barra sigue existiendo y hace otra cosa: ESCONDE
+  // los demás estados. Esto los pliega, que no es lo mismo.
+  // ============================================================
+  const ORDEN_ESTADOS: EstadoTarea[] = ['en_proceso', 'pausada', 'pendiente', 'finalizada']
+  const LABEL_ESTADO: Record<EstadoTarea, string> = {
+    en_proceso: 'En proceso', pausada: 'Pausada', pendiente: 'Pendiente', finalizada: 'Finalizada',
+  }
+  // Set de estados PLEGADOS (no de abiertos): así lo que se guarda es la
+  // excepción y cualquier estado nuevo aparece abierto por default.
+  const [plegados, setPlegados] = useState<Set<EstadoTarea>>(() => new Set<EstadoTarea>(['finalizada']))
+  const alternarPlegado = (e: EstadoTarea) => setPlegados((prev) => {
+    const s = new Set(prev)
+    if (s.has(e)) s.delete(e); else s.add(e)
+    return s
+  })
+
+  const secciones = useMemo(() => {
+    return ORDEN_ESTADOS
+      .map((estado) => {
+        const items = visibles.filter((t) => t.estado === estado)
+        // Resumen por sector para el encabezado: dice de qué se trata la
+        // sección sin tener que abrirla.
+        const porSector = new Map<string, number>()
+        for (const t of items) {
+          const n = sectorById(t.sectorId).nombre
+          porSector.set(n, (porSector.get(n) ?? 0) + 1)
+        }
+        const resumen = [...porSector.entries()]
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 3)
+          .map(([n, c]) => `${c} de ${n}`)
+          .join(', ')
+        return { estado, items, total: items.length, resumen: porSector.size > 3 ? `${resumen}…` : resumen }
+      })
+      .filter((s) => s.total > 0) // un estado sin tareas no ocupa lugar
+  }, [visibles])
+
+  // Agrupa las tareas de UNA sección con el criterio elegido en la barra.
+  const agruparItems = (items: Tarea[]) => {
+    const m = new Map<string, { label: string; items: Tarea[] }>()
+    for (const t of items) {
       let key: string, label: string
       if (agruparPor === 'maquina') { key = t.maquinaId; label = nombreMaquina(t.maquinaId) }
       else if (agruparPor === 'operario') { key = t.operarioId ?? '__sin__'; label = t.operarioId ? nombreOperario(t.operarioId) : 'Sin asignar' }
@@ -664,15 +738,8 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
       const g = m.get(key) ?? { label, items: [] }
       g.items.push(t); m.set(key, g)
     }
-    return [...m.values()]
-      .map((g) => {
-        const total = g.items.length
-        const fin = g.items.filter((t) => t.estado === 'finalizada').length
-        const curso = g.items.filter((t) => t.estado === 'en_proceso' || t.estado === 'pausada').length
-        return { ...g, total, fin, curso, pct: total > 0 ? Math.round((fin / total) * 100) : 0 }
-      })
-      .sort((a, b) => a.label.localeCompare(b.label))
-  }, [visibles, agruparPor, nombreMaquina, nombreOperario])
+    return [...m.values()].sort((a, b) => a.label.localeCompare(b.label))
+  }
 
   // Tarjeta de una tarea (extraida para reusar dentro de los grupos).
   const renderTarea = (t: Tarea) => (
@@ -939,28 +1006,55 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
         </select>
       </div>
 
-      {visibles.length === 0
-        ? <div className="empty">{tareasOrdenadas.length === 0 ? 'Aun no hay tareas asignadas.' : 'No hay tareas para el filtro seleccionado.'}</div>
-        : grupos.map((g) => (
-            <div key={g.label} style={{ marginBottom: 14 }}>
-              {/* v1.44: avance del grupo = finalizadas / programadas + barra. */}
-              <div className="grupo-tit">
-                <span className="grupo-lbl">{g.label}</span>
-                <span className={'grupo-n' + (g.pct === 100 ? ' completo' : '')}>
-                  {g.fin} / {g.total} completadas
-                </span>
-                <span className="grupo-barra" title={`${g.pct}% completado · ${g.curso} en curso · ${g.total - g.fin - g.curso} pendiente(s)`}>
-                  <span
-                    className="grupo-barra-fill"
-                    style={{ width: `${g.pct}%`, background: g.pct === 100 ? 'var(--estado-fin)' : 'var(--azul-claro)' }}
-                  />
-                </span>
-                <span className="grupo-pct">{g.pct}%</span>
-                {g.curso > 0 && <span className="grupo-curso">▶ {g.curso} en curso</span>}
-              </div>
-              {g.items.map((t) => renderTarea(t))}
+      {/* v2.08: avance por grupo, una sola vez y arriba de las secciones. */}
+      {visibles.length > 0 && avance.length > 0 && (
+        <div className="card" style={{ marginBottom: 12 }}>
+          {avance.map((g) => (
+            <div className="grupo-tit" key={g.label}>
+              <span className="grupo-lbl">{g.label}</span>
+              <span className={'grupo-n' + (g.pct === 100 ? ' completo' : '')}>{g.fin} / {g.total} completadas</span>
+              <span className="grupo-barra" title={`${g.pct}% completado · ${g.curso} en curso · ${g.total - g.fin - g.curso} pendiente(s)`}>
+                <span className="grupo-barra-fill"
+                  style={{ width: `${g.pct}%`, background: g.pct === 100 ? 'var(--estado-fin)' : 'var(--azul-claro)' }} />
+              </span>
+              <span className="grupo-pct">{g.pct}%</span>
+              {g.curso > 0 && <span className="grupo-curso">▶ {g.curso} en curso</span>}
             </div>
           ))}
+        </div>
+      )}
+
+      {visibles.length === 0
+        ? <div className="empty">{tareasOrdenadas.length === 0 ? 'Aun no hay tareas asignadas.' : 'No hay tareas para el filtro seleccionado.'}</div>
+        : secciones.map((s) => {
+            const cerrada = plegados.has(s.estado)
+            return (
+              <div key={s.estado} style={{ marginBottom: 18 }}>
+                {/* v2.08: encabezado de estado. Todo el renglón es clickeable:
+                    apuntarle solo a la flecha en una tablet es una tortura. */}
+                <button
+                  className={'estado-seccion e-' + (s.estado === 'en_proceso' ? 'proceso' : s.estado === 'pausada' ? 'pausa' : s.estado === 'finalizada' ? 'finalizado' : 'pendiente')}
+                  onClick={() => alternarPlegado(s.estado)}
+                  aria-expanded={!cerrada}
+                >
+                  <span className="es-flecha">{cerrada ? '▶' : '▼'}</span>
+                  <span className="es-lbl">{LABEL_ESTADO[s.estado]}</span>
+                  <span className="es-n">{s.total} tarea{s.total === 1 ? '' : 's'}</span>
+                  {s.resumen && <span className="es-resumen">{s.resumen}</span>}
+                </button>
+
+                {!cerrada && agruparItems(s.items).map((g) => (
+                  <div key={g.label} style={{ marginBottom: 14 }}>
+                    <div className="grupo-tit">
+                      <span className="grupo-lbl">{g.label}</span>
+                      <span className="grupo-n">{g.items.length}</span>
+                    </div>
+                    {g.items.map((t) => renderTarea(t))}
+                  </div>
+                ))}
+              </div>
+            )
+          })}
 
       {editar && (
         <EditarTarea
