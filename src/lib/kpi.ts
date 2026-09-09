@@ -53,7 +53,10 @@ export function desglosePausas(t: Tarea, ahoraISO?: string): TramoPausa[] {
       label: causaLabel(p.causa),
       inicio: p.inicio,
       fin,
-      minutos: calcularTiempoNetoProductivo(new Date(p.inicio), new Date(fin), { recupMin, sinAlmuerzo: true }),
+      // v2.04: `operarioId` hace que los días que el colaborador faltó no sumen.
+      // Sin esto, una pausa abierta que cruza una ausencia se infla con las horas
+      // de un día en que esa persona no estuvo en la planta.
+      minutos: calcularTiempoNetoProductivo(new Date(p.inicio), new Date(fin), { recupMin, sinAlmuerzo: true, operarioId: t.operarioId }),
       productiva: !esParadaNoProductiva(p.causa),
       abierta: !p.fin,
     }
@@ -124,9 +127,9 @@ export function restarIntervalos(base: Intervalo[], quitar: Intervalo[]): Interv
 }
 
 /** Mide una lista de intervalos en minutos de PLANTA ABIERTA (no reloj). */
-function medirIntervalos(xs: Intervalo[], recupMin: number): number {
+function medirIntervalos(xs: Intervalo[], recupMin: number, operarioId?: string): number {
   return xs.reduce((acc, x) => acc + calcularTiempoNetoProductivo(
-    new Date(x.inicio), new Date(x.fin), { recupMin, sinAlmuerzo: true }), 0)
+    new Date(x.inicio), new Date(x.fin), { recupMin, sinAlmuerzo: true, operarioId }), 0)
 }
 
 /** Los tramos de pausa de una tarea, separados en los dos cubos. */
@@ -142,7 +145,7 @@ function cubosDePausas(t: Tarea, ahoraISO?: string): { prod: Intervalo[]; noProd
 // máquina...), FUSIONADAS y sin los tramos que pisa el almuerzo.
 export function minutosParada(t: Tarea, ahoraISO?: string): number {
   const { prod, noProd } = cubosDePausas(t, ahoraISO)
-  return medirIntervalos(restarIntervalos(prod, noProd), minutosRecupTarea(t))
+  return medirIntervalos(restarIntervalos(prod, noProd), minutosRecupTarea(t), t.operarioId)
 }
 
 // PAUSAS NO PRODUCTIVAS (almuerzo, reapertura). NO son demora: se descuentan del
@@ -150,7 +153,7 @@ export function minutosParada(t: Tarea, ahoraISO?: string): number {
 // (el operario las marca todos los días y tiene que poder verlas).
 export function minutosNoProductivos(t: Tarea, ahoraISO?: string): number {
   const { noProd } = cubosDePausas(t, ahoraISO)
-  return medirIntervalos(fusionarIntervalos(noProd), minutosRecupTarea(t))
+  return medirIntervalos(fusionarIntervalos(noProd), minutosRecupTarea(t), t.operarioId)
 }
 
 // Tiempo real de ejecucion BRUTO (resta cruda de timestamps). Solo informativo
@@ -170,6 +173,7 @@ export function tiempoDisponible(t: Tarea): number {
   const wall = calcularTiempoNetoProductivo(new Date(t.inicioReal), new Date(t.finReal), {
     recupMin: minutosRecupTarea(t),
     sinAlmuerzo: true,
+    operarioId: t.operarioId, // v2.04: los días que faltó no cuentan
   })
   return Math.max(0, wall - minutosNoProductivos(t))
 }
@@ -204,6 +208,7 @@ export function tiempoRealHasta(t: Tarea, hastaISO?: string): number {
   if (!t.inicioReal || !fin) return 0
   const wall = calcularTiempoNetoProductivo(new Date(t.inicioReal), new Date(fin), {
     recupMin: minutosRecupTarea(t), sinAlmuerzo: true,
+    operarioId: t.operarioId, // v2.04: los días que faltó no cuentan
   })
   return Math.max(0, wall - minutosNoProductivos(t, fin))
 }
@@ -483,7 +488,7 @@ export function paretoDemoras(tareas: Tarea[]): ParetoItem[] {
     for (const p of t.paradas) {
       if (esParadaNoProductiva(p.causa)) continue // el almuerzo no es una demora
       // v1.17: minutos LABORABLES (no crudos): no cuenta noches/finde/planta cerrada.
-      const min = p.fin ? calcularTiempoNetoProductivo(new Date(p.inicio), new Date(p.fin), { recupMin: minutosRecupTarea(t), sinAlmuerzo: true }) : 0
+      const min = p.fin ? calcularTiempoNetoProductivo(new Date(p.inicio), new Date(p.fin), { recupMin: minutosRecupTarea(t), sinAlmuerzo: true, operarioId: t.operarioId }) : 0
       if (min <= 0) continue // ignora paradas en curso sin cierre
       const cur = map.get(p.causa) ?? { min: 0, ev: 0 }
       cur.min += min

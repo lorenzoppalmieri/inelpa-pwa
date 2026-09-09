@@ -14,6 +14,8 @@ import {
 import { MODELOS_CATALOGO, modeloPorNombre, componentesDeModelo, componentePorCodigo } from '../../data/catalogo'
 import { guardarOrden, guardarTarea, guardarSemielaborado, eliminarTarea, eliminarOrden, guardarFeriado, eliminarFeriado } from '../../sync/syncEngine'
 import { useAuth } from '../../auth/AuthContext'
+import { puedeCargarAusencias } from '../../auth/roles'
+import PanelAusentismo from './PanelAusentismo'
 import { isoWeek, fechaCorta, hhmm } from '../../lib/time'
 import { tiempoNetoMin } from '../../lib/kpi'
 import EditarTarea from './EditarTarea'
@@ -59,10 +61,13 @@ function resumenCarga(tareas: Tarea[], pred: (t: Tarea) => boolean): { total: nu
 // Todo se persiste offline-first (IndexedDB + cola de sync).
 // ============================================================
 
-type SubVista = 'ordenes' | 'asignar' | 'semi' | 'feriados'
+type SubVista = 'ordenes' | 'asignar' | 'semi' | 'feriados' | 'ausentismo'
 
 export default function PlanificacionView({ focoTareaId, onFocoConsumido }: { focoTareaId?: string | null; onFocoConsumido?: () => void } = {}) {
-  const { permisos } = useAuth()
+  const { permisos, usuario } = useAuth()
+  // v2.04: marcar una ausencia borra ese día de los KPIs de esa persona. Lista
+  // corta y explícita por usuario, no por rol. Ver auth/roles.ts.
+  const puedeAusencias = puedeCargarAusencias(usuario)
   // v1.9: encargados de planta solo pueden cargar REPARACIONES (sin produccion).
   const soloReparacion = !!(permisos?.crearReparacion && !permisos?.gestionProduccion)
   const [sub, setSub] = useState<SubVista>(soloReparacion ? 'asignar' : 'ordenes')
@@ -78,12 +83,16 @@ export default function PlanificacionView({ focoTareaId, onFocoConsumido }: { fo
         <button className={'tab' + (sub === 'asignar' ? ' active' : '')} onClick={() => setSub('asignar')}>{soloReparacion ? 'Cargar reparación' : 'Asignar tareas'}</button>
         {!soloReparacion && <button className={'tab' + (sub === 'semi' ? ' active' : '')} onClick={() => setSub('semi')}>Semielaborados</button>}
         {!soloReparacion && <button className={'tab' + (sub === 'feriados' ? ' active' : '')} onClick={() => setSub('feriados')}>📅 Feriados</button>}
+        {!soloReparacion && puedeAusencias && <button className={'tab' + (sub === 'ausentismo' ? ' active' : '')} onClick={() => setSub('ausentismo')}>🧑‍🏭 Ausentismo</button>}
       </div>
 
       {sub === 'ordenes' && !soloReparacion && <PanelOrdenes />}
       {sub === 'asignar' && <PanelAsignar soloReparacion={soloReparacion} focoTareaId={sub === 'asignar' ? focoTareaId : null} onFocoConsumido={onFocoConsumido} />}
       {sub === 'semi' && !soloReparacion && <PanelSemielaborados />}
       {sub === 'feriados' && !soloReparacion && <PanelFeriados />}
+      {/* La guarda se repite acá a propósito: si alguien queda con la pestaña
+          seleccionada y le sacan el permiso, no tiene que poder seguir cargando. */}
+      {sub === 'ausentismo' && !soloReparacion && puedeAusencias && <PanelAusentismo />}
     </div>
   )
 }

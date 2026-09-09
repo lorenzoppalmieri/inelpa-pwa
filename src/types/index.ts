@@ -1129,6 +1129,49 @@ export interface Feriado {
 }
 
 // ============================================================
+// AUSENCIAS (v2.04) — un colaborador no vino a trabajar un dia.
+//
+// Es el equivalente PERSONAL de un feriado: el calendario trata ese dia como
+// cerrado, pero solo para las tareas de esa persona. El tiempo de ese dia no
+// suma al Tiempo Real ni a las demoras de las tareas que haya dejado en curso.
+//
+// Solo dia COMPLETO. Las salidas parciales se siguen registrando con la parada
+// "Retiro", que ya existe: duplicar el mecanismo llevaria a descontar dos veces
+// el mismo rato.
+// ============================================================
+export type MotivoAusencia =
+  | 'enfermedad' | 'licencia' | 'vacaciones' | 'accidente' | 'injustificada' | 'otro'
+
+export const MOTIVOS_AUSENCIA: { id: MotivoAusencia; label: string }[] = [
+  { id: 'enfermedad', label: 'Enfermedad' },
+  { id: 'licencia', label: 'Licencia' },
+  { id: 'vacaciones', label: 'Vacaciones' },
+  { id: 'accidente', label: 'Accidente / ART' },
+  { id: 'injustificada', label: 'Falta injustificada' },
+  { id: 'otro', label: 'Otro' },
+]
+
+export function motivoAusenciaLabel(m: MotivoAusencia): string {
+  return MOTIVOS_AUSENCIA.find((x) => x.id === m)?.label ?? m
+}
+
+export interface Ausencia {
+  /** `${usuarioId}_${fecha}` — una sola ausencia por persona y dia. */
+  id: string
+  usuarioId: string
+  fecha: string              // 'YYYY-MM-DD'
+  motivo: MotivoAusencia
+  nota?: string              // detalle libre (opcional)
+  cargadaPor: string         // usuario que la registro (auditoria)
+  actualizado: string
+}
+
+/** Id determinista: evita dos filas para el mismo dia y persona. */
+export function idAusencia(usuarioId: string, fecha: string): string {
+  return `${usuarioId}_${fecha}`
+}
+
+// ============================================================
 // MENSAJES (v1.18) — comunicacion de IDA: el planificador redacta y el
 // colaborador/encargado recibe. Con acuse de lectura (MensajeLectura).
 // ============================================================
@@ -1162,7 +1205,7 @@ export function mensajeEsPara(m: Mensaje, u: { id: string; rol: Rol; sectores: S
 // Cola de sincronizacion: cada cambio offline se encola y se empuja al backend.
 export interface SyncOp {
   id: string
-  entidad: 'tarea' | 'parada' | 'orden' | 'semielaborado' | 'objetivo' | 'tarea_logistica' | 'solicitud_logistica' | 'feriado' | 'mensaje' | 'mensaje_lectura' | 'estandar' | 'despacho' | 'flete' | 'laboratorio' | 'plantilla_recurrente' | 'evento_sgo' | 'accion_sgo' | 'indicador_sgo' | 'medicion_indicador_sgo' | 'control_programado_sgo' | 'ejecucion_control_sgo' | 'agenda_iso' | 'tarea_sgo' | 'comentario_tarea_sgo'
+  entidad: 'tarea' | 'parada' | 'orden' | 'semielaborado' | 'objetivo' | 'tarea_logistica' | 'solicitud_logistica' | 'feriado' | 'ausencia' | 'mensaje' | 'mensaje_lectura' | 'estandar' | 'despacho' | 'flete' | 'laboratorio' | 'plantilla_recurrente' | 'evento_sgo' | 'accion_sgo' | 'indicador_sgo' | 'medicion_indicador_sgo' | 'control_programado_sgo' | 'ejecucion_control_sgo' | 'agenda_iso' | 'tarea_sgo' | 'comentario_tarea_sgo'
   entidadId: string
   tipo: 'upsert' | 'delete'
   payload: unknown

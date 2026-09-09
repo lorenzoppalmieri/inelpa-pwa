@@ -1,0 +1,96 @@
+import { afterEach, describe, expect, it } from 'vitest'
+import type { Tarea } from '../../types'
+import { setAusencias } from '../calendario'
+import { metricasTarea } from '../kpi'
+import { huecosPorTarea } from '../huecos'
+
+// ============================================================
+// v2.04 — Ausencias por colaborador.
+//
+// Una ausencia cierra el día para UNA persona, igual que un feriado lo cierra
+// para toda la planta. El día que faltó no suma ni al Tiempo Real ni a las
+// demoras de SUS tareas, y no le cuenta como tiempo muerto en Bobinado.
+//
+// Martes 1/9/2026 (día de trabajo) y miércoles 2/9 (el día que se falta).
+// Turno Lun-Jue 07:00-16:00 con 15' de limpieza → cierre productivo 15:45.
+// ============================================================
+const M = (d: number, h: number, m = 0) =>
+  `2026-09-0${d}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00.000-03:00`
+
+const AUSENTE_MIERCOLES = new Map([['op1', new Set(['2026-09-02'])]])
+
+function tarea(over: Partial<Tarea> & { id: string }): Tarea {
+  return {
+    sectorId: 'bob_dist_at' as Tarea['sectorId'],
+    maquinaId: 'm_bob_01', operarioId: 'op1',
+    modelo: 'TTD 100/13', semana: '2026-W36', prioridad: 1,
+    estado: 'finalizada', tiempoEstandarMin: 60, paradas: [],
+    ...over,
+  }
+}
+
+// Cada test declara su propio estado; se limpia para no contaminar a los demás.
+afterEach(() => setAusencias(new Map()))
+
+describe('el día de ausencia no cuenta', () => {
+  // Arranca el martes 14:00 y cierra el jueves 09:00, faltando el miércoles.
+  const t = tarea({ id: 'A', inicioReal: M(1, 14), finReal: M(3, 9) })
+
+  it('sin ausencia cargada, el miércoles suma entero', () => {
+    const m = metricasTarea(t)
+    // martes 14:00-15:45 = 105' · miércoles 07:00-15:45 = 525' · jueves 07:00-09:00 = 120'
+    expect(m.real).toBe(105 + 525 + 120)
+  })
+
+  it('con la ausencia cargada, el miércoles desaparece del Tiempo Real', () => {
+    setAusencias(AUSENTE_MIERCOLES)
+    expect(metricasTarea(t).real).toBe(105 + 120)
+  })
+
+  it('la ausencia baja la demora, no la esconde en otro lado', () => {
+    setAusencias(AUSENTE_MIERCOLES)
+    const m = metricasTarea(t)
+    expect(m.demorado).toBe(m.real - m.estimado)
+    // Las 3 identidades del auditor tienen que seguir cerrando.
+    expect(m.demorado - m.adelanto).toBe(m.real - m.estimado)
+    expect(m.justificadaAplicada + m.sinJustificar).toBe(m.demorado)
+    expect(m.justificadaAplicada + m.justificadaExcedente).toBe(m.justificada)
+  })
+
+  it('NO afecta a las tareas de otro colaborador', () => {
+    setAusencias(AUSENTE_MIERCOLES)
+    const otro = tarea({ id: 'B', operarioId: 'op2', inicioReal: M(1, 14), finReal: M(3, 9) })
+    expect(metricasTarea(otro).real).toBe(105 + 525 + 120)
+  })
+
+  it('una parada abierta que cruza la ausencia no se infla', () => {
+    setAusencias(AUSENTE_MIERCOLES)
+    const conParada = tarea({
+      id: 'C', inicioReal: M(1, 14), finReal: M(3, 9),
+      paradas: [{ id: 'p', tareaId: 'C', causa: 'falta_herramienta' as Tarea['paradas'][number]['causa'], inicio: M(1, 15), fin: M(3, 8) }],
+    })
+    const m = metricasTarea(conParada)
+    // martes 15:00-15:45 = 45' + jueves 07:00-08:00 = 60'. El miércoles no cuenta.
+    expect(m.justificada).toBe(45 + 60)
+  })
+})
+
+describe('huecos de bobinado con ausencia', () => {
+  it('el día que faltó no se le cobra como tiempo muerto', () => {
+    setAusencias(AUSENTE_MIERCOLES)
+    const ts = [
+      tarea({ id: 'A', inicioReal: M(1, 14), finReal: M(1, 15, 45) }), // cierra el martes
+      tarea({ id: 'B', inicioReal: M(3, 7), finReal: M(3, 9) }),       // retoma el jueves
+    ]
+    expect(huecosPorTarea(ts).get('B')?.minutos ?? 0).toBe(0)
+  })
+
+  it('sin la ausencia, ese mismo hueco sería una jornada entera', () => {
+    const ts = [
+      tarea({ id: 'A', inicioReal: M(1, 14), finReal: M(1, 15, 45) }),
+      tarea({ id: 'B', inicioReal: M(3, 7), finReal: M(3, 9) }),
+    ]
+    // El miércoles completo, con el almuerzo descontado: 525 - 30 = 495'.
+    expect(huecosPorTarea(ts).get('B')?.minutos ?? 0).toBe(495)
+  })
+})

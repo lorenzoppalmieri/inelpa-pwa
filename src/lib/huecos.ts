@@ -124,6 +124,7 @@ export function huecosPorTarea(tareas: Tarea[]): Map<string, Hueco> {
             undefined,              // grupo de almuerzo: el default de planta
             minutosRecupTarea(t),   // el cierre del día lo define la tarea que recibe
             false,                  // ← franja FIJA de almuerzo. Ver trampa 1.
+            t.operarioId,           // v2.04: los días que faltó no son tiempo muerto
           ))
           if (minutos > 0) {
             out.set(t.id, {

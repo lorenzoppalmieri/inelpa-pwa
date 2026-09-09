@@ -97,6 +97,27 @@ export function esSuperAdmin(u?: { usuario?: string } | null): boolean {
   return !!u?.usuario && SUPER_ADMINS.includes(u.usuario)
 }
 
+// ============================================================
+// AUSENTISMO (v2.04) — quién puede marcar que un colaborador faltó.
+//
+// Marcar una ausencia BORRA ese día de los KPIs de esa persona, así que la
+// lista es corta y explícita, igual que SUPER_ADMINS: por usuario, NO por rol.
+// Un rol entero podría crecer sin que nadie lo note y terminar dándole a media
+// planta la capacidad de reescribir indicadores.
+//
+// Usuarios confirmados por Lorenzo el 9/9/2026, ya verificados contra la tabla
+// `usuarios`. Todos siguen el formato `apellido.nombre` de la planta.
+// ============================================================
+export const PUEDEN_CARGAR_AUSENCIAS: string[] = [
+  ...SUPER_ADMINS,     // lorenzo + direccion
+  'alassiato.lucas',
+  'zurvera.rocio',
+]
+
+export function puedeCargarAusencias(u?: { usuario?: string } | null): boolean {
+  return !!u?.usuario && PUEDEN_CARGAR_AUSENCIAS.includes(u.usuario)
+}
+
 /**
  * Cuentas del DIRECTORIO: ven la pestaña ejecutiva 📊 Dirección.
  * Antes era `usuario === 'lorenzo'` escrito a mano en DashboardView, así que el

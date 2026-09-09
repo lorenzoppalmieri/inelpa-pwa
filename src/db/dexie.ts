@@ -1,7 +1,7 @@
 import Dexie, { type Table } from 'dexie'
 import type {
   Usuario, Tarea, OrdenProduccion, SyncOp, Semielaborado, Maquina,
-  ModeloTransformador, ComponenteSemielaborado, Objetivo, TareaLogistica, SolicitudLogistica, Feriado,
+  ModeloTransformador, ComponenteSemielaborado, Objetivo, TareaLogistica, SolicitudLogistica, Feriado, Ausencia,
   Mensaje, MensajeLectura, TiempoEstandar, DespachoTrafo, FleteInterno, TareaLaboratorio,
   PlantillaRecurrente,
 } from '../types'
@@ -30,6 +30,7 @@ export class InelpaDB extends Dexie {
   tareasLogistica!: Table<TareaLogistica, string>
   solicitudesLogistica!: Table<SolicitudLogistica, string>
   feriados!: Table<Feriado, string>
+  ausencias!: Table<Ausencia, string>
   mensajes!: Table<Mensaje, string>
   mensajesLectura!: Table<MensajeLectura, string>
   estandares!: Table<TiempoEstandar, string>
@@ -191,6 +192,10 @@ export class InelpaDB extends Dexie {
       agendaISO: 'id, categoria, responsable, fechaObjetivo, estado, criticidad',
       tareasSGO: 'id, asignadoA, importancia, fechaLimite, estado, creadoEn',
       comentariosTareasSGO: 'id, tareaId, autor, creadoEn',
+    })
+    // v2.04: ausencias por colaborador. id = `usuarioId_fecha` (una por dia).
+    this.version(28).stores({
+      ausencias: 'id, usuarioId, fecha, motivo',
     })
   }
 }

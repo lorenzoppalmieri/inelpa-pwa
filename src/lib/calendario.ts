@@ -39,6 +39,35 @@ function fechaLocalISO(d: Date): string {
 }
 export function esFeriado(d: Date): boolean { return FERIADOS.has(fechaLocalISO(d)) }
 
+// ============================================================
+// AUSENCIAS POR COLABORADOR (v2.04)
+//
+// Un feriado cierra la planta para TODOS. Una ausencia cierra el día para UNA
+// persona: si Fulano faltó el martes, el martes no existe para SUS tareas, pero
+// sí para las del resto.
+//
+// Se resuelve con el mismo patrón que los feriados —un registro en memoria que
+// el sync actualiza— pero indexado por colaborador. Vive acá y no como
+// parámetro de cada función porque habría que plumarlo por todo el calendario.
+//
+// CONSECUENCIA QUE HAY QUE TENER PRESENTE: cargar una ausencia REESCRIBE el
+// pasado. Los KPIs de ese día se recalculan solos la próxima vez que alguien
+// los mira, porque todo se deriva de los timestamps. Es lo correcto, pero
+// significa que un número puede cambiar sin que nadie haya tocado una tarea.
+// ============================================================
+let AUSENCIAS: Map<string, Set<string>> = new Map()
+
+/** @param porUsuario usuarioId -> fechas 'YYYY-MM-DD' en que faltó. */
+export function setAusencias(porUsuario: Map<string, Set<string>>): void {
+  AUSENCIAS = porUsuario
+}
+
+/** true si ESE colaborador faltó ese día. Sin operario, siempre false. */
+export function estaAusente(operarioId: string | undefined, d: Date): boolean {
+  if (!operarioId) return false
+  return AUSENCIAS.get(operarioId)?.has(fechaLocalISO(d)) === true
+}
+
 /**
  * v2.03 — Instante de APERTURA DE PLANTA (07:00) del mismo día local de `iso`.
  *
@@ -132,13 +161,18 @@ function conMinutos(base: Date, min: number): Date {
 // almuerzo (12-13 cuenta como productivo). Se usa para el calculo de Tiempo Real,
 // donde el almuerzo se descuenta por la PARADA que marca el operario, no por una
 // franja teorica (evita doble conteo y refleja el horario real de cada uno).
+// `operarioId` (v2.04): si se pasa y ese colaborador estuvo AUSENTE ese dia, el
+// dia no tiene tramos productivos PARA EL. Se omite en planificacion/capacidad,
+// donde interesa la planta y no una persona.
 export function tramosLaborables(
   fecha: Date,
   grupo: GrupoAlmuerzo = GRUPO_ALMUERZO_DEFAULT,
   recupMin = 60,
   sinAlmuerzo = false,
+  operarioId?: string,
 ): Tramo[] {
   if (esFeriado(fecha)) return [] // v1.17: feriado -> planta cerrada todo el dia
+  if (estaAusente(operarioId, fecha)) return [] // v2.04: falto -> el dia no existe para el
   const normal = cierreNormalMin(fecha.getDay())
   const recup = cierreRecupMin(fecha.getDay())
   if (normal == null || recup == null) return []
@@ -230,6 +264,8 @@ export function minutosLaborablesEntre(
   grupo: GrupoAlmuerzo = GRUPO_ALMUERZO_DEFAULT,
   recupMin = 60,
   sinAlmuerzo = false,
+  /** v2.04: si ese colaborador faltó, sus días de ausencia no suman minutos. */
+  operarioId?: string,
 ): number {
   if (!aIso || !bIso) return 0
   const a = new Date(aIso)
@@ -240,7 +276,7 @@ export function minutosLaborablesEntre(
   let guard = 0
   while (cursor < b && guard++ < 8000) {
     const curMin = minDelDia(cursor)
-    const tramos = tramosLaborables(cursor, grupo, recupMin, sinAlmuerzo)
+    const tramos = tramosLaborables(cursor, grupo, recupMin, sinAlmuerzo, operarioId)
     const tr = tramos.find((t) => curMin < t.finMin)
     if (!tr) { cursor = siguienteApertura(cursor, grupo, recupMin); continue }
     const inicioTramo = curMin < tr.iniMin ? conMinutos(cursor, tr.iniMin) : new Date(cursor)
@@ -264,6 +300,10 @@ export interface ConfigTiempoNeto {
   horaRecuperacion?: boolean     // legacy: true = 60 min de recuperacion
   recupMin?: number              // v1.40: minutos EXACTOS de recuperacion (0/30/60)
   sinAlmuerzo?: boolean          // no descontar franja fija de almuerzo (se resta por parada real)
+  // v2.04: colaborador de la tarea. Si falto ese dia, el dia no suma minutos
+  // PARA EL. Se pasa siempre que se mida el tiempo de una tarea; se omite en
+  // planificacion y capacidad, donde interesa la planta y no una persona.
+  operarioId?: string
 }
 
 // ============================================================
@@ -341,5 +381,8 @@ export function calcularTiempoNetoProductivo(
   // v1.40: minutos exactos de recuperacion (0/30/60). Cae al booleano legacy
   // (true = 60). Por defecto 0 = cierre estricto.
   const recupMin = config.recupMin ?? (config.horaRecuperacion ? 60 : 0)
-  return minutosLaborablesEntre(inicio.toISOString(), fin.toISOString(), grupo, recupMin, config.sinAlmuerzo ?? false)
+  return minutosLaborablesEntre(
+    inicio.toISOString(), fin.toISOString(), grupo, recupMin,
+    config.sinAlmuerzo ?? false, config.operarioId,
+  )
 }

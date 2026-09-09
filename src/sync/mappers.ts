@@ -11,7 +11,7 @@ import type {
   SectorId, Rol, EstadoTarea, MaterialBobina, LineaProduccion,
   EstadoSemielaborado, TipoEstacion, GrupoNomina, DatosBobinado, TipoTarea,
   Objetivo, AndonAreaId, TareaLogistica, PrioridadLog,
-  SolicitudLogistica, EstadoSolicitudLog, Feriado,
+  SolicitudLogistica, EstadoSolicitudLog, Feriado, Ausencia,
   Mensaje, MensajeDestinoTipo, MensajeLectura,
   TiempoEstandar, AreaDemora, BloqueoLog,
   DespachoTrafo, EstadoDespacho, DemoraDespacho, ChecklistDespacho, FleteInterno, MovimientoDeposito,
@@ -945,6 +945,39 @@ export function feriadoToRow(f: Feriado): FeriadoRow {
     fecha: f.fecha,
     descripcion: f.descripcion ?? null,
     actualizado_en: f.actualizado,
+  }
+}
+
+// ---------- Ausencias (v2.04) ----------
+export interface AusenciaRow {
+  id: string
+  usuario_id: string
+  fecha: string
+  motivo: string
+  nota: string | null
+  cargada_por: string
+  actualizado_en: string | null
+}
+export function ausenciaFromRow(r: AusenciaRow): Ausencia {
+  return {
+    id: r.id,
+    usuarioId: r.usuario_id,
+    fecha: r.fecha,
+    motivo: r.motivo as Ausencia['motivo'],
+    nota: u(r.nota),
+    cargadaPor: r.cargada_por,
+    actualizado: r.actualizado_en ?? new Date().toISOString(),
+  }
+}
+export function ausenciaToRow(a: Ausencia): AusenciaRow {
+  return {
+    id: a.id,
+    usuario_id: a.usuarioId,
+    fecha: a.fecha,
+    motivo: a.motivo,
+    nota: a.nota ?? null,
+    cargada_por: a.cargadaPor,
+    actualizado_en: a.actualizado,
   }
 }
 

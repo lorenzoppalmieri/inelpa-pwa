@@ -2,19 +2,19 @@ import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/
 import { db } from '../db/dexie'
 import { supabase, SUPABASE_HABILITADO } from '../lib/supabaseClient'
 import { traerTabla, traerTodoDe, type ConsultaPaginable } from '../lib/supabaseFetch'
-import type { Rol, SyncOp, Tarea, Parada, OrdenProduccion, Semielaborado, SectorId, Objetivo, TareaLogistica, SolicitudLogistica, Feriado, Mensaje, MensajeLectura, TiempoEstandar, DespachoTrafo, FleteInterno, TareaLaboratorio, PlantillaRecurrente } from '../types'
+import type { Rol, SyncOp, Tarea, Parada, OrdenProduccion, Semielaborado, SectorId, Objetivo, TareaLogistica, SolicitudLogistica, Feriado, Ausencia, Mensaje, MensajeLectura, TiempoEstandar, DespachoTrafo, FleteInterno, TareaLaboratorio, PlantillaRecurrente } from '../types'
 import type { EventoSGO, AccionSGO, AuditoriaSGO } from '../sgo/types'
 import type { IndicadorSGO, MedicionIndicadorSGO } from '../sgo/indicadores'
 import type { ControlProgramadoSGO, EjecucionControlSGO } from '../sgo/controles'
 import type { ActividadAgendaISO } from '../sgo/agendaISO'
 import type { ComentarioTareaSGO, TareaSGO } from '../sgo/tareasSGO'
-import { setFeriados } from '../lib/calendario'
+import { setFeriados, setAusencias } from '../lib/calendario'
 import { procesarColaAvisosMant } from '../mantenimiento/avisos'
 import { exigirPermisoBorradoSGO, exigirPermisoGestionAgendaISO, exigirPermisoGuardarTareaSGO } from '../sgo/permisos'
 import {
-  tareaFromRow, paradaFromRow, ordenFromRow, semiFromRow, maquinaFromRow, usuarioFromRow, objetivoFromRow, tareaLogFromRow, solicitudLogFromRow, feriadoFromRow, mensajeFromRow, lecturaFromRow, estandarFromRow, despachoFromRow, fleteFromRow, laboratorioFromRow, plantillaFromRow, eventoSGOFromRow, accionSGOFromRow, indicadorSGOFromRow, medicionIndicadorSGOFromRow, auditoriaSGOFromRow, controlProgramadoSGOFromRow, ejecucionControlSGOFromRow, actividadAgendaISOFromRow, tareaSGOFromRow, comentarioTareaSGOFromRow,
-  tareaToRow, paradaToRow, ordenToRow, semiToRow, objetivoToRow, tareaLogToRow, solicitudLogToRow, feriadoToRow, mensajeToRow, lecturaToRow, estandarToRow, despachoToRow, fleteToRow, laboratorioToRow, plantillaToRow, eventoSGOToRow, accionSGOToRow, indicadorSGOToRow, medicionIndicadorSGOToRow, controlProgramadoSGOToRow, ejecucionControlSGOToRow, actividadAgendaISOToRow, tareaSGOToRow, comentarioTareaSGOToRow,
-  type TareaRow, type ParadaRow, type OrdenRow, type SemiRow, type MaquinaRow, type UsuarioRow, type ObjetivoRow, type TareaLogisticaRow, type SolicitudLogisticaRow, type FeriadoRow, type MensajeRow, type MensajeLecturaRow, type TiempoEstandarRow, type DespachoRow, type FleteRow, type LaboratorioRow, type PlantillaRecurrenteRow, type EventoSGORow, type AccionSGORow, type IndicadorSGORow, type MedicionIndicadorSGORow, type AuditoriaSGORow, type ControlProgramadoSGORow, type EjecucionControlSGORow, type ActividadAgendaISORow, type TareaSGORow, type ComentarioTareaSGORow,
+  tareaFromRow, paradaFromRow, ordenFromRow, semiFromRow, maquinaFromRow, usuarioFromRow, objetivoFromRow, tareaLogFromRow, solicitudLogFromRow, feriadoFromRow, ausenciaFromRow, mensajeFromRow, lecturaFromRow, estandarFromRow, despachoFromRow, fleteFromRow, laboratorioFromRow, plantillaFromRow, eventoSGOFromRow, accionSGOFromRow, indicadorSGOFromRow, medicionIndicadorSGOFromRow, auditoriaSGOFromRow, controlProgramadoSGOFromRow, ejecucionControlSGOFromRow, actividadAgendaISOFromRow, tareaSGOFromRow, comentarioTareaSGOFromRow,
+  tareaToRow, paradaToRow, ordenToRow, semiToRow, objetivoToRow, tareaLogToRow, solicitudLogToRow, feriadoToRow, ausenciaToRow, mensajeToRow, lecturaToRow, estandarToRow, despachoToRow, fleteToRow, laboratorioToRow, plantillaToRow, eventoSGOToRow, accionSGOToRow, indicadorSGOToRow, medicionIndicadorSGOToRow, controlProgramadoSGOToRow, ejecucionControlSGOToRow, actividadAgendaISOToRow, tareaSGOToRow, comentarioTareaSGOToRow,
+  type TareaRow, type ParadaRow, type OrdenRow, type SemiRow, type MaquinaRow, type UsuarioRow, type ObjetivoRow, type TareaLogisticaRow, type SolicitudLogisticaRow, type FeriadoRow, type AusenciaRow, type MensajeRow, type MensajeLecturaRow, type TiempoEstandarRow, type DespachoRow, type FleteRow, type LaboratorioRow, type PlantillaRecurrenteRow, type EventoSGORow, type AccionSGORow, type IndicadorSGORow, type MedicionIndicadorSGORow, type AuditoriaSGORow, type ControlProgramadoSGORow, type EjecucionControlSGORow, type ActividadAgendaISORow, type TareaSGORow, type ComentarioTareaSGORow,
 } from './mappers'
 
 // ============================================================
@@ -121,6 +121,21 @@ export async function recargarFeriadosCalendario(): Promise<void> {
   setFeriados(fs.map((f) => f.fecha))
 }
 
+// v2.04: vuelca las ausencias de Dexie al motor de calendario. Es el equivalente
+// PERSONAL de recargarFeriadosCalendario: cada colaborador tiene su set de dias
+// cerrados. Afecta Tiempo Real, demoras y huecos de Bobinado de SUS tareas.
+export async function recargarAusenciasCalendario(): Promise<void> {
+  const rows = await db.ausencias.toArray()
+  const porUsuario = new Map<string, Set<string>>()
+  for (const a of rows) {
+    const set = porUsuario.get(a.usuarioId) ?? new Set<string>()
+    set.add(a.fecha)
+    porUsuario.set(a.usuarioId, set)
+  }
+  setAusencias(porUsuario)
+}
+
+
 // ============================================================
 // LECTURA: fetch inicial (nube -> Dexie)
 // ============================================================
@@ -178,7 +193,7 @@ export async function fetchInicial(rol?: Rol): Promise<void> {
     await Promise.all([
       db.maquinas.clear(), db.usuarios.clear(), db.ordenes.clear(),
       db.semielaborados.clear(), db.tareas.clear(), db.objetivos.clear(),
-      db.tareasLogistica.clear(), db.solicitudesLogistica.clear(), db.feriados.clear(),
+      db.tareasLogistica.clear(), db.solicitudesLogistica.clear(), db.feriados.clear(), db.ausencias.clear(),
       db.mensajes.clear(), db.mensajesLectura.clear(), db.estandares.clear(), db.despachos.clear(), db.fletes.clear(), db.laboratorio.clear(),
       db.plantillasRecurrentes.clear(), db.datosTecnicos.clear(),
     ])
@@ -204,7 +219,7 @@ export async function fetchInicial(rol?: Rol): Promise<void> {
       ? await traerTabla<ParadaRow>('paradas')
       : await traerParadasDe(tareasRows.map((t) => t.id))
 
-    const [maqs, usrs, uss, ords, semis, objs, tlog, slog, fers, msgs, lects, ests, desp, flts, labs, plts, eventosSgo, accionesSgo, indicadoresSgo, medicionesSgo, auditoriaSgo, controlesSgo, ejecucionesSgo, agendaIso, tareasSgo, comentariosTareasSgo, dtec] = await Promise.all([
+    const [maqs, usrs, uss, ords, semis, objs, tlog, slog, fers, auss, msgs, lects, ests, desp, flts, labs, plts, eventosSgo, accionesSgo, indicadoresSgo, medicionesSgo, auditoriaSgo, controlesSgo, ejecucionesSgo, agendaIso, tareasSgo, comentariosTareasSgo, dtec] = await Promise.all([
       traerTodo('maquinas'),
       supabase.from('usuarios').select('id, nombre, usuario, rol, grupo_nomina, activo'),
       supabase.from('usuario_sectores').select('usuario_id, sector_id'),
@@ -214,6 +229,7 @@ export async function fetchInicial(rol?: Rol): Promise<void> {
       traerTodo('tareas_logistica'),
       traerTodo('solicitudes_logistica'),
       traerTodo('feriados'),
+      traerTodo('ausencias'),
       traerTodo('mensajes'),
       traerTodo('mensajes_lectura'),
       traerTodo('tiempos_estandar'),
@@ -306,6 +322,9 @@ export async function fetchInicial(rol?: Rol): Promise<void> {
 
     // Feriados (dias no laborables) -> Dexie + motor de calendario
     if (fers.data) await db.feriados.bulkPut((fers.data as FeriadoRow[]).map(feriadoFromRow))
+    // v2.04: ausencias -> Dexie + registro personal del calendario.
+    if (auss.data) await db.ausencias.bulkPut((auss.data as AusenciaRow[]).map(ausenciaFromRow))
+    await recargarAusenciasCalendario()
     await recargarFeriadosCalendario()
 
     // Mensajes + acuses de lectura
@@ -436,6 +455,14 @@ async function onSolicitudLogChange(payload: Payload) {
   await db.solicitudesLogistica.put(solicitudLogFromRow(payload.new as unknown as SolicitudLogisticaRow))
 }
 
+// v2.04: una ausencia cargada desde otra máquina tiene que refrescar el
+// calendario acá también, o los KPIs de esta pantalla siguen contando ese día.
+async function onAusenciaChange(payload: Payload) {
+  if (payload.eventType === 'DELETE') await db.ausencias.delete((payload.old as { id: string }).id)
+  else await db.ausencias.put(ausenciaFromRow(payload.new as unknown as AusenciaRow))
+  await recargarAusenciasCalendario()
+}
+
 async function onFeriadoChange(payload: Payload) {
   if (payload.eventType === 'DELETE') await db.feriados.delete((payload.old as { id: string }).id)
   else await db.feriados.put(feriadoFromRow(payload.new as unknown as FeriadoRow))
@@ -524,6 +551,7 @@ function suscribirRealtime() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'tareas_logistica' }, onTareaLogChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'solicitudes_logistica' }, onSolicitudLogChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'feriados' }, onFeriadoChange)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'ausencias' }, onAusenciaChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'mensajes' }, onMensajeChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'mensajes_lectura' }, onLecturaChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'tiempos_estandar' }, onEstandarChange)
@@ -696,6 +724,7 @@ async function empujar(op: SyncOp): Promise<EmpujeResultado> {
         : op.entidad === 'tarea_logistica' ? 'tareas_logistica'
         : op.entidad === 'solicitud_logistica' ? 'solicitudes_logistica'
         : op.entidad === 'feriado' ? 'feriados'
+        : op.entidad === 'ausencia' ? 'ausencias'
         : op.entidad === 'mensaje' ? 'mensajes'
         : op.entidad === 'mensaje_lectura' ? 'mensajes_lectura'
         : op.entidad === 'estandar' ? 'tiempos_estandar'
@@ -830,6 +859,10 @@ async function empujar(op: SyncOp): Promise<EmpujeResultado> {
       case 'feriado': {
         const { error } = await supabase.from('feriados').upsert(feriadoToRow(op.payload as Feriado), { onConflict: 'id' })
         return error ? fallo('upsert feriado', error.message) : OK_EMPUJE
+      }
+      case 'ausencia': {
+        const { error } = await supabase.from('ausencias').upsert(ausenciaToRow(op.payload as Ausencia), { onConflict: 'id' })
+        return error ? fallo('upsert ausencia', error.message) : OK_EMPUJE
       }
       case 'mensaje': {
         const { error } = await supabase.from('mensajes').upsert(mensajeToRow(op.payload as Mensaje), { onConflict: 'id' })
@@ -1063,6 +1096,19 @@ export async function eliminarFeriado(id: string): Promise<void> {
   await db.feriados.delete(id)
   await recargarFeriadosCalendario()
   await encolar({ entidad: 'feriado', entidadId: id, tipo: 'delete', payload: { id } })
+}
+
+// v2.04: ausencias por colaborador. Idempotente por `id` (usuario + fecha), así
+// marcar dos veces el mismo día no crea dos filas.
+export async function guardarAusencia(a: Ausencia): Promise<void> {
+  await db.ausencias.put(a)
+  await recargarAusenciasCalendario()
+  await encolar({ entidad: 'ausencia', entidadId: a.id, tipo: 'upsert', payload: a })
+}
+export async function eliminarAusencia(id: string): Promise<void> {
+  await db.ausencias.delete(id)
+  await recargarAusenciasCalendario()
+  await encolar({ entidad: 'ausencia', entidadId: id, tipo: 'delete', payload: { id } })
 }
 
 // v1.12: tareas logisticas (organizador de abastecimiento).
