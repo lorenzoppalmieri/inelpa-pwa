@@ -13,7 +13,10 @@ create table if not exists public.ausencias (
   -- id = `usuarioId_YYYY-MM-DD`. Determinista a proposito: marcar dos veces el
   -- mismo dia para la misma persona pisa la fila en vez de duplicarla.
   id             text primary key,
-  usuario_id     text not null references public.usuarios(id) on delete cascade,
+  -- OJO: `usuarios.id` es UUID, no text. Declarar esta columna como text hace
+  -- fallar la foreign key con "42804: incompatible types: text and uuid".
+  -- En el front sigue siendo un string (JS no distingue), no hay que tocar nada.
+  usuario_id     uuid not null references public.usuarios(id) on delete cascade,
   fecha          date not null,
   motivo         text not null default 'otro',
   nota           text,
