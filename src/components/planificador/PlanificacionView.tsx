@@ -18,6 +18,9 @@ import { puedeCargarAusencias } from '../../auth/roles'
 import PanelAusentismo from './PanelAusentismo'
 import { isoWeek, fechaCorta, hhmm } from '../../lib/time'
 import { tiempoNetoMin } from '../../lib/kpi'
+import { puedeGenerarPO, construirTareaPO, tieneEstandarAprendido } from '../../lib/puenteMontaje'
+import { tareaEnPeriodo, labelPeriodo, hoyLocalISO, primerDiaDelMesISO, type Periodo } from '../../lib/periodos'
+import FiltroPeriodo from '../ui/FiltroPeriodo'
 import EditarTarea from './EditarTarea'
 import RetrabajosLab from './RetrabajosLab'
 
@@ -329,24 +332,11 @@ function PanelOrdenes() {
   )
 }
 
-// v1.17: período del LISTADO de tareas (reemplaza el filtro por semana ISO).
-type PeriodoLista = 'mes_actual' | 'mes_anterior' | 'anual' | 'todas'
-const PERIODOS_LISTA: { id: PeriodoLista; label: string }[] = [
-  { id: 'mes_actual', label: 'Mes actual' },
-  { id: 'mes_anterior', label: 'Mes anterior' },
-  { id: 'anual', label: 'Acumulado anual' },
-  { id: 'todas', label: 'Todas' },
-]
-// ¿La tarea cae en el período? Referencia: inicio real, o arranque planificado.
-function enPeriodoLista(t: Tarea, per: PeriodoLista, now: Date): boolean {
-  if (per === 'todas') return true
-  const ref = t.inicioReal ?? t.inicioPlanificado
-  if (!ref) return false
-  const d = new Date(ref)
-  if (per === 'anual') return d.getFullYear() === now.getFullYear()
-  const base = new Date(now.getFullYear(), per === 'mes_anterior' ? now.getMonth() - 1 : now.getMonth(), 1)
-  return d.getFullYear() === base.getFullYear() && d.getMonth() === base.getMonth()
-}
+// v2.07: el período del listado salió de acá y vive en `lib/periodos.ts`, el
+// MISMO módulo que usa el tablero de KPIs. Antes eran dos filtros distintos:
+// este no tenía "día específico" ni "rango personalizado", y tenía en cambio un
+// input de fecha suelto al costado que se combinaba con el período de forma
+// confusa (podías pedir "mes anterior" + un día de este mes y no salía nada).
 const ESTADOS_TAREA: { id: 'todos' | EstadoTarea; label: string }[] = [
   { id: 'todos', label: 'Todos los estados' },
   { id: 'pendiente', label: 'Pendiente' },
@@ -392,9 +382,12 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
   // v1.16: toolbar del listado de tareas (filtros + agrupacion para legibilidad).
   const [filtroSector, setFiltroSector] = useState<'todos' | SectorId>('todos')
   const [agruparPor, setAgruparPor] = useState<'sector' | 'maquina' | 'operario' | 'modelo'>('sector')
-  const [filtroFecha, setFiltroFecha] = useState('')
-  // v1.17: período (mes) + estado de la operación para el listado.
-  const [periodoLista, setPeriodoLista] = useState<PeriodoLista>('mes_actual')
+  // v2.07: mismo filtro de período que el tablero de KPIs. `filtroFecha` (el
+  // input de fecha suelto) desapareció: ahora es el período "Día específico".
+  const [periodoLista, setPeriodoLista] = useState<Periodo>('mes_actual')
+  const [periodoDia, setPeriodoDia] = useState<string>(hoyLocalISO)
+  const [periodoDesde, setPeriodoDesde] = useState<string>(primerDiaDelMesISO)
+  const [periodoHasta, setPeriodoHasta] = useState<string>(hoyLocalISO)
   const [filtroEstado, setFiltroEstado] = useState<'todos' | EstadoTarea>('todos')
   // v1.17: tarea resaltada al venir desde un click en el Gantt.
   const [resaltado, setResaltado] = useState<string | null>(null)
@@ -576,6 +569,50 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
     setMsg('Tarea eliminada.')
   }
 
+  // v2.06 — ATAJO MONTAJE PA → PO. **OPCIONAL, a criterio de la planificadora.**
+  //
+  // Una parte activa terminada NO siempre va a parte operativa: puede quedar
+  // como STOCK de PA. Por eso es un botón y no un disparador automático. Si esa
+  // PA va a stock, simplemente no se aprieta y no pasa nada.
+  // (PO → Laboratorio sí es automático: ahí no hay decisión que tomar.)
+  //
+  // La tarea nace SIN colaborador: el que armó la parte activa no es
+  // necesariamente el que hace la operativa. Sin asignar le aparece a cualquiera
+  // de la línea PO y queda reclamada cuando alguien la inicia.
+  //
+  // El id es determinista (`po_<id de la PA>`), así que dos clics generan la
+  // MISMA tarea. La lógica vive en `lib/puenteMontaje.ts` para poder testearla.
+  async function generarPO(t: Tarea) {
+    const g = puedeGenerarPO(t, todasTareas, maquinas ?? [])
+    if (!g.puede) {
+      setMsg(g.motivo === 'ya_generada'
+        ? 'La tarea de Montaje PO de este transformador ya estaba generada.'
+        : 'No se puede generar la Montaje PO de esta tarea.')
+      return
+    }
+    const ref = `${t.modelo}${t.nroTransformador ? ` · N° ${t.nroTransformador}` : ''}`
+    const conEstandar = tieneEstandarAprendido(t, estandaresGuardados)
+    if (!window.confirm(
+      `Generar la tarea de Montaje PO de ${ref}?\n\n`
+      + `Hereda orden, modelo, N° de transformador y cliente.\n`
+      + `Queda SIN colaborador asignado: la toma quien la inicie en la línea PO.\n\n`
+      + (conEstandar
+        ? 'El tiempo estándar sale del histórico de ese modelo.'
+        : '⚠ Todavía no hay tiempo estándar aprendido para este modelo en PO: se carga uno provisorio y conviene corregirlo editando la tarea.'),
+    )) return
+
+    const nueva = construirTareaPO(t, {
+      maquinas: maquinas ?? [],
+      estandares: estandaresGuardados,
+      // Respaldo mientras el asistente de estándares no tenga histórico: se usa
+      // el de la parte activa solo como orden de magnitud, NUNCA como estándar
+      // definitivo (PA y PO no tardan lo mismo).
+      estandarPorDefecto: t.tiempoEstandarMin,
+    })
+    await guardarTarea(nueva)
+    setMsg(`Montaje PO generada para ${ref}${conEstandar ? '' : ' — revisá el tiempo estándar'}.`)
+  }
+
   // v1.16: revertir una finalizacion por error. Vuelve la tarea a "en proceso"
   // y limpia el cierre (fin/calidad/duracion) para que NO cuente en los KPIs.
   // El operario puede volver a finalizarla correctamente despues.
@@ -599,20 +636,17 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
     [tareas],
   )
 
-  // v1.17: tareas visibles segun periodo (mes), estado, sector y dia de arranque.
+  // v2.07: período (mismo criterio que KPIs) + estado + sector. El filtro de día
+  // suelto ya no existe: es el período "Día específico".
   const visibles = useMemo(() => {
     const now = new Date()
     return tareasOrdenadas.filter((t) => {
-      if (!enPeriodoLista(t, periodoLista, now)) return false
+      if (!tareaEnPeriodo(t, periodoLista, now, periodoDia, periodoDesde, periodoHasta)) return false
       if (filtroEstado !== 'todos' && t.estado !== filtroEstado) return false
       if (filtroSector !== 'todos' && t.sectorId !== filtroSector) return false
-      if (filtroFecha) {
-        const ref = t.inicioReal ?? t.inicioPlanificado
-        if (!ref || new Date(ref).toLocaleDateString('en-CA') !== filtroFecha) return false
-      }
       return true
     })
-  }, [tareasOrdenadas, periodoLista, filtroEstado, filtroSector, filtroFecha])
+  }, [tareasOrdenadas, periodoLista, periodoDia, periodoDesde, periodoHasta, filtroEstado, filtroSector])
 
   // v1.16: agrupacion dinamica (sector / estacion / colaborador) para legibilidad.
   // v1.44: cada grupo calcula su AVANCE = finalizadas / programadas. Es dinamico:
@@ -676,6 +710,26 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
           {t.estado === 'finalizada' && (
             <button className="btn" style={{ flex: 1 }} onClick={() => reabrir(t)}>↩ Reabrir</button>
           )}
+          {/* v2.06: atajo PA → PO. Solo aparece en tareas de Montaje PA
+              finalizadas; si ya se generó, queda como aviso deshabilitado en vez
+              de desaparecer, para que se entienda por qué no está el botón. */}
+          {(() => {
+            const g = puedeGenerarPO(t, todasTareas, maquinas ?? [])
+            if (g.puede) {
+              return (
+                <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => void generarPO(t)}>
+                  ⚙ Generar Montaje PO
+                </button>
+              )
+            }
+            if (g.motivo === 'ya_generada') {
+              return <span className="estado-chip" style={{ flex: 1, textAlign: 'center' }}>PO ya generada</span>
+            }
+            if (g.motivo === 'sin_estacion') {
+              return <span className="estado-chip" style={{ flex: 1, textAlign: 'center' }} title="No hay línea de Montaje PO cargada para este sector.">Sin línea PO</span>
+            }
+            return null
+          })()}
           <button className="btn btn-rojo" style={{ flex: 1 }} onClick={() => borrar(t)}>🗑 Eliminar</button>
         </div>
       )}
@@ -857,13 +911,18 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
         )}
       </div>
 
-      <div className="section-title">Tareas · {PERIODOS_LISTA.find((p) => p.id === periodoLista)?.label} ({visibles.length}{visibles.length !== tareasOrdenadas.length ? ` de ${tareasOrdenadas.length}` : ''})</div>
+      <div className="section-title">Tareas · {labelPeriodo(periodoLista)} ({visibles.length}{visibles.length !== tareasOrdenadas.length ? ` de ${tareasOrdenadas.length}` : ''})</div>
 
-      {/* v1.17: toolbar de filtrado/agrupacion del listado (periodo + estado + sector + dia). */}
+      {/* v2.07: mismo filtro de período que "Eficiencia / KPIs". Los selectores
+          de fecha aparecen solo cuando el período los pide. */}
       <div className="filtros" style={{ marginBottom: 12 }}>
-        <select className="select" value={periodoLista} onChange={(e) => setPeriodoLista(e.target.value as PeriodoLista)}>
-          {PERIODOS_LISTA.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
-        </select>
+        <FiltroPeriodo
+          periodo={periodoLista} setPeriodo={setPeriodoLista}
+          dia={periodoDia} setDia={setPeriodoDia}
+          desde={periodoDesde} setDesde={setPeriodoDesde}
+          hasta={periodoHasta} setHasta={setPeriodoHasta}
+          conTodas
+        />
         <select className="select" value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value as 'todos' | EstadoTarea)}>
           {ESTADOS_TAREA.map((e) => <option key={e.id} value={e.id}>{e.label}</option>)}
         </select>
@@ -877,8 +936,6 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
           <option value="operario">Agrupar por colaborador</option>
           <option value="modelo">Agrupar por modelo</option>
         </select>
-        <input type="date" className="select" value={filtroFecha} onChange={(e) => setFiltroFecha(e.target.value)} title="Filtrar por día de arranque" />
-        {filtroFecha && <button className="btn" onClick={() => setFiltroFecha('')}>✕ Quitar día</button>}
       </div>
 
       {visibles.length === 0
