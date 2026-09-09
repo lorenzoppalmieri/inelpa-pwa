@@ -394,8 +394,9 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
   useEffect(() => {
     if (!focoTareaId) return
     const id = focoTareaId
-    // Limpiar filtros para garantizar que la tarea aparezca (sea de la semana/mes que sea).
-    setFiltroSector('todos'); setFiltroFecha(''); setFiltroEstado('todos'); setPeriodoLista('todas'); setResaltado(id)
+    // Limpiar filtros para garantizar que la tarea aparezca (sea de la fecha que sea).
+    // v2.07: ya no hace falta limpiar el día suelto; 'todas' ignora las fechas.
+    setFiltroSector('todos'); setFiltroEstado('todos'); setPeriodoLista('todas'); setResaltado(id)
     setTimeout(() => { document.getElementById('tarea-' + id)?.scrollIntoView({ behavior: 'smooth', block: 'center' }) }, 120)
     setTimeout(() => setResaltado(null), 3000)
     onFocoConsumido?.() // libera el foco del padre (permite volver a clickear la misma)

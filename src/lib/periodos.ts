@@ -98,10 +98,18 @@ export function rangoPeriodo(
   if (periodo === 'rango') {
     // Falta un extremo -> rango vacío, para no traer toda la base sin querer.
     if (!desdeISO || !hastaISO) return VACIO
-    const d = new Date(`${desdeISO}T00:00:00`)
-    const h = new Date(`${hastaISO}T00:00:00`); h.setDate(h.getDate() + 1) // fin inclusivo
-    // Si invirtió las fechas, se normaliza en vez de no mostrar nada.
-    return d <= h ? { desde: d.toISOString(), hasta: h.toISOString() } : { desde: h.toISOString(), hasta: d.toISOString() }
+    const a = new Date(`${desdeISO}T00:00:00`)
+    const b = new Date(`${hastaISO}T00:00:00`)
+    // BUG CORREGIDO (venía del filtro de KPIs de v1.22): antes se le sumaba el
+    // día al `hasta` ANTES de ordenar los extremos. Con las fechas invertidas
+    // (12 al 10) el +1 caía del lado equivocado y el resultado era una ventana
+    // de UN día —el 11— en vez del rango 10 al 12. No avisaba nada: el tablero
+    // simplemente mostraba casi ningún dato.
+    // Ahora se ordenan primero y el día se le suma al extremo MAYOR.
+    const ini = a <= b ? a : b
+    const fin = new Date(a <= b ? b : a)
+    fin.setDate(fin.getDate() + 1) // fin inclusivo
+    return { desde: ini.toISOString(), hasta: fin.toISOString() }
   }
   if (periodo === 'anual') {
     return { desde: new Date(y, 0, 1).toISOString(), hasta: new Date(y + 1, 0, 1).toISOString() }

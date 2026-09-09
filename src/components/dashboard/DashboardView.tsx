@@ -6,7 +6,7 @@ import { SECTORES, materialLabel, esSectorBobinado, BOBINADO_SECTORES, type Line
 import { isoWeek } from '../../lib/time'
 import { filtrarPorRango } from '../../lib/kpi'
 import { minutosHuecoPorTarea } from '../../lib/huecos'
-import { rangoPeriodo, type Periodo } from '../../lib/periodos'
+import { rangoPeriodo, labelPeriodo, type Periodo } from '../../lib/periodos'
 import FiltroPeriodo from '../ui/FiltroPeriodo'
 import {
   exportarKpisCSV, exportarProgramacionCSV, hayDatosKpi, hayDatosProgramacion,
@@ -246,7 +246,7 @@ function DashboardCuerpo(props: {
 
   const periodoLabel = periodo === 'rango'
     ? `Rango ${kpiDesde} a ${kpiHasta}`
-    : PERIODOS.find((p) => p.id === periodo)?.label ?? ''
+    : labelPeriodo(periodo)
   const puedeKpi = hayDatosKpi(kpiFiltradas)
   const puedeProg = hayDatosProgramacion(filtradas)
   const [mostrarSugerencias, setMostrarSugerencias] = useState(false)
