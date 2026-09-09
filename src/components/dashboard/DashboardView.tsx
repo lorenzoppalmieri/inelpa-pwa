@@ -227,6 +227,7 @@ export default function DashboardView() {
             maquinasVisibles={maquinasVisibles} operariosVisibles={operariosVisibles}
             nombreOperario={nombreOperario} nombreMaquina={nombreMaquina}
             materialTarea={materialTarea}
+            huecos={huecos}
             puedeMoverProduccion={!!permisos?.gestionProduccion}
             onTareaClick={permisos?.cargarProgramacion ? irATarea : undefined}
           />}
@@ -262,10 +263,12 @@ function DashboardCuerpo(props: {
   nombreOperario: (id: string) => string
   nombreMaquina: (id: string) => string
   materialTarea: (t: Tarea) => string
+  /** v2.03 — tiempo muerto por tarea, calculado arriba sobre TODAS las tareas. */
+  huecos: Map<string, number>
   puedeMoverProduccion: boolean
   onTareaClick?: (t: Tarea) => void
 }) {
-  const { vista, linea, setLinea, sectorFiltro, setSectorFiltro, agrupar, setAgrupar, periodo, setPeriodo, kpiMaquina, setKpiMaquina, kpiOperario, setKpiOperario, kpiFecha, setKpiFecha, kpiDesde, setKpiDesde, kpiHasta, setKpiHasta, sectoresVisibles, filtradas, kpiFiltradas, maquinasVisibles, operariosVisibles, nombreOperario, nombreMaquina, materialTarea, puedeMoverProduccion, onTareaClick } = props
+  const { vista, linea, setLinea, sectorFiltro, setSectorFiltro, agrupar, setAgrupar, periodo, setPeriodo, kpiMaquina, setKpiMaquina, kpiOperario, setKpiOperario, kpiFecha, setKpiFecha, kpiDesde, setKpiDesde, kpiHasta, setKpiHasta, sectoresVisibles, filtradas, kpiFiltradas, maquinasVisibles, operariosVisibles, nombreOperario, nombreMaquina, materialTarea, huecos, puedeMoverProduccion, onTareaClick } = props
 
   const periodoLabel = periodo === 'rango'
     ? `Rango ${kpiDesde} a ${kpiHasta}`
