@@ -1233,20 +1233,26 @@ export interface CausaParadaDef {
 export const CAUSAS_PARADA: CausaParadaDef[] = [
   // ===== BOBINADO (catalogo original; sin cambios). 'general' = tambien Laboratorio.
   { id: 'espera_prod_bt', label: 'Espera produccion de BT', categoria: 'material', codigo: 1, areas: ['bobinado', 'general'] },
-  { id: 'espera_prod_aislacion', label: 'Espera produccion de aislacion', categoria: 'material', codigo: 2, areas: ['bobinado', 'general'] },
+  // v2.02: se aclara el nombre ahora que es la unica de aislacion que queda.
+  { id: 'espera_prod_aislacion', label: 'Espera de aislacion (produccion)', categoria: 'material', codigo: 2, areas: ['bobinado', 'general'] },
   { id: 'espera_alambre', label: 'Espera de alambre (cobre o aluminio)', categoria: 'material', codigo: 30, areas: ['bobinado', 'general'] },
   { id: 'espera_especificaciones', label: 'Espera especificaciones tecnicas / diseno', categoria: 'material', codigo: 28, areas: ['bobinado', 'general'] },
   { id: 'espera_canales', label: 'Espera de canales (logistica)', categoria: 'logistica', codigo: 31, areas: ['bobinado', 'general'] },
   { id: 'espera_consumibles', label: 'Espera de consumibles (logistica)', categoria: 'logistica', codigo: 32, areas: ['bobinado', 'general'] },
   { id: 'espera_gas_oxigeno', label: 'Espera gas y oxigeno (logistica)', categoria: 'logistica', codigo: 36, areas: ['bobinado', 'general'] },
   { id: 'pasillos_obstruidos', label: 'Pasillos obstruidos', categoria: 'logistica', codigo: 17, areas: ['bobinado', 'general'] },
-  { id: 'subir_bajar_bobina', label: 'Espera para subir / bajar bobina', categoria: 'logistica', codigo: 21, areas: ['bobinado', 'general'] },
-  { id: 'mant_correctivo', label: 'Mantenimiento correctivo', categoria: 'maquina', codigo: 5, areas: ['bobinado', 'general'] },
-  { id: 'mant_preventivo', label: 'Mantenimiento preventivo', categoria: 'maquina', codigo: 6, areas: ['bobinado', 'general'] },
-  { id: 'replanif_cambio', label: 'Replanificacion cambio potencia / modelo', categoria: 'maquina', codigo: 16, areas: ['bobinado', 'general'] },
+  // v2.02 (revision de produccion + SGO): pasa de logistica a personal. No es un
+  // problema de abastecimiento: las companeras esperan a un companero del area
+  // que las ayude a subir o bajar la bobina del eje de la bobinadora.
+  { id: 'subir_bajar_bobina', label: 'Espera para subir / bajar bobina', categoria: 'personal', codigo: 21, areas: ['bobinado', 'general'] },
+  // v2.02: las cuatro de maquina se habilitan tambien en HERRERIA. Antes el
+  // herrero no tenia que elegir si se cortaba la luz o se rompia una herramienta.
+  { id: 'mant_correctivo', label: 'Mantenimiento correctivo', categoria: 'maquina', codigo: 5, areas: ['bobinado', 'general', 'herreria'] },
+  { id: 'mant_preventivo', label: 'Mantenimiento preventivo', categoria: 'maquina', codigo: 6, areas: ['bobinado', 'general', 'herreria'] },
+  { id: 'replanif_cambio', label: 'Replanificacion cambio potencia / modelo', categoria: 'maquina', codigo: 16, areas: ['bobinado', 'general', 'herreria'] },
   { id: 'falta_herramienta', label: 'Faltante / rotura de herramienta', categoria: 'maquina', codigo: 27, areas: ['bobinado', 'general'] },
   { id: 'espera_soldadora', label: 'Espera soldadora', categoria: 'maquina', codigo: 35, areas: ['bobinado', 'general'] },
-  { id: 'corte_luz', label: 'Corte de luz', categoria: 'maquina', codigo: 37, areas: ['bobinado', 'general'] },
+  { id: 'corte_luz', label: 'Corte de luz', categoria: 'maquina', codigo: 37, areas: ['bobinado', 'general', 'herreria'] },
   { id: 'capacitacion', label: 'Capacitacion laboral', categoria: 'personal', codigo: 8, areas: ['bobinado', 'general'] },
   { id: 'reunion_charla', label: 'Reunion / charla', categoria: 'personal', codigo: 9, areas: ['bobinado', 'general'] },
   { id: 'ayuda_sector', label: 'Ayuda en sector', categoria: 'personal', codigo: 19, areas: ['bobinado', 'general'] },
@@ -1254,7 +1260,11 @@ export const CAUSAS_PARADA: CausaParadaDef[] = [
   { id: 'retiro', label: 'Retiro', categoria: 'personal', codigo: 23, areas: ['bobinado', 'general'] },
   { id: 'accidente_laboral', label: 'Accidente laboral', categoria: 'personal', codigo: 29, areas: ['bobinado', 'general'] },
   { id: 'espera_encargado', label: 'Espera a encargado', categoria: 'personal', codigo: 4, areas: ['bobinado', 'general'] },
-  { id: 'taco_defectuoso', label: 'Taco defectuoso', categoria: 'calidad', codigo: 38, areas: ['bobinado', 'general'] },
+  // v2.02: sale de CALIDAD y pasa a MAQUINA. El operario no la usa para reportar
+  // un defecto: la usa porque el taco fallado la obliga a suplementar para poder
+  // bobinar bien, y eso le come tiempo. Como calidad abria una no conformidad
+  // que nadie iba a investigar. Deja de abrir NC.
+  { id: 'taco_defectuoso', label: 'Taco defectuoso', categoria: 'maquina', codigo: 38, areas: ['bobinado', 'general'] },
   { id: 'retrabajo', label: 'Retrabajo', categoria: 'calidad', codigo: 10, areas: ['bobinado', 'general'], esRetrabajo: true },
   { id: 'calidad_alambre', label: 'Problemas calidad del alambre o planchuela', categoria: 'calidad', codigo: 18, areas: ['bobinado', 'general'] },
   { id: 'bobina_bt_defectuosa', label: 'Bobina de BT defectuosa', categoria: 'calidad', codigo: 40, areas: ['bobinado', 'general'] },
@@ -1264,14 +1274,18 @@ export const CAUSAS_PARADA: CausaParadaDef[] = [
   { id: 'her_espera_cuba', label: 'Espera cuba', categoria: 'material', areas: ['herreria'] },
   { id: 'her_espera_materiales', label: 'Espera materiales / herramientas / etc.', categoria: 'material', areas: ['herreria'] },
   { id: 'her_falta_tapa', label: 'Falta de tapa', categoria: 'material', areas: ['herreria'] },
-  { id: 'her_retrabajo_tercero', label: 'Retrabajo de un 3° del sector', categoria: 'calidad', areas: ['herreria'] , esRetrabajo: true },
-  { id: 'her_retrabajo_propio', label: 'Retrabajo propio', categoria: 'calidad', areas: ['herreria'] , esRetrabajo: true },
-  { id: 'her_retrabajo_cuba_tapa_tanque', label: 'Retrabajo en su cuba / tapa / tanque', categoria: 'calidad', areas: ['herreria'] , esRetrabajo: true },
+  // v2.02: de 6 retrabajos de herreria quedan 3. Los otros 3 decian lo mismo con
+  // otras palabras y partian el Pareto en barras chicas: el problema se veia mas
+  // chico de lo que es. Se RETIRAN, no se borran (el historico las referencia).
+  { id: 'her_retrabajo_tercero', label: 'Retrabajo de un 3° del sector', categoria: 'calidad', areas: ['herreria'] , esRetrabajo: true, retirada: true },
+  { id: 'her_retrabajo_propio', label: 'Retrabajo propio', categoria: 'calidad', areas: ['herreria'] , esRetrabajo: true, retirada: true },
+  { id: 'her_retrabajo_cuba_tapa_tanque', label: 'Retrabajo en su cuba / tapa / tanque', categoria: 'calidad', areas: ['herreria'] , esRetrabajo: true, retirada: true },
   { id: 'her_retrabajo', label: 'Retrabajo', categoria: 'calidad', areas: ['herreria'] , esRetrabajo: true },
   { id: 'her_retrabajo_otro_sector', label: 'Retrabajo (de otro sector)', categoria: 'calidad', areas: ['herreria'] , esRetrabajo: true },
   { id: 'her_retrabajo_proveedor', label: 'Retrabajo (problemas proveedor)', categoria: 'calidad', areas: ['herreria'] , esRetrabajo: true },
   { id: 'her_perdidas_hermetizado', label: 'Perdidas en hermetizado', categoria: 'calidad', areas: ['herreria'] },
-  { id: 'her_hermetizado', label: 'Hermetizado', categoria: 'otra', areas: ['herreria'] },
+  // v2.02: retirada. El hermetizado es parte del proceso, no una parada.
+  { id: 'her_hermetizado', label: 'Hermetizado', categoria: 'otra', areas: ['herreria'], retirada: true },
   { id: 'her_capacitacion', label: 'Capacitacion', categoria: 'personal', areas: ['herreria'] },
   { id: 'her_reunion_charla', label: 'Reunion informativa / charla', categoria: 'personal', areas: ['herreria'] },
   { id: 'her_ayuda_sector', label: 'Ayuda en sector u otro sector', categoria: 'personal', areas: ['herreria'] },
@@ -1335,14 +1349,20 @@ export const CAUSAS_PARADA: CausaParadaDef[] = [
   // `areas: ['montaje']` alcanza a las CUATRO estaciones —PA y PO, distribucion
   // y rural— porque areaDemora las mapea todas a 'montaje'. No hay que duplicar.
   { id: 'mon_espera_aceite', label: 'Falta / espera de aceite', categoria: 'logistica', areas: ['montaje'] },
-  { id: 'mon_espera_ensayo_lab', label: 'Espera ensayo de laboratorio', categoria: 'laboratorio', areas: ['montaje'] },
-  { id: 'mon_espera_prueba_tension', label: 'Espera prueba de tension', categoria: 'laboratorio', areas: ['montaje'] },
+  // v2.02: retiradas por decision de produccion. El ensayo extra se empezo a
+  // pedir "por las dudas" por la cantidad de anillados, y no es una demora del
+  // proceso normal de montaje. OJO: con esto la PWA deja de medir el tiempo que
+  // montaje pasa esperando al laboratorio.
+  { id: 'mon_espera_ensayo_lab', label: 'Espera ensayo de laboratorio', categoria: 'laboratorio', areas: ['montaje'], retirada: true },
+  { id: 'mon_espera_prueba_tension', label: 'Espera prueba de tension', categoria: 'laboratorio', areas: ['montaje'], retirada: true },
   { id: 'her_espera_consumibles', label: 'Espera de consumibles', categoria: 'logistica', areas: ['herreria'] },
   { id: 'her_espera_materia_prima', label: 'Espera de materia prima', categoria: 'material', areas: ['herreria'] },
   { id: 'her_espera_gas', label: 'Espera de gas', categoria: 'logistica', areas: ['herreria'] },
   { id: 'bob_espera_planchuela', label: 'Espera de planchuela (cobre o aluminio)', categoria: 'material', areas: ['bobinado'] },
   { id: 'bob_espera_folio', label: 'Espera de folio (cobre o aluminio)', categoria: 'material', areas: ['bobinado'] },
-  { id: 'bob_espera_aislacion', label: 'Espera de aislacion (canales, pressphan, diamantado)', categoria: 'material', areas: ['bobinado'] },
+  // v2.02: retirada por duplicada. Convivia con 'espera_prod_aislacion' y nadie
+  // sabia cual elegir; la aislacion que falta se pide con la de produccion.
+  { id: 'bob_espera_aislacion', label: 'Espera de aislacion (canales, pressphan, diamantado)', categoria: 'material', areas: ['bobinado'], retirada: true },
 
   // ===== GLOBALES (visibles en TODAS las secciones) =====
   // No productiva (NO penaliza el OEE: pausa programada de planta).
@@ -1417,13 +1437,40 @@ export function causaLabel(c: CausaParada): string {
 // sin haber estado en planta. Sin una línea del operario, esa investigación
 // arranca a ciegas.
 //
-// El tope es de 10 palabras a propósito: se carga en una tablet, con guantes y
-// la máquina parada. No es un informe, es una pista.
+// El tope existe a propósito: se carga en una tablet, con guantes y la máquina
+// parada. No es un informe, es una pista.
+//
+// v2.02 — sube de 10 a 25 palabras. En la revisión de producción y SGO, casi
+// todos los comentarios pedían saber "cuál fue el defecto" y "cuál es la raíz
+// del problema". Eso no entra en 10 palabras: el operario terminaba escribiendo
+// un telegrama que no le servía a Lara para investigar.
+// OJO: el nombre dice RETRABAJO pero desde v2.02 el tope rige para TODA causa
+// que pida explicación (ver requiereExplicacion), no solo los retrabajos.
 // ============================================================
-export const MAX_PALABRAS_RETRABAJO = 10
+export const MAX_PALABRAS_RETRABAJO = 25
 
 export function esCausaRetrabajo(c: CausaParada): boolean {
   return CAUSAS_PARADA.find((x) => x.id === c)?.esRetrabajo === true
+}
+
+/**
+ * v2.02 — ¿esta causa obliga al operario a contar qué pasó?
+ *
+ * Hasta v2.01 la explicación se pedía SOLO en las causas con el flag
+ * `esRetrabajo`. En la revisión de producción y SGO, Lorenzo pidió lo mismo para
+ * el resto de las causas de calidad: "chapa núcleo defectuoso", "prensayugo
+ * defectuoso", "no da relación la/s bobina/s" abren una no conformidad igual, y
+ * sin una línea del operario esa NC nace vacía.
+ *
+ * IMPORTANTE: es una función APARTE de `esCausaRetrabajo` a propósito. Esa otra
+ * decide qué investiga Lara en el circuito de retrabajos de SGO; si le hubiera
+ * agregado las causas de calidad, le habría duplicado la cola de investigación
+ * sin que nadie lo pidiera. Acá solo se decide si el modal pide texto.
+ */
+export function requiereExplicacion(c: CausaParada): boolean {
+  const def = CAUSAS_PARADA.find((x) => x.id === c)
+  if (!def) return false
+  return def.esRetrabajo === true || def.categoria === 'calidad'
 }
 
 /** Palabras reales de un texto (ignora espacios de más y saltos de línea). */

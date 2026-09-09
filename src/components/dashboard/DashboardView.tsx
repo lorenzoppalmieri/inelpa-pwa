@@ -5,6 +5,7 @@ import { useAuth } from '../../auth/AuthContext'
 import { SECTORES, materialLabel, esSectorBobinado, BOBINADO_SECTORES, type LineaProduccion, type SectorId, type Tarea, type Maquina } from '../../types'
 import { isoWeek } from '../../lib/time'
 import { filtrarPorRango } from '../../lib/kpi'
+import { minutosHuecoPorTarea } from '../../lib/huecos'
 import {
   exportarKpisCSV, exportarProgramacionCSV, hayDatosKpi, hayDatosProgramacion,
 } from '../../lib/export'
@@ -91,6 +92,14 @@ export default function DashboardView() {
   const usuarios = useLiveQuery(() => db.usuarios.toArray(), [])
   const maquinas = useLiveQuery(() => db.maquinas.toArray(), [])
   const ordenes = useLiveQuery(() => db.ordenes.toArray(), [])
+
+  // v2.03 — TIEMPO MUERTO entre tareas (solo Bobinado). Se calcula UNA vez acá,
+  // sobre `todasTareas`, porque es el único lugar que tiene la planta completa:
+  // el hueco necesita la tarea anterior del MISMO operario, sea del sector que
+  // sea. Si se calculara adentro de los componentes de KPI —que reciben la
+  // lista ya filtrada— un bobinador que se fue a ayudar a herrería aparecería
+  // como si hubiera estado sin hacer nada. Ver `lib/huecos.ts`.
+  const huecos = useMemo(() => minutosHuecoPorTarea(todasTareas ?? []), [todasTareas])
 
   const nombreOperario = useMemo(() => {
     const m = new Map((usuarios ?? []).map((u) => [u.id, u.nombre]))
@@ -348,7 +357,7 @@ function DashboardCuerpo(props: {
 
       {vista === 'gantt'
         ? <GanttOperativo tareas={filtradas} agrupar={agrupar} maquinas={maquinasVisibles} operarios={operariosVisibles} nombreOperario={nombreOperario} nombreMaquina={nombreMaquina} puedeMoverProduccion={puedeMoverProduccion} onTareaClick={onTareaClick} />
-        : <KpiPanel tareas={kpiFiltradas} nombreOperario={nombreOperario} nombreMaquina={nombreMaquina} />}
+        : <KpiPanel tareas={kpiFiltradas} nombreOperario={nombreOperario} nombreMaquina={nombreMaquina} huecos={huecos} />}
 
       {mostrarSugerencias && (
         <SugerenciasEstandar tareas={kpiFiltradas} nombreMaquina={nombreMaquina} onClose={() => setMostrarSugerencias(false)} />

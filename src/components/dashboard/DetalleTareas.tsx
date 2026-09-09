@@ -20,10 +20,17 @@ import FiltrosMovil from '../ui/FiltrosMovil'
 //   | Demora justificada (=suma de paradas registradas) | Demora sin justificar
 //   (=Demorado - Demora justificada = tiempo perdido sin motivo reportado).
 // ============================================================
-export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina }: {
+export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina, huecos }: {
   tareas: Tarea[]
   nombreOperario: (id: string) => string
   nombreMaquina: (id: string) => string
+  /**
+   * v2.03 — minutos de tiempo muerto por tarea, calculados sobre TODAS las
+   * tareas de la planta. NO se pueden calcular acá: `tareas` ya viene filtrada
+   * por sector y período, y un bobinador que se fue a ayudar a otra sección
+   * aparecería como si hubiera estado sin hacer nada. Ver `lib/huecos.ts`.
+   */
+  huecos?: Map<string, number>
 }) {
   const { usuario } = useAuth()
   const eventosSGO = useLiveQuery(() => db.eventosSGO.toArray(), []) ?? []
@@ -80,7 +87,7 @@ export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina }:
       // recalculaba el demorado por su cuenta (`Real - Estimado`) y llamaba tres
       // veces a las funciones de kpi; con eso ya habia dos versiones de la misma
       // cuenta conviviendo, que es exactamente como empiezan los descuadres.
-      const m = metricasTarea(t)
+      const m = metricasTarea(t, undefined, huecos?.get(t.id) ?? 0)
       return {
         t,
         id: t.id,
@@ -96,13 +103,14 @@ export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina }:
         adelanto: m.adelanto,          // lo que se gano cuando salio antes
         aplicada: m.justificadaAplicada,
         excedente: m.justificadaExcedente,
+        hueco: m.hueco,                // v2.03: tiempo muerto previo, ya dentro de `real`
       }
     })
       .filter((r) => !txt || `${r.nombre} ${r.nro} ${r.operario} ${r.maquina}`.toLowerCase().includes(txt))
       .filter((r) => !soloDemora || r.sinJust > 0)
       .filter((r) => !idsAuditoria || idsAuditoria.includes(r.id))
       .sort((a, b) => b.sinJust - a.sinJust)
-  }, [tareas, q, soloDemora, idsAuditoria, nombreOperario, nombreMaquina])
+  }, [tareas, q, soloDemora, idsAuditoria, nombreOperario, nombreMaquina, huecos])
 
   // v1.44: TOTALES del acumulado. Se calculan SOLO sobre las filas que están
   // efectivamente en pantalla (ya filtradas por el buscador y el check de demora),
@@ -125,9 +133,10 @@ export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina }:
     const adelanto = suma((r) => r.adelanto)
     const aplicada = suma((r) => r.aplicada)
     const excedente = suma((r) => r.excedente)
+    const hueco = suma((r) => r.hueco)
     return {
       n: filas.length, estimado, real, demorado, justificada, sinJust,
-      adelanto, aplicada, excedente,
+      adelanto, aplicada, excedente, hueco,
       // % de exceso sobre lo estimado (cuánto se pasó del estándar en conjunto).
       desvioPct: estimado > 0 ? Math.round((demorado / estimado) * 100) : 0,
       // De todo lo que se demoró, cuánto quedó SIN justificar.
@@ -157,7 +166,7 @@ export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina }:
           className="btn btn-primary"
           disabled={filas.length === 0}
           title={filas.length === 0 ? 'No hay tareas para exportar' : 'Descargar la tabla filtrada en Excel (CSV)'}
-          onClick={() => exportarDetalleTareasCSV(filas.map((r) => r.t), nombreOperario, nombreMaquina, 'detalle')}
+          onClick={() => exportarDetalleTareasCSV(filas.map((r) => r.t), nombreOperario, nombreMaquina, 'detalle', huecos)}
         >⬇ Exportar (Excel)</button>
       </FiltrosMovil>
 
@@ -187,6 +196,13 @@ export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina }:
               <div className="l">Real</div>
               <div className="n">{fmtDur(tot.real)}</div>
               <div className="s">{tot.real >= tot.estimado ? '+' : '−'}{fmtDur(Math.abs(tot.real - tot.estimado))} vs estimado</div>
+              {/* v2.03: sin esta línea el operario ve que le creció la demora y no
+                  tiene forma de saber que fue tiempo muerto entre tareas. */}
+              {tot.hueco > 0 && (
+                <div className="sub-desc" title="Tiempo entre el fin de una tarea y el arranque de la siguiente (o entre la apertura de planta y la primera del día). Ya está incluido en el Real. Solo Bobinado.">
+                  Tiempo muerto <b>{fmtDur(tot.hueco)}</b>
+                </div>
+              )}
             </div>
             <div className="tot-card">
               <div className="l">Demorado</div>

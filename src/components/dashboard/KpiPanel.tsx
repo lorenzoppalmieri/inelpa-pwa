@@ -22,13 +22,19 @@ function KpiBar({ label, value }: { label: string; value: number }) {
   )
 }
 
-export default function KpiPanel({ tareas, nombreOperario, nombreMaquina }: {
+export default function KpiPanel({ tareas, nombreOperario, nombreMaquina, huecos }: {
   tareas: Tarea[]
   nombreOperario: (id: string) => string
   nombreMaquina: (id: string) => string
+  /**
+   * v2.03 — tiempo muerto por tarea. Llega ya calculado desde DashboardView,
+   * que es el único que tiene TODAS las tareas de la planta; acá `tareas` viene
+   * filtrada por sector y período y no serviría para calcularlo.
+   */
+  huecos?: Map<string, number>
 }) {
   const oee = calcularOEE(tareas)
-  const desvios = desviosPorModelo(tareas)
+  const desvios = desviosPorModelo(tareas, huecos)
   const efic = [...eficienciaPorOperario(tareas).values()].sort((a, b) => b.eficiencia - a.eficiencia)
 
   return (
@@ -48,7 +54,7 @@ export default function KpiPanel({ tareas, nombreOperario, nombreMaquina }: {
 
       {/* Tiempo estimado vs realizado (por maquina / modelo) */}
       <div className="section-title">Tiempo estimado vs realizado</div>
-      <EstimadoVsRealizado tareas={tareas} nombreMaquina={nombreMaquina} />
+      <EstimadoVsRealizado tareas={tareas} nombreMaquina={nombreMaquina} huecos={huecos} />
 
       {/* Neto vs Estandar por modelo.
           v2.00: la barra graficaba el Real CRUDO (con las esperas ya justificadas
@@ -89,7 +95,7 @@ export default function KpiPanel({ tareas, nombreOperario, nombreMaquina }: {
           que la app tiene guardadas y cómo se arma la demora sin justificar. */}
       <DiagnosticoTiempos tareas={tareas} nombreOperario={nombreOperario} />
 
-      <DetalleTareas tareas={tareas} nombreOperario={nombreOperario} nombreMaquina={nombreMaquina} />
+      <DetalleTareas tareas={tareas} nombreOperario={nombreOperario} nombreMaquina={nombreMaquina} huecos={huecos} />
 
       {/* Pareto de demoras */}
       <div className="section-title">Pareto de demoras</div>

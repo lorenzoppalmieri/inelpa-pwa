@@ -1,8 +1,6 @@
 import type { Tarea, EstadoTarea } from '../types'
 import { sectorById, esReparacion, nombreSemielaborado } from '../types'
-import {
-  calcularOEE, tiempoEstimadoMin, tiempoRealMin, totalDemoradoMin, demoraSinJustificarMin,
-} from './kpi'
+import { calcularOEE, metricasTarea } from './kpi'
 import { programar } from './programacion'
 import { componentePorCodigo } from '../data/catalogo'
 import { fmtDur } from './time'
@@ -114,6 +112,8 @@ export function exportarDetalleTareasCSV(
   nombreOperario: (id: string) => string,
   nombreMaquina: (id: string) => string,
   etiqueta = 'detalle',
+  /** v2.03 — tiempo muerto por tarea. Sin esto el CSV contradice a la tabla. */
+  huecos?: Map<string, number>,
 ): boolean {
   const fin = tareas.filter((t) => t.estado === 'finalizada' && !esReparacion(t))
   if (fin.length === 0) return false
@@ -125,10 +125,14 @@ export function exportarDetalleTareasCSV(
   filas.push(['Tareas finalizadas', fin.length])
   filas.push([])
   filas.push(['Tarea (semielaborado)', 'Modelo', 'N transformador', 'Colaborador', 'Estacion', 'Sector',
-    'Estimado (min)', 'Real (min)', 'Demorado (min)', 'Demora justificada (min)', 'Demora sin justificar (min)'])
+    'Estimado (min)', 'Real (min)', 'Tiempo muerto (min)', 'Demorado (min)',
+    'Demora justificada (min)', 'Demora sin justificar (min)'])
   for (const t of fin) {
     const comp = componentePorCodigo(t.componenteCodigo)
-    const demorado = Math.max(0, Math.round(tiempoRealMin(t) - tiempoEstimadoMin(t))) // exceso sobre estandar
+    // v2.03: UNA sola llamada a metricasTarea. Antes esta función recalculaba el
+    // demorado por su cuenta y llamaba a tres helpers distintos, así que era otra
+    // versión de la misma cuenta conviviendo con la de la tabla.
+    const m = metricasTarea(t, undefined, huecos?.get(t.id) ?? 0)
     filas.push([
       nombreSemielaborado(t, comp?.descripcion),
       t.modelo,
@@ -136,11 +140,12 @@ export function exportarDetalleTareasCSV(
       t.operarioId ? nombreOperario(t.operarioId) : '-',
       nombreMaquina(t.maquinaId),
       sectorById(t.sectorId).nombre,
-      Math.round(tiempoEstimadoMin(t)),
-      Math.round(tiempoRealMin(t)),
-      demorado,
-      Math.round(totalDemoradoMin(t)),        // demora justificada = suma de paradas
-      Math.round(demoraSinJustificarMin(t)),  // = Demorado - justificada
+      m.estimado,
+      m.real,           // ya incluye el tiempo muerto
+      m.hueco,
+      m.demorado,
+      m.justificada,
+      m.sinJustificar,
     ])
   }
   descargarCSV(`Detalle_tareas_${slug(etiqueta)}_${sello()}.csv`, filas)

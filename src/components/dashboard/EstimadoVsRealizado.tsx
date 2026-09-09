@@ -57,9 +57,15 @@ function desvio(f: Fila): number {
   return f.estimado > 0 ? (f.neto - f.estimado) / f.estimado : 0
 }
 
-export default function EstimadoVsRealizado({ tareas, nombreMaquina }: {
+export default function EstimadoVsRealizado({ tareas, nombreMaquina, huecos }: {
   tareas: Tarea[]
   nombreMaquina: (id: string) => string
+  /**
+   * v2.03 — minutos de tiempo muerto por tarea, calculados sobre TODAS las
+   * tareas de la planta (no sobre estas, que ya vienen filtradas). Ver
+   * `lib/huecos.ts`. Si no se pasa, el gráfico se comporta como antes de v2.03.
+   */
+  huecos?: Map<string, number>
 }) {
   const [agrupar, setAgrupar] = useState<Agrupar>('maquina')
 
@@ -68,7 +74,7 @@ export default function EstimadoVsRealizado({ tareas, nombreMaquina }: {
     const map = new Map<string, Fila>()
     for (const t of fin) {
       const clave = agrupar === 'maquina' ? nombreMaquina(t.maquinaId) : t.modelo
-      const m = metricasTarea(t)
+      const m = metricasTarea(t, undefined, huecos?.get(t.id) ?? 0)
       const cur = map.get(clave) ?? { clave, estimado: 0, real: 0, justificada: 0, neto: 0, n: 0 }
       cur.estimado += m.estimado
       cur.real += m.real
@@ -81,7 +87,7 @@ export default function EstimadoVsRealizado({ tareas, nombreMaquina }: {
     }
     // Peor desvio primero (lo que mas conviene mirar).
     return [...map.values()].sort((a, b) => desvio(b) - desvio(a))
-  }, [tareas, agrupar, nombreMaquina])
+  }, [tareas, agrupar, nombreMaquina, huecos])
 
   // Escala global (compara magnitudes entre filas y dentro de cada fila).
   const max = Math.max(1, ...filas.flatMap((f) => [f.estimado, f.neto]))

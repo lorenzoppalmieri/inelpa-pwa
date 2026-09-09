@@ -1,6 +1,7 @@
 import type { Tarea, Parada, CausaParada } from '../types'
 import { minutosEntre } from './time'
 import { calcularTiempoNetoProductivo } from './calendario'
+import { minutosHuecoPorTarea } from './huecos'
 import { causaLabel, esParadaNoProductiva, esReparacion, minutosRecupTarea } from '../types'
 
 // ============================================================
@@ -279,17 +280,32 @@ export interface MetricasTarea {
   justificadaAplicada: number
   /** MAX(0, justificada − demorado). Justificó MÁS de lo que se pasó. */
   justificadaExcedente: number
+
+  /**
+   * v2.03 — Minutos de TIEMPO MUERTO previos a esta tarea (Bobinado), ya
+   * incluidos dentro de `real`. Se expone aparte para poder mostrarlo: si al
+   * operario le crece la demora y no ve de dónde salió, el número no le sirve
+   * a nadie. Ver `lib/huecos.ts`.
+   */
+  hueco: number
 }
 
 /**
  * @param hastaISO corte para tareas EN CURSO (normalmente "ahora").
  *                 Si se omite, se usa el fin real de la tarea.
+ * @param huecoMin v2.03 — minutos de tiempo muerto previos (solo Bobinado). Se
+ *                 suman al Tiempo Real y de ahí se deriva todo lo demás, así las
+ *                 tres identidades del auditor siguen cerrando solas. Por
+ *                 default 0: quien llama a `metricasTarea` con una sola tarea
+ *                 sigue obteniendo exactamente lo mismo que antes de v2.03.
+ *                 Para que los huecos se apliquen hay que usar `metricasDeLista`.
  */
-export function metricasTarea(t: Tarea, hastaISO?: string): MetricasTarea {
+export function metricasTarea(t: Tarea, hastaISO?: string, huecoMin = 0): MetricasTarea {
   const estimado = tiempoEstimadoMin(t)
   const vacio: MetricasTarea = {
     estimado, real: 0, demorado: 0, justificada: 0, sinJustificar: 0, noProductivo: 0,
     adelanto: Math.max(0, estimado), justificadaAplicada: 0, justificadaExcedente: 0,
+    hueco: 0,
   }
   const fin = hastaISO ?? t.finReal
   if (!t.inicioReal || !fin) return vacio
@@ -297,7 +313,13 @@ export function metricasTarea(t: Tarea, hastaISO?: string): MetricasTarea {
   // v2.01: se REDONDEA PRIMERO y todo lo demas se deriva de los enteros. Antes
   // cada campo se redondeaba por separado y las identidades se iban 1 minuto
   // por tarea; con 200 tareas en pantalla eso son 3 horas de descuadre.
-  const real = Math.round(tiempoRealHasta(t, fin))
+  // v2.03: el HUECO de tiempo muerto previo entra acá, dentro del Tiempo Real,
+  // como si la tarea hubiera arrancado apenas terminó la anterior. Se inyecta en
+  // `real` y NO en `sinJustificar`: al derivarse todo de `real`, las tres
+  // identidades del auditor siguen cerrando sin tocar nada más. Parchear
+  // `sinJustificar` a mano rompería el balance.
+  const hueco = Math.max(0, Math.round(huecoMin))
+  const real = Math.round(tiempoRealHasta(t, fin)) + hueco
   const justificada = Math.round(minutosParada(t, fin))
   const noProductivo = Math.round(minutosNoProductivos(t, fin))
   const demorado = Math.max(0, real - estimado)
@@ -314,8 +336,27 @@ export function metricasTarea(t: Tarea, hastaISO?: string): MetricasTarea {
 
   return {
     estimado, real, demorado, justificada, sinJustificar, noProductivo,
-    adelanto, justificadaAplicada, justificadaExcedente,
+    adelanto, justificadaAplicada, justificadaExcedente, hueco,
   }
+}
+
+/**
+ * v2.03 — MÉTRICAS DE UNA LISTA, con los huecos de tiempo muerto ya aplicados.
+ *
+ * `metricasTarea` es pura y por tarea: no conoce a las vecinas. El hueco necesita
+ * la tarea ANTERIOR del mismo operario, así que la única forma de calcularlo es
+ * mirando el conjunto. Esta capa lo hace una vez y devuelve todo indexado.
+ *
+ * IMPORTANTE: pasarle TODAS las tareas del período, de TODOS los sectores. Si se
+ * filtra por sector antes, un bobinador que se fue a ayudar a herrería en el
+ * medio aparece como si hubiera estado sin hacer nada. El filtro de Bobinado ya
+ * está adentro de `huecosPorTarea`, y decide quién RECIBE el hueco.
+ */
+export function metricasDeLista(tareas: Tarea[], hastaISO?: string): Map<string, MetricasTarea> {
+  const huecos = minutosHuecoPorTarea(tareas)
+  const out = new Map<string, MetricasTarea>()
+  for (const t of tareas) out.set(t.id, metricasTarea(t, hastaISO, huecos.get(t.id) ?? 0))
+  return out
 }
 
 // Filtra tareas cuyo trabajo cae dentro de [desdeISO, hastaISO) segun su
@@ -395,12 +436,14 @@ export interface DesvioModelo {
 // La justificada sale de minutosParada(), que fusiona intervalos superpuestos y
 // le da prioridad al almuerzo: los numeros coinciden por construccion con la
 // tabla "Detalle por tarea" y con el Gantt.
-export function desviosPorModelo(tareas: Tarea[]): DesvioModelo[] {
+export function desviosPorModelo(tareas: Tarea[], huecos?: Map<string, number>): DesvioModelo[] {
   const fin = tareas.filter((t) => t.estado === 'finalizada' && t.inicioReal && t.finReal && !esReparacion(t))
   const map = new Map<string, { est: number; real: number; just: number; n: number }>()
   for (const t of fin) {
     const k = t.modelo
-    const m = metricasTarea(t) // fuente unica de la cuenta
+    // v2.03: `huecos` viene calculado sobre TODAS las tareas (ver metricasDeLista).
+    // Si no se pasa, se comporta igual que antes: sin tiempo muerto.
+    const m = metricasTarea(t, undefined, huecos?.get(t.id) ?? 0) // fuente unica de la cuenta
     const cur = map.get(k) ?? { est: 0, real: 0, just: 0, n: 0 }
     cur.est += m.estimado
     cur.real += m.real

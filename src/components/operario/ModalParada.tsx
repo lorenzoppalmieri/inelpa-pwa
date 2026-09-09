@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  causasDeSector, CATEGORIA_LABEL, areaDemora, esCausaRetrabajo, contarPalabras,
+  causasDeSector, CATEGORIA_LABEL, areaDemora, requiereExplicacion, contarPalabras,
   MAX_PALABRAS_RETRABAJO,
   type CausaParada, type CategoriaParada, type CausaParadaDef, type SectorId,
 } from '../../types'
@@ -46,10 +46,13 @@ export default function ModalParada({ sectorId, onConfirm, onCancel }: {
   // v1.94: la explicación es OBLIGATORIA en los retrabajos y tiene tope de
   // palabras. La parada abre sola una no conformidad y Lara la investiga sin
   // haber estado en planta: sin esta línea, arranca a ciegas.
-  const retrabajo = !!causa && esCausaRetrabajo(causa)
+  // v2.02: ahora rige en TODAS las causas de calidad, no solo en los retrabajos
+  // (revisión de producción y SGO). "Prensayugo defectuoso" o "no da relación"
+  // abren una NC igual, y sin el texto del operario esa NC nace vacía.
+  const pideTexto = !!causa && requiereExplicacion(causa)
   const palabras = contarPalabras(obs)
-  const seExcede = retrabajo && palabras > MAX_PALABRAS_RETRABAJO
-  const faltaTexto = retrabajo && palabras === 0
+  const seExcede = pideTexto && palabras > MAX_PALABRAS_RETRABAJO
+  const faltaTexto = pideTexto && palabras === 0
   const obsInvalida = seExcede || faltaTexto
 
   // Causas de la SECCION del operario (+ globales) -> filtro por texto -> agrupa.
@@ -116,15 +119,16 @@ export default function ModalParada({ sectorId, onConfirm, onCancel }: {
 
         <div className="modal-pie">
           {/* v1.94: en RETRABAJO el campo aparece siempre (también en Montaje) y
-              es obligatorio, con tope de palabras. En el resto sigue como antes. */}
-          {retrabajo ? (
+              es obligatorio, con tope de palabras. En el resto sigue como antes.
+              v2.02: el campo aparece en toda causa de CALIDAD. */}
+          {pideTexto ? (
             <div className="field" style={{ marginBottom: 8 }}>
               <label>¿Qué pasó? — máximo {MAX_PALABRAS_RETRABAJO} palabras *</label>
               <input
                 className={'input' + (seExcede ? ' input-error' : '')}
                 value={obs} autoFocus
                 onChange={(e) => setObs(e.target.value)}
-                placeholder="ej. se pasó de vueltas la capa 3"
+                placeholder="ej. el prensayugo vino torcido de fábrica, hubo que enderezarlo con prensa"
               />
               <div className="retrabajo-ayuda">
                 <span className={seExcede ? 'excedido' : ''}>{palabras} / {MAX_PALABRAS_RETRABAJO} palabras</span>
@@ -132,7 +136,7 @@ export default function ModalParada({ sectorId, onConfirm, onCancel }: {
                   ? <strong> · Pasaste el límite: contá qué pasó en {MAX_PALABRAS_RETRABAJO} palabras o menos.</strong>
                   : faltaTexto
                     ? <span> · Escribí en pocas palabras qué pasó. Va al informe de calidad.</span>
-                    : <span> · Esto lo va a leer quien investigue el retrabajo.</span>}
+                    : <span> · Esto lo va a leer quien investigue el problema de calidad.</span>}
               </div>
             </div>
           ) : !esMontaje && (

@@ -525,7 +525,7 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
                               key={`dsj-${t.id}-${k}-${j}`}
                               className="gantt-demora-sj"
                               style={{ left: `${left}%`, width: `${width}%`, top: topDeFila(rowDe.get(t.id) ?? 0) }}
-                              title={`Demora SIN justificar · ${fmtDur(dMin)} en total · tiempo por encima del estándar sin parada reportada`}
+                              title={`Demora SIN justificar DENTRO de la tarea · ${fmtDur(dMin)} · tiempo por encima del estándar sin parada reportada.\nNO incluye el tiempo muerto ENTRE tareas (v2.03), que sí suma en los KPIs de Bobinado.`}
                             />
                           )
                         }),

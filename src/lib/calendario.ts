@@ -39,6 +39,20 @@ function fechaLocalISO(d: Date): string {
 }
 export function esFeriado(d: Date): boolean { return FERIADOS.has(fechaLocalISO(d)) }
 
+/**
+ * v2.03 — Instante de APERTURA DE PLANTA (07:00) del mismo día local de `iso`.
+ *
+ * Lo usa el cálculo de huecos de tiempo muerto para medir desde que abre la
+ * planta hasta que el operario arranca su primera tarea del día. Si ese día
+ * está cerrado (finde o feriado), `minutosLaborablesEntre` devuelve 0 igual: no
+ * hace falta chequearlo acá.
+ */
+export function aperturaDelDia(iso: string): string {
+  const d = new Date(iso)
+  d.setHours(Math.floor(APERTURA_MIN / 60), APERTURA_MIN % 60, 0, 0)
+  return d.toISOString()
+}
+
 // Franja de 30 min de almuerzo segun el grupo (dentro de 12:00-13:00).
 export function tramoAlmuerzo(grupo: GrupoAlmuerzo): Tramo {
   return grupo === 'B'
