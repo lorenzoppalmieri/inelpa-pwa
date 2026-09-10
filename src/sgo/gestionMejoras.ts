@@ -42,17 +42,8 @@ export function usuarioPuedeGestionarMejora(usuario: string, evento: Pick<Evento
   return normalizarGestorMejora(usuario) === gestorMejora(evento)
 }
 
-export function mejoraRequiereSegundoControl(evento: Pick<EventoSGO, 'mejora' | 'pilar' | 'severidad'>): boolean {
-  const mejora = evento.mejora
-  return mejora?.prioridad === 'critica' || evento.severidad === 'critica' || evento.pilar === 'seguridad' || evento.pilar === 'ambiente' ||
-    Boolean(mejora?.pilaresBeneficiados?.some((pilar) => pilar === 'seguridad' || pilar === 'ambiente')) ||
-    Math.max(0, Number(mejora?.presupuestoEstimado) || 0) > 500000
-}
-
 export function usuarioPuedeCerrarMejora(usuario: string, evento: Pick<EventoSGO, 'areaId' | 'mejora' | 'retrabajo' | 'pilar' | 'severidad'>): boolean {
-  const actor = normalizarGestorMejora(usuario)
-  if (!actor) return false
-  if (!mejoraRequiereSegundoControl(evento)) return actor === gestorMejora(evento)
-  const aprobador = normalizarGestorMejora(evento.mejora?.decisionPor ?? '') ?? gestorMejora(evento)
-  return actor !== aprobador
+  // El gestor del seguimiento conduce todo el circuito, incluida la verificación.
+  // Los requisitos documentales y de eficacia se validan por separado.
+  return usuarioPuedeGestionarMejora(usuario, evento)
 }

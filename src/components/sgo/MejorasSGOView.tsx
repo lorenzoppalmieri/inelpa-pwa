@@ -11,7 +11,7 @@ import {
 import { usuarioEsLorenzo } from '../../sgo/permisos'
 import {
   GESTORES_MEJORA_SGO, gestorMejora, gestorMejoraLabel, gestorSugeridoMejora,
-  mejoraRequiereSegundoControl, usuarioEsGestorMejora, usuarioPuedeCerrarMejora,
+  normalizarGestorMejora, usuarioEsGestorMejora, usuarioPuedeCerrarMejora,
   usuarioPuedeGestionarMejora,
 } from '../../sgo/gestionMejoras'
 import {
@@ -214,7 +214,6 @@ function EditorMejora({ registro, acciones, usuario, onClose: cerrarEditor, onOp
   const puedeGestionar = usuarioPuedeGestionarMejora(usuario, expediente)
   const puedeReasignar = usuarioEsGestorMejora(usuario)
   const editableGestion = !registro || puedeGestionar
-  const segundoControl = mejoraRequiereSegundoControl(expediente)
   const puedeCerrar = Boolean(registro && mejora.decision !== 'pendiente' && mejora.decision !== 'a_futuro' && usuarioPuedeCerrarMejora(usuario, expediente))
   const setEventoCampo = <K extends keyof EventoSGO>(key: K, value: EventoSGO[K]) => {
     setCierrePendiente(undefined); setErroresCierre([])
@@ -355,10 +354,11 @@ function EditorMejora({ registro, acciones, usuario, onClose: cerrarEditor, onOp
   return <Modal titulo={registro ? `${evento.codigo} · ${evento.titulo}` : 'Nueva detección de mejora'} onClose={onClose}>
     {registro && <div className="sgo-mejora-editor-resumen"><span className={`estado-chip mejora-${estadoActual}`}>{estadoLabel(estadoActual)}</span><span>Detectada {fechaHora(evento.detectadoEn)} por {evento.detectadoPor}</span></div>}
     <div className="card sgo-mejora-gestor">
-      <div><strong>Gestión SGO</strong><div className="meta">Responsable de evaluar, aprobar y conducir el expediente.</div></div>
+      <div><strong>Gestión SGO</strong><div className="meta">Responsable de seguimiento: puede evaluar, aprobar, verificar y cerrar el expediente.</div></div>
       <select className="input" value={gestorActual} disabled={!puedeReasignar} onChange={(e) => setMejoraCampo('gestorSGO', e.target.value as GestorMejoraSGO)}>{GESTORES_MEJORA_SGO.map((gestor) => <option key={gestor.id} value={gestor.id}>{gestor.label} · {gestor.alcance}</option>)}</select>
+      {puedeReasignar && !puedeGestionar && <button className="btn btn-primary" disabled={guardando} onClick={() => setMejoraCampo('gestorSGO', normalizarGestorMejora(usuario))}>Tomar seguimiento</button>}
     </div>
-    {registro && !editableGestion && <div className="card sgo-mejora-solo-lectura"><strong>Vista de consulta</strong><span>La gestión corresponde a {gestorMejoraLabel(gestorActual)}. Podés revisar toda la información sin intervenir en su aprobación.</span></div>}
+    {registro && !editableGestion && <div className="card sgo-mejora-solo-lectura"><strong>Vista de consulta</strong><span>La gestión corresponde a {gestorMejoraLabel(gestorActual)}. {puedeReasignar ? 'Si vas a conducir este expediente, usá Tomar seguimiento y guardá los cambios para registrar la asignación.' : 'Podés revisar toda la información sin intervenir en su aprobación.'}</span></div>}
     <fieldset className="sgo-mejora-campos" disabled={!editableGestion}>
     <div className="section-title">1. Detección</div>
     <div className="sgo-mejora-form-grid">
@@ -379,7 +379,7 @@ function EditorMejora({ registro, acciones, usuario, onClose: cerrarEditor, onOp
       <Campo label="Presupuesto estimado (ARS)"><input className="input" type="number" min="0" value={mejora.presupuestoEstimado ?? ''} onChange={(e) => setMejoraCampo('presupuestoEstimado', e.target.value ? Math.max(0, Number(e.target.value)) : undefined)} /></Campo>
       <Campo label="Fecha objetivo"><input className="input" type="date" value={mejora.fechaObjetivo ?? ''} onChange={(e) => setMejoraCampo('fechaObjetivo', e.target.value || undefined)} /></Campo>
     </div>
-    <div className={`card sgo-mejora-autorizacion ${segundoControl ? 'requiere' : 'no-requiere'}`}><strong>{segundoControl ? 'Requiere segundo control del equipo SGO' : 'Gestión directa del responsable SGO'}</strong><span>{segundoControl ? 'Por criticidad, seguridad, ambiente o costo, el cierre deberá realizarlo otro integrante de SGO. La aprobación técnica no queda bloqueada.' : 'El gestor asignado puede aprobar, ejecutar, verificar y cerrar la mejora.'}</span></div>
+    <div className="card sgo-mejora-autorizacion no-requiere"><strong>Gestión directa del responsable SGO</strong><span>El gestor del seguimiento puede aprobar, ejecutar, verificar y cerrar la mejora, sin requerir otro aprobador. Se mantienen la documentación del resultado y la verificación de las acciones.</span></div>
     <div className="sgo-mejora-decision">
       <Campo label="Decisión del equipo SGO"><select className="input" disabled={!puedeGestionar} value={mejora.decision} onChange={(e) => setMejoraCampo('decision', e.target.value as DecisionMejoraSGO)}>{DECISIONES_MEJORA.map((d) => <option value={d.id} key={d.id}>{d.label}</option>)}</select></Campo>
       {mejora.decision === 'a_futuro' && <Campo label="Revisar nuevamente el"><input className="input" type="date" value={mejora.fechaRevision ?? ''} onChange={(e) => setMejoraCampo('fechaRevision', e.target.value || undefined)} /></Campo>}
@@ -408,7 +408,7 @@ function EditorMejora({ registro, acciones, usuario, onClose: cerrarEditor, onOp
     </fieldset>
 
     {registro && <div className="card sgo-mejora-acciones-resumen"><div><strong>{acciones.length}</strong><span>acciones</span></div><div><strong>{acciones.filter((a) => a.estado === 'verificada').length}</strong><span>verificadas</span></div><div><strong>{acciones.filter((a) => accionMejoraVencida(a, fechaHoyISO())).length}</strong><span>vencidas</span></div><button className="btn" onClick={() => onOpenEvento(registro.id)}>Abrir expediente y acciones</button></div>}
-    {registro && segundoControl && mejora.decision !== 'pendiente' && <div className="card sgo-mejora-segundo-control"><strong>{puedeCerrar ? 'Podés realizar el segundo control' : 'Segundo control pendiente'}</strong><span>{mejora.verificacionSGOPor ? `Verificado por ${mejora.verificacionSGOPor}.` : `Debe verificar un integrante distinto de ${mejora.decisionPor ?? gestorMejoraLabel(gestorActual)}.`}</span></div>}
+    {registro && mejora.verificacionSGOPor && <div className="meta sgo-mejora-trazabilidad">Verificación registrada por <strong>{mejora.verificacionSGOPor}</strong>{mejora.verificacionSGOEn ? ` el ${fechaHora(mejora.verificacionSGOEn)}` : ''}.</div>}
     {erroresCierre.length > 0 && <div className="card" style={{ borderLeft: '4px solid var(--rojo)' }}><strong>No se puede cerrar todavía</strong><ul>{erroresCierre.map((error) => <li key={error}>{error}</li>)}</ul><button className="btn" onClick={() => setErroresCierre([])}>Entendido</button></div>}
     {cierrePendiente && <div className="card" style={{ borderLeft: '4px solid var(--verde)' }}><strong>La mejora está lista para cerrar</strong><div className="meta">Al confirmar pasará a Resultados e historial. Si ocurre un error, el expediente seguirá visible y editable.</div><div className="row-actions" style={{ marginTop: 10 }}><button className="btn" disabled={guardando} onClick={() => setCierrePendiente(undefined)}>Seguir revisando</button><button className="btn btn-verde" disabled={guardando} onClick={() => void confirmarCierreMejora()}>{guardando ? 'Cerrando…' : 'Confirmar cierre'}</button></div></div>}
     <div className="row-actions sgo-mejora-editor-acciones">
