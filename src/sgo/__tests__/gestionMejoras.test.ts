@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   gestorMejora, normalizarGestorMejora,
-  usuarioPuedeCerrarMejora, usuarioPuedeGestionarMejora,
+  usuarioPuedeCerrarMejora, usuarioPuedeGestionarMejora, usuarioPuedeEvaluarMejora,
 } from '../gestionMejoras'
 import type { EventoSGO } from '../types'
 
@@ -12,6 +12,16 @@ const evento = (areaId: EventoSGO['areaId'], fuente: NonNullable<EventoSGO['mejo
 }) as EventoSGO
 
 describe('gestión distribuida de mejora continua', () => {
+  it.each(['Lorenzo', 'lara', 'Nicolás', 'nicolas.sgo', 'azul'])('permite evaluar a %s sin asumir el seguimiento de otro integrante', (usuario) => {
+    const ajena = evento('administracion', 'manual')
+    expect(usuarioPuedeEvaluarMejora(usuario)).toBe(true)
+    expect(gestorMejora(ajena)).toBe('azul')
+  })
+
+  it.each(['GestionSGO', 'operario', '', 'compras'])('no permite evaluar a usuarios ajenos al equipo: %s', (usuario) => {
+    expect(usuarioPuedeEvaluarMejora(usuario)).toBe(false)
+  })
+
   it('asigna automáticamente según el alcance del equipo', () => {
     expect(gestorMejora(evento('bobinado_rural', '5s'))).toBe('lara')
     expect(gestorMejora(evento('logistica_despacho', 'manual'))).toBe('nicolas.sgo')
@@ -26,7 +36,7 @@ describe('gestión distribuida de mejora continua', () => {
     expect(normalizarGestorMejora('GestionSGO')).toBeUndefined()
   })
 
-  it('permite aprobar solamente al gestor asignado', () => {
+  it('reserva el seguimiento al gestor asignado', () => {
     const mejora = evento('logistica_operativa', 'manual')
     expect(usuarioPuedeGestionarMejora('nicolas.sgo', mejora)).toBe(true)
     expect(usuarioPuedeGestionarMejora('lara', mejora)).toBe(false)

@@ -12,7 +12,7 @@ import { usuarioEsLorenzo } from '../../sgo/permisos'
 import {
   GESTORES_MEJORA_SGO, gestorMejora, gestorMejoraLabel, gestorSugeridoMejora,
   normalizarGestorMejora, usuarioEsGestorMejora, usuarioPuedeCerrarMejora,
-  usuarioPuedeGestionarMejora,
+  usuarioPuedeGestionarMejora, usuarioPuedeEvaluarMejora,
 } from '../../sgo/gestionMejoras'
 import {
   AREAS_SGO, PILARES_SGO, areaSGOLabel, codigoEventoSGO,
@@ -212,6 +212,7 @@ function EditorMejora({ registro, acciones, usuario, onClose: cerrarEditor, onOp
   const estadoActual = registro ? estadoGestionMejora(expediente, acciones) : 'detectada'
   const gestorActual = gestorMejora(expediente)
   const puedeGestionar = usuarioPuedeGestionarMejora(usuario, expediente)
+  const puedeEvaluar = usuarioPuedeEvaluarMejora(usuario)
   const puedeReasignar = usuarioEsGestorMejora(usuario)
   const editableGestion = !registro || puedeGestionar
   const puedeCerrar = Boolean(registro && mejora.decision !== 'pendiente' && mejora.decision !== 'a_futuro' && usuarioPuedeCerrarMejora(usuario, expediente))
@@ -274,22 +275,7 @@ function EditorMejora({ registro, acciones, usuario, onClose: cerrarEditor, onOp
 
   async function guardar() {
     if (registro && !puedeGestionar && !puedeReasignar) { window.alert(`La gestión de esta mejora corresponde a ${gestorMejoraLabel(gestorActual)}.`); return }
-    if (registro && !puedeGestionar && puedeReasignar) {
-      const gestorAnterior = gestorMejora(registro)
-      if (gestorActual === gestorAnterior) { window.alert(`La gestión continúa asignada a ${gestorMejoraLabel(gestorActual)}.`); return }
-      const actualizado: EventoSGO = {
-        ...registro,
-        mejora: {
-          ...registro.mejora!, gestorSGO: gestorActual,
-          autorizacionRequerida: false, autorizacionEstado: 'no_requiere',
-        },
-        actualizadoEn: new Date().toISOString(),
-      }
-      setGuardando(true)
-      try { await guardarEventoSGO(actualizado); cerrarEditor() } finally { setGuardando(false) }
-      return
-    }
-    if (mejora.decision !== (registro?.mejora?.decision ?? 'pendiente') && !puedeGestionar) { window.alert('Solo el integrante SGO asignado puede registrar la decisión.'); return }
+    if (mejora.decision !== (registro?.mejora?.decision ?? 'pendiente') && !puedeEvaluar) { window.alert('Solo Lorenzo, Lara, Nicolás o Azul pueden registrar la decisión.'); return }
     const errores = validar()
     if (errores.length) { window.alert(errores.join('\n')); return }
     const actualizado = eventoPreparado()
@@ -358,7 +344,7 @@ function EditorMejora({ registro, acciones, usuario, onClose: cerrarEditor, onOp
       <select className="input" value={gestorActual} disabled={!puedeReasignar} onChange={(e) => setMejoraCampo('gestorSGO', e.target.value as GestorMejoraSGO)}>{GESTORES_MEJORA_SGO.map((gestor) => <option key={gestor.id} value={gestor.id}>{gestor.label} · {gestor.alcance}</option>)}</select>
       {puedeReasignar && !puedeGestionar && <button className="btn btn-primary" disabled={guardando} onClick={() => setMejoraCampo('gestorSGO', normalizarGestorMejora(usuario))}>Tomar seguimiento</button>}
     </div>
-    {registro && !editableGestion && <div className="card sgo-mejora-solo-lectura"><strong>Vista de consulta</strong><span>La gestión corresponde a {gestorMejoraLabel(gestorActual)}. {puedeReasignar ? 'Si vas a conducir este expediente, usá Tomar seguimiento y guardá los cambios para registrar la asignación.' : 'Podés revisar toda la información sin intervenir en su aprobación.'}</span></div>}
+    {registro && !editableGestion && <div className="card sgo-mejora-solo-lectura"><strong>{puedeEvaluar ? 'Evaluación habilitada' : 'Vista de consulta'}</strong><span>El seguimiento corresponde a {gestorMejoraLabel(gestorActual)}. {puedeEvaluar ? 'Podés completar la evaluación y registrar la decisión sin cambiar esa asignación. Para conducir también el seguimiento, usá Tomar seguimiento.' : 'Podés revisar toda la información sin intervenir en su aprobación.'}</span></div>}
     <fieldset className="sgo-mejora-campos" disabled={!editableGestion}>
     <div className="section-title">1. Detección</div>
     <div className="sgo-mejora-form-grid">
@@ -371,6 +357,8 @@ function EditorMejora({ registro, acciones, usuario, onClose: cerrarEditor, onOp
     <Campo label="Descripción de la situación actual *"><textarea className="input" rows={3} value={evento.descripcion} onChange={(e) => setEventoCampo('descripcion', e.target.value)} /></Campo>
     <div className="section-title">Pilares beneficiados</div><div className="sgo-mejora-pilares">{PILARES_SGO.map((p) => <label key={p.id}><input type="checkbox" checked={mejora.pilaresBeneficiados.includes(p.id)} onChange={(e) => setMejoraCampo('pilaresBeneficiados', e.target.checked ? [...mejora.pilaresBeneficiados, p.id] : mejora.pilaresBeneficiados.filter((id) => id !== p.id))} />{p.label}</label>)}</div>
 
+    </fieldset>
+    <fieldset className="sgo-mejora-campos" disabled={!puedeEvaluar}>
     <div className="section-title">2. Evaluación y decisión</div>
     <Campo label="Beneficio esperado"><textarea className="input" rows={2} value={mejora.beneficioEsperado ?? ''} onChange={(e) => setMejoraCampo('beneficioEsperado', e.target.value || undefined)} placeholder="Qué condición debería mejorar y cómo se reconocerá el resultado" /></Campo>
     <div className="sgo-mejora-form-grid">
@@ -379,14 +367,16 @@ function EditorMejora({ registro, acciones, usuario, onClose: cerrarEditor, onOp
       <Campo label="Presupuesto estimado (ARS)"><input className="input" type="number" min="0" value={mejora.presupuestoEstimado ?? ''} onChange={(e) => setMejoraCampo('presupuestoEstimado', e.target.value ? Math.max(0, Number(e.target.value)) : undefined)} /></Campo>
       <Campo label="Fecha objetivo"><input className="input" type="date" value={mejora.fechaObjetivo ?? ''} onChange={(e) => setMejoraCampo('fechaObjetivo', e.target.value || undefined)} /></Campo>
     </div>
-    <div className="card sgo-mejora-autorizacion no-requiere"><strong>Gestión directa del responsable SGO</strong><span>El gestor del seguimiento puede aprobar, ejecutar, verificar y cerrar la mejora, sin requerir otro aprobador. Se mantienen la documentación del resultado y la verificación de las acciones.</span></div>
+    <div className="card sgo-mejora-autorizacion no-requiere"><strong>Evaluación del equipo SGO</strong><span>Lorenzo, Lara, Nicolás y Azul pueden evaluar y aprobar sin cambiar el responsable del seguimiento. El gestor asignado verifica y cierra sin segundo aprobador. Se conserva quién tomó cada decisión.</span></div>
     <div className="sgo-mejora-decision">
-      <Campo label="Decisión del equipo SGO"><select className="input" disabled={!puedeGestionar} value={mejora.decision} onChange={(e) => setMejoraCampo('decision', e.target.value as DecisionMejoraSGO)}>{DECISIONES_MEJORA.map((d) => <option value={d.id} key={d.id}>{d.label}</option>)}</select></Campo>
+      <Campo label="Decisión del equipo SGO"><select className="input" disabled={!puedeEvaluar} value={mejora.decision} onChange={(e) => setMejoraCampo('decision', e.target.value as DecisionMejoraSGO)}>{DECISIONES_MEJORA.map((d) => <option value={d.id} key={d.id}>{d.label}</option>)}</select></Campo>
       {mejora.decision === 'a_futuro' && <Campo label="Revisar nuevamente el"><input className="input" type="date" value={mejora.fechaRevision ?? ''} onChange={(e) => setMejoraCampo('fechaRevision', e.target.value || undefined)} /></Campo>}
     </div>
     {mejora.decisionPor && <div className="meta sgo-mejora-trazabilidad">Decisión registrada por <strong>{mejora.decisionPor}</strong>{mejora.decisionEn ? ` el ${fechaHora(mejora.decisionEn)}` : ''}.</div>}
     {['a_futuro', 'no_viable'].includes(mejora.decision) && <Campo label="Justificación de la decisión"><textarea className="input" rows={2} value={mejora.justificacionDecision ?? ''} onChange={(e) => setMejoraCampo('justificacionDecision', e.target.value || undefined)} /></Campo>}
 
+    </fieldset>
+    <fieldset className="sgo-mejora-campos" disabled={!editableGestion}>
     {(registro && (mejora.decision === 'aprobada' || evento.estado === 'cerrado')) && <>
       <div className="section-title">3. Resultado, cierre y sostenimiento</div>
       <Campo label="Resultado obtenido"><textarea className="input" rows={3} value={mejora.resultado ?? ''} onChange={(e) => setMejoraCampo('resultado', e.target.value || undefined)} /></Campo>

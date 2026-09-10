@@ -38,6 +38,11 @@ export function usuarioEsGestorMejora(usuario: string): boolean {
   return Boolean(normalizarGestorMejora(usuario))
 }
 
+// Evaluar no transfiere el seguimiento ni habilita el cierre de otro gestor.
+export function usuarioPuedeEvaluarMejora(usuario: string): boolean {
+  return usuarioEsGestorMejora(usuario)
+}
+
 export function usuarioPuedeGestionarMejora(usuario: string, evento: Pick<EventoSGO, 'areaId' | 'mejora' | 'retrabajo'>): boolean {
   return normalizarGestorMejora(usuario) === gestorMejora(evento)
 }
