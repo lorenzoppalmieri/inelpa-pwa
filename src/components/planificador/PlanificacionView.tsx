@@ -396,6 +396,9 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
   const [filtroEstado, setFiltroEstado] = useState<'todos' | EstadoTarea>('todos')
   // v1.17: tarea resaltada al venir desde un click en el Gantt.
   const [resaltado, setResaltado] = useState<string | null>(null)
+  // v2.13: id de la PA cuya PO se está generando. Bloquea el botón mientras
+  // guarda: la idempotencia ahora se apoya en una búsqueda, no en el id.
+  const [generandoPO, setGenerandoPO] = useState<string | null>(null)
   useEffect(() => {
     if (!focoTareaId) return
     const id = focoTareaId
@@ -589,6 +592,10 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
   // El id es determinista (`po_<id de la PA>`), así que dos clics generan la
   // MISMA tarea. La lógica vive en `lib/puenteMontaje.ts` para poder testearla.
   async function generarPO(t: Tarea) {
+    // v2.13: la idempotencia ya no la da el id (es un UUID normal) sino la
+    // búsqueda por `origenTareaId`. Entre el clic y el refresco de la lista hay
+    // una ventana chica, así que se bloquea el botón mientras guarda.
+    if (generandoPO) return
     const g = puedeGenerarPO(t, todasTareas, maquinas ?? [])
     if (!g.puede) {
       setMsg(g.motivo === 'ya_generada'
@@ -615,8 +622,13 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
       // definitivo (PA y PO no tardan lo mismo).
       estandarPorDefecto: t.tiempoEstandarMin,
     })
-    await guardarTarea(nueva)
-    setMsg(`Montaje PO generada para ${ref}${conEstandar ? '' : ' — revisá el tiempo estándar'}.`)
+    setGenerandoPO(t.id)
+    try {
+      await guardarTarea(nueva)
+      setMsg(`Montaje PO generada para ${ref}${conEstandar ? '' : ' — revisá el tiempo estándar'}.`)
+    } finally {
+      setGenerandoPO(null)
+    }
   }
 
   // v1.16: revertir una finalizacion por error. Vuelve la tarea a "en proceso"
@@ -795,8 +807,10 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
             const g = puedeGenerarPO(t, todasTareas, maquinas ?? [])
             if (g.puede) {
               return (
-                <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => void generarPO(t)}>
-                  ⚙ Generar Montaje PO
+                <button className="btn btn-primary" style={{ flex: 1 }}
+                  disabled={generandoPO !== null}
+                  onClick={() => void generarPO(t)}>
+                  {generandoPO === t.id ? 'Generando…' : '⚙ Generar Montaje PO'}
                 </button>
               )
             }

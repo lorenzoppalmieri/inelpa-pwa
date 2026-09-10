@@ -287,6 +287,16 @@ export interface Tarea {
   // v1.18: PROTOTIPO de prueba (sin semielaborado definido). El detalle del
   // prototipo va en `notas`. Se puede planificar para cualquier colaborador/sector.
   esPrototipo?: boolean
+  // v2.13: tarea que ORIGINÓ a esta. Hoy la usa el puente Montaje PA -> PO.
+  //
+  // POR QUE EXISTE ESTA COLUMNA. La primera version derivaba el id de la PO del
+  // id de la PA (`po_<uuid>`) para garantizar que dos clics no duplicaran. Pero
+  // `tareas.id` en Supabase es UUID: `po_550e8400-...` no es un UUID valido, el
+  // servidor lo rechazaba, y como Dexie si lo aceptaba la tarea aparecia un rato
+  // y despues desaparecia al recargar de la nube. Ahora el id es un UUID normal
+  // y el vinculo vive aca, que ademas es mejor dato: se puede saber de que parte
+  // activa salio cada parte operativa.
+  origenTareaId?: string
 }
 
 // ============================================================

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Maquina, Tarea, TiempoEstandar } from '../../types'
 import { claveEstandar } from '../../types'
 import {
-  construirTareaPO, idTareaPO, puedeGenerarPO, sectorPODe, tieneEstandarAprendido,
+  construirTareaPO, poDe, puedeGenerarPO, sectorPODe, tieneEstandarAprendido,
 } from '../puenteMontaje'
 
 // ============================================================
@@ -60,10 +60,11 @@ describe('cuándo se puede generar', () => {
 
   it('si ya se generó, avisa y devuelve la existente', () => {
     const original = pa()
-    const ya = { ...original, id: idTareaPO(original.id) }
+    // v2.13: la PO se reconoce por `origenTareaId`, no por un id con prefijo.
+    const ya = { ...original, id: 'otro-uuid', origenTareaId: original.id }
     const r = puedeGenerarPO(original, [ya], MAQUINAS)
     expect(r).toMatchObject({ puede: false, motivo: 'ya_generada' })
-    expect(r.existente?.id).toBe('po_pa1')
+    expect(r.existente?.id).toBe('otro-uuid')
   })
 
   it('sin línea de PO cargada, no', () => {
@@ -121,10 +122,21 @@ describe('la tarea PO generada', () => {
     expect(t.inicioPlanificado).toBe('2026-09-01T12:00:00.000-03:00')
   })
 
-  it('el id es determinista: dos clics dan la misma tarea', () => {
-    const otra = construirTareaPO(pa(), { maquinas: MAQUINAS, estandares: [] })
-    expect(t.id).toBe(otra.id)
-    expect(t.id).toBe('po_pa1')
+  // v2.13 — EL BUG QUE REPORTÓ LUIS. El id era `po_<idPA>`, pero `tareas.id` en
+  // Supabase es UUID: el servidor lo rechazaba, Dexie lo aceptaba, y la tarea
+  // aparecía un rato y después desaparecía al recargar de la nube.
+  it('el id es un UUID válido, no lleva prefijo', () => {
+    expect(t.id).not.toMatch(/^po_/)
+    expect(t.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)
+  })
+
+  it('guarda de qué parte activa salió', () => {
+    expect(t.origenTareaId).toBe('pa1')
+  })
+
+  it('la PO generada se encuentra por su origen', () => {
+    expect(poDe('pa1', [t])?.id).toBe(t.id)
+    expect(poDe('otra', [t])).toBeUndefined()
   })
 })
 

@@ -120,6 +120,8 @@ export interface TareaRow {
   cliente: string | null
   notas: string | null
   es_prototipo: boolean | null
+  /** v2.13: tarea que originó a esta (hoy: la PA que generó esta PO). */
+  origen_tarea_id: string | null
 }
 
 export interface ParadaRow {
@@ -573,6 +575,7 @@ export function tareaFromRow(r: TareaRow, paradas: Parada[] = []): Tarea {
     cliente: u(r.cliente),
     notas: u(r.notas),
     esPrototipo: r.es_prototipo ?? false,
+    origenTareaId: u(r.origen_tarea_id),
   }
 }
 
@@ -1273,6 +1276,7 @@ export function tareaToRow(t: Tarea): TareaRow {
     cliente: t.cliente ?? null,
     notas: t.notas ?? null,
     es_prototipo: t.esPrototipo ?? false,
+    origen_tarea_id: t.origenTareaId ?? null,
   }
 }
 

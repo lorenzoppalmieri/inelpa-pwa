@@ -17,10 +17,19 @@ import { isoWeek } from './time'
 // Lo que aporta: cuando la planificadora decide que esa PA va a PO, se le evita
 // volver a tipear doce datos que la app ya tiene.
 //
-// IDEMPOTENCIA. El id de la tarea PO se deriva del id de la PA (`po_<idPA>`), no
-// es aleatorio. Dos clics generan la MISMA tarea y la segunda pisa a la primera
-// en vez de duplicarla. Es el mismo recurso que usan el puente al laboratorio y
-// el de despacho, y ya evitó duplicados en los dos.
+// IDEMPOTENCIA — v2.13, CAMBIÓ EL MECANISMO.
+//
+// La primera versión derivaba el id de la PO del id de la PA (`po_<idPA>`) para
+// que dos clics generaran la misma tarea. **No funcionaba**: `tareas.id` en
+// Supabase es UUID y `po_550e8400-...` no es un UUID válido, así que el servidor
+// lo rechazaba. Dexie sí lo aceptaba, con lo cual la tarea aparecía, el cartel
+// decía "generada", y al recargar de la nube desaparecía. Exactamente lo que
+// reportó Luis: "pone que se generó pero después no lo hace".
+//
+// Ahora el id es un UUID normal y la idempotencia se apoya en `origenTareaId`:
+// antes de generar se busca si ya existe una PO nacida de esa PA. Es una
+// garantía algo más débil (dos clics MUY rápidos podrían pasar), por eso el
+// botón además se bloquea mientras guarda.
 // ============================================================
 
 /** PA → PO dentro de la misma línea. Rural con rural, distribución con dist. */
@@ -38,9 +47,9 @@ export function esMontajePA(sectorId: SectorId): boolean {
   return sectorPODe(sectorId) !== undefined
 }
 
-/** Id determinista de la PO que nace de una PA. */
-export function idTareaPO(tareaPAId: string): string {
-  return `po_${tareaPAId}`
+/** La PO ya generada a partir de esa PA, si existe. */
+export function poDe(tareaPAId: string, todas: Tarea[]): Tarea | undefined {
+  return todas.find((t) => t.origenTareaId === tareaPAId)
 }
 
 /**
@@ -77,7 +86,7 @@ export function puedeGenerarPO(pa: Tarea, todas: Tarea[], maquinas: Maquina[]): 
   if (esReparacion(pa)) return { puede: false, motivo: 'es_reparacion' }
   if (pa.estado !== 'finalizada') return { puede: false, motivo: 'no_finalizada' }
 
-  const existente = todas.find((t) => t.id === idTareaPO(pa.id))
+  const existente = poDe(pa.id, todas)
   if (existente) return { puede: false, motivo: 'ya_generada', existente }
 
   if (!maquinas.some((m) => estacionUsable(m, sectorPO))) {
@@ -132,7 +141,10 @@ export function construirTareaPO(pa: Tarea, op: OpcionesPO): Tarea {
   const estandar = Math.max(1, Math.round(aprendido ?? op.estandarPorDefecto ?? 1))
 
   return {
-    id: idTareaPO(pa.id),
+    // v2.13: UUID normal. `tareas.id` es uuid en Supabase y un id con prefijo
+    // era rechazado por el servidor. El vínculo con la PA va en `origenTareaId`.
+    id: crypto.randomUUID(),
+    origenTareaId: pa.id,
     tipo: 'fabricacion',
     ordenId: pa.ordenId,
     sectorId: sectorPO,
