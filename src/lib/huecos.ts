@@ -69,6 +69,12 @@ function ms(iso: string): number {
   return new Date(iso).getTime()
 }
 
+/** Día local 'YYYY-MM-DD' de un timestamp. No usar `slice(0,10)`: los que vienen
+ *  en UTC ('...Z') caerían en el día equivocado después de las 21:00. */
+function diaLocal(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-CA')
+}
+
 /** Orden cronológico estable por arranque real; desempata por id. */
 function porArranque(a: Tarea, b: Tarea): number {
   const x = ms(a.inicioReal!)
@@ -103,15 +109,29 @@ export function huecosPorTarea(tareas: Tarea[]): Map<string, Hueco> {
     // la inmediata anterior porque dos tareas pueden solaparse: si A cierra
     // 11:00 y A' cierra 12:00, el operario estuvo ocupado hasta las 12:00.
     let finAnterior: string | null = null
-    // Si alguna tarea previa quedó SIN cerrar, el operario seguía ocupado en
-    // algo: no hay hueco que cobrar hasta que eso se resuelva.
-    let hayPreviaAbierta = false
+    // Si una tarea previa quedó SIN cerrar, el operario seguía ocupado en algo y
+    // no hay hueco que cobrarle.
+    //
+    // BUG CORREGIDO (v2.09, lo encontró Lorenzo controlando las bobinadoras).
+    // Antes esto era un booleano que, una vez encendido, NO SE APAGABA NUNCA:
+    // una sola tarea vieja abandonada sin finalizar dejaba a esa persona sin
+    // cálculo de huecos PARA SIEMPRE, en todas las tareas posteriores. Con las
+    // tareas contaminadas que arrastra la base, le pegaba a casi todos: el
+    // tiempo muerto daba cero en toda la planta y parecía que la regla no
+    // estaba andando.
+    //
+    // Ahora la marca guarda el DÍA de la tarea abierta y solo veta los huecos de
+    // ese mismo día. Dentro del día es conservador a propósito —en bobinado una
+    // persona puede tener dos bobinas en paralelo, y no hay que cobrarle tiempo
+    // muerto por eso—, pero al día siguiente vuelve a medir.
+    let diaAbiertaPrevia: string | null = null
 
     for (const t of orden) {
       const inicio = t.inicioReal!
 
       const recibe = esBobinado(t.sectorId) && !esReparacion(t)
-      if (recibe && !hayPreviaAbierta) {
+      const vetada = diaAbiertaPrevia !== null && diaAbiertaPrevia === diaLocal(inicio)
+      if (recibe && !vetada) {
         const esPrimera = finAnterior === null
         const desde = esPrimera ? aperturaDelDia(inicio) : finAnterior!
 
@@ -137,7 +157,7 @@ export function huecosPorTarea(tareas: Tarea[]): Map<string, Hueco> {
 
       // Estado para la siguiente vuelta: esta tarea pasa a ser "previa".
       if (!t.finReal) {
-        hayPreviaAbierta = true
+        diaAbiertaPrevia = diaLocal(inicio)
       } else if (finAnterior === null || ms(t.finReal) > ms(finAnterior)) {
         finAnterior = t.finReal
       }

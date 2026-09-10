@@ -83,10 +83,31 @@ describe('cálculo del hueco', () => {
     expect(hueco(ts, 'B')).toBe(15) // desde las 11:00, no desde las 09:00
   })
 
-  it('si una tarea previa quedó SIN CERRAR, no se cobra hueco', () => {
+  it('si una tarea previa quedó SIN CERRAR, no se cobra hueco ESE día', () => {
     const ts = [
       tarea({ id: 'A', estado: 'en_proceso', inicioReal: M(1, 8), finReal: undefined }),
       tarea({ id: 'B', inicioReal: M(1, 11), finReal: M(1, 13) }),
+    ]
+    expect(hueco(ts, 'B')).toBe(0)
+  })
+
+  // v2.09 — el bug que encontró Lorenzo controlando las bobinadoras: una tarea
+  // vieja abandonada sin cerrar dejaba a esa persona sin huecos PARA SIEMPRE.
+  it('una tarea abandonada de un día anterior NO anula los huecos de los días siguientes', () => {
+    const ts = [
+      // Quedó abierta el martes y nadie la cerró nunca.
+      tarea({ id: 'ABANDONADA', estado: 'en_proceso', inicioReal: M(1, 8), finReal: undefined }),
+      // Miércoles: arranca 08:15, debería cobrar el hueco de arranque de turno.
+      tarea({ id: 'B', inicioReal: M(2, 8, 15), finReal: M(2, 10) }),
+    ]
+    expect(hueco(ts, 'B')).toBe(75)
+    expect(huecosPorTarea(ts).get('B')?.tipo).toBe('arranque_turno')
+  })
+
+  it('dos bobinas en paralelo el MISMO día siguen sin generar tiempo muerto', () => {
+    const ts = [
+      tarea({ id: 'PAR', estado: 'en_proceso', inicioReal: M(1, 8), finReal: undefined }),
+      tarea({ id: 'B', inicioReal: M(1, 9), finReal: M(1, 12) }),
     ]
     expect(hueco(ts, 'B')).toBe(0)
   })
