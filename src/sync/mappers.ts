@@ -11,7 +11,7 @@ import type {
   SectorId, Rol, EstadoTarea, MaterialBobina, LineaProduccion,
   EstadoSemielaborado, TipoEstacion, GrupoNomina, DatosBobinado, TipoTarea,
   Objetivo, AndonAreaId, TareaLogistica, PrioridadLog,
-  SolicitudLogistica, EstadoSolicitudLog, Feriado, Ausencia,
+  SolicitudLogistica, EstadoSolicitudLog, Feriado, Ausencia, CorteLuz,
   Mensaje, MensajeDestinoTipo, MensajeLectura,
   TiempoEstandar, AreaDemora, BloqueoLog,
   DespachoTrafo, EstadoDespacho, DemoraDespacho, ChecklistDespacho, FleteInterno, MovimientoDeposito,
@@ -945,6 +945,40 @@ export function feriadoToRow(f: Feriado): FeriadoRow {
     fecha: f.fecha,
     descripcion: f.descripcion ?? null,
     actualizado_en: f.actualizado,
+  }
+}
+
+// ---------- Cortes de luz (v2.12) ----------
+export interface CorteLuzRow {
+  id: string
+  desde: string
+  hasta: string
+  /** Array de sectores. Vacio = toda la planta. */
+  sectores: string[]
+  nota: string | null
+  cargado_por: string
+  actualizado_en: string | null
+}
+export function corteLuzFromRow(r: CorteLuzRow): CorteLuz {
+  return {
+    id: r.id,
+    desde: r.desde,
+    hasta: r.hasta,
+    sectores: (r.sectores ?? []) as CorteLuz['sectores'],
+    nota: u(r.nota),
+    cargadoPor: r.cargado_por,
+    actualizado: r.actualizado_en ?? new Date().toISOString(),
+  }
+}
+export function corteLuzToRow(c: CorteLuz): CorteLuzRow {
+  return {
+    id: c.id,
+    desde: c.desde,
+    hasta: c.hasta,
+    sectores: c.sectores,
+    nota: c.nota ?? null,
+    cargado_por: c.cargadoPor,
+    actualizado_en: c.actualizado,
   }
 }
 

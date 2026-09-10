@@ -2,6 +2,7 @@ import type { Tarea, Parada, CausaParada } from '../types'
 import { minutosEntre } from './time'
 import { calcularTiempoNetoProductivo } from './calendario'
 import { minutosHuecoPorTarea } from './huecos'
+import { paradasDeCorte } from './cortesLuz'
 import { causaLabel, esParadaNoProductiva, esReparacion, minutosRecupTarea } from '../types'
 
 // ============================================================
@@ -45,7 +46,17 @@ export interface TramoPausa {
  */
 export function desglosePausas(t: Tarea, ahoraISO?: string): TramoPausa[] {
   const recupMin = minutosRecupTarea(t)
-  return (t.paradas ?? []).map((p) => {
+  // v2.12: a las paradas que cargó el operario se le suman las VIRTUALES de
+  // corte de luz. Se inyectan acá —y no en cada consumidor— porque este es el
+  // desglose único que leen el Gantt, los KPIs, el Pareto y la tarjeta del
+  // operario: enganchándolo en un solo lugar, aparece en todos.
+  //
+  // Si el corte se pisa con una parada que el operario SÍ llegó a cargar (por
+  // ejemplo "falta de material" desde antes), la fusión de intervalos evita el
+  // doble conteo. Ese problema ya está resuelto desde v1.89.
+  const propias = t.paradas ?? []
+  const virtuales = paradasDeCorte(t, ahoraISO)
+  return [...propias, ...virtuales].map((p) => {
     const fin = finEfectivoParada(t, p, ahoraISO)
     return {
       id: p.id,
@@ -84,20 +95,39 @@ export function desglosePausas(t: Tarea, ahoraISO?: string): TramoPausa[] {
 export interface Intervalo { inicio: string; fin: string }
 
 /**
+ * Instante en milisegundos.
+ *
+ * v2.12 — BUG CORREGIDO, y grave. Estas funciones comparaban los ISO como
+ * TEXTO. Eso solo funciona si todos los timestamps vienen con el mismo formato
+ * de zona, y no es el caso:
+ *   - los que genera la tablet salen en UTC  -> '...T13:00:00.000Z'
+ *   - los que llegan de Supabase salen así   -> '...T13:00:00+00:00'
+ *   - los de las pruebas y algunos importados -> '...T10:00:00.000-03:00'
+ * El MISMO instante escrito de tres formas distintas ordena distinto como
+ * texto, así que dos pausas superpuestas podían no reconocerse como tales y
+ * contarse dos veces. Es el mismo doble conteo que v1.89 vino a arreglar, por
+ * una puerta que quedó abierta.
+ *
+ * Lo destapó el test de cortes de luz: la parada del operario (con offset) y la
+ * del corte (en UTC) se pisaban y daban 240' en vez de 180'.
+ */
+const msIso = (iso: string): number => new Date(iso).getTime()
+
+/**
  * Une los intervalos que se superponen o se tocan. Función PURA.
  * [11:30-13:00] + [12:30-13:00]  ->  [11:30-13:00]
  * [09:00-10:00] + [11:00-12:00]  ->  los dos, separados (no se tocan)
  */
 export function fusionarIntervalos(xs: Intervalo[]): Intervalo[] {
-  const vals = xs.filter((x) => x.inicio && x.fin && x.fin > x.inicio)
-    .sort((a, b) => (a.inicio < b.inicio ? -1 : a.inicio > b.inicio ? 1 : 0))
+  const vals = xs.filter((x) => x.inicio && x.fin && msIso(x.fin) > msIso(x.inicio))
+    .sort((a, b) => msIso(a.inicio) - msIso(b.inicio))
   const out: Intervalo[] = []
   for (const x of vals) {
     const ult = out[out.length - 1]
     // `<=` y no `<`: dos pausas pegadas (una termina justo cuando arranca la
     // otra) son un solo tramo de planta parada, no dos.
-    if (ult && x.inicio <= ult.fin) {
-      if (x.fin > ult.fin) ult.fin = x.fin
+    if (ult && msIso(x.inicio) <= msIso(ult.fin)) {
+      if (msIso(x.fin) > msIso(ult.fin)) ult.fin = x.fin
     } else {
       out.push({ inicio: x.inicio, fin: x.fin })
     }
@@ -117,9 +147,10 @@ export function restarIntervalos(base: Intervalo[], quitar: Intervalo[]): Interv
   for (const q of cortes) {
     const sig: Intervalo[] = []
     for (const b of actual) {
-      if (q.fin <= b.inicio || q.inicio >= b.fin) { sig.push(b); continue }  // no se tocan
-      if (q.inicio > b.inicio) sig.push({ inicio: b.inicio, fin: q.inicio }) // sobra por izquierda
-      if (q.fin < b.fin) sig.push({ inicio: q.fin, fin: b.fin })             // sobra por derecha
+      // v2.12: comparación por INSTANTE, no por texto. Ver `msIso`.
+      if (msIso(q.fin) <= msIso(b.inicio) || msIso(q.inicio) >= msIso(b.fin)) { sig.push(b); continue } // no se tocan
+      if (msIso(q.inicio) > msIso(b.inicio)) sig.push({ inicio: b.inicio, fin: q.inicio }) // sobra por izquierda
+      if (msIso(q.fin) < msIso(b.fin)) sig.push({ inicio: q.fin, fin: b.fin })             // sobra por derecha
     }
     actual = sig
   }
@@ -485,15 +516,18 @@ export function paretoDemoras(tareas: Tarea[]): ParetoItem[] {
   // Se itera por tarea (no flatMap) para conservar su flag de hora de recuperacion:
   // una parada en la franja 16-17h / vie 15-16h solo cuenta si la tarea la recupera.
   for (const t of tareas.filter((t) => !esReparacion(t))) {
-    for (const p of t.paradas) {
-      if (esParadaNoProductiva(p.causa)) continue // el almuerzo no es una demora
-      // v1.17: minutos LABORABLES (no crudos): no cuenta noches/finde/planta cerrada.
-      const min = p.fin ? calcularTiempoNetoProductivo(new Date(p.inicio), new Date(p.fin), { recupMin: minutosRecupTarea(t), sinAlmuerzo: true, operarioId: t.operarioId }) : 0
-      if (min <= 0) continue // ignora paradas en curso sin cierre
-      const cur = map.get(p.causa) ?? { min: 0, ev: 0 }
-      cur.min += min
+    // v2.12: se recorre `desglosePausas` en vez de `t.paradas` en crudo. Dos
+    // motivos: incluye las paradas virtuales de CORTE DE LUZ (que no viven
+    // dentro de la tarea), y usa la misma medición que el resto de la app en
+    // lugar de repetir el cálculo acá.
+    for (const x of desglosePausas(t)) {
+      if (!x.productiva) continue   // el almuerzo no es una demora
+      if (x.abierta) continue       // parada en curso sin cierre: no se computa
+      if (x.minutos <= 0) continue
+      const cur = map.get(x.causa) ?? { min: 0, ev: 0 }
+      cur.min += x.minutos
       cur.ev++
-      map.set(p.causa, cur)
+      map.set(x.causa, cur)
     }
   }
   const total = [...map.values()].reduce((a, b) => a + b.min, 0) || 1

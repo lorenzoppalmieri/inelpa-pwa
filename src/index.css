@@ -774,6 +774,21 @@ button.logi-kpi, button.card { color: inherit; font: inherit; }
 .tot-card .sub-desc { font-size: .7rem; color: var(--texto-tenue); margin-top: 4px; padding-top: 4px; border-top: 1px dashed var(--borde); }
 .tot-card .sub-desc b { color: var(--texto); font-variant-numeric: tabular-nums; }
 
+/* ---------- v2.12: CHIPS DE SELECCION MULTIPLE (sectores del corte de luz) ----
+   Botones que se prenden y apagan. Se eligio esto en vez de un <select multiple>
+   porque en tablet un multiple es imposible de operar con el dedo. */
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  background: var(--panel-2); border: 1px solid var(--borde); color: var(--texto-tenue);
+  border-radius: 999px; padding: 6px 14px; font-size: .8rem; font-family: inherit;
+  cursor: pointer; min-height: 34px;
+}
+.chip:hover { border-color: var(--azul-claro); }
+.chip.on {
+  background: var(--azul-claro); border-color: var(--azul-claro);
+  color: #fff; font-weight: 700;
+}
+
 /* ---------- v2.08: SECCIONES DE ESTADO PLEGABLES (Asignar tareas) ----------
    Todo el renglón es un <button>: en una tablet, apuntarle solo a la flecha es
    una tortura. El borde izquierdo de color repite el codigo del chip de estado,

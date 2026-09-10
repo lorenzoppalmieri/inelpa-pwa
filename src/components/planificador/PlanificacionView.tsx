@@ -16,6 +16,7 @@ import { guardarOrden, guardarTarea, guardarSemielaborado, eliminarTarea, elimin
 import { useAuth } from '../../auth/AuthContext'
 import { puedeCargarAusencias } from '../../auth/roles'
 import PanelAusentismo from './PanelAusentismo'
+import PanelCorteLuz from './PanelCorteLuz'
 import { isoWeek, fechaCorta, hhmm } from '../../lib/time'
 import { tiempoNetoMin } from '../../lib/kpi'
 import { puedeGenerarPO, construirTareaPO, tieneEstandarAprendido } from '../../lib/puenteMontaje'
@@ -64,7 +65,7 @@ function resumenCarga(tareas: Tarea[], pred: (t: Tarea) => boolean): { total: nu
 // Todo se persiste offline-first (IndexedDB + cola de sync).
 // ============================================================
 
-type SubVista = 'ordenes' | 'asignar' | 'semi' | 'feriados' | 'ausentismo'
+type SubVista = 'ordenes' | 'asignar' | 'semi' | 'feriados' | 'ausentismo' | 'corte_luz'
 
 export default function PlanificacionView({ focoTareaId, onFocoConsumido }: { focoTareaId?: string | null; onFocoConsumido?: () => void } = {}) {
   const { permisos, usuario } = useAuth()
@@ -87,6 +88,9 @@ export default function PlanificacionView({ focoTareaId, onFocoConsumido }: { fo
         {!soloReparacion && <button className={'tab' + (sub === 'semi' ? ' active' : '')} onClick={() => setSub('semi')}>Semielaborados</button>}
         {!soloReparacion && <button className={'tab' + (sub === 'feriados' ? ' active' : '')} onClick={() => setSub('feriados')}>📅 Feriados</button>}
         {!soloReparacion && puedeAusencias && <button className={'tab' + (sub === 'ausentismo' ? ' active' : '')} onClick={() => setSub('ausentismo')}>🧑‍🏭 Ausentismo</button>}
+        {/* v2.12: lo carga el planificador, no hace falta permiso especial:
+            registrar un corte no reescribe el desempeño de nadie, lo protege. */}
+        {!soloReparacion && <button className={'tab' + (sub === 'corte_luz' ? ' active' : '')} onClick={() => setSub('corte_luz')}>⚡ Corte de luz</button>}
       </div>
 
       {sub === 'ordenes' && !soloReparacion && <PanelOrdenes />}
@@ -96,6 +100,7 @@ export default function PlanificacionView({ focoTareaId, onFocoConsumido }: { fo
       {/* La guarda se repite acá a propósito: si alguien queda con la pestaña
           seleccionada y le sacan el permiso, no tiene que poder seguir cargando. */}
       {sub === 'ausentismo' && !soloReparacion && puedeAusencias && <PanelAusentismo />}
+      {sub === 'corte_luz' && !soloReparacion && <PanelCorteLuz />}
     </div>
   )
 }

@@ -1,7 +1,7 @@
 import Dexie, { type Table } from 'dexie'
 import type {
   Usuario, Tarea, OrdenProduccion, SyncOp, Semielaborado, Maquina,
-  ModeloTransformador, ComponenteSemielaborado, Objetivo, TareaLogistica, SolicitudLogistica, Feriado, Ausencia,
+  ModeloTransformador, ComponenteSemielaborado, Objetivo, TareaLogistica, SolicitudLogistica, Feriado, Ausencia, CorteLuz,
   Mensaje, MensajeLectura, TiempoEstandar, DespachoTrafo, FleteInterno, TareaLaboratorio,
   PlantillaRecurrente,
 } from '../types'
@@ -31,6 +31,7 @@ export class InelpaDB extends Dexie {
   solicitudesLogistica!: Table<SolicitudLogistica, string>
   feriados!: Table<Feriado, string>
   ausencias!: Table<Ausencia, string>
+  cortesLuz!: Table<CorteLuz, string>
   mensajes!: Table<Mensaje, string>
   mensajesLectura!: Table<MensajeLectura, string>
   estandares!: Table<TiempoEstandar, string>
@@ -200,6 +201,10 @@ export class InelpaDB extends Dexie {
     // v2.05: periodoId agrupa los dias de una misma licencia / vacaciones.
     this.version(29).stores({
       ausencias: 'id, usuarioId, fecha, motivo, periodoId',
+    })
+    // v2.12: cortes de luz cargados por planificacion.
+    this.version(30).stores({
+      cortesLuz: 'id, desde, hasta',
     })
   }
 }

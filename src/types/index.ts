@@ -218,6 +218,11 @@ export interface Parada {
   ncDescartadaPor?: string
   ncDescartadaEn?: string
   ncMotivoDescarte?: string
+  // v2.12: esta parada la genero un CORTE DE LUZ cargado por planificacion, no
+  // el operario. Es una parada VIRTUAL: no esta guardada en la tarea, se deriva
+  // del registro de cortes cada vez que se calcula. Sirve para poder mostrarla
+  // distinto y para que nadie intente editarla desde la tablet.
+  corteLuzId?: string
 }
 
 // Datos tecnicos capturados en los sectores de bobinado antes de finalizar.
@@ -1129,6 +1134,33 @@ export interface Feriado {
 }
 
 // ============================================================
+// CORTES DE LUZ (v2.12)
+//
+// Las tablets estan enchufadas a 220 V: cuando se corta la luz se apagan, justo
+// cuando el operario tendria que registrar la parada. La demora existe pero
+// nadie puede cargarla, y despues aparece como "demora sin justificar" de
+// alguien que no hizo nada malo.
+//
+// El planificador carga el corte cuando vuelve la luz, y el sistema le suma esa
+// parada a toda tarea cuyo trabajo lo haya cruzado. La parada NO se escribe
+// dentro de la tarea: se deriva al vuelo desde este registro (ver
+// `lib/cortesLuz.ts` para el porque).
+// ============================================================
+export interface CorteLuz {
+  id: string
+  /** Instante en que se corto (ISO). */
+  desde: string
+  /** Instante en que volvio (ISO). */
+  hasta: string
+  /** Sectores afectados. VACIO = toda la planta. */
+  sectores: SectorId[]
+  /** Detalle libre: "bajo una fase", "corte programado de la EPE", etc. */
+  nota?: string
+  cargadoPor: string
+  actualizado: string
+}
+
+// ============================================================
 // AUSENCIAS (v2.04) — un colaborador no vino a trabajar un dia.
 //
 // Es el equivalente PERSONAL de un feriado: el calendario trata ese dia como
@@ -1211,7 +1243,7 @@ export function mensajeEsPara(m: Mensaje, u: { id: string; rol: Rol; sectores: S
 // Cola de sincronizacion: cada cambio offline se encola y se empuja al backend.
 export interface SyncOp {
   id: string
-  entidad: 'tarea' | 'parada' | 'orden' | 'semielaborado' | 'objetivo' | 'tarea_logistica' | 'solicitud_logistica' | 'feriado' | 'ausencia' | 'mensaje' | 'mensaje_lectura' | 'estandar' | 'despacho' | 'flete' | 'laboratorio' | 'plantilla_recurrente' | 'evento_sgo' | 'accion_sgo' | 'indicador_sgo' | 'medicion_indicador_sgo' | 'control_programado_sgo' | 'ejecucion_control_sgo' | 'agenda_iso' | 'tarea_sgo' | 'comentario_tarea_sgo'
+  entidad: 'tarea' | 'parada' | 'orden' | 'semielaborado' | 'objetivo' | 'tarea_logistica' | 'solicitud_logistica' | 'feriado' | 'ausencia' | 'corte_luz' | 'mensaje' | 'mensaje_lectura' | 'estandar' | 'despacho' | 'flete' | 'laboratorio' | 'plantilla_recurrente' | 'evento_sgo' | 'accion_sgo' | 'indicador_sgo' | 'medicion_indicador_sgo' | 'control_programado_sgo' | 'ejecucion_control_sgo' | 'agenda_iso' | 'tarea_sgo' | 'comentario_tarea_sgo'
   entidadId: string
   tipo: 'upsert' | 'delete'
   payload: unknown
@@ -1301,7 +1333,12 @@ export const CAUSAS_PARADA: CausaParadaDef[] = [
   { id: 'replanif_cambio', label: 'Replanificacion cambio potencia / modelo', categoria: 'maquina', codigo: 16, areas: ['bobinado', 'general', 'herreria'] },
   { id: 'falta_herramienta', label: 'Faltante / rotura de herramienta', categoria: 'maquina', codigo: 27, areas: ['bobinado', 'general'] },
   { id: 'espera_soldadora', label: 'Espera soldadora', categoria: 'maquina', codigo: 35, areas: ['bobinado', 'general'] },
-  { id: 'corte_luz', label: 'Corte de luz', categoria: 'maquina', codigo: 37, areas: ['bobinado', 'general', 'herreria'] },
+  // v2.12: UNA sola causa de corte de luz para TODA la planta. Un corte es un
+  // evento unico: si cada area usa la suya, el Pareto lo parte en tres barras
+  // chicas y el problema se ve mas chico de lo que es (mismo error que tenian
+  // los seis "Retrabajo" de herreria). Es tambien la causa que inyecta el
+  // registro de cortes de planificacion (ver lib/cortesLuz.ts).
+  { id: 'corte_luz', label: 'Corte de luz', categoria: 'maquina', codigo: 37, areas: ['bobinado', 'general', 'herreria', 'montaje', 'pintura'] },
   { id: 'capacitacion', label: 'Capacitacion laboral', categoria: 'personal', codigo: 8, areas: ['bobinado', 'general'] },
   { id: 'reunion_charla', label: 'Reunion / charla', categoria: 'personal', codigo: 9, areas: ['bobinado', 'general'] },
   { id: 'ayuda_sector', label: 'Ayuda en sector', categoria: 'personal', codigo: 19, areas: ['bobinado', 'general'] },
@@ -1361,7 +1398,8 @@ export const CAUSAS_PARADA: CausaParadaDef[] = [
   { id: 'mon_obstruccion_sector', label: 'Sin lugar / obstruccion en el sector', categoria: 'logistica', areas: ['montaje'] },
   { id: 'mon_espera_relaciometro', label: 'Espera relaciometro', categoria: 'maquina', areas: ['montaje'] },
   { id: 'mon_espera_secado_pintura', label: 'Espera secado pintura o barnizado', categoria: 'maquina', areas: ['montaje'] },
-  { id: 'mon_sin_luz', label: 'Sin luz', categoria: 'maquina', areas: ['montaje'] },
+  // v2.12: retirada. La reemplaza 'corte_luz', unica para toda la planta.
+  { id: 'mon_sin_luz', label: 'Sin luz', categoria: 'maquina', areas: ['montaje'], retirada: true },
   { id: 'mon_espera_soldador', label: 'Espera / falta soldador', categoria: 'personal', areas: ['montaje'] },
   { id: 'mon_capacitacion', label: 'Capacitacion', categoria: 'personal', areas: ['montaje'] },
   { id: 'mon_reunion_charla', label: 'Reunion informativa / charla', categoria: 'personal', areas: ['montaje'] },
@@ -1387,7 +1425,8 @@ export const CAUSAS_PARADA: CausaParadaDef[] = [
   // ===== PINTURA (Lavado y Pintura) =====
   { id: 'pin_falta_cubas', label: 'Falta de cubas', categoria: 'material', areas: ['pintura'] },
   { id: 'pin_falta_material_logistico', label: 'Falta de material logistico', categoria: 'logistica', areas: ['pintura'] },
-  { id: 'pin_corte_luz', label: 'Corte de luz', categoria: 'maquina', areas: ['pintura'] },
+  // v2.12: retirada. La reemplaza 'corte_luz', unica para toda la planta.
+  { id: 'pin_corte_luz', label: 'Corte de luz', categoria: 'maquina', areas: ['pintura'], retirada: true },
   // v1.94: Pintura no tenia causa de retrabajo y es una de las areas que la
   // necesita. `integraciones.ts` ya la mapeaba a PIN_ACABADO sin que existiera.
   { id: 'pin_retrabajo', label: 'Retrabajo de pintura', categoria: 'calidad', areas: ['pintura'], esRetrabajo: true },

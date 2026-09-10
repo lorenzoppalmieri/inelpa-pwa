@@ -4,7 +4,7 @@ import { registerSW } from 'virtual:pwa-register'
 import App from './App'
 import { AuthProvider } from './auth/AuthContext'
 import { purgarDemo, ensureCatalogo } from './db/seed'
-import { recargarFeriadosCalendario, recargarAusenciasCalendario } from './sync/syncEngine'
+import { recargarFeriadosCalendario, recargarAusenciasCalendario, recargarCortesLuz } from './sync/syncEngine'
 import './index.css'
 
 // Service Worker (Offline-First). registerType 'autoUpdate' -> aplica la nueva
@@ -22,7 +22,7 @@ registerSW({ immediate: true })
 // v2.04: las ausencias también se cargan ANTES de renderizar. Si no, la primera
 // pantalla se dibuja contando días en los que el colaborador no vino.
 const arranque = purgarDemo().then(ensureCatalogo)
-  .then(recargarFeriadosCalendario).then(recargarAusenciasCalendario)
+  .then(recargarFeriadosCalendario).then(recargarAusenciasCalendario).then(recargarCortesLuz)
 
 arranque.then(() => {
   ReactDOM.createRoot(document.getElementById('root')!).render(

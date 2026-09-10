@@ -101,6 +101,40 @@ describe('descomposición balanceada de los totales', () => {
   })
 })
 
+// v2.12: la fusión comparaba los ISO como TEXTO, así que el mismo instante
+// escrito con distinta zona no se reconocía como superpuesto y se contaba dos
+// veces. Es la puerta que le quedó abierta al arreglo de v1.89.
+describe('fusión con formatos de fecha mezclados', () => {
+  it('une dos pausas superpuestas aunque vengan en zonas distintas', () => {
+    const conOffset = '2026-09-01T09:00:00.000-03:00' // 12:00 UTC
+    const enUTC = '2026-09-01T13:00:00.000Z'          // 10:00 local
+    // 09:00–11:00 local y 10:00–12:00 local: juntas son 09:00–12:00 = 180'.
+    const t = tarea({
+      id: 'MIX', tiempoEstandarMin: 60,
+      inicioReal: '2026-09-01T08:00:00.000-03:00',
+      finReal: '2026-09-01T14:00:00.000-03:00',
+      paradas: [
+        { id: 'a', tareaId: 'MIX', causa: 'espera_alambre' as Parada['causa'], inicio: conOffset, fin: '2026-09-01T11:00:00.000-03:00' },
+        { id: 'b', tareaId: 'MIX', causa: 'corte_luz' as Parada['causa'], inicio: enUTC, fin: '2026-09-01T15:00:00.000Z' },
+      ],
+    })
+    expect(metricasTarea(t).justificada).toBe(180)
+  })
+
+  it('el formato de Supabase (+00:00) también se ordena bien', () => {
+    const t = tarea({
+      id: 'PG', tiempoEstandarMin: 60,
+      inicioReal: '2026-09-01T08:00:00.000-03:00',
+      finReal: '2026-09-01T14:00:00.000-03:00',
+      paradas: [
+        { id: 'a', tareaId: 'PG', causa: 'espera_alambre' as Parada['causa'], inicio: '2026-09-01T12:00:00+00:00', fin: '2026-09-01T14:00:00+00:00' },
+        { id: 'b', tareaId: 'PG', causa: 'corte_luz' as Parada['causa'], inicio: '2026-09-01T13:00:00.000Z', fin: '2026-09-01T15:00:00.000Z' },
+      ],
+    })
+    expect(metricasTarea(t).justificada).toBe(180)
+  })
+})
+
 describe('auditor de datos', () => {
   it('un set sano no dispara ninguna alerta', () => {
     const ts = [tarea({ id: 'ok', paradas: [parada('p', 'falta_material', 8, 0, 8, 30)] })]
