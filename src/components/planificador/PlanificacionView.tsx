@@ -752,6 +752,11 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
             {t.inicioReal
               ? <> · Arranque real <strong>{fechaCorta(t.inicioReal)} {hhmm(t.inicioReal)}</strong></>
               : t.inicioPlanificado ? <> · Arranque plan. <strong>{fechaCorta(t.inicioPlanificado)} {hhmm(t.inicioPlanificado)}</strong></> : null}
+            {/* v2.09: fin de la tarea. Se condiciona por `finReal` y NO por el
+                estado: al REABRIR una tarea se limpia finReal pero el estado
+                pasa a 'en_proceso', así que mirar el estado dejaría colgada una
+                fecha de fin que ya no existe. */}
+            {t.finReal ? <> · Fin <strong>{fechaCorta(t.finReal)} {hhmm(t.finReal)}</strong></> : null}
             {t.esPrototipo ? <> · <strong style={{ color: 'var(--naranja)' }}>🧪 PROTOTIPO{t.notas ? ` · ${t.notas}` : ''}</strong></>
               : t.componenteCodigo ? <> · Semielaborado <strong>{componentePorCodigo(t.componenteCodigo)?.descripcion ?? t.componenteCodigo}</strong></> : null}
             {t.activaHoraRecuperacion ? <> · <strong style={{ color: 'var(--naranja)' }}>Hora recup. ON</strong></> : null}
