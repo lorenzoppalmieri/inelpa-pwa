@@ -145,9 +145,11 @@ export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina, h
   }, [filas])
 
   // v2.01: auditoría del conjunto que se está viendo (no de toda la base).
+  // v2.11: se le pasa el resolvedor de nombres para que cada observación diga
+  // de QUIÉN es la tarea, no solo el modelo y el número.
   const auditoria = useMemo(
-    () => auditarTiempos(filas.map((r) => r.t), tot),
-    [filas, tot],
+    () => auditarTiempos(filas.map((r) => r.t), tot, nombreOperario),
+    [filas, tot, nombreOperario],
   )
 
   // ¿Hay algún filtro activo? Sirve para aclarar que el total es del subconjunto.

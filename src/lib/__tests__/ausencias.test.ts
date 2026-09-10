@@ -6,6 +6,7 @@ import {
 } from '../calendario'
 import { metricasTarea } from '../kpi'
 import { huecosPorTarea } from '../huecos'
+import { minutosDeTurno } from '../oee'
 
 // ============================================================
 // v2.04 — Ausencias por colaborador.
@@ -79,20 +80,38 @@ describe('el día de ausencia no cuenta', () => {
 })
 
 describe('jornada productiva pura (v2.10)', () => {
-  it('lunes a jueves son 495 min: 9h − 15′ de limpieza − 30′ de almuerzo', () => {
-    expect(minutosProductivosDia(new Date(2026, 8, 1))).toBe(495) // martes
+  // Ventana de un día completo, que es como la usa el OEE.
+  const dia = (m: number, d: number) => ({
+    desdeISO: new Date(2026, m, d, 0, 0, 0).toISOString(),
+    hastaISO: new Date(2026, m, d + 1, 0, 0, 0).toISOString(),
+  })
+
+  // `minutosDeTurno` es el DENOMINADOR DEL OEE: sin almuerzo y sin hora de
+  // recuperación. Es el número que Lorenzo definió como jornada productiva pura.
+  it('el turno del OEE son 495 min de lunes a jueves', () => {
+    expect(minutosDeTurno(dia(8, 1))).toBe(495) // martes
   })
 
   it('el viernes son 435: cierra a las 15:00', () => {
-    expect(minutosProductivosDia(new Date(2026, 8, 4))).toBe(435) // viernes
+    expect(minutosDeTurno(dia(8, 4))).toBe(435) // viernes
   })
 
   it('el fin de semana es cero', () => {
-    expect(minutosProductivosDia(new Date(2026, 8, 5))).toBe(0) // sábado
+    expect(minutosDeTurno(dia(8, 5))).toBe(0) // sábado
   })
 
-  it('la constante compartida coincide con el día de lunes a jueves', () => {
-    expect(JORNADA_PRODUCTIVA_MIN).toBe(minutosProductivosDia(new Date(2026, 8, 1)))
+  it('la constante compartida coincide con el turno de lunes a jueves', () => {
+    expect(JORNADA_PRODUCTIVA_MIN).toBe(minutosDeTurno(dia(8, 1)))
+  })
+
+  // OJO: `minutosProductivosDia` es OTRA cosa y no hay que confundirlas. Sirve
+  // para la grilla de CAPACIDAD y por defecto incluye la hora de recuperación,
+  // así que da 555 y 495, no 495 y 435. Se fija acá para que quede documentado:
+  // yo mismo me equivoqué usándola como jornada pura.
+  it('minutosProductivosDia incluye la hora de recuperación (es para capacidad)', () => {
+    expect(minutosProductivosDia(new Date(2026, 8, 1))).toBe(555) // martes
+    expect(minutosProductivosDia(new Date(2026, 8, 4))).toBe(495) // viernes
+    expect(minutosProductivosDia(new Date(2026, 8, 5))).toBe(0)   // sábado
   })
 })
 

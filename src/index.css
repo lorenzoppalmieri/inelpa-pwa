@@ -813,7 +813,16 @@ button.logi-kpi, button.card { color: inherit; font: inherit; }
 .balance-alert .ba-detalle { margin-top: 10px; padding-top: 10px; border-top: 1px solid color-mix(in srgb, var(--naranja) 40%, transparent); display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
 .balance-alert .ba-grupo-cab { font-size: .8rem; margin-bottom: 3px; }
 .balance-alert .ba-lista { margin: 0; padding-left: 18px; color: var(--texto-tenue); font-size: .78rem; line-height: 1.5; }
-.balance-alert .ba-mas { font-style: italic; }
+/* v2.11: con la categoria desplegada la lista puede tener decenas de items.
+   Tope de alto + scroll propio para no empujar las tarjetas de totales fuera
+   de la pantalla. */
+.balance-alert .ba-lista-scroll {
+  max-height: 16rem; overflow-y: auto;
+  padding-right: 8px; margin-top: 2px;
+  border-left: 2px solid color-mix(in srgb, var(--naranja) 30%, transparent);
+}
+.balance-alert .ba-grupo { width: 100%; }
+.balance-alert .ba-grupo .ba-link { margin-top: 4px; font-size: .76rem; }
 
 /* ---------- DIRECCION (tablero ejecutivo, solo lorenzo) ---------- */
 .dir-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }

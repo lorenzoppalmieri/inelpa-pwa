@@ -242,7 +242,12 @@ export function tramosLaborables(
 export const JORNADA_PRODUCTIVA_MIN = 495
 
 // Minutos productivos totales de un dia (para grilla / capacidad).
-// Ya descuenta almuerzo y limpieza: da 495 Lun-Jue, 435 Vie, 0 finde/feriado.
+//
+// OJO: por defecto `recupMin` vale 60, asi que ESTO INCLUYE la hora de
+// recuperacion -> 555 Lun-Jue y 495 Vie, no 495/435. Es a proposito: la grilla
+// de capacidad planifica contando con que la franja de recuperacion se puede
+// usar. Para la jornada productiva PURA (sin recuperacion) usar
+// JORNADA_PRODUCTIVA_MIN o medir con recupMin = 0.
 export function minutosProductivosDia(fecha: Date, grupo: GrupoAlmuerzo = GRUPO_ALMUERZO_DEFAULT): number {
   return tramosLaborables(fecha, grupo).reduce((s, t) => s + (t.finMin - t.iniMin), 0)
 }

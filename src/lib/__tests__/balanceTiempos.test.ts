@@ -143,6 +143,35 @@ describe('auditor de datos', () => {
     expect(auditarTarea(t).map((a) => a.tipo)).toContain('almuerzo_duplicado')
   })
 
+  // v2.11: sin el nombre, la observación obliga a ir a buscar la tarea en la
+  // tabla para saber a quién preguntarle. Con el nombre es accionable de una.
+  it('cada observación nombra modelo, N° y COLABORADOR', () => {
+    const t = tarea({
+      id: 'x', operarioId: 'op1', nroTransformador: '24714',
+      finReal: D(15), paradas: [parada('p', 'Almuerzo', 12, 0, 13, 0)],
+    })
+    const [obs] = auditarTarea(t, (id) => (id === 'op1' ? 'Juan Perez' : id))
+      .filter((a) => a.tipo === 'almuerzo_largo')
+    expect(obs.detalle).toContain('TTD 100/13')
+    expect(obs.detalle).toContain('N° 24714')
+    expect(obs.detalle).toContain('Juan Perez')
+  })
+
+  it('sin resolvedor de nombres no rompe: cae al id del colaborador', () => {
+    const t = tarea({ id: 'y', operarioId: 'op1', inicioReal: D(9), finReal: D(9) })
+    expect(auditarTarea(t)[0].detalle).toContain('op1')
+  })
+
+  // v2.11: el motor ya no trunca; quien decide cuántas dibujar es la UI.
+  it('devuelve TODAS las observaciones de cada categoría, sin recortar', () => {
+    const ts = Array.from({ length: 7 }, (_, i) =>
+      tarea({ id: `t${i}`, finReal: D(15), paradas: [parada(`p${i}`, 'Almuerzo', 12, 0, 13, 0)] }))
+    const r = auditarTiempos(ts, sumar(ts))
+    const grupo = r.porTipo.find((g) => g.tipo === 'almuerzo_largo')!
+    expect(grupo.n).toBe(7)
+    expect(grupo.detalles).toHaveLength(7)
+  })
+
   it('avisa si alguna identidad se rompe (guarda contra futuros cambios)', () => {
     const ts = [tarea()]
     const totRoto = { ...sumar(ts), demorado: 99999 }

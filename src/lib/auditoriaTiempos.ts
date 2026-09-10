@@ -54,17 +54,26 @@ function fechaDe(iso: string): string {
   return iso.slice(0, 10)
 }
 
-/** Etiqueta corta de la tarea para mostrar en la lista de anomalias. */
-export function etiquetaTarea(t: Tarea): string {
-  return `${t.modelo}${t.nroTransformador ? ` · N° ${t.nroTransformador}` : ''}`
+/**
+ * Etiqueta de la tarea para la lista de anomalias.
+ *
+ * v2.11: incluye al COLABORADOR. Antes decia solo modelo y numero, y para saber
+ * a quien reclamarle un almuerzo de 45' habia que ir a buscar la tarea en la
+ * tabla. La observacion sin nombre no es accionable.
+ */
+export function etiquetaTarea(t: Tarea, nombreOperario?: (id: string) => string): string {
+  const partes: string[] = [t.modelo]
+  if (t.nroTransformador) partes.push(`N° ${t.nroTransformador}`)
+  if (t.operarioId) partes.push(nombreOperario?.(t.operarioId) ?? t.operarioId)
+  return partes.join(' · ')
 }
 
 // ------------------------------------------------------------
 // Auditoria de UNA tarea. Se separa para poder testearla sola.
 // ------------------------------------------------------------
-export function auditarTarea(t: Tarea): Anomalia[] {
+export function auditarTarea(t: Tarea, nombreOperario?: (id: string) => string): Anomalia[] {
   const out: Anomalia[] = []
-  const et = etiquetaTarea(t)
+  const et = etiquetaTarea(t, nombreOperario)
   if (!t.inicioReal || !t.finReal) return out
 
   const ini = new Date(t.inicioReal).getTime()
@@ -141,8 +150,13 @@ export interface ResultadoAuditoria {
   /** Identidades algebraicas. Si alguna falla, se rompió el motor de cálculo. */
   ecuaciones: { nombre: string; izq: number; der: number; ok: boolean }[]
   anomalias: Anomalia[]
-  /** Anomalías agrupadas por tipo, ordenadas de más a menos frecuentes. */
-  porTipo: { tipo: TipoAnomalia; n: number; titulo: string; ejemplos: string[] }[]
+  /**
+   * Anomalías agrupadas por tipo, de más a menos frecuentes.
+   * v2.11: `detalles` trae TODAS, no una muestra. Quien decide cuántas dibujar
+   * es la UI (que las despliega bajo demanda), no el motor: truncar acá dejaba
+   * observaciones inalcanzables desde la pantalla.
+   */
+  porTipo: { tipo: TipoAnomalia; n: number; titulo: string; detalles: string[] }[]
   /** Ids de las tareas con alguna anomalía (para filtrar la tabla). */
   tareasAfectadas: string[]
 }
@@ -163,7 +177,12 @@ const TITULOS: Record<TipoAnomalia, string> = {
  * @param tareas las tareas YA filtradas (lo que el usuario ve).
  * @param tot    los totales acumulados de esas tareas.
  */
-export function auditarTiempos(tareas: Tarea[], tot: Totales): ResultadoAuditoria {
+export function auditarTiempos(
+  tareas: Tarea[],
+  tot: Totales,
+  /** v2.11: para poder nombrar al colaborador en cada observación. */
+  nombreOperario?: (id: string) => string,
+): ResultadoAuditoria {
   const ecuaciones = [
     { nombre: 'Demorado − Adelanto = Real − Estimado', izq: tot.demorado - tot.adelanto, der: tot.real - tot.estimado },
     { nombre: 'Justif. aplicada + Sin justificar = Demorado', izq: tot.aplicada + tot.sinJust, der: tot.demorado },
@@ -175,7 +194,7 @@ export function auditarTiempos(tareas: Tarea[], tot: Totales): ResultadoAuditori
     // Las reparaciones se excluyen: no penalizan por definición y romperían la
     // tercera identidad a propósito. Ver el comentario en metricasTarea.
     if (esReparacion(t)) continue
-    anomalias.push(...auditarTarea(t))
+    anomalias.push(...auditarTarea(t, nombreOperario))
   }
   for (const e of ecuaciones) {
     if (!e.ok) {
@@ -195,7 +214,7 @@ export function auditarTiempos(tareas: Tarea[], tot: Totales): ResultadoAuditori
   const porTipo = [...grupos.entries()]
     .map(([tipo, arr]) => ({
       tipo, n: arr.length, titulo: TITULOS[tipo],
-      ejemplos: arr.slice(0, 3).map((a) => a.detalle),
+      detalles: arr.map((a) => a.detalle),
     }))
     .sort((a, b) => b.n - a.n)
 
