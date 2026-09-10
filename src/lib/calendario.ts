@@ -221,7 +221,28 @@ export function tramosLaborables(
   return tramos.filter((t) => t.finMin > t.iniMin)
 }
 
+// ============================================================
+// JORNADA PRODUCTIVA PURA (v2.10) — CONSTANTE UNICA DE LA APP
+//
+// Lorenzo (10/9/2026): "la jornada de tiempo productivo es de 9 h, pero si
+// descontamos el almuerzo (30') y la limpieza (15') nos da una jornada
+// productiva pura de 8:15".
+//
+//   Lun-Jue: 07:00-16:00 = 540' − 15' limpieza − 30' almuerzo = 495'
+//   Viernes: 07:00-15:00 = 480' − 15' limpieza − 30' almuerzo = 435'
+//
+// NO CONFUNDIR con los 525' de "planta abierta" (540 − 15), que es la base del
+// Tiempo Real de una tarea: ahí el almuerzo NO se descuenta por franja fija
+// sino por la PARADA que marca el operario (criterio de dirección, v1.16).
+// Los dos números son correctos, cada uno para lo suyo:
+//   - 525 -> cuánto tiempo estuvo la planta abierta.
+//   - 495 -> cuánto tiempo pudo REALMENTE producir una persona.
+// Todo lo que sea denominador de OEE o "cuántas jornadas" usa 495.
+// ============================================================
+export const JORNADA_PRODUCTIVA_MIN = 495
+
 // Minutos productivos totales de un dia (para grilla / capacidad).
+// Ya descuenta almuerzo y limpieza: da 495 Lun-Jue, 435 Vie, 0 finde/feriado.
 export function minutosProductivosDia(fecha: Date, grupo: GrupoAlmuerzo = GRUPO_ALMUERZO_DEFAULT): number {
   return tramosLaborables(fecha, grupo).reduce((s, t) => s + (t.finMin - t.iniMin), 0)
 }

@@ -7,7 +7,7 @@ import { esSuperAdmin } from '../../auth/roles'
 import { useAuth } from '../../auth/AuthContext'
 import { guardarLaboratorio } from '../../sync/syncEngine'
 import { fechaCorta, hhmm, fmtDur } from '../../lib/time'
-import { calcularTiempoProductivo } from '../../lib/calendario'
+import { calcularTiempoProductivo, JORNADA_PRODUCTIVA_MIN } from '../../lib/calendario'
 import { PERIODOS_HISTORIAL, rangoReporte, enRango, type PeriodoReporte } from '../../lib/periodoReporte'
 import FichaLaboratorio from './FichaLaboratorio'
 import RegistroGeneral from './RegistroGeneral'
@@ -35,10 +35,12 @@ const PAGINA = 20
 // salto a rojo.
 //
 // Ademas 480 min (8h) no es una jornada de esta planta: Lun-Jue se produce de
-// 07:00 a 15:45 (los ultimos 15' son limpieza) = 525 min. Los viernes son 465.
-// Se toma 525 como "una jornada" para que el umbral signifique algo real.
+// 07:00 a 15:45 (los ultimos 15' son limpieza) y de ahi hay que sacar los 30'
+// de almuerzo -> 495 min de jornada productiva pura. Los viernes son 435.
+// v2.10: se unifico con la constante de calendario (antes era un 525 propio,
+// que dejaba el almuerzo adentro y no coincidia con el resto de la app).
 // ============================================================
-const JORNADA_MIN = 525
+const JORNADA_MIN = JORNADA_PRODUCTIVA_MIN
 
 function colorEspera(min: number): string {
   if (min > 3 * JORNADA_MIN) return 'var(--rojo)'       // mas de 3 jornadas

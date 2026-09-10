@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Tarea } from '../../types'
-import { setAusencias, setFeriados, diasLaborablesDelRango } from '../calendario'
+import {
+  setAusencias, setFeriados, diasLaborablesDelRango,
+  minutosProductivosDia, JORNADA_PRODUCTIVA_MIN,
+} from '../calendario'
 import { metricasTarea } from '../kpi'
 import { huecosPorTarea } from '../huecos'
 
@@ -72,6 +75,24 @@ describe('el día de ausencia no cuenta', () => {
     const m = metricasTarea(conParada)
     // martes 15:00-15:45 = 45' + jueves 07:00-08:00 = 60'. El miércoles no cuenta.
     expect(m.justificada).toBe(45 + 60)
+  })
+})
+
+describe('jornada productiva pura (v2.10)', () => {
+  it('lunes a jueves son 495 min: 9h − 15′ de limpieza − 30′ de almuerzo', () => {
+    expect(minutosProductivosDia(new Date(2026, 8, 1))).toBe(495) // martes
+  })
+
+  it('el viernes son 435: cierra a las 15:00', () => {
+    expect(minutosProductivosDia(new Date(2026, 8, 4))).toBe(435) // viernes
+  })
+
+  it('el fin de semana es cero', () => {
+    expect(minutosProductivosDia(new Date(2026, 8, 5))).toBe(0) // sábado
+  })
+
+  it('la constante compartida coincide con el día de lunes a jueves', () => {
+    expect(JORNADA_PRODUCTIVA_MIN).toBe(minutosProductivosDia(new Date(2026, 8, 1)))
   })
 })
 

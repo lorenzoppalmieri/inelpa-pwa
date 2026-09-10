@@ -1,6 +1,6 @@
 import type { Tarea, SectorId } from '../types'
 import { esReparacion, sectorById } from '../types'
-import { calcularTiempoNetoProductivo } from './calendario'
+import { calcularTiempoNetoProductivo, JORNADA_PRODUCTIVA_MIN } from './calendario'
 import { desglosePausas, metricasTarea } from './kpi'
 import { imputacionDeEspera, areaQueEspera, imputable } from '../sgo/imputacion'
 import type { AreaSGOId } from '../sgo/types'
@@ -57,9 +57,24 @@ export interface OEEEstacion extends ResultadoOEE {
 
 const div = (a: number, b: number): number => (b > 0 ? a / b : 0)
 
-/** Minutos de planta abierta del período (turno de UNA estación). */
+/**
+ * Minutos PRODUCTIVOS del período (turno de UNA estación).
+ *
+ * v2.10 — BUG CORREGIDO. Antes usaba `sinAlmuerzo: true`, o sea que metía los
+ * 30' de almuerzo DENTRO del turno disponible. Como nadie puede producir
+ * mientras almuerza, la disponibilidad arrancaba castigada media hora por día:
+ * ~5,7% de OEE que se perdía por definición, no por lo que pasaba en planta.
+ * (El comentario de más abajo decía justamente que el almuerzo no estaba dentro
+ * del turno productivo; el código hacía lo contrario.)
+ *
+ * Ahora `sinAlmuerzo: false` descuenta la franja fija: 495' Lun-Jue, 435' Vie.
+ *
+ * OJO: es al revés que el Tiempo Real de una tarea, que sí usa `sinAlmuerzo:
+ * true` porque ahí el almuerzo se descuenta por la PARADA que marca el operario.
+ * Acá es un turno teórico, no hay parada que mirar.
+ */
 export function minutosDeTurno(v: Ventana): number {
-  return calcularTiempoNetoProductivo(new Date(v.desdeISO), new Date(v.hastaISO), { sinAlmuerzo: true })
+  return calcularTiempoNetoProductivo(new Date(v.desdeISO), new Date(v.hastaISO), { sinAlmuerzo: false })
 }
 
 /** Cierra los ratios a partir de los componentes. Nunca promedia OEEs. */
@@ -205,11 +220,13 @@ export interface ColaEstacion {
   sectorId: SectorId
   tareas: number
   minutosPendientes: number
-  /** Jornadas de 525 min que representa esa cola. */
+  /** Jornadas productivas (495 min) que representa esa cola. */
   jornadas: number
 }
 
-const JORNADA_MIN = 525
+// v2.10: se unificó con la constante de calendario. Antes era un 525 fijo acá,
+// que además valía igual los viernes (que son 435).
+const JORNADA_MIN = JORNADA_PRODUCTIVA_MIN
 
 export function colaPorEstacion(tareas: Tarea[]): ColaEstacion[] {
   const m = new Map<string, ColaEstacion>()
