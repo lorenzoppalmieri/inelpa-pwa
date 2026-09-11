@@ -4,6 +4,7 @@ import { fmtDur } from '../../lib/time'
 import ParetoDemoras from './ParetoDemoras'
 import EstimadoVsRealizado from './EstimadoVsRealizado'
 import DetalleTareas from './DetalleTareas'
+import TiemposPorSemi from './TiemposPorSemi'
 import DiagnosticoTiempos from './DiagnosticoTiempos'
 
 function barColor(v: number): string {
@@ -88,6 +89,13 @@ export default function KpiPanel({ tareas, nombreOperario, nombreMaquina, huecos
           )
         })}
       </div>
+
+      {/* v2.14: cuánto tarda realmente cada pieza. Va ANTES del detalle por
+          tarea porque responde la pregunta de planificación ("¿con qué tiempo
+          cargo esta bobina?"), mientras que el detalle sirve para auditar una
+          tarea puntual. */}
+      <div className="section-title">Tiempos reales por semielaborado</div>
+      <TiemposPorSemi tareas={tareas} />
 
       {/* v1.16: detalle por tarea con las 5 metricas canonicas (filtrable). */}
       <div className="section-title">Detalle por tarea (Estimado · Real · Demorado · Demora justificada · Demora sin justificar)</div>

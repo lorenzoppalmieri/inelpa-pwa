@@ -20,10 +20,12 @@ const ESTADO_LABEL: Record<EstadoTarea, string> = {
 // con acentos correctos y columnas separadas, sin dependencias externas.
 // ============================================================
 
-type Celda = string | number
+export type Celda = string | number
 
 // Descarga un arreglo de filas como archivo .csv.
-function descargarCSV(nombre: string, filas: Celda[][]): void {
+// v2.14: exportada para que otros reportes no tengan que reimplementar el
+// escapado ni el BOM que Excel necesita para los acentos.
+export function descargarCSV(nombre: string, filas: Celda[][]): void {
   const sep = ';'
   const esc = (v: Celda): string => {
     const s = String(v ?? '')
