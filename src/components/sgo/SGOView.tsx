@@ -140,6 +140,18 @@ export default function SGOView() {
         <button className={`tab ${pestana === 'agenda_iso' ? 'active' : ''}`} onClick={() => setPestana('agenda_iso')}>Agenda ISO</button>
         <button className={`tab ${pestana === 'tareas_sgo' ? 'active' : ''}`} onClick={() => setPestana('tareas_sgo')}>Tareas SGO</button>
       </div>
+      {celdaSeleccionada && <div style={{ display: seleccionado || pestana !== 'tablero' ? 'none' : undefined }}><FichaCeldaSGO
+        areaId={celdaSeleccionada.area} pilarId={celdaSeleccionada.pilar}
+        indicadores={indicadoresResueltos} eventos={eventosGestionables} acciones={acciones}
+        controles={controles}
+        datos={{ tareas, laboratorio, tareasLogistica, eventos: eventosGestionables, acciones, mediciones }}
+        usuario={usuario?.usuario ?? 'sin_usuario'}
+        onClose={() => setCeldaSeleccionada(undefined)}
+        onFiltrarEventos={() => { setFiltroArea(celdaSeleccionada.area); setFiltroPilar(celdaSeleccionada.pilar); setCeldaSeleccionada(undefined) }}
+        onOpenEvento={(id) => { setSeleccionadoId(id) }}
+        onOpenControl={(id) => { setControlInicialId(id); setPestana('controles') }}
+      /></div>}
+      {celdaSeleccionada && pestana === 'controles' && <button className="btn" onClick={() => setPestana('tablero')}>Volver a la ficha de gestión</button>}
       {pestana === 'cuellos' ? <CuellosView />
         : pestana === 'autorizaciones' && lorenzo ? <AutorizacionesSGOView items={autorizaciones} onAbrir={abrirAutorizacion} />
         : pestana === 'mejoras' ? <MejorasSGOView usuario={usuario?.usuario ?? 'sin_usuario'} registroInicialId={mejoraInicial?.id} vistaInicial={mejoraInicial?.vista} onRegistroInicialConsumido={() => setMejoraInicial(undefined)} onOpenEvento={(id) => { setPestana('tablero'); setSeleccionadoId(id) }} />
@@ -227,17 +239,6 @@ export default function SGOView() {
 
       {nuevo && <NuevoEvento usuario={usuario?.usuario ?? 'sin_usuario'} onClose={() => setNuevo(false)} onCreado={(id) => { setNuevo(false); setSeleccionadoId(id) }} />}
       {configIndicadores && <IndicadoresSGO indicadores={indicadoresResueltos} mediciones={mediciones} usuario={usuario?.usuario ?? 'sin_usuario'} onClose={() => setConfigIndicadores(false)} />}
-      {celdaSeleccionada && <FichaCeldaSGO
-        areaId={celdaSeleccionada.area} pilarId={celdaSeleccionada.pilar}
-        indicadores={indicadoresResueltos} eventos={eventosGestionables} acciones={acciones}
-        controles={controles}
-        datos={{ tareas, laboratorio, tareasLogistica, eventos: eventosGestionables, acciones, mediciones }}
-        usuario={usuario?.usuario ?? 'sin_usuario'}
-        onClose={() => setCeldaSeleccionada(undefined)}
-        onFiltrarEventos={() => { setFiltroArea(celdaSeleccionada.area); setFiltroPilar(celdaSeleccionada.pilar); setCeldaSeleccionada(undefined) }}
-        onOpenEvento={(id) => { setCeldaSeleccionada(undefined); setSeleccionadoId(id) }}
-        onOpenControl={(id) => { setCeldaSeleccionada(undefined); setControlInicialId(id); setPestana('controles') }}
-      />}
       {seleccionado && <DetalleEvento evento={seleccionado} acciones={acciones.filter((a) => a.eventoId === seleccionado.id)} auditoria={auditoria.filter((r) => r.entidadId === seleccionado.id || acciones.some((a) => a.eventoId === seleccionado.id && a.id === r.entidadId))} usuario={usuario?.usuario ?? 'sin_usuario'} trazabilidad={resolverTrazabilidadProductiva(seleccionado, tareas, maquinas, usuariosPlanta)} onClose={() => setSeleccionadoId(undefined)} />}
       </>}
     </div>

@@ -20,16 +20,16 @@ interface CeldaMatriz {
 }
 
 const ESTADOS: Record<EstadoCelda, { label: string; corto: string; icono: string }> = {
-  rojo: { label: 'Requiere intervención', corto: 'Crítico', icono: '!' },
+  rojo: { label: 'Requiere intervención', corto: 'Atención', icono: '!' },
   amarillo: { label: 'Requiere seguimiento', corto: 'Alerta', icono: '●' },
   verde: { label: 'Desempeño conforme', corto: 'Conforme', icono: '✓' },
   sin_dato: { label: 'Falta configurar o medir', corto: 'Sin datos', icono: '—' },
 }
 
 const GRUPOS: { id: string; label: string; areas: AreaSGOId[] }[] = [
-  { id: 'operacion', label: 'Operación productiva', areas: ['bobinado_rural','bobinado_distribucion','montaje_distribucion','montaje_rural','herreria_pintura','laminado','laboratorio'] },
-  { id: 'soporte', label: 'Servicios y soporte', areas: ['logistica_operativa','mantenimiento','automatismo','it'] },
-  { id: 'gestion', label: 'Gestión y dirección', areas: ['administracion','planificacion_produccion','diseno','gerencia_directorio'] },
+  { id: 'operacion', label: 'Operación productiva', areas: ['bobinado_rural','bobinado_distribucion','montaje_distribucion','montaje_rural','herreria_pintura','laminado','laboratorio','carpinteria','corte_aislacion'] },
+  { id: 'soporte', label: 'Servicios y soporte', areas: ['logistica_operativa','logistica_despacho','mantenimiento','automatismo','it'] },
+  { id: 'gestion', label: 'Gestión y dirección', areas: ['administracion','planificacion_produccion','diseno','gerencia_directorio','rrhh'] },
 ]
 
 function accionVencida(a: AccionSGO) {
@@ -78,7 +78,7 @@ export default function MatrizSGO({ eventos, acciones, indicadores, controles = 
     verde: celdas.filter((c) => c.estado === 'verde').length,
     sin_dato: celdas.filter((c) => c.estado === 'sin_dato').length,
   }), [celdas])
-  const cobertura = Math.round((celdas.length - resumen.sin_dato) / celdas.length * 100)
+  const cobertura = Math.round(celdas.filter(c => c.kpis.some(i => estadoIndicador(i) !== 'sin_dato')).length / celdas.length * 100)
   const pilares = pilarVisible === 'todos' ? PILARES_SGO : PILARES_SGO.filter((p) => p.id === pilarVisible)
   const q = buscar.trim().toLocaleLowerCase('es')
 
@@ -93,7 +93,7 @@ export default function MatrizSGO({ eventos, acciones, indicadores, controles = 
     <div className="sgo-matriz-encabezado">
       <div>
         <div className="section-title">Tablero integral · Área × Pilares</div>
-        <div className="meta">Lectura ejecutiva del desempeño, los eventos abiertos y las acciones vencidas.</div>
+        <div className="meta">Cada celda separa el resultado del KPI de los pendientes actuales. Un KPI conforme no cancela una alerta. Tocá la celda para ver responsables y compromisos.</div>
       </div>
       <div className="sgo-cobertura" title="Celdas con al menos un KPI y valor disponible">
         <span>Cobertura de medición</span><strong>{cobertura}%</strong>
@@ -144,10 +144,11 @@ export default function MatrizSGO({ eventos, acciones, indicadores, controles = 
                       <span className="sgo-celda-superior"><span className="sgo-celda-estado"><i>{info.icono}</i>{info.corto}</span>{celda.kpis.length > 1 && <b>{celda.kpis.length} KPI</b>}</span>
                       {celda.principal?.valorActual !== undefined
                         ? <span className="sgo-celda-kpi"><strong>{celda.principal.valorActual.toLocaleString('es-AR', { maximumFractionDigits: 1 })}</strong><small>{celda.principal.unidad} · meta {celda.principal.meta.toLocaleString('es-AR')}</small></span>
-                        : <span className="sgo-celda-vacia">{celda.kpis.length ? 'Pendiente de medición' : 'Configurar KPI'}</span>}
+                        : <span className="sgo-celda-vacia">{celda.kpis.length ? 'Pendiente de medición' : 'Sin KPI configurado'}</span>}
+                      {celda.principal && <span style={{ fontSize: '.7rem', display: 'block', whiteSpace: 'normal' }}>{celda.principal.nombre}<br /><b>KPI: {estadoIndicador(celda.principal) === 'verde' ? 'Conforme' : estadoIndicador(celda.principal) === 'rojo' ? 'Fuera de meta' : estadoIndicador(celda.principal) === 'amarillo' ? 'En alerta' : 'Sin datos'}</b> · {celda.principal.periodo}</span>}
                       {(celda.eventos.length > 0 || celda.vencidas > 0 || celda.controlesVencidos > 0 || celda.controlesHoy > 0) && <span className="sgo-celda-alertas">
                         {celda.eventos.length > 0 && <em>{celda.eventos.length} evento(s)</em>}
-                        {celda.vencidas > 0 && <em className="vencida">{celda.vencidas} vencida(s)</em>}
+                        {celda.vencidas > 0 && <em className="vencida">{celda.vencidas} acción(es) vencida(s)</em>}
                         {celda.controlesVencidos > 0 && <em className="vencida">{celda.controlesVencidos} control(es) vencido(s)</em>}
                         {celda.controlesHoy > 0 && <em>{celda.controlesHoy} control(es) hoy</em>}
                       </span>}

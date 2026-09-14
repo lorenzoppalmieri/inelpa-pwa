@@ -774,6 +774,15 @@ button.logi-kpi, button.card { color: inherit; font: inherit; }
 .tot-card .sub-desc { font-size: .7rem; color: var(--texto-tenue); margin-top: 4px; padding-top: 4px; border-top: 1px dashed var(--borde); }
 .tot-card .sub-desc b { color: var(--texto); font-variant-numeric: tabular-nums; }
 
+/* ---------- v2.15: NAVEGACION TEMPORAL DEL GANTT ----------
+   Las flechas son cuadradas y de 38px: en tablet se operan con el pulgar. */
+.gantt-nav { display: flex; align-items: center; gap: 6px; }
+.gantt-nav-btn { min-width: 38px; padding: 0 10px; font-size: .9rem; }
+.gantt-nav-lbl {
+  min-width: 130px; text-align: center; font-weight: 700; font-size: .85rem;
+  color: var(--texto);
+}
+
 /* ---------- v2.12: CHIPS DE SELECCION MULTIPLE (sectores del corte de luz) ----
    Botones que se prenden y apagan. Se eligio esto en vez de un <select multiple>
    porque en tablet un multiple es imposible de operar con el dedo. */

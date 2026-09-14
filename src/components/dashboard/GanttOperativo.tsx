@@ -126,13 +126,60 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
   // Turno de almuerzo activo en la vista (rota cada 15 dias por sector/linea).
   const [almuerzo, setAlmuerzo] = useState<GrupoAlmuerzo>('A')
 
+  // v2.15 — NAVEGACIÓN TEMPORAL. 0 = semana actual, +1 = la que viene, -1 = la
+  // anterior. Sirve para auditar la planificación futura: ver si a alguien le
+  // falta trabajo el jueves o el viernes que viene.
+  //
+  // OJO: antes este memo tenía dependencias VACÍAS y llamaba a `new Date()`
+  // adentro, así que la semana se calculaba una sola vez. Además del bug obvio
+  // (las flechas no harían nada), había uno latente: si alguien dejaba la app
+  // abierta el viernes y la miraba el lunes, seguía viendo la semana vieja.
+  const [offsetSemana, setOffsetSemana] = useState(0)
+
   const diasSemana = useMemo(() => {
-    const lun = lunesDeSemana(new Date())
+    const lun = sumarDias(lunesDeSemana(new Date()), offsetSemana * 7)
     return Array.from({ length: 5 }, (_, i) => sumarDias(lun, i))
-  }, [])
+  }, [offsetSemana])
   const diaUnico = useMemo(() => new Date(`${fechaSel}T00:00:00`), [fechaSel])
   const dias = escala === 'semana' ? diasSemana : [diaUnico]
   const N = dias.length
+
+  // ¿Lo que se está mirando ya pasó? Se compara el ÚLTIMO día visible contra el
+  // comienzo de hoy: una semana en curso no cuenta como pasada.
+  const vistaEsPasado = useMemo(() => {
+    const hoy0 = new Date(); hoy0.setHours(0, 0, 0, 0)
+    const ultimo = new Date(dias[dias.length - 1]); ultimo.setHours(0, 0, 0, 0)
+    return ultimo.getTime() < hoy0.getTime()
+  }, [dias])
+
+  /** Mueve la vista un paso: semana completa o un día, según la escala. */
+  function navegar(pasos: number) {
+    if (escala === 'semana') { setOffsetSemana((v) => v + pasos); return }
+    const d = new Date(`${fechaSel}T00:00:00`)
+    d.setDate(d.getDate() + pasos)
+    setFechaSel(d.toLocaleDateString('en-CA'))
+  }
+
+  function volverAHoy() {
+    setOffsetSemana(0)
+    setFechaSel(new Date().toLocaleDateString('en-CA'))
+  }
+
+  const hoyISOLocal = new Date().toLocaleDateString('en-CA')
+  const enHoy = escala === 'semana' ? offsetSemana === 0 : fechaSel === hoyISOLocal
+
+  /** Texto del período que se está viendo. */
+  const etiquetaPeriodo = useMemo(() => {
+    const dm = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
+    if (escala === 'dia') {
+      if (fechaSel === hoyISOLocal) return 'Hoy'
+      return dm(diaUnico)
+    }
+    if (offsetSemana === 0) return 'Esta semana'
+    if (offsetSemana === 1) return 'Semana que viene'
+    if (offsetSemana === -1) return 'Semana pasada'
+    return `Semana del ${dm(dias[0])}`
+  }, [escala, offsetSemana, fechaSel, hoyISOLocal, diaUnico, dias])
 
   // El drag puede reasignar de carril (cambia maquina/operario) solo en esos modos.
   const reasignable = agrupar === 'maquina' || agrupar === 'operario'
@@ -250,6 +297,11 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
 
   function iniciarArrastre(e: ReactPointerEvent<HTMLDivElement>, b: Segmento) {
     if (b.tarea.estado !== 'pendiente' || !b.esInicio) return // solo tareas pendientes
+    // v2.15: mirando una semana que ya pasó, el Gantt es de SOLO LECTURA. Soltar
+    // una barra ahí la reprogramaría en una fecha vencida (el clamp la empujaría
+    // a "ahora", moviéndola de día sin que nadie lo pidiera). Navegar para
+    // auditar el pasado no debería poder cambiar el futuro por accidente.
+    if (vistaEsPasado) return
     e.preventDefault()
     const track = e.currentTarget.parentElement as HTMLElement
     const rect = track.getBoundingClientRect()
@@ -341,6 +393,26 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
           <button className={'seg-btn' + (escala === 'semana' ? ' on' : '')} onClick={() => setEscala('semana')}>Semana</button>
           <button className={'seg-btn' + (escala === 'dia' ? ' on' : '')} onClick={() => setEscala('dia')}>Día</button>
         </div>
+
+        {/* v2.15: navegación temporal. Funciona en las dos escalas: mueve una
+            semana o un día según cuál esté activa. */}
+        <div className="gantt-nav">
+          <button className="btn gantt-nav-btn" onClick={() => navegar(-1)}
+            title={escala === 'semana' ? 'Semana anterior' : 'Día anterior'}>◀</button>
+          <span className="gantt-nav-lbl">{etiquetaPeriodo}</span>
+          <button className="btn gantt-nav-btn" onClick={() => navegar(1)}
+            title={escala === 'semana' ? 'Semana siguiente' : 'Día siguiente'}>▶</button>
+          {/* Solo aparece cuando hay a dónde volver: un botón "Hoy" siempre
+              visible en la vista de hoy no dice nada. */}
+          {!enHoy && <button className="btn" onClick={volverAHoy}>Hoy</button>}
+        </div>
+
+        {vistaEsPasado && (
+          <span className="estado-chip" title="Para evitar reprogramar algo en una fecha que ya pasó.">
+            Solo lectura
+          </span>
+        )}
+
         {escala === 'dia' && (
           <>
             <input type="date" className="select" value={fechaSel} onChange={(e) => e.target.value && setFechaSel(e.target.value)} />
