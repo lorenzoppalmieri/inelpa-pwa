@@ -7,12 +7,13 @@ import { dentroVentanaAlmuerzo, ventanaAlmuerzoTexto } from '../../lib/calendari
 import type { EstadoTarea, Tarea, CausaParada } from '../../types'
 import { sectorById, TIPO_ESTACION_LABEL, maquinaSirveSector, esSectorBobinado, causaLabel, areaDemora, compararFifo } from '../../types'
 import { guardarTarea } from '../../sync/syncEngine'
-import { generarAvisoDesdeParada, esCausaMantenimiento } from '../../mantenimiento/avisos'
 import TareaCard from './TareaCard'
-import ModalParada from './ModalParada'
 import AndonView from '../dashboard/AndonView'
 import MensajesInbox, { useMensajesNoLeidos } from '../mensajes/MensajesInbox'
-import { noConformidadDesdeParada, paradasCalidad } from '../../sgo/integraciones'
+// v2.17: se fueron los imports de ModalParada, avisos de mantenimiento y NC de
+// calidad. La pausa de estación ya no puede tener otra causa que almuerzo, así
+// que no dispara avisos ni no conformidades. Todo eso sigue vivo en TareaCard,
+// que es donde se cargan las demoras reales, una por una.
 
 const ORDEN: Record<EstadoTarea, number> = { pausada: 0, en_proceso: 1, pendiente: 2, finalizada: 3 }
 const FILTROS: { id: 'activas' | 'pendientes' | 'finalizadas'; label: string }[] = [
@@ -80,46 +81,64 @@ export default function OperarioView() {
   // junto, ej. almuerzo). Soporta PARADAS CONCURRENTES: una tarea ya pausada por
   // otro motivo recibe TAMBIÉN la parada global (dos paradas abiertas a la vez);
   // al reanudar se cierra SOLO la parada global y se restaura el estado previo.
-  const [modalGlobal, setModalGlobal] = useState(false)
   // Causa de la pausa global activa en esta estación (persistida por si recargan).
   const pgKey = maquinaId ? `inelpa_pausaglob_${maquinaId}` : ''
   const [pausaGlobal, setPausaGlobal] = useState<CausaParada | null>(null)
   useEffect(() => { setPausaGlobal(pgKey ? (localStorage.getItem(pgKey) as CausaParada | null) : null) }, [pgKey])
 
-  // Pausa TODAS las tareas activas (en_proceso o pausada) sumando una NUEVA parada
-  // con la causa elegida. Si una ya estaba pausada, queda con 2 paradas abiertas.
-  async function pausarEstacion(causa: CausaParada, obs: string) {
-    // v1.92: red de seguridad. La pausa de estación entra por el mismo
-    // ModalParada, que ya bloquea el almuerzo fuera de las 12-13; esto cubre el
-    // caso de que el modal quede abierto y se confirme pasada la ventana.
-    if (causa === 'almuerzo' && !dentroVentanaAlmuerzo()) {
+  // ============================================================
+  // v2.17 — LA PAUSA DE ESTACIÓN ES **SOLO ALMUERZO**.
+  //
+  // Antes el botón grande abría el ModalParada completo, así que desde ahí se
+  // podía parar TODA la estación con cualquier causa: "ayuda en el sector",
+  // "falta de material", una causa de mantenimiento... Eso está mal por dos
+  // motivos:
+  //
+  //  - una falla o una falta de material le pasa a UNA tarea, no a las 13 a la
+  //    vez; cargarla en bloque ensucia el Pareto de demoras y el OEE de toda la
+  //    estación con una causa que no corresponde;
+  //  - el almuerzo es lo único que de verdad para al equipo entero junto, que
+  //    es para lo que se creó este botón en v1.18.
+  //
+  // Las demás causas se siguen cargando tarea por tarea desde su tarjeta, que es
+  // donde el operario elige el motivo real. Por eso acá NO hay selector: el
+  // botón hace una sola cosa.
+  //
+  // La causa queda como parámetro fijo y no configurable a propósito: si mañana
+  // hace falta otra pausa de estación (un corte de luz, por ejemplo), que sea
+  // otro botón con su propia regla y no un combo que vuelva a abrir la puerta.
+  // ============================================================
+  const CAUSA_ESTACION: CausaParada = 'almuerzo'
+
+  // Suma una NUEVA parada de almuerzo a TODAS las tareas activas (en_proceso o
+  // pausada). Si una ya estaba pausada por otro motivo, queda con DOS paradas
+  // abiertas — esa es la clave para poder devolverla a su estado previo después.
+  async function pausarEstacion() {
+    if (!dentroVentanaAlmuerzo()) {
       window.alert(`El almuerzo se registra entre las ${ventanaAlmuerzoTexto()}. Son 30 minutos.`)
       return
     }
-    setModalGlobal(false)
     const ahoraISO = new Date().toISOString()
     const activas = (tareas ?? []).filter((t) => t.estado === 'en_proceso' || t.estado === 'pausada')
-    const nuevas: { tarea: (typeof activas)[number]; parada: { id: string; tareaId: string; causa: CausaParada; inicio: string; observacion?: string } }[] = []
+    if (activas.length === 0) return
+    if (!window.confirm(`Almuerzo: se pausan ${activas.length} tarea(s) de la estación.\n\nAl reanudar, cada una vuelve al estado que tenía ahora.`)) return
+
     for (const t of activas) {
-      const p = { id: crypto.randomUUID(), tareaId: t.id, causa, inicio: ahoraISO, observacion: obs || undefined }
-      nuevas.push({ tarea: t, parada: p })
+      const p = { id: crypto.randomUUID(), tareaId: t.id, causa: CAUSA_ESTACION, inicio: ahoraISO }
       await guardarTarea({ ...t, estado: 'pausada', paradas: [...t.paradas, p] })
-      if (paradasCalidad({ ...t, paradas: [p] }).length) {
-        void noConformidadDesdeParada(t, p, usuario?.usuario ?? 'produccion')
-      }
     }
-    // v1.66: pausa de estacion con causa mant_* -> UN SOLO aviso a mantenimiento
-    // (la maquina fallo, no cada tarea). Se usa la primera parada como clave
-    // anti-duplicado; el resto queda cubierta por el mismo evento.
-    if (esCausaMantenimiento(causa) && nuevas.length > 0) {
-      void generarAvisoDesdeParada(nuevas[0].tarea, nuevas[0].parada, usuario?.usuario ?? '')
-    }
-    if (pgKey) localStorage.setItem(pgKey, causa)
-    setPausaGlobal(causa)
+    if (pgKey) localStorage.setItem(pgKey, CAUSA_ESTACION)
+    setPausaGlobal(CAUSA_ESTACION)
   }
-  // Reanuda: cierra SOLO las paradas abiertas cuya causa == la pausa global, y
-  // resuelve el estado de cada tarea: si le quedan otras paradas abiertas sigue
-  // 'pausada' (con su motivo original); si no, vuelve a 'en_proceso'.
+  // Reanuda: cierra SOLO las paradas de almuerzo, y resuelve el estado de cada
+  // tarea según lo que le quede abierto.
+  //
+  // ACÁ ESTÁ LA RESTAURACIÓN, y no hace falta guardar el estado previo en ningún
+  // lado: como el almuerzo se sumó COMO UNA PARADA MÁS sin pisar la que ya
+  // estaba, al cerrarla el estado anterior se deduce solo.
+  //   - le quedan otras paradas abiertas -> sigue 'pausada' con SU motivo original;
+  //   - no le queda ninguna              -> vuelve a 'en_proceso'.
+  // Las 'pendiente' nunca entraron a la pausa, así que quedan intactas.
   async function reanudarEstacion() {
     const causa = pausaGlobal
     if (!causa) return
@@ -223,16 +242,23 @@ export default function OperarioView() {
       </div>
 
       {/* v1.18: Montaje PA/PO -> pausar / reanudar TODA la estación de una vez.
-          Los botones alternan según haya una pausa global activa. */}
+          v2.17: SOLO almuerzo, sin selector de causa (ver pausarEstacion). El
+          texto lo dice explícito para que nadie busque acá otra demora: las
+          demás se cargan tarea por tarea, desde su tarjeta. */}
       {esMontaje && (
         <div style={{ marginBottom: 12 }}>
           {!pausaGlobal ? (
-            <button className="btn btn-naranja btn-bloque" disabled={nActivas === 0} onClick={() => setModalGlobal(true)}>
-              ⏸ Pausar estación / almuerzo{nActivas > 0 ? ` (${nActivas} tarea/s)` : ''}
-            </button>
+            <>
+              <button className="btn btn-naranja btn-bloque" disabled={nActivas === 0} onClick={() => void pausarEstacion()}>
+                🍽 Almuerzo — pausar la estación{nActivas > 0 ? ` (${nActivas} tarea/s)` : ''}
+              </button>
+              <div className="meta" style={{ marginTop: 4, textAlign: 'center' }}>
+                Solo almuerzo ({ventanaAlmuerzoTexto()}). Cualquier otra demora se carga en la tarjeta de la tarea.
+              </div>
+            </>
           ) : (
             <button className="btn btn-verde btn-bloque" onClick={() => void reanudarEstacion()}>
-              ▶ Reanudar estación — {causaLabel(pausaGlobal)}{nConPausaGlobal > 0 ? ` (${nConPausaGlobal})` : ''}
+              ▶ Volver del almuerzo — {causaLabel(pausaGlobal)}{nConPausaGlobal > 0 ? ` (${nConPausaGlobal})` : ''}
             </button>
           )}
         </div>
@@ -250,13 +276,6 @@ export default function OperarioView() {
         ? <div className="empty">No hay tareas en esta vista.</div>
         : vis.map((t) => <TareaCard key={t.id} tarea={t} onIniciar={() => setFiltro('activas')} />)}
 
-      {modalGlobal && maquina && (
-        <ModalParada
-          sectorId={maquina.sectorId}
-          onConfirm={(c, o) => void pausarEstacion(c, o)}
-          onCancel={() => setModalGlobal(false)}
-        />
-      )}
     </div>
   )
 }
