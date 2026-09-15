@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
 import { useAuth } from '../../auth/AuthContext'
@@ -154,7 +154,7 @@ export default function SGOView() {
       {celdaSeleccionada && pestana === 'controles' && <button className="btn" onClick={() => setPestana('tablero')}>Volver a la ficha de gestión</button>}
       {pestana === 'cuellos' ? <CuellosView />
         : pestana === 'autorizaciones' && lorenzo ? <AutorizacionesSGOView items={autorizaciones} onAbrir={abrirAutorizacion} />
-        : pestana === 'mejoras' ? <MejorasSGOView usuario={usuario?.usuario ?? 'sin_usuario'} registroInicialId={mejoraInicial?.id} vistaInicial={mejoraInicial?.vista} onRegistroInicialConsumido={() => setMejoraInicial(undefined)} onOpenEvento={(id) => { setPestana('tablero'); setSeleccionadoId(id) }} />
+        : pestana === 'mejoras' ? <div style={{ display: seleccionado ? 'none' : undefined }}><MejorasSGOView usuario={usuario?.usuario ?? 'sin_usuario'} registroInicialId={mejoraInicial?.id} vistaInicial={mejoraInicial?.vista} onRegistroInicialConsumido={() => setMejoraInicial(undefined)} onOpenEvento={setSeleccionadoId} /></div>
         : pestana === 'agenda_iso' ? <AgendaISOView usuario={usuario?.usuario ?? 'sin_usuario'} actividadInicialId={actividadInicialId} onActividadInicialConsumida={() => setActividadInicialId(undefined)} />
         : pestana === 'tareas_sgo' ? <TareasSGOView usuario={usuario?.usuario ?? 'sin_usuario'} tareaInicialId={tareaInicialId} onTareaInicialConsumida={() => setTareaInicialId(undefined)} />
         : pestana === 'controles' ? <ControlesSGOView usuario={usuario?.usuario ?? 'sin_usuario'} controlInicialId={controlInicialId} onControlInicialConsumido={() => setControlInicialId(undefined)} ejecucionInicialId={ejecucionInicialId} onEjecucionInicialConsumida={() => setEjecucionInicialId(undefined)} onOpenEvento={(id) => { setPestana('tablero'); setSeleccionadoId(id) }} />
@@ -239,8 +239,8 @@ export default function SGOView() {
 
       {nuevo && <NuevoEvento usuario={usuario?.usuario ?? 'sin_usuario'} onClose={() => setNuevo(false)} onCreado={(id) => { setNuevo(false); setSeleccionadoId(id) }} />}
       {configIndicadores && <IndicadoresSGO indicadores={indicadoresResueltos} mediciones={mediciones} usuario={usuario?.usuario ?? 'sin_usuario'} onClose={() => setConfigIndicadores(false)} />}
-      {seleccionado && <DetalleEvento evento={seleccionado} acciones={acciones.filter((a) => a.eventoId === seleccionado.id)} auditoria={auditoria.filter((r) => r.entidadId === seleccionado.id || acciones.some((a) => a.eventoId === seleccionado.id && a.id === r.entidadId))} usuario={usuario?.usuario ?? 'sin_usuario'} trazabilidad={resolverTrazabilidadProductiva(seleccionado, tareas, maquinas, usuariosPlanta)} onClose={() => setSeleccionadoId(undefined)} />}
       </>}
+      {seleccionado && <DetalleEvento key={seleccionado.id} volverAlCaso={pestana === 'mejoras'} evento={seleccionado} acciones={acciones.filter((a) => a.eventoId === seleccionado.id)} auditoria={auditoria.filter((r) => r.entidadId === seleccionado.id || acciones.some((a) => a.eventoId === seleccionado.id && a.id === r.entidadId))} usuario={usuario?.usuario ?? 'sin_usuario'} trazabilidad={resolverTrazabilidadProductiva(seleccionado, tareas, maquinas, usuariosPlanta)} onClose={() => setSeleccionadoId(undefined)} />}
     </div>
   )
 }
@@ -460,7 +460,7 @@ function ResumenTrazabilidad({ trazabilidad, compacto = false }: { trazabilidad:
   </div>
 }
 
-function DetalleEvento({ evento, acciones, auditoria, usuario, trazabilidad, onClose }: { evento: EventoSGO; acciones: AccionSGO[]; auditoria: AuditoriaSGO[]; usuario: string; trazabilidad: TrazabilidadProductivaSGO; onClose: () => void }) {
+function DetalleEvento({ evento, acciones, auditoria, usuario, trazabilidad, onClose, volverAlCaso = false }: { evento: EventoSGO; acciones: AccionSGO[]; auditoria: AuditoriaSGO[]; usuario: string; trazabilidad: TrazabilidadProductivaSGO; onClose: () => void; volverAlCaso?: boolean }) {
   const [contencion, setContencion] = useState(evento.contencion ?? '')
   const [causaRaiz, setCausaRaiz] = useState(evento.causaRaiz ?? '')
   const [responsable, setResponsable] = useState(evento.responsable ?? '')
@@ -476,12 +476,19 @@ function DetalleEvento({ evento, acciones, auditoria, usuario, trazabilidad, onC
   const [eliminando, setEliminando] = useState(false)
   const [guardando, setGuardando] = useState(false)
   const [mensajeGuardado, setMensajeGuardado] = useState<{ tipo: 'ok' | 'error'; texto: string }>()
+  const huellaFormulario = JSON.stringify([contencion, causaRaiz, responsable, metodoAnalisis, evidencias, estado, areaOrigenId, areaDeteccionId, defectoCodigo, disposicion, costos])
+  const huellaGuardada = useRef(huellaFormulario)
+  function solicitarVolver() {
+    if (guardando || eliminando) return
+    if (huellaFormulario !== huellaGuardada.current && !window.confirm('Hay cambios sin guardar en el expediente. ¿Descartarlos y volver?')) return
+    onClose()
+  }
   const puedeEliminar = usuarioEsLorenzo(usuario)
   const vinculos = useLiveQuery(async () => ({
     controles: await db.ejecucionesControlesSGO.where('eventoId').equals(evento.id).count(),
   }), [evento.id]) ?? { controles: 0 }
 
-  async function actualizar() {
+  async function actualizar(volver = false) {
     const now = new Date().toISOString()
     const actualizado: EventoSGO = { ...evento, areaId: areaDeteccionId || undefined, areaOrigenId: areaOrigenId || undefined,
       defectoCodigo: defectoCodigo || undefined, disposicion, costoDetalle: costos,
@@ -500,7 +507,8 @@ function DetalleEvento({ evento, acciones, auditoria, usuario, trazabilidad, onC
     setMensajeGuardado(undefined)
     try {
       await guardarEventoSGO(actualizado)
-      if (estado === 'cerrado') onClose()
+      huellaGuardada.current = huellaFormulario
+      if (estado === 'cerrado' || volver) onClose()
       else setMensajeGuardado({ tipo: 'ok', texto: 'Expediente guardado correctamente.' })
     } catch (error) {
       setMensajeGuardado({ tipo: 'error', texto: error instanceof Error ? error.message : 'No se pudo guardar el expediente.' })
@@ -525,7 +533,8 @@ function DetalleEvento({ evento, acciones, auditoria, usuario, trazabilidad, onC
     }
   }
 
-  return <Modal titulo={`${evento.codigo} · ${evento.titulo}`} onClose={onClose} ancho={780}>
+  return <Modal titulo={`${evento.codigo} · ${evento.titulo}`} onClose={solicitarVolver} ancho={780}>
+    {volverAlCaso && <div className="card" style={{ borderLeft: '4px solid #38bdf8', marginBottom: 12 }}><button className="btn" disabled={guardando || eliminando} onClick={solicitarVolver}>Volver al caso</button><p className="meta">El caso y su borrador permanecen abiertos. Podés guardar y volver en un solo paso.</p></div>}
     <div className="meta">{trazabilidad.aplica ? `Hecho ocurrido ${fechaHora(evento.detectadoEn)}` : <>Detectado {fechaHora(evento.detectadoEn)} por <strong>{evento.detectadoPor}</strong></>} · Pilar {PILARES_SGO.find((p) => p.id === evento.pilar)?.label}</div>
     <p>{evento.descripcion}</p>
     <ResumenTrazabilidad trazabilidad={trazabilidad} />
@@ -553,6 +562,7 @@ function DetalleEvento({ evento, acciones, auditoria, usuario, trazabilidad, onC
     <div className="row-actions" style={{ justifyContent: 'space-between' }}>
       {puedeEliminar && <button className="btn" disabled={eliminando || guardando} style={{ color: '#fca5a5', borderColor: '#ef4444' }} onClick={() => void eliminar()}>{eliminando ? 'Eliminando…' : 'Eliminar evento'}</button>}
       <button className="btn btn-primary" style={{ marginLeft: 'auto' }} disabled={eliminando || guardando} onClick={() => void actualizar()}>{guardando ? 'Guardando…' : estado === 'cerrado' ? 'Verificar y cerrar expediente' : 'Guardar expediente'}</button>
+      {volverAlCaso && estado !== 'cerrado' && <button className="btn btn-primary" disabled={eliminando || guardando} onClick={() => void actualizar(true)}>Guardar y volver al caso</button>}
     </div>
 
     <div className="section-title" style={{ marginTop: 18 }}>Acciones ({acciones.length})</div>

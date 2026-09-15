@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { reconciliarBorrador } from '../../sgo/borradorExpediente'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
 import { eliminarEventoSGO, guardarEventoSGO } from '../../sync/syncEngine'
@@ -124,8 +125,8 @@ export default function MejorasSGOView({ usuario, onOpenEvento, registroInicialI
       : vista === 'tablero' ? <Tablero registros={registros} acciones={acciones} hoy={hoy} />
       : vista === 'seguimiento' ? <Kanban registros={visibles} acciones={acciones} hoy={hoy} onOpen={setEditor} />
         : <Listado registros={visibles} acciones={acciones} hoy={hoy} onOpen={setEditor} vacio="Todavía no hay mejoras cerradas." />}
-    {editor !== undefined && <EditorMejora registro={editor} acciones={editor ? accionesDe(editor.id) : []} usuario={usuario}
-      onClose={() => setEditor(undefined)} onOpenEvento={(id) => { setEditor(undefined); onOpenEvento(id) }} />}
+    {editor !== undefined && (editor === null || eventos.some(e => e.id === editor.id)) && <EditorMejora registro={editor ? eventos.find(e => e.id === editor.id)! : null} acciones={editor ? accionesDe(editor.id) : []} usuario={usuario}
+      onClose={() => setEditor(undefined)} onOpenEvento={onOpenEvento} />}
   </div>
 }
 
@@ -205,6 +206,18 @@ function EditorMejora({ registro, acciones, usuario, onClose: cerrarEditor, onOp
   const [guardando, setGuardando] = useState(false)
   const [cierrePendiente, setCierrePendiente] = useState<EventoSGO>()
   const [erroresCierre, setErroresCierre] = useState<string[]>([])
+  const baseRegistro = useRef(registro)
+  useEffect(() => {
+    const base = baseRegistro.current
+    if (registro && base && registro.id === base.id) {
+      setEvento(borrador => reconciliarBorrador(base, borrador, registro))
+      if (base.mejora && registro.mejora) {
+        setMejora(borrador => reconciliarBorrador(base.mejora!, borrador, registro.mejora!))
+      }
+      setCierrePendiente(undefined)
+    }
+    baseRegistro.current = registro
+  }, [registro])
   const original = JSON.stringify({ evento: registro, mejora: registro?.mejora })
   const actual = JSON.stringify({ evento, mejora })
   const conCambios = registro ? original !== actual : Boolean(evento.titulo.trim() || evento.descripcion.trim() || evento.areaId || mejora.colaborador?.trim() || mejora.fuente !== 'manual' || mejora.clase !== 'oportunidad')

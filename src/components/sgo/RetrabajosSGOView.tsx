@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { reconciliarBorrador } from '../../sgo/borradorExpediente'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
 import { validarCierreEvento } from '../../sgo/cierre'
@@ -120,7 +121,7 @@ export default function RetrabajosSGOView({ usuario, onOpenEvento, eventoInicial
       return <section className="sgo-retrabajos-columna" key={columna.titulo}><div className="sgo-retrabajos-columna-titulo"><strong>{columna.titulo}</strong><span>{items.length}</span></div><div className="sgo-retrabajos-lista">{items.map((evento) => <RetrabajoCard key={evento.id} evento={evento} acciones={accionesDe(evento.id)} trazabilidad={trazabilidades.get(evento.id)!} ahora={ahora} onOpen={() => setEditor(evento)} />)}{!items.length && <div className="empty">Sin casos</div>}</div></section>
     })}</div>}
     </>}
-    {editor && <EditorRetrabajo eventoInicial={editor} acciones={accionesDe(editor.id)} trazabilidad={trazabilidades.get(editor.id) ?? resolverTrazabilidadProductiva(editor, tareas, maquinas, usuariosPlanta)} usuario={usuario} onClose={() => setEditor(undefined)} onOpenEvento={() => { setEditor(undefined); onOpenEvento(editor.id) }} />}
+    {editor && eventos.some(e => e.id === editor.id) && <EditorRetrabajo eventoInicial={eventos.find(e => e.id === editor.id)!} acciones={accionesDe(editor.id)} trazabilidad={trazabilidades.get(editor.id) ?? resolverTrazabilidadProductiva(editor, tareas, maquinas, usuariosPlanta)} usuario={usuario} onClose={() => setEditor(undefined)} onOpenEvento={() => onOpenEvento(editor.id)} />}
   </div>
 }
 
@@ -140,6 +141,13 @@ function RetrabajoCard({ evento, acciones, trazabilidad, ahora, onOpen }: { even
 
 function EditorRetrabajo({ eventoInicial, acciones, trazabilidad, usuario, onClose, onOpenEvento }: { eventoInicial: EventoSGO; acciones: AccionSGO[]; trazabilidad: TrazabilidadProductivaSGO; usuario: string; onClose: () => void; onOpenEvento: () => void }) {
   const [evento, setEvento] = useState(eventoInicial)
+  const baseEvento = useRef(eventoInicial)
+  useEffect(() => {
+    const base = baseEvento.current
+    setEvento(borrador => reconciliarBorrador(base, borrador, eventoInicial))
+    baseEvento.current = eventoInicial
+    setCierrePendiente(undefined)
+  }, [eventoInicial])
   const [guardando, setGuardando] = useState(false)
   const [cierrePendiente, setCierrePendiente] = useState<EventoSGO>()
   const [erroresCierre, setErroresCierre] = useState<string[]>([])
