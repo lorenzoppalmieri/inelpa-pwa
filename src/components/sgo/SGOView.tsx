@@ -151,7 +151,7 @@ export default function SGOView() {
         onOpenEvento={(id) => { setSeleccionadoId(id) }}
         onOpenControl={(id) => { setControlInicialId(id); setPestana('controles') }}
       /></div>}
-      {celdaSeleccionada && pestana === 'controles' && <button className="btn" onClick={() => setPestana('tablero')}>Volver a la ficha de gestión</button>}
+      {celdaSeleccionada && ['controles', 'mejoras'].includes(pestana) && !seleccionado && <button className="btn" onClick={() => setPestana('tablero')}>Volver a la ficha de gestión</button>}
       {pestana === 'cuellos' ? <CuellosView />
         : pestana === 'autorizaciones' && lorenzo ? <AutorizacionesSGOView items={autorizaciones} onAbrir={abrirAutorizacion} />
         : pestana === 'mejoras' ? <div style={{ display: seleccionado ? 'none' : undefined }}><MejorasSGOView usuario={usuario?.usuario ?? 'sin_usuario'} registroInicialId={mejoraInicial?.id} vistaInicial={mejoraInicial?.vista} onRegistroInicialConsumido={() => setMejoraInicial(undefined)} onOpenEvento={setSeleccionadoId} /></div>
@@ -240,7 +240,11 @@ export default function SGOView() {
       {nuevo && <NuevoEvento usuario={usuario?.usuario ?? 'sin_usuario'} onClose={() => setNuevo(false)} onCreado={(id) => { setNuevo(false); setSeleccionadoId(id) }} />}
       {configIndicadores && <IndicadoresSGO indicadores={indicadoresResueltos} mediciones={mediciones} usuario={usuario?.usuario ?? 'sin_usuario'} onClose={() => setConfigIndicadores(false)} />}
       </>}
-      {seleccionado && <DetalleEvento key={seleccionado.id} volverAlCaso={pestana === 'mejoras'} evento={seleccionado} acciones={acciones.filter((a) => a.eventoId === seleccionado.id)} auditoria={auditoria.filter((r) => r.entidadId === seleccionado.id || acciones.some((a) => a.eventoId === seleccionado.id && a.id === r.entidadId))} usuario={usuario?.usuario ?? 'sin_usuario'} trazabilidad={resolverTrazabilidadProductiva(seleccionado, tareas, maquinas, usuariosPlanta)} onClose={() => setSeleccionadoId(undefined)} />}
+      {seleccionado && <DetalleEvento key={seleccionado.id} volverAlCaso={pestana === 'mejoras'} evento={seleccionado} acciones={acciones.filter((a) => a.eventoId === seleccionado.id)} auditoria={auditoria.filter((r) => r.entidadId === seleccionado.id || acciones.some((a) => a.eventoId === seleccionado.id && a.id === r.entidadId))} usuario={usuario?.usuario ?? 'sin_usuario'} trazabilidad={resolverTrazabilidadProductiva(seleccionado, tareas, maquinas, usuariosPlanta)} onClose={() => setSeleccionadoId(undefined)} onGestionar={() => {
+        setMejoraInicial({ id: seleccionado.id, vista: esEventoRetrabajo(seleccionado) ? 'retrabajos' : 'seguimiento' })
+        setSeleccionadoId(undefined)
+        setPestana('mejoras')
+      }} />}
     </div>
   )
 }
@@ -460,7 +464,7 @@ function ResumenTrazabilidad({ trazabilidad, compacto = false }: { trazabilidad:
   </div>
 }
 
-function DetalleEvento({ evento, acciones, auditoria, usuario, trazabilidad, onClose, volverAlCaso = false }: { evento: EventoSGO; acciones: AccionSGO[]; auditoria: AuditoriaSGO[]; usuario: string; trazabilidad: TrazabilidadProductivaSGO; onClose: () => void; volverAlCaso?: boolean }) {
+function DetalleEvento({ evento, acciones, auditoria, usuario, trazabilidad, onClose, onGestionar, volverAlCaso = false }: { evento: EventoSGO; acciones: AccionSGO[]; auditoria: AuditoriaSGO[]; usuario: string; trazabilidad: TrazabilidadProductivaSGO; onClose: () => void; onGestionar: () => void; volverAlCaso?: boolean }) {
   const [contencion, setContencion] = useState(evento.contencion ?? '')
   const [causaRaiz, setCausaRaiz] = useState(evento.causaRaiz ?? '')
   const [responsable, setResponsable] = useState(evento.responsable ?? '')
@@ -478,6 +482,7 @@ function DetalleEvento({ evento, acciones, auditoria, usuario, trazabilidad, onC
   const [mensajeGuardado, setMensajeGuardado] = useState<{ tipo: 'ok' | 'error'; texto: string }>()
   const huellaFormulario = JSON.stringify([contencion, causaRaiz, responsable, metodoAnalisis, evidencias, estado, areaOrigenId, areaDeteccionId, defectoCodigo, disposicion, costos])
   const huellaGuardada = useRef(huellaFormulario)
+  const cierreEnCaso = Boolean(evento.mejora || esEventoRetrabajo(evento))
   function solicitarVolver() {
     if (guardando || eliminando) return
     if (huellaFormulario !== huellaGuardada.current && !window.confirm('Hay cambios sin guardar en el expediente. ¿Descartarlos y volver?')) return
@@ -488,16 +493,19 @@ function DetalleEvento({ evento, acciones, auditoria, usuario, trazabilidad, onC
     controles: await db.ejecucionesControlesSGO.where('eventoId').equals(evento.id).count(),
   }), [evento.id]) ?? { controles: 0 }
 
-  async function actualizar(volver = false) {
+  async function actualizar(volver = false, destino?: 'gestion' | 'cierre') {
+    if (guardando || eliminando) return
+    // Guardar y continuar no debe intentar cerrar con campos que sólo existen en el caso.
+    const estadoGuardado = destino === 'gestion' && estado === 'cerrado' ? evento.estado : destino === 'cierre' ? 'cerrado' : estado
     const now = new Date().toISOString()
     const actualizado: EventoSGO = { ...evento, areaId: areaDeteccionId || undefined, areaOrigenId: areaOrigenId || undefined,
       defectoCodigo: defectoCodigo || undefined, disposicion, costoDetalle: costos,
       costoEstimado: costoNoCalidadTotal(costos), contencion: contencion.trim() || undefined,
       causaRaiz: causaRaiz.trim() || undefined, responsable: responsable.trim() || undefined,
       metodoAnalisis, evidenciaUrls: evidencias.split(/\r?\n/).map((v) => v.trim()).filter(Boolean),
-      estado, actualizadoEn: now,
-      cerradoEn: estado === 'cerrado' ? (evento.cerradoEn ?? now) : undefined,
-      cerradoPor: estado === 'cerrado' ? (evento.cerradoPor ?? usuario) : undefined }
+      estado: estadoGuardado, actualizadoEn: now,
+      cerradoEn: estadoGuardado === 'cerrado' ? (evento.cerradoEn ?? now) : undefined,
+      cerradoPor: estadoGuardado === 'cerrado' ? (evento.cerradoPor ?? usuario) : undefined }
     const errores = validarCierreEvento(actualizado, acciones)
     if (errores.length) {
       setMensajeGuardado({ tipo: 'error', texto: `No se puede cerrar todavía: ${errores.join(' · ')}` })
@@ -508,8 +516,9 @@ function DetalleEvento({ evento, acciones, auditoria, usuario, trazabilidad, onC
     try {
       await guardarEventoSGO(actualizado)
       huellaGuardada.current = huellaFormulario
-      if (estado === 'cerrado' || volver) onClose()
-      else setMensajeGuardado({ tipo: 'ok', texto: 'Expediente guardado correctamente.' })
+      if (destino === 'gestion') onGestionar()
+      else if (estadoGuardado === 'cerrado' || volver) onClose()
+      else setMensajeGuardado({ tipo: 'ok', texto: 'Expediente guardado correctamente. Guardar no cierra el caso.' })
     } catch (error) {
       setMensajeGuardado({ tipo: 'error', texto: error instanceof Error ? error.message : 'No se pudo guardar el expediente.' })
     } finally { setGuardando(false) }
@@ -538,6 +547,10 @@ function DetalleEvento({ evento, acciones, auditoria, usuario, trazabilidad, onC
     <div className="meta">{trazabilidad.aplica ? `Hecho ocurrido ${fechaHora(evento.detectadoEn)}` : <>Detectado {fechaHora(evento.detectadoEn)} por <strong>{evento.detectadoPor}</strong></>} · Pilar {PILARES_SGO.find((p) => p.id === evento.pilar)?.label}</div>
     <p>{evento.descripcion}</p>
     <ResumenTrazabilidad trazabilidad={trazabilidad} />
+    {evento.estado !== 'cerrado' && <div className="card" style={{ borderLeft: '4px solid #38bdf8', marginBottom: 12 }}>
+      <strong>{cierreEnCaso ? 'Evaluación y cierre del caso' : 'Guardar y cerrar son pasos distintos'}</strong>
+      <p className="meta">{cierreEnCaso ? 'Este expediente pertenece a una mejora o investigación. Guardá lo cargado y continuá al caso para completar la decisión, el resultado y la verificación de sus acciones. No necesitás volver a buscarlo.' : 'Guardar conserva la información y el estado elegido. Usá Verificar y cerrar expediente cuando hayas terminado; se indicará lo que falte.'} Cerrar un evento no realiza ni reprograma los controles periódicos del área.</p>
+    </div>}
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(210px,1fr))', gap: 10 }}>
       <div className="field"><label>Estado</label><select className="input" value={estado} onChange={(e) => setEstado(e.target.value as EstadoEventoSGO)}>{ESTADOS_EVENTO.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}</select></div>
       <div className="field"><label>Responsable</label><input className="input" value={responsable} onChange={(e) => setResponsable(e.target.value)} /></div>
@@ -558,11 +571,13 @@ function DetalleEvento({ evento, acciones, auditoria, usuario, trazabilidad, onC
     <div className="field"><label>Causa raíz</label><textarea className="input" rows={3} value={causaRaiz} onChange={(e) => setCausaRaiz(e.target.value)} placeholder="Completar después del análisis; no confundir con el síntoma" /></div>
     <div className="field"><label>Método de análisis</label><select className="input" value={metodoAnalisis ?? ''} onChange={(e) => setMetodoAnalisis((e.target.value || undefined) as EventoSGO['metodoAnalisis'])}><option value="">Sin seleccionar</option><option value="5_porques">5 porqués</option><option value="ishikawa">Ishikawa</option><option value="a3">A3</option><option value="8d">8D</option><option value="otro">Otro</option></select></div>
     <div className="field"><label>Evidencias / referencias</label><textarea className="input" rows={3} value={evidencias} onChange={(e) => setEvidencias(e.target.value)} placeholder="Una referencia o enlace por línea" /></div>
-    {mensajeGuardado && <div className="card" style={{ borderLeft: `4px solid ${mensajeGuardado.tipo === 'ok' ? 'var(--verde)' : 'var(--rojo)'}` }}>{mensajeGuardado.texto}</div>}
+    {mensajeGuardado && <div role={mensajeGuardado.tipo === 'error' ? 'alert' : 'status'} className="card" style={{ borderLeft: `4px solid ${mensajeGuardado.tipo === 'ok' ? 'var(--verde)' : 'var(--rojo)'}` }}>{mensajeGuardado.texto}</div>}
     <div className="row-actions" style={{ justifyContent: 'space-between' }}>
       {puedeEliminar && <button className="btn" disabled={eliminando || guardando} style={{ color: '#fca5a5', borderColor: '#ef4444' }} onClick={() => void eliminar()}>{eliminando ? 'Eliminando…' : 'Eliminar evento'}</button>}
       <button className="btn btn-primary" style={{ marginLeft: 'auto' }} disabled={eliminando || guardando} onClick={() => void actualizar()}>{guardando ? 'Guardando…' : estado === 'cerrado' ? 'Verificar y cerrar expediente' : 'Guardar expediente'}</button>
       {volverAlCaso && estado !== 'cerrado' && <button className="btn btn-primary" disabled={eliminando || guardando} onClick={() => void actualizar(true)}>Guardar y volver al caso</button>}
+      {cierreEnCaso && !volverAlCaso && evento.estado !== 'cerrado' && <button className="btn btn-primary" disabled={eliminando || guardando} onClick={() => void actualizar(false, 'gestion')}>Guardar y continuar a evaluación y cierre</button>}
+      {!cierreEnCaso && estado !== 'cerrado' && <button className="btn btn-primary" disabled={eliminando || guardando} onClick={() => void actualizar(false, 'cierre')}>Verificar y cerrar expediente</button>}
     </div>
 
     <div className="section-title" style={{ marginTop: 18 }}>Acciones ({acciones.length})</div>

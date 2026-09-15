@@ -106,6 +106,25 @@ function segmentosPorDia(startISO: string, endISO: string, dias: Date[]) {
  */
 const msIso = (iso: string): number => new Date(iso).getTime()
 
+/**
+ * "vie 12/09 15:35" — día de semana + fecha + hora.
+ *
+ * v2.17: el tooltip de las pausas mostraba SOLO la hora (`desde 15:35`). En una
+ * parada sin cerrar de 61h eso no dice nada: el planificador ve "desde las
+ * 15:35" y no sabe si arrancó hoy, ayer o el viernes pasado. El día de la
+ * semana va incluido a propósito: "vie" explica de un vistazo por qué la parada
+ * lleva tantas horas abiertas (cruzó el fin de semana).
+ */
+const fechaHora = (iso: string): string => {
+  const d = new Date(iso)
+  const dia = d.toLocaleDateString('es-AR', { weekday: 'short', day: '2-digit', month: '2-digit' })
+  return `${dia} ${hhmm(iso)}`
+}
+
+/** true si los dos instantes caen en días distintos (hora local). */
+const otroDia = (a: string, b: string): boolean =>
+  new Date(a).toLocaleDateString('es-AR') !== new Date(b).toLocaleDateString('es-AR')
+
 interface Segmento { tarea: Tarea; idx: number; left: number; width: number; estimada: boolean; esInicio: boolean; plan: Plan; row: number }
 // Apilado vertical de sub-filas dentro de un carril.
 const FILA_TOP = 11   // offset de la 1ra fila (px)
@@ -566,7 +585,16 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
                             key={`par-${t.id}-${k}-${j}`}
                             className={cls}
                             style={{ left: `${left}%`, width: `${width}%`, top: topDeFila(rowDe.get(t.id) ?? 0) }}
-                            title={`${x.label} · ${x.abierta ? `desde ${hhmm(x.inicio)} · SIN CERRAR` : `${hhmm(x.inicio)}–${hhmm(x.fin)}`} · ${fmtDur(x.minutos)} · ${detalle}`}
+                            // v2.17: con FECHA, no solo la hora. Una parada sin
+                            // cerrar puede llevar días abierta y antes el tooltip
+                            // decía solo "desde 15:35". En las cerradas la fecha
+                            // del fin se agrega solo si cayó en otro día, para no
+                            // alargar el texto al pedo en el caso normal.
+                            title={`${x.label} · ${
+                              x.abierta
+                                ? `abierta desde ${fechaHora(x.inicio)} · SIN CERRAR`
+                                : `${fechaHora(x.inicio)} – ${otroDia(x.inicio, x.fin) ? fechaHora(x.fin) : hhmm(x.fin)}`
+                            } · ${fmtDur(x.minutos)} · ${detalle}`}
                           />
                         )
                       }),

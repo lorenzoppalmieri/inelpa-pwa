@@ -32,6 +32,16 @@ describe('agenda de controles SGO', () => {
     expect(proximaFechaControl({ ...base, frecuencia: 'unico' }, '2026-01-31')).toBeUndefined()
   })
 
+  it('una auditoría semanal realizada tarde avanza a futuro sin depender del cierre de hallazgos', () => {
+    const control = { ...base, tipo: 'auditoria_campo' as const, frecuencia: 'semanal' as const, proximaFecha: '2026-09-12', toleranciaDias: 1 }
+    expect(estadoProgramacionControl(control, '2026-09-15')).toBe('vencido')
+    const siguiente = proximaFechaControl(control, '2026-09-15')!
+    expect(siguiente).toBe('2026-09-19')
+    expect(estadoProgramacionControl({ ...control, proximaFecha: siguiente }, '2026-09-15')).toBe('proximo')
+    // El simple paso del tiempo no acredita una ejecución ni oculta vencimientos.
+    expect(estadoProgramacionControl(control, '2026-09-16')).toBe('vencido')
+  })
+
   it('mapea cada pilar al expediente compatible', () => {
     expect(tipoEventoDesdeControl('calidad')).toBe('no_conformidad')
     expect(tipoEventoDesdeControl('seguridad')).toBe('observacion_preventiva')

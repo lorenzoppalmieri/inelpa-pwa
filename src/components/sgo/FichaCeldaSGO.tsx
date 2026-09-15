@@ -26,7 +26,7 @@ export default function FichaCeldaSGO({ areaId, pilarId, indicadores, eventos, a
   onClose: () => void; onFiltrarEventos: () => void; onOpenEvento: (id: string) => void; onOpenControl: (id?: string) => void
 }) {
   const [vista, setVista] = useState<'resumen' | 'pendientes' | 'historial'>('resumen')
-  const [filtro, setFiltro] = useState<'todos' | 'vencidas' | 'proximas' | 'eventos' | 'controles'>('todos')
+  const [filtro, setFiltro] = useState<'todos' | 'vencidas' | 'proximas' | 'eventos' | 'controles' | 'controles_vencidos'>('todos')
   const [busqueda, setBusqueda] = useState('')
   const [periodo, setPeriodo] = useState('')
   const [error, setError] = useState('')
@@ -47,6 +47,7 @@ export default function FichaCeldaSGO({ areaId, pilarId, indicadores, eventos, a
   const criticos = abiertos.filter(e => ['alta', 'critica'].includes(e.severidad))
   const q = busqueda.trim().toLocaleLowerCase('es')
   const coincide = (...textos: (string | undefined)[]) => !q || textos.some(t => t?.toLocaleLowerCase('es').includes(q))
+  const controlesVisibles = (filtro === 'controles_vencidos' ? controlesVencidos : controlesCelda).filter(c => coincide(c.titulo, c.responsable))
   const irPendientes = (f: typeof filtro) => { setFiltro(f); setBusqueda(''); setVista('pendientes') }
   const exportar = (completo: boolean) => {
     setError('')
@@ -74,7 +75,7 @@ export default function FichaCeldaSGO({ areaId, pilarId, indicadores, eventos, a
           <button onClick={() => irPendientes('vencidas')}><b>{vencidas.length}</b>Acciones vencidas</button>
           <button onClick={() => irPendientes('proximas')}><b>{proximas.length}</b>Compromisos a 7 días</button>
           <button onClick={() => irPendientes('eventos')}><b>{abiertos.length}</b>Eventos abiertos</button>
-          <button onClick={() => irPendientes('controles')}><b>{controlesVencidos.length}</b>Controles vencidos</button>
+          <button onClick={() => irPendientes('controles_vencidos')}><b>{controlesVencidos.length}</b>Controles vencidos</button>
         </div>
         <nav className="sgo-fg-nav" aria-label="Secciones de la ficha">{(['resumen', 'pendientes', 'historial'] as const).map(v => <button className={vista === v ? 'btn btn-primary' : 'btn'} aria-pressed={vista === v} key={v} onClick={() => setVista(v)}>{v === 'resumen' ? 'Resumen' : v === 'pendientes' ? 'Pendientes' : 'Historial y evidencias'}</button>)}</nav>
         {vista === 'resumen' && <>
@@ -88,10 +89,14 @@ export default function FichaCeldaSGO({ areaId, pilarId, indicadores, eventos, a
           {!controlesCelda.length && <p className="meta">Sin controles programados activos para esta área y pilar.</p>}
         </>}
         {vista === 'pendientes' && <>
-          <div className="sgo-fg-filtros"><input className="input" aria-label="Buscar pendiente o responsable" placeholder="Buscar acción, expediente o responsable…" value={busqueda} onChange={e => setBusqueda(e.target.value)} /><select className="input" aria-label="Tipo de pendiente" value={filtro} onChange={e => setFiltro(e.target.value as typeof filtro)}><option value="todos">Todas las acciones pendientes</option><option value="vencidas">Acciones vencidas</option><option value="proximas">Compromisos a 7 días</option><option value="eventos">Eventos abiertos</option><option value="controles">Controles programados</option></select></div>
+          <div className="sgo-fg-filtros"><input className="input" aria-label="Buscar pendiente o responsable" placeholder="Buscar acción, expediente o responsable…" value={busqueda} onChange={e => setBusqueda(e.target.value)} /><select className="input" aria-label="Tipo de pendiente" value={filtro} onChange={e => setFiltro(e.target.value as typeof filtro)}><option value="todos">Todas las acciones pendientes</option><option value="vencidas">Acciones vencidas</option><option value="proximas">Compromisos a 7 días</option><option value="eventos">Eventos abiertos</option><option value="controles_vencidos">Sólo controles vencidos</option><option value="controles">Todos los controles activos</option></select></div>
           {['todos', 'vencidas', 'proximas'].includes(filtro) && tablaAcciones((filtro === 'vencidas' ? vencidas : filtro === 'proximas' ? proximas : pendientes).filter(a => coincide(a.descripcion, a.responsable, eventosCelda.find(e => e.id === a.eventoId)?.codigo)))}
           {filtro === 'eventos' && listaEventos(abiertos.filter(e => coincide(e.titulo, e.codigo, e.responsable)))}
-          {filtro === 'controles' && <>{controlesCelda.filter(c => coincide(c.titulo, c.responsable)).map(c => <button key={c.id} className="sgo-fg-evento" onClick={() => onOpenControl(c.id)}><strong>{c.titulo}</strong><span>{c.responsable} · {formatoFecha(c.proximaFecha)} · {estadoProgramacionControl(c)}</span></button>)}{!controlesCelda.length && <p className="meta">Sin controles activos.</p>}</>}
+          {['controles', 'controles_vencidos'].includes(filtro) && <>
+            <p className="meta">Estos vencimientos corresponden a la realización del control, no al cierre de sus hallazgos. Al finalizarlo se programa su próxima fecha; los hallazgos continúan por separado. Si ya lo realizaron, revisen el informe en Controles SGO antes de repetirlo.</p>
+            {controlesVisibles.map(c => <button key={c.id} className="sgo-fg-evento" onClick={() => onOpenControl(c.id)}><strong>{c.titulo}</strong><span>{c.responsable} · Próxima ejecución: {formatoFecha(c.proximaFecha)} · {estadoProgramacionControl(c)}{estadoProgramacionControl(c) === 'vencido' ? ` · ${diasAtraso(c.proximaFecha)} días desde la fecha programada` : ''}</span><span>Abrir programa / registrar control →</span></button>)}
+            {!controlesVisibles.length && <p className="meta">{filtro === 'controles_vencidos' ? 'Sin controles vencidos para este filtro.' : 'Sin controles activos para este filtro.'}</p>}
+          </>}
           <button className="btn" onClick={onFiltrarEventos}>Ir al listado general de esta área y pilar</button>
         </>}
         {vista === 'historial' && <>
