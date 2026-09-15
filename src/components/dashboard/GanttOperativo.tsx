@@ -4,7 +4,7 @@ import { sectorById, causaLabel, esParadaNoProductiva, nombreSemielaborado, minu
 import { componentePorCodigo } from '../../data/catalogo'
 import { hhmm, fmtDur, isoWeek, fechaCorta } from '../../lib/time'
 import { proximoInstanteLaborable, tramosLaborables, calcularTiempoNetoProductivo, calcularTiempoProductivo, type GrupoAlmuerzo } from '../../lib/calendario'
-import { programar, type Plan } from '../../lib/programacion'
+import { programar, capacidadRecurso, type Plan } from '../../lib/programacion'
 import { desglosePausas, demoraSinJustificarHasta, type TramoPausa } from '../../lib/kpi'
 import { guardarTarea } from '../../sync/syncEngine'
 
@@ -258,10 +258,13 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
   // carril, las tareas que se SOLAPAN en el tiempo se reparten en sub-filas
   // (packing por intervalos) para que no se pisen visualmente. Esto es clave en
   // Montaje Parte Activa / Post Horno, donde varias tareas corren en paralelo.
-  const { segsPorLane, filasPorLane } = useMemo(() => {
+  const { segsPorLane, filasPorLane, choquesPorTarea } = useMemo(() => {
     const plan = programar(tareas, ahoraISO, almuerzo)
     const map = new Map<string, Segmento[]>()
     const filas = new Map<string, number>()
+    // v2.18: tareaId -> con qué otra tarea se pisa (solo en carriles que ya
+    // llegaron a su capacidad). Se dibuja con borde rojo y se explica en el tooltip.
+    const choques = new Map<string, string>()
     // Agrupar tareas por carril.
     const porLane = new Map<string, Tarea[]>()
     for (const t of tareas) { const id = laneDeTarea(t); const a = porLane.get(id) ?? []; a.push(t); porLane.set(id, a) }
@@ -269,6 +272,20 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
     for (const [laneId, ts] of porLane) {
       const conPlan = ts.map((t) => ({ t, p: plan.get(t.id) }))
         .filter((x): x is { t: Tarea; p: Plan } => !!x.p)
+        // ============================================================
+        // v2.18 — SOLO LO QUE SE VE EN LA VENTANA ACTUAL.
+        //
+        // ESTE ERA EL BUG DE "siempre queda una tarea abajo" en bobinado. Las
+        // sub-filas se repartian sobre TODAS las tareas del carril, incluidas
+        // las de otras semanas, que despues el filtro por dia descartaba. Una
+        // bobina terminada la semana pasada se quedaba con la fila 0 y empujaba
+        // a la fila 1 a una tarea visible — que en pantalla aparecia sola,
+        // abajo, sin nada al lado que explicara por que.
+        //
+        // No era un solapamiento: era contabilidad de filas sobre tareas que ni
+        // siquiera estaban en la pantalla.
+        // ============================================================
+        .filter((x) => segmentosPorDia(x.p.startISO, x.p.endISO, dias).length > 0)
         // Por INSTANTE, no por texto (mismo motivo que en programacion.ts v2.17).
         .sort((a, b) => msIso(a.p.startISO) - msIso(b.p.startISO))
 
@@ -291,16 +308,59 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
       // solapamientos reales. Si dos barras aparecen apiladas ahora, es porque
       // de verdad se pisan — y eso hay que verlo, no taparlo.
       // ============================================================
+      // ============================================================
+      // v2.18 — EL CARRIL NO PUEDE TENER MAS FILAS QUE LA CAPACIDAD DEL RECURSO.
+      //
+      // Un bobinador hace una bobina por vez -> UNA fila, sus tareas una al lado
+      // de la otra. Montaje PA Rural admite dos partes activas -> dos filas. El
+      // resto sigue con el packing libre de siempre.
+      //
+      // La capacidad sale de `capacidadRecurso`, la MISMA funcion que usa la
+      // cascada. Si el dibujo tuviera su propia regla volveriamos al problema de
+      // v1.81/v2.17: el calculo diciendo una cosa y la pantalla otra.
+      //
+      // Con la cascada bien, un carril de capacidad 1 nunca necesita una segunda
+      // fila. Si igual dos tareas se pisan, es porque las dos YA ARRANCARON y
+      // sus tiempos reales se superponen (alguien abrio la segunda sin cerrar la
+      // primera en la tablet). Eso no se acomoda: se dibuja en la fila unica y
+      // se MARCA, para que el error se vea en lugar de taparse.
+      // ============================================================
+      const cap = Math.min(...conPlan.map((x) => capacidadRecurso(x.t.sectorId)), Infinity)
+      const capFilas = Number.isFinite(cap) && cap > 0 ? cap : Infinity
+
       const rowDe = new Map<string, number>()
+      const choque = new Map<string, string>()   // tareaId -> con quien choca
       // Packing greedy: cada tarea va a la 1ra sub-fila libre (cuyo fin <= su inicio).
       const finDeFila: number[] = []
+      const ultimaDeFila: string[] = []
       for (const { t, p } of conPlan) {
         const ini = msIso(p.startISO)
-        let r = finDeFila.findIndex((fin) => fin <= ini)
-        if (r === -1) { r = finDeFila.length; finDeFila.push(msIso(p.endISO)) } else finDeFila[r] = msIso(p.endISO)
+        const fin = msIso(p.endISO)
+        let r = finDeFila.findIndex((f) => f <= ini)
+        if (r === -1) {
+          if (finDeFila.length < capFilas) {
+            r = finDeFila.length
+            finDeFila.push(fin)
+            ultimaDeFila.push(t.id)
+          } else {
+            // No hay fila libre y no se puede abrir otra: choque real. Va a la
+            // fila que se libera antes y queda marcada junto con la que ocupa.
+            r = finDeFila.reduce((mejor, f, i) => (f < finDeFila[mejor] ? i : mejor), 0)
+            const conQuien = ultimaDeFila[r]
+            const otra = conPlan.find((x) => x.t.id === conQuien)?.t
+            choque.set(t.id, otra ? `${otra.modelo}${otra.nroTransformador ? ` N° ${otra.nroTransformador}` : ''}` : 'otra tarea')
+            if (conQuien) choque.set(conQuien, `${t.modelo}${t.nroTransformador ? ` N° ${t.nroTransformador}` : ''}`)
+            finDeFila[r] = Math.max(finDeFila[r], fin)
+            ultimaDeFila[r] = t.id
+          }
+        } else {
+          finDeFila[r] = fin
+          ultimaDeFila[r] = t.id
+        }
         rowDe.set(t.id, r)
       }
       filas.set(laneId, Math.max(1, finDeFila.length))
+      for (const [id, con] of choque) choques.set(id, con)
 
       const arr: Segmento[] = []
       for (const { t, p } of conPlan) {
@@ -317,7 +377,7 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
       }
       map.set(laneId, arr)
     }
-    return { segsPorLane: map, filasPorLane: filas }
+    return { segsPorLane: map, filasPorLane: filas, choquesPorTarea: choques }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tareas, agrupar, ahoraISO, dias, N, almuerzo])
 
@@ -539,10 +599,14 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
                     const comp = componentePorCodigo(b.tarea.componenteCodigo)
                     const etiqueta = nombreSemielaborado(b.tarea, comp?.descripcion)
                     const semiTxt = etiqueta
+                    // v2.18: se pisa con otra tarea del mismo recurso y el carril
+                    // ya está en su capacidad. Es dato mal cargado, no un problema
+                    // de dibujo: se marca en rojo y el tooltip dice con cuál.
+                    const choqueCon = choquesPorTarea.get(b.tarea.id)
                     return (
                       <div
                         key={b.tarea.id + '-' + b.idx + '-' + i}
-                        className={'gantt-bar' + (arrastrable ? ' arrastrable' : '') + (recup ? ' recup' : '') + (reparacion ? ' reparacion' : '') + (onTareaClick ? ' clickable' : '')}
+                        className={'gantt-bar' + (arrastrable ? ' arrastrable' : '') + (recup ? ' recup' : '') + (reparacion ? ' reparacion' : '') + (choqueCon ? ' choque' : '') + (onTareaClick ? ' clickable' : '')}
                         onPointerDown={arrastrable ? (e) => iniciarArrastre(e, b) : undefined}
                         onClick={onTareaClick ? () => {
                           // Si vino de un arrastre real, no navegar (y resetear la marca).
@@ -556,7 +620,7 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
                           border: b.estimada ? '1px dashed rgba(255,255,255,.5)' : 'none',
                           color: b.tarea.estado === 'pausada' && !reparacion ? '#1a1206' : '#fff',
                         }}
-                        title={`${reparacion ? '🔧 REPARACIÓN · ' : ''}Semielaborado: ${semiTxt}\nModelo: ${b.tarea.modelo}\n${b.tarea.estado} · ${nombreMaquina(b.tarea.maquinaId)} · ${b.tarea.operarioId ? nombreOperario(b.tarea.operarioId) : 'sin colaborador'} · ${rangoFechaHora(b.plan.startISO, b.plan.endISO)} · ${fmtDur(b.tarea.tiempoEstandarMin)}${reparacion ? ' · no productivo (excluido del OEE)' : ''}${recup ? ` · recuperación +${recupMin}m` : ''}${arrastrable ? ' · arrastrá para reprogramar' : ''}${resumenParadas(b.tarea)}`}
+                        title={`${choqueCon ? `⚠ SE PISA CON: ${choqueCon} — este colaborador no puede tener dos tareas a la vez; hay que corregir los horarios.\n\n` : ''}${reparacion ? '🔧 REPARACIÓN · ' : ''}Semielaborado: ${semiTxt}\nModelo: ${b.tarea.modelo}\n${b.tarea.estado} · ${nombreMaquina(b.tarea.maquinaId)} · ${b.tarea.operarioId ? nombreOperario(b.tarea.operarioId) : 'sin colaborador'} · ${rangoFechaHora(b.plan.startISO, b.plan.endISO)} · ${fmtDur(b.tarea.tiempoEstandarMin)}${reparacion ? ' · no productivo (excluido del OEE)' : ''}${recup ? ` · recuperación +${recupMin}m` : ''}${arrastrable ? ' · arrastrá para reprogramar' : ''}${resumenParadas(b.tarea)}`}
                       >
                         {reparacion && b.esInicio && <span className="gantt-rep-tag">🔧</span>}
                         {recup && b.esInicio && <span className="gantt-recup-tag">⏱+{recupMin === 60 ? '1h' : `${recupMin}m`}</span>}

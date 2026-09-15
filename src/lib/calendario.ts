@@ -266,32 +266,41 @@ function siguienteApertura(d: Date, grupo: GrupoAlmuerzo, recupMin = 60): Date {
 
 // Lleva un instante cualquiera al proximo instante productivo (>= al dado).
 // Si ya esta dentro de un tramo, lo devuelve tal cual.
-export function proximoInstanteLaborable(iso: string, grupo: GrupoAlmuerzo = GRUPO_ALMUERZO_DEFAULT): string {
+// v2.18: `recupMin` explicito. OJO CON EL DEFAULT DE 60: `tramosLaborables` lo
+// tiene asi, de modo que quien no pase nada esta planificando DENTRO de la
+// franja de recuperacion aunque el colaborador no la haya marcado. Se deja en 60
+// para no cambiar el resto de los llamadores de un saque, pero `programar()`
+// pasa el valor real de cada tarea (`minutosRecupTarea`, que es 0 si no la
+// marco). Ver el comentario de minutosProductivosDia.
+export function proximoInstanteLaborable(iso: string, grupo: GrupoAlmuerzo = GRUPO_ALMUERZO_DEFAULT, recupMin = 60): string {
   let cursor = new Date(iso)
   let guard = 0
   while (guard++ < 4000) {
     const curMin = minDelDia(cursor)
-    const tr = tramosLaborables(cursor, grupo).find((t) => curMin < t.finMin)
+    const tr = tramosLaborables(cursor, grupo, recupMin).find((t) => curMin < t.finMin)
     if (tr) {
       if (curMin < tr.iniMin) return conMinutos(cursor, tr.iniMin).toISOString()
       return cursor.toISOString()
     }
-    cursor = siguienteApertura(cursor, grupo)
+    cursor = siguienteApertura(cursor, grupo, recupMin)
   }
   return cursor.toISOString()
 }
 
 // Avanza `minutos` de tiempo PRODUCTIVO desde `inicioISO`, saltando el almuerzo
 // del grupo, limpieza, fines de turno y fines de semana. Devuelve el ISO final.
-export function sumarMinutosLaborables(inicioISO: string, minutos: number, grupo: GrupoAlmuerzo = GRUPO_ALMUERZO_DEFAULT): string {
-  let cursor = new Date(proximoInstanteLaborable(inicioISO, grupo))
+//
+// Es lo que hace que una tarea que no entra en lo que queda del dia siga al
+// siguiente, y que la cola del viernes a la tarde caiga el lunes a las 07:00.
+export function sumarMinutosLaborables(inicioISO: string, minutos: number, grupo: GrupoAlmuerzo = GRUPO_ALMUERZO_DEFAULT, recupMin = 60): string {
+  let cursor = new Date(proximoInstanteLaborable(inicioISO, grupo, recupMin))
   let restante = Math.max(0, minutos)
   let guard = 0
   while (restante > 0 && guard++ < 4000) {
     const curMin = minDelDia(cursor)
-    const tramos = tramosLaborables(cursor, grupo)
+    const tramos = tramosLaborables(cursor, grupo, recupMin)
     const tr = tramos.find((t) => curMin < t.finMin)
-    if (!tr) { cursor = siguienteApertura(cursor, grupo); continue }
+    if (!tr) { cursor = siguienteApertura(cursor, grupo, recupMin); continue }
     if (curMin < tr.iniMin) cursor = conMinutos(cursor, tr.iniMin)
     const ini = minDelDia(cursor)
     const disponible = tr.finMin - ini
@@ -301,7 +310,7 @@ export function sumarMinutosLaborables(inicioISO: string, minutos: number, grupo
     } else {
       restante -= disponible
       const sig = tramos.find((t) => t.iniMin >= tr.finMin)
-      cursor = sig ? conMinutos(cursor, sig.iniMin) : siguienteApertura(cursor, grupo)
+      cursor = sig ? conMinutos(cursor, sig.iniMin) : siguienteApertura(cursor, grupo, recupMin)
     }
   }
   return cursor.toISOString()

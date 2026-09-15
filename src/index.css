@@ -516,6 +516,15 @@ button { font-family: inherit; cursor: pointer; border: none; }
 .gantt-bar.reparacion {
   background-image: repeating-linear-gradient(45deg, rgba(255,255,255,.14), rgba(255,255,255,.14) 5px, transparent 5px, transparent 11px);
 }
+/* v2.18 — CHOQUE: dos tareas del mismo colaborador pisandose en un carril que
+   ya esta en su capacidad (un bobinador no puede tener dos bobinas a la vez).
+   La fila sigue siendo una sola, pero la barra queda marcada para que el error
+   de carga no pase inadvertido. El tooltip dice con cual choca. */
+.gantt-bar.choque {
+  outline: 2px solid var(--rojo);
+  outline-offset: -2px;
+  z-index: 5;
+}
 .gantt-rep-tag { flex: none; margin-right: 5px; font-size: .8rem; line-height: 1; }
 /* Sub-bloque de PARADA: se superpone a la barra en el tramo real no productivo. */
 .gantt-parada-sub {

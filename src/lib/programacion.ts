@@ -1,5 +1,36 @@
-import type { Tarea } from '../types'
+import type { Tarea, SectorId } from '../types'
+import { minutosRecupTarea } from '../types'
 import { sumarMinutosLaborables, proximoInstanteLaborable, type GrupoAlmuerzo, GRUPO_ALMUERZO_DEFAULT } from './calendario'
+
+// ============================================================
+// CUANTAS TAREAS PUEDE TENER UN COLABORADOR A LA VEZ  (v2.18)
+//
+// Pedido de los planificadores (15/9/2026): la fila de cada bobinador tiene que
+// ser UNA sola, con sus tareas una al lado de la otra. "No puede empezar otra si
+// no finalizo una" — un bobinador atiende una bobina por vez, y punto.
+//
+// Montaje PA Rural es la excepcion declarada: puede llevar DOS partes activas en
+// paralelo. Todo lo demas (Montaje PA/PO Distribucion, PO Rural, herreria,
+// corte) queda como estaba: sin limite, porque ahi el paralelismo es real y
+// variable, y forzarlo mentiria sobre la capacidad de la linea.
+//
+// OJO CON EL DEFAULT: es 1, no "sin limite". Hasta v2.17 la cascada tenia UN
+// cursor por recurso, o sea que ya serializaba todo a una tarea por vez. Poner
+// Infinity como default habria cambiado en silencio el comportamiento de
+// Montaje PA/PO Distribucion, PO Rural, herreria y corte, que Lorenzo pidio
+// expresamente NO tocar. El unico sector que cambia es montaje_pa_rural.
+//
+// Este numero se usa para DOS cosas que tienen que dar lo mismo:
+//   1) la cascada de abajo, que encola las pendientes;
+//   2) el apilado en sub-filas del Gantt.
+// Por eso vive aca y no en el componente: si cada uno tuviera su propia regla,
+// volveriamos a tener el cálculo diciendo una cosa y el dibujo otra, que es
+// exactamente como nacieron los bugs de v1.81 y v2.17.
+// ============================================================
+export function capacidadRecurso(sectorId: SectorId): number {
+  if (sectorId === 'montaje_pa_rural') return 2   // dos partes activas a la vez
+  return 1                                         // bobinado y todo el resto
+}
 
 // ============================================================
 // Programacion con auto-shift (multi-dia). Lo usan el Gantt (para dibujar) y la
@@ -62,11 +93,37 @@ function claveOrden(t: Tarea): string {
   return t.inicioReal ?? t.inicioPlanificado ?? ''
 }
 
+// ------------------------------------------------------------
+// Cursores con N huecos. Cada recurso (maquina u operario) tiene `capacidad`
+// huecos; cada hueco guarda hasta cuando esta ocupado.
+//   - libreDesde(): el hueco que se libera ANTES es el que va a usar la proxima
+//     tarea, asi que la respuesta es el MINIMO de los huecos. Con capacidad 1 es
+//     el cursor unico de siempre.
+//   - ocupar(): mete el fin en el hueco que estaba libre primero.
+// ------------------------------------------------------------
+class Huecos {
+  private slots: number[]
+  constructor(capacidad: number) { this.slots = new Array(Math.max(1, capacidad)).fill(-Infinity) }
+  libreDesde(): number { return Math.min(...this.slots) }
+  ocupar(finMs: number): void {
+    let i = 0
+    for (let k = 1; k < this.slots.length; k++) if (this.slots[k] < this.slots[i]) i = k
+    // El hueco nunca retrocede: si ya estaba ocupado mas alla, se respeta.
+    this.slots[i] = Math.max(this.slots[i], finMs)
+  }
+}
+
 export function programar(tareas: Tarea[], ahoraISO: string, grupo: GrupoAlmuerzo = GRUPO_ALMUERZO_DEFAULT): Map<string, Plan> {
   const out = new Map<string, Plan>()
-  // Cursor = instante en que se libera cada recurso.
-  const finMaquina = new Map<string, string>()
-  const finOperario = new Map<string, string>()
+  // Cursor = instante en que se libera cada recurso. v2.18: con N huecos, para
+  // que Montaje PA Rural pueda llevar dos partes activas en paralelo.
+  const finMaquina = new Map<string, Huecos>()
+  const finOperario = new Map<string, Huecos>()
+  const huecosDe = (mapa: Map<string, Huecos>, clave: string, sectorId: SectorId): Huecos => {
+    let h = mapa.get(clave)
+    if (!h) { h = new Huecos(capacidadRecurso(sectorId)); mapa.set(clave, h) }
+    return h
+  }
 
   // Se procesa TODO en orden cronologico (no por maquina): asi los cursores de
   // maquina y de operario se van llenando en el orden real de ejecucion.
@@ -84,16 +141,25 @@ export function programar(tareas: Tarea[], ahoraISO: string, grupo: GrupoAlmuerz
     const mk = t.maquinaId
     const ok = t.operarioId
 
+    // v2.18: la hora de recuperacion estira el dia laborable de ESA tarea. Antes
+    // no se pasaba y el Gantt ignoraba por completo que el colaborador se queda
+    // 30' o 1h mas: la barra no crecia y la cola siguiente no se corria.
+    // 0 si no la marco. Antes no se pasaba nada y `tramosLaborables` asumia 60,
+    // o sea que el Gantt le planificaba trabajo en la franja de recuperacion a
+    // TODOS, la hubieran devuelto o no.
+    const recup = minutosRecupTarea(t)
+    const sumar = (desde: string, min: number) => sumarMinutosLaborables(desde, min, grupo, recup)
+
     if (t.inicioReal) {
       // Ya arranco: se dibuja donde realmente paso. Si sigue abierta y ya paso su
       // estimado, se estira hasta ahora (el recurso sigue ocupado de verdad).
-      const estEnd = sumarMinutosLaborables(t.inicioReal, t.tiempoEstandarMin, grupo)
+      const estEnd = sumar(t.inicioReal, t.tiempoEstandarMin)
       let endISO = t.finReal ?? estEnd
       if (!t.finReal && t.estado !== 'finalizada') endISO = elMasTardio(estEnd, ahoraISO)
       out.set(t.id, { startISO: t.inicioReal, endISO, estimada: false })
       // El recurso queda ocupado hasta el fin (real si cerro, proyectado si sigue).
-      if (mk) finMaquina.set(mk, elMasTardio(endISO, finMaquina.get(mk)))
-      if (ok) finOperario.set(ok, elMasTardio(endISO, finOperario.get(ok)))
+      if (mk) huecosDe(finMaquina, mk, t.sectorId).ocupar(ms(endISO))
+      if (ok) huecosDe(finOperario, ok, t.sectorId).ocupar(ms(endISO))
       continue
     }
 
@@ -102,17 +168,25 @@ export function programar(tareas: Tarea[], ahoraISO: string, grupo: GrupoAlmuerz
     const planificado = t.inicioPlanificado ?? ''
     // Arranca lo mas tarde entre: ahora, su hora planificada, y la liberacion de
     // su estacion y de su colaborador. Todo comparado por instante.
+    //
+    // Este `ahoraISO` es lo que hace que la cola "corra sola": el Gantt lo
+    // refresca cada 60s, asi que mientras la tarea en curso se pasa del
+    // estimado, la pendiente siguiente se va corriendo en pantalla en vez de
+    // quedarse clavada en su horario viejo.
     let startISO = esPosterior(planificado, ahoraISO) ? planificado : ahoraISO
-    if (mk) startISO = elMasTardio(startISO, finMaquina.get(mk))
-    if (ok) startISO = elMasTardio(startISO, finOperario.get(ok))
+    let startMs = ms(startISO)
+    if (mk) startMs = Math.max(startMs, huecosDe(finMaquina, mk, t.sectorId).libreDesde())
+    if (ok) startMs = Math.max(startMs, huecosDe(finOperario, ok, t.sectorId).libreDesde())
+    if (Number.isFinite(startMs)) startISO = new Date(startMs).toISOString()
 
-    startISO = proximoInstanteLaborable(startISO, grupo)
-    const endISO = sumarMinutosLaborables(startISO, t.tiempoEstandarMin, grupo)
+    // Si no entra en lo que queda del dia, sumarMinutosLaborables la parte y la
+    // sigue al dia siguiente; pasado el viernes cae el lunes a las 07:00. El
+    // desborde a la semana que viene sale de aca, no hace falta nada extra.
+    startISO = proximoInstanteLaborable(startISO, grupo, recup)
+    const endISO = sumar(startISO, t.tiempoEstandarMin)
     out.set(t.id, { startISO, endISO, estimada: true })
-    // elMasTardio y no asignacion directa: proximoInstanteLaborable pudo haber
-    // adelantado el arranque dentro del turno, pero el cursor nunca retrocede.
-    if (mk) finMaquina.set(mk, elMasTardio(endISO, finMaquina.get(mk)))
-    if (ok) finOperario.set(ok, elMasTardio(endISO, finOperario.get(ok)))
+    if (mk) huecosDe(finMaquina, mk, t.sectorId).ocupar(ms(endISO))
+    if (ok) huecosDe(finOperario, ok, t.sectorId).ocupar(ms(endISO))
   }
   return out
 }

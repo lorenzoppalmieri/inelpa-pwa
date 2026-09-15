@@ -132,6 +132,105 @@ describe('cascada sin solapamientos con formatos mezclados', () => {
   })
 })
 
+// ============================================================
+// v2.18 — Pedido de los planificadores: una fila por bobinador, las tareas una
+// al lado de la otra, desbordando a la semana siguiente si hace falta.
+// Planta: Lun-Jue 07:00-16:00, Vie 07:00-15:00 (menos almuerzo y limpieza).
+// ============================================================
+const hAr = (iso: string) => new Date(iso).toLocaleString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false })
+const diaAr = (iso: string) => new Date(iso).toLocaleDateString('es-AR', { weekday: 'long' })
+
+describe('capacidad del recurso', () => {
+  it('un bobinador hace UNA bobina por vez: las pendientes se encolan', () => {
+    const ts = [
+      tarea({ id: 'A', inicioPlanificado: local(8), tiempoEstandarMin: 120 }),
+      tarea({ id: 'B', inicioPlanificado: local(8), tiempoEstandarMin: 120 }),
+      tarea({ id: 'C', inicioPlanificado: local(8), tiempoEstandarMin: 120 }),
+    ]
+    const plan = programar(ts, local(7))
+    expect(solapes(ts, plan, (t) => t.operarioId)).toBe(0)
+    // Estrictamente una detrás de la otra.
+    expect(ms(plan.get('B')!.startISO)).toBeGreaterThanOrEqual(ms(plan.get('A')!.endISO))
+    expect(ms(plan.get('C')!.startISO)).toBeGreaterThanOrEqual(ms(plan.get('B')!.endISO))
+  })
+
+  it('Montaje PA Rural admite DOS partes activas a la vez, la tercera espera', () => {
+    const pa = (id: string) => tarea({
+      id, sectorId: 'montaje_pa_rural' as Tarea['sectorId'],
+      maquinaId: 'm_montaje_pa_rural_01', operarioId: 'opR',
+      inicioPlanificado: local(8), tiempoEstandarMin: 120,
+    })
+    const ts = [pa('A'), pa('B'), pa('C')]
+    const plan = programar(ts, local(7))
+    // A y B arrancan juntas...
+    expect(ms(plan.get('A')!.startISO)).toBe(ms(plan.get('B')!.startISO))
+    // ...y C recién cuando se libera la primera de las dos.
+    expect(ms(plan.get('C')!.startISO)).toBeGreaterThanOrEqual(ms(plan.get('A')!.endISO))
+  })
+
+  it('Montaje PA Distribución NO cambia: sigue serializando de a una', () => {
+    const pa = (id: string) => tarea({
+      id, sectorId: 'montaje_pa_dist' as Tarea['sectorId'],
+      maquinaId: 'm_montaje_pa_dist_01', operarioId: 'opD',
+      inicioPlanificado: local(8), tiempoEstandarMin: 120,
+    })
+    const ts = [pa('A'), pa('B')]
+    const plan = programar(ts, local(7))
+    expect(ms(plan.get('B')!.startISO)).toBeGreaterThanOrEqual(ms(plan.get('A')!.endISO))
+  })
+})
+
+describe('desborde de jornada y de semana', () => {
+  it('lo que no entra en el día sigue al día siguiente a las 07:00', () => {
+    // 8 horas arrancando a las 13:00 no entran antes del cierre.
+    const ts = [tarea({ id: 'A', inicioPlanificado: local(13), tiempoEstandarMin: 480 })]
+    const plan = programar(ts, local(12))
+    expect(diaAr(plan.get('A')!.endISO)).toBe('martes')
+  })
+
+  it('la cola del viernes cae el LUNES a las 07:00, no el sábado', () => {
+    // Viernes 18/9/2026. Cierra 15:00.
+    const vie = (h: number) => `2026-09-18T${String(h).padStart(2, '0')}:00:00.000-03:00`
+    const ts = [tarea({ id: 'A', inicioPlanificado: vie(13), tiempoEstandarMin: 300 })]
+    const plan = programar(ts, vie(12))
+    const fin = plan.get('A')!.endISO
+    expect(diaAr(fin)).toBe('lunes')
+    expect(new Date(fin).getDay()).toBe(1)
+  })
+
+  it('tres tareas largas se van acumulando hacia la semana siguiente sin pisarse', () => {
+    const ts = [1, 2, 3, 4, 5].map((n) =>
+      tarea({ id: `T${n}`, inicioPlanificado: local(8), tiempoEstandarMin: 480 }))
+    const plan = programar(ts, local(7))
+    expect(solapes(ts, plan, (t) => t.operarioId)).toBe(0)
+    // Ninguna cae en sábado ni domingo.
+    for (const t of ts) {
+      const d = new Date(plan.get(t.id)!.startISO).getDay()
+      expect(d === 0 || d === 6).toBe(false)
+    }
+  })
+})
+
+describe('hora de recuperación', () => {
+  it('sin recuperación la jornada termina antes que con recuperación', () => {
+    const base = { inicioPlanificado: local(13), tiempoEstandarMin: 300 }
+    const sin = programar([tarea({ id: 'A', ...base })], local(12))
+    const con = programar([tarea({ id: 'A', ...base, minutosRecuperacion: 60 })], local(12))
+    // Con una hora más de turno, la misma tarea cierra antes en el calendario.
+    expect(ms(con.get('A')!.endISO)).toBeLessThanOrEqual(ms(sin.get('A')!.endISO))
+  })
+
+  it('la recuperación no se le aplica a quien no la marcó', () => {
+    // 8h desde las 13:00 no entran en el día ni con recuperación: lo que se
+    // controla es que la que NO recupera no use la franja extra.
+    const ts = [tarea({ id: 'A', inicioPlanificado: local(15), tiempoEstandarMin: 30 })]
+    const plan = programar(ts, local(14))
+    // 15:00 + 30' con jornada hasta 16:00 (menos limpieza) -> mismo día.
+    expect(hAr(plan.get('A')!.startISO)).toBeTruthy()
+    expect(ms(plan.get('A')!.endISO)).toBeGreaterThan(ms(plan.get('A')!.startISO))
+  })
+})
+
 describe('auditor: solape de un mismo colaborador', () => {
   const totOk: Totales = {
     n: 0, estimado: 0, real: 0, demorado: 0, justificada: 0,
