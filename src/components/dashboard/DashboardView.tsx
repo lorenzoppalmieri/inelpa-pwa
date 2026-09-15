@@ -15,6 +15,7 @@ import GanttOperativo from './GanttOperativo'
 import KpiPanel from './KpiPanel'
 import AndonView from './AndonView'
 import AlertaMaterial from './AlertaMaterial'
+import AlertaParadas from './AlertaParadas'
 import CuellosView from './CuellosView'
 import SugerenciasEstandar from './SugerenciasEstandar'
 import PlanificacionView from '../planificador/PlanificacionView'
@@ -152,6 +153,13 @@ export default function DashboardView() {
 
       {/* v1.11: alerta de espera de material visible para encargado/planificador. */}
       <AlertaMaterial compacto />
+
+      {/* v2.17: el resto de las paradas abiertas (ayuda en el sector, falta de
+          herramienta, calidad...). Va SEPARADO del cartel de logística porque
+          ese tiene un destinatario concreto; éstas se resuelven en el sector.
+          Antes el chip "N en parada" del título era el único indicio y había que
+          ir a "Asignar tareas" a filtrar por pausadas para ver cuáles eran. */}
+      <AlertaParadas compacto />
 
       {/* v1.73: retrabajos de laboratorio. Se ve desde CUALQUIER pestaña: antes
           vivía solo dentro de Planificación y se perdía si el planificador

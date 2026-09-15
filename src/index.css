@@ -626,6 +626,33 @@ button { font-family: inherit; cursor: pointer; border: none; }
 .logi-alert-det { flex-basis: 100%; font-size: .9rem; color: #fde68a; padding-left: 2px; }
 .logi-alert-det strong { color: #fff; }
 
+/* ---------- v2.17: paradas abiertas que NO son de logistica ----------
+   Ambar, no rojo: el cartel de arriba (rojo) es el que exige una accion de
+   logistica; este informa lo que esta frenado por causas del propio sector.
+   Dos rojos apilados harian que se ignoren los dos. */
+.paradas-alert { background: rgba(245,158,11,.10); border: 1px solid rgba(245,158,11,.45);
+  border-radius: var(--radio); padding: 10px 14px; }
+.paradas-alert-head { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  font-weight: 800; color: #fde68a; }
+.paradas-alert-toggle { background: transparent; border: 1px solid rgba(245,158,11,.5); color: #fde68a;
+  border-radius: 8px; padding: 3px 10px; font-size: .85rem; font-weight: 700; cursor: pointer; }
+.paradas-alert-toggle:hover { background: rgba(245,158,11,.18); }
+.paradas-alert-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.paradas-chip { background: rgba(0,0,0,.28); border-radius: 999px; padding: 3px 10px;
+  font-size: .82rem; color: var(--texto-tenue); }
+.paradas-chip strong { color: #fde68a; margin-left: 3px; }
+/* Scroll interno: con 20+ paradas desplegadas el Gantt se iba abajo de todo. */
+.paradas-alert-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px;
+  max-height: 320px; overflow-y: auto; }
+.paradas-alert-item { display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+  background: rgba(0,0,0,.25); border-radius: 10px; padding: 7px 12px; }
+.paradas-alert-maq { font-weight: 800; min-width: 120px; }
+.paradas-alert-sec { color: var(--texto-tenue); min-width: 170px; }
+.paradas-alert-causa { flex: 1; min-width: 160px; color: #fbbf24; font-weight: 700; }
+.paradas-alert-desde { color: var(--texto-tenue); font-size: .85rem; font-variant-numeric: tabular-nums; }
+.paradas-alert-time { font-variant-numeric: tabular-nums; font-weight: 800; color: #fde68a; }
+.paradas-alert-det { flex-basis: 100%; font-size: .85rem; color: var(--texto-tenue); padding-left: 2px; }
+
 /* ---------- Logistica: cola interactiva de pedidos de material ---------- */
 .cola-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
 .cola-card { background: var(--panel); border: 1px solid var(--borde); border-left: 7px solid var(--cola, var(--rojo));
