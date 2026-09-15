@@ -6,7 +6,7 @@ import {
   MATERIALES, lineaDesdeModelo, materialLabel, CATEGORIA_COMPONENTE_LABEL,
   MODELO_PROTOTIPO, esOrdenPrototipo,
   operariosParaSector, esSectorHerreria, maquinaSirveSector, claveEstandar,
-  componenteSirveSector, componenteEsDeOtroSector,
+  componenteSirveSector, componenteEsDeOtroSector, normalizarNroOrden,
   type MaterialBobina, type SectorId, type OrdenProduccion, type Tarea,
   type Semielaborado, type EstadoSemielaborado, type TipoTarea, type Feriado, type EstadoTarea,
   type DatosBobinado,
@@ -190,6 +190,16 @@ function PanelOrdenes() {
   const modeloSel = modeloPorNombre(modelo)
   const componentes = componentesDeModelo(modeloSel)
 
+  // v2.16: ¿ese N° de OF ya existe? Se compara NORMALIZADO —sin espacios de
+  // sobra y sin distinguir mayúsculas— porque "of-2605", "OF-2605" y " OF-2605 "
+  // son la misma orden para cualquiera que la lea, y escribir una u otra depende
+  // de cómo la copió del SAP quien la carga.
+  const duplicada = useMemo(() => {
+    const n = normalizarNroOrden(nroOrden)
+    if (!n) return undefined
+    return (ordenes ?? []).find((o) => normalizarNroOrden(o.nroOrden) === n)
+  }, [nroOrden, ordenes])
+
   // Al elegir un modelo, el material queda determinado por el propio modelo.
   function elegirModelo(nombre: string) {
     setModelo(nombre)
@@ -200,6 +210,19 @@ function PanelOrdenes() {
   async function crear() {
     if (!nroOrden.trim() || !modelo || !material || !fechaEntrega) {
       setMsg('Completa N° de orden, modelo, material y fecha de entrega.')
+      return
+    }
+    // v2.16: NO se puede repetir el N° de OF. Dos órdenes con el mismo número
+    // rompen la trazabilidad: las tareas de una y otra quedan mezcladas bajo el
+    // mismo rótulo y el cupo por orden (que cuenta ordenId + componente) deja de
+    // significar algo.
+    //
+    // La validación es SOLO de aplicación, a propósito: no se puso una
+    // restricción UNIQUE en Supabase porque la base ya puede tener duplicados
+    // cargados antes de esta versión, y una restricción los volvería
+    // imposibles de tocar. El historial se conserva tal como está.
+    if (duplicada) {
+      setMsg(`Ya existe la orden ${duplicada.nroOrden} (${duplicada.modelo}, ${duplicada.cantidad} u.). Usá otro número o editá la existente.`)
       return
     }
     const o: OrdenProduccion = {
@@ -305,7 +328,29 @@ function PanelOrdenes() {
             )}
           </div>
         )}
-        <button className="btn btn-primary btn-bloque" onClick={crear} style={{ marginTop: 12 }}>＋ Crear orden</button>
+        {/* v2.16: el aviso sale MIENTRAS tipea, no al apretar el botón. Que
+            complete los cinco campos para enterarse recién ahí de que el número
+            estaba repetido es hacerla trabajar al pedo. */}
+        {duplicada && (
+          <div className="balance-alert warn" style={{ marginTop: 12 }}>
+            <div className="ba-linea">
+              <span className="ba-ico">⚠</span>
+              <span className="ba-txt">
+                <strong>El N° {duplicada.nroOrden} ya está cargado.</strong>{' '}
+                {duplicada.modelo} · {duplicada.cantidad} u. · entrega {duplicada.fechaEntrega}.
+                <br />
+                Dos órdenes con el mismo número mezclan las tareas de las dos bajo el
+                mismo rótulo y rompen la trazabilidad. Usá otro número, o editá la que
+                ya existe si te equivocaste al cargarla.
+              </span>
+            </div>
+          </div>
+        )}
+
+        <button className="btn btn-primary btn-bloque" onClick={crear}
+          disabled={!!duplicada} style={{ marginTop: 12 }}>
+          ＋ Crear orden
+        </button>
         {msg && <div className="meta" style={{ marginTop: 10 }}>{msg}</div>}
       </div>
 

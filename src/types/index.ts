@@ -1134,6 +1134,21 @@ export interface SolicitudLogistica {
   actualizado: string
 }
 
+/**
+ * v2.16 — Forma canonica de un N° de orden, para comparar sin falsos negativos.
+ *
+ * "of-2605", "OF-2605" y " OF-2605 " son la MISMA orden para cualquiera que las
+ * lea: cual se escribe depende de como la copio del SAP quien la carga. Si se
+ * comparan en crudo, el control de duplicados deja pasar las tres.
+ *
+ * NO se normaliza al GUARDAR: se conserva tal como la escribio el planificador,
+ * porque asi es como figura en SAP y hay que poder buscarla igual. Esto es solo
+ * para comparar.
+ */
+export function normalizarNroOrden(n: string): string {
+  return n.trim().toUpperCase().replace(/\s+/g, '')
+}
+
 // v1.17: feriado / dia no laborable de planta (lo carga el planificador).
 // El motor de calendario trata estas fechas como dia cerrado (igual que domingo).
 export interface Feriado {
