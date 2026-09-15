@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { estadoProgramacionControl, proximaFechaControl, sumarFrecuenciaControl, tipoEventoDesdeControl, type ControlProgramadoSGO } from '../controles'
+import { estadoProgramacionControl, proximaFechaControl, retirarControlDeAgenda, sumarFrecuenciaControl, tipoEventoDesdeControl, type ControlProgramadoSGO } from '../controles'
 
 const base: ControlProgramadoSGO = {
   id: 'c1', titulo: 'Control', tipo: 'proceso_productivo', areaId: 'bobinado_rural', pilar: 'calidad',
@@ -8,6 +8,16 @@ const base: ControlProgramadoSGO = {
 }
 
 describe('agenda de controles SGO', () => {
+  it('Lorenzo puede retirar la programación sin borrar ni cambiar su historia o fecha', () => {
+    const retirado = retirarControlDeAgenda(base, ' LORENZO ', '2026-09-15T13:00:00Z')
+    expect(retirado).toEqual({ ...base, activo: false, actualizadoEn: '2026-09-15T13:00:00Z', actualizadoPor: 'lorenzo' })
+    expect(base.activo).toBe(true)
+    expect(estadoProgramacionControl(retirado, '2026-09-15')).toBe('inactivo')
+  })
+
+  it.each(['lara', 'azul', 'nicolas.sgo', 'gestionsgo', 'otro', ''])('no permite retirar a %s', (usuario) => {
+    expect(() => retirarControlDeAgenda(base, usuario)).toThrow('Solo el usuario Lorenzo')
+  })
   it('conserva el fin de mes al sumar frecuencia mensual', () => {
     expect(sumarFrecuenciaControl('2026-01-31', 'mensual')).toBe('2026-02-28')
   })

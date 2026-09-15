@@ -1,4 +1,5 @@
 import { fechaLocalISO, sumarDiasLocalISO } from '../lib/time'
+import { exigirPermisoBorradoSGO } from './permisos'
 import type { AreaSGOId, PilarSGO, TipoEventoSGO } from './types'
 import type { DatosAuditoriaLogistica } from './logistica'
 import type { AuditoriaCampoSGO } from './controlesCampo'
@@ -57,6 +58,12 @@ export interface EjecucionControlSGO {
   eventoId?: string
   auditoriaLogistica?: DatosAuditoriaLogistica
   auditoriaCampo?: AuditoriaCampoSGO
+}
+
+/** Baja recuperable de la programación: no acredita ejecución ni borra informes. */
+export function retirarControlDeAgenda(control: ControlProgramadoSGO, usuario: string, ahora = new Date().toISOString()): ControlProgramadoSGO {
+  exigirPermisoBorradoSGO(usuario)
+  return { ...control, activo: false, actualizadoEn: ahora, actualizadoPor: usuario.trim().toLowerCase() }
 }
 
 export const TIPOS_CONTROL_SGO: { id: TipoControlSGO; label: string }[] = [

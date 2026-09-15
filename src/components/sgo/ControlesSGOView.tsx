@@ -14,6 +14,7 @@ import {
 import { usuarioEsLorenzo } from '../../sgo/permisos'
 import { AREAS_SGO, areaSGOLabel, type AreaSGOId } from '../../sgo/types'
 import { EditorControl, EjecutarControl } from './ControlesProgramadosView'
+import RetirarControlButton from './RetirarControlButton'
 import {
   EjecutarControlCampo, InformeControlCampo, ProgramarControlCampo, SolicitarAuditoriaEspecial,
 } from './ControlesCampoView'
@@ -180,7 +181,7 @@ export default function ControlesSGOView({ usuario, onOpenEvento, controlInicial
     {(seccion === 'agenda' || seccion === 'programacion') && <>
       <div className="section-title">{seccion === 'agenda' ? 'Pendientes y agenda' : 'Programación'} ({controlesVisibles.length})</div>
       {!controlesVisibles.length ? <div className="empty">No existen controles que coincidan con los filtros.</div> : <div className="sgo-controles-lista">
-        {controlesVisibles.map((control) => <ControlCard key={control.id} control={control} hoy={hoy} seccion={seccion} lorenzo={lorenzo} ultima={ejecuciones.filter((e) => e.controlId === control.id).sort((a, b) => b.ejecutadoEn.localeCompare(a.ejecutadoEn))[0]} onRealizar={() => realizar(control)} onEditar={() => setEditor(control)} />)}
+        {controlesVisibles.map((control) => <ControlCard key={control.id} control={control} usuario={usuario} hoy={hoy} seccion={seccion} lorenzo={lorenzo} ultima={ejecuciones.filter((e) => e.controlId === control.id).sort((a, b) => b.ejecutadoEn.localeCompare(a.ejecutadoEn))[0]} onRealizar={() => realizar(control)} onEditar={() => setEditor(control)} />)}
       </div>}
     </>}
 
@@ -287,8 +288,9 @@ function FilaKPI5S({ fila }: { fila: ComparativoMensualArea5S }) {
   </tr>
 }
 
-function ControlCard({ control, ultima, hoy, seccion, lorenzo, onRealizar, onEditar }: {
+function ControlCard({ control, usuario, ultima, hoy, seccion, lorenzo, onRealizar, onEditar }: {
   control: ControlProgramadoSGO
+  usuario: string
   ultima?: EjecucionControlSGO
   hoy: string
   seccion: 'agenda' | 'programacion'
@@ -303,6 +305,6 @@ function ControlCard({ control, ultima, hoy, seccion, lorenzo, onRealizar, onEdi
       <div className="sgo-control-fecha"><strong>{control.proximaFecha.slice(8, 10)}</strong><span>{new Intl.DateTimeFormat('es-AR', { month: 'short' }).format(new Date(`${control.proximaFecha}T12:00:00`))}</span></div>
       <div><div className="sgo-control-titulo"><strong>{control.titulo}</strong><span className={`estado-chip control-chip-${estado.clase}`}>{estado.label}</span></div><div className="sgo-control-etiquetas"><span className="sgo-control-tipo-chip">{tipoLabel(control)}</span>{control.frecuencia === 'unico' && <span className="sgo-control-tipo-chip especial">Especial</span>}</div><div className="meta">{areaSGOLabel(control.areaId)} · {frecuenciaLabel(control.frecuencia)} · Responsable: <strong>{control.responsable}</strong> · Próximo: {fechaLarga(control.proximaFecha)}</div><p>{control.instrucciones}</p>{ultima && <div className="meta">Último control: {fechaHora(ultima.ejecutadoEn)} · <strong>{resultadoLabel(ultima.resultado)}</strong> · {ultima.ejecutadoPor}</div>}</div>
     </div>
-    <div className="row-actions">{seccion === 'programacion' && lorenzo && <button className="btn" onClick={onEditar}>Editar programación</button>}{seccion === 'agenda' && control.activo && <button className="btn btn-primary" onClick={onRealizar}>Realizar</button>}</div>
+    <div className="row-actions">{lorenzo && <button className="btn" onClick={onEditar}>Editar programación</button>}{seccion === 'agenda' && control.activo && <button className="btn btn-primary" onClick={onRealizar}>Realizar</button>}<RetirarControlButton control={control} usuario={usuario} /></div>
   </article>
 }

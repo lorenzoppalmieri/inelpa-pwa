@@ -12,6 +12,7 @@ import { setFeriados, setAusencias } from '../lib/calendario'
 import { setCortesLuz } from '../lib/cortesLuz'
 import { procesarColaAvisosMant } from '../mantenimiento/avisos'
 import { exigirPermisoBorradoSGO, exigirPermisoGestionAgendaISO, exigirPermisoGuardarTareaSGO } from '../sgo/permisos'
+import { retirarControlDeAgenda } from '../sgo/controles'
 import {
   tareaFromRow, paradaFromRow, ordenFromRow, semiFromRow, maquinaFromRow, usuarioFromRow, objetivoFromRow, tareaLogFromRow, solicitudLogFromRow, feriadoFromRow, ausenciaFromRow, corteLuzFromRow, mensajeFromRow, lecturaFromRow, estandarFromRow, despachoFromRow, fleteFromRow, laboratorioFromRow, plantillaFromRow, eventoSGOFromRow, accionSGOFromRow, indicadorSGOFromRow, medicionIndicadorSGOFromRow, auditoriaSGOFromRow, controlProgramadoSGOFromRow, ejecucionControlSGOFromRow, actividadAgendaISOFromRow, tareaSGOFromRow, comentarioTareaSGOFromRow,
   tareaToRow, paradaToRow, ordenToRow, semiToRow, objetivoToRow, tareaLogToRow, solicitudLogToRow, feriadoToRow, ausenciaToRow, corteLuzToRow, mensajeToRow, lecturaToRow, estandarToRow, despachoToRow, fleteToRow, laboratorioToRow, plantillaToRow, eventoSGOToRow, accionSGOToRow, indicadorSGOToRow, medicionIndicadorSGOToRow, controlProgramadoSGOToRow, ejecucionControlSGOToRow, actividadAgendaISOToRow, tareaSGOToRow, comentarioTareaSGOToRow,
@@ -1053,6 +1054,21 @@ export async function eliminarControlProgramadoSGO(c: ControlProgramadoSGO, usua
     await db.controlesProgramadosSGO.delete(c.id)
   })
   await encolar({ entidad: 'control_programado_sgo', entidadId: c.id, tipo: 'delete', payload: { id: c.id } })
+}
+export async function retirarControlProgramadoSGO(c: ControlProgramadoSGO, usuario: string): Promise<void> {
+  exigirPermisoBorradoSGO(usuario)
+  // Control y outbox se escriben juntos. Usar el registro vigente, no una copia del editor.
+  await db.transaction('rw', db.controlesProgramadosSGO, db.syncQueue, async () => {
+    const vigente = await db.controlesProgramadosSGO.get(c.id)
+    if (!vigente) throw new Error('El control ya no está disponible. Actualizá la agenda.')
+    if (!vigente.activo) return
+    const retirado = retirarControlDeAgenda(vigente, usuario)
+    await db.controlesProgramadosSGO.put(retirado)
+    await db.syncQueue.add({ id: crypto.randomUUID(), ts: retirado.actualizadoEn, sincronizado: false,
+      entidad: 'control_programado_sgo', entidadId: retirado.id, tipo: 'upsert', payload: retirado })
+  })
+  await refreshPendientes()
+  void procesarCola()
 }
 export async function guardarEjecucionControlSGO(e: EjecucionControlSGO): Promise<void> {
   await db.ejecucionesControlesSGO.put(e)

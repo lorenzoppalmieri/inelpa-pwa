@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
 import { fechaLocalISO, sumarDiasLocalISO } from '../../lib/time'
-import { eliminarControlProgramadoSGO, guardarControlProgramadoSGO, guardarEjecucionControlSGO, guardarEventoSGO } from '../../sync/syncEngine'
+import { guardarControlProgramadoSGO, guardarEjecucionControlSGO, guardarEventoSGO } from '../../sync/syncEngine'
+import RetirarControlButton from './RetirarControlButton'
 import {
   FRECUENCIAS_CONTROL_SGO, NORMAS_CONTROL_SGO, RESULTADOS_CONTROL_SGO, TIPOS_CONTROL_SGO,
   estadoProgramacionControl, proximaFechaControl, resultadoControlRequiereEvento, tipoEventoDesdeControl,
@@ -165,12 +166,7 @@ export function EditorControl({ registro, usuario, onClose }: { registro: Contro
   const [tolerancia, setTolerancia] = useState(String(registro?.toleranciaDias ?? 0))
   const [activo, setActivo] = useState(registro?.activo ?? true)
   const [guardando, setGuardando] = useState(false)
-  const ejecucionesAsociadas = useLiveQuery(
-    () => registro ? db.ejecucionesControlesSGO.where('controlId').equals(registro.id).count() : Promise.resolve(0),
-    [registro?.id],
-  ) ?? 0
   const puedeEditar = usuarioEsLorenzo(usuario)
-  const puedeEliminar = Boolean(registro) && usuarioEsLorenzo(usuario)
 
   async function guardar() {
     if (!puedeEditar) {
@@ -193,23 +189,6 @@ export function EditorControl({ registro, usuario, onClose }: { registro: Contro
     setGuardando(false); onClose()
   }
 
-  async function eliminar() {
-    if (!registro || !puedeEliminar) return
-    if (ejecucionesAsociadas > 0) {
-      window.alert('Este control tiene ejecuciones históricas. Para conservar la trazabilidad no puede eliminarse; desmarcá “Control activo” y guardalo.')
-      return
-    }
-    if (!window.confirm(`¿Eliminar definitivamente el control "${registro.titulo}"? Esta acción sólo está habilitada para Lorenzo.`)) return
-    setGuardando(true)
-    try {
-      await eliminarControlProgramadoSGO(registro, usuario)
-      onClose()
-    } catch (error) {
-      window.alert(error instanceof Error ? error.message : 'No se pudo eliminar el control.')
-      setGuardando(false)
-    }
-  }
-
   return <Modal titulo={registro ? 'Editar control programado' : 'Nuevo control programado'} onClose={onClose}>
     <div className="field"><label>Título *</label><input className="input" value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Ej. Verificación dimensional de bobinas terminadas" /></div>
     <div className="sgo-control-form-grid">
@@ -226,7 +205,7 @@ export function EditorControl({ registro, usuario, onClose }: { registro: Contro
     <div className="field"><label>Qué se debe controlar *</label><textarea className="input" rows={4} value={instrucciones} onChange={(e) => setInstrucciones(e.target.value)} placeholder="Método, muestra, característica, documento o evidencia esperada." /></div>
     <label className="check-inline"><input type="checkbox" checked={activo} onChange={(e) => setActivo(e.target.checked)} /> Control activo</label>
     <div className="row-actions" style={{ justifyContent: 'space-between' }}>
-      <div>{puedeEliminar && <button className="btn btn-rojo" disabled={guardando} onClick={() => void eliminar()}>{ejecucionesAsociadas > 0 ? 'Con historial · no eliminable' : 'Eliminar control'}</button>}</div>
+      <div>{registro && <RetirarControlButton control={registro} usuario={usuario} disabled={guardando} onRetirado={onClose} />}</div>
       <div className="row-actions"><button className="btn" onClick={onClose}>Cancelar</button><button className="btn btn-primary" disabled={guardando} onClick={() => void guardar()}>{guardando ? 'Guardando…' : 'Guardar control'}</button></div>
     </div>
   </Modal>
