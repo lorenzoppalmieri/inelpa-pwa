@@ -1,0 +1,1692 @@
+TMR07V0000001	TMR 3/7 - Monoposte - Cobre
+TMR07V0000002	TMR 5/7 - Monoposte - Cobre
+TMR07V0000003	TMR 10/7 - Monoposte - Cobre
+TMR07V0000004	TMR 16/7 - Monoposte - Cobre
+TMR07V0000005	TMR 25/7 - Monoposte - Cobre
+TMR07V0000006	TMR 40/7 - Monoposte - Cobre
+TMR07V0000007	TMR 3/7 - Monoposte - Aluminio
+TMR07V0000008	TMR 5/7 - Monoposte - Aluminio
+TMR07V0000009	TMR 10/7 - Monoposte - Aluminio
+TMR07V0000010	TMR 16/7 - Monoposte - Aluminio
+TMR07V0000011	TMR 25/7 - Monoposte - Aluminio
+TMR07V0000012	TMR 40/7 - Monoposte - Aluminio
+TMR19V0000001	TMR 5/19 - Monoposte - Cobre
+TMR19V0000002	TMR 10/19 - Monoposte - Cobre
+TMR19V0000003	TMR 16/19 - Monoposte - Cobre
+TMR19V0000004	TMR 25/19 - Monoposte - Cobre
+TMR19V0000005	TMR 40/19 - Monoposte - Cobre
+TMR19V0000006	TMR 5/19 - Monoposte - Aluminio
+TMR19V0000007	TMR 10/19 - Monoposte - Aluminio
+TMR19V0000008	TMR 16/19 - Monoposte - Aluminio
+TMR19V0000009	TMR 25/19 - Monoposte - Aluminio
+TMR19V0000010	TMR 40/19 - Monoposte - Aluminio
+TMR19V0000011	TMR 10/19 - Monoposte Bifilar - Cobre - TIPO EDEMSA
+TBR13V0000001	TBR 5/13 - Monoposte - Cobre
+TBR13V0000002	TBR 10/13 - Monoposte - Cobre
+TBR13V0000003	TBR 16/13 - Monoposte - Cobre
+TBR13V0000004	TBR 25/13 - Monoposte - Cobre
+TBR13V0000005	TBR 40/13 - Monoposte - Cobre
+TBR13V0000006	TBR 63/13 - Monoposte - Cobre
+TBR13V0000007	TBR 75/13 - Monoposte - Cobre
+TBR13V0000008	TBR 100/13 - Monoposte - Cobre
+TBR13V0000009	TBR 5/13 - Monoposte - Aluminio
+TBR13V0000010	TBR 10/13 - Monoposte - Aluminio
+TBR13V0000011	TBR 16/13 - Monoposte - Aluminio
+TBR13V0000012	TBR 25/13 - Monoposte - Aluminio
+TBR13V0000013	TBR 40/13 - Monoposte - Aluminio
+TBR13V0000014	TBR 63/13 - Monoposte - Aluminio
+TBR13V0000015	TBR 75/13 - Monoposte - Aluminio
+TBR13V0000016	TBR 100/13 - Monoposte - Aluminio
+TBR13V0000017	TBR 25/13 - Monoposte - Cobre - TIPO EDENOR
+TBR11V0000001	TBR 10/11 - Monoposte - Cobre
+TBR15V0000001	TBR 10/15 - Monoposte - Cobre - TIPO EDEMSA
+TBR33V0000001	TBR 5/33 - Monoposte - Cobre
+TBR33V0000002	TBR 10/33 - Monoposte - Cobre
+TBR33V0000003	TBR 16/33 - Monoposte - Cobre
+TBR33V0000004	TBR 25/33 - Monoposte - Cobre
+TBR33V0000005	TBR 40/33 - Monoposte - Cobre
+TBR33V0000006	TBR 5/33 - Monoposte - Aluminio
+TBR33V0000007	TBR 10/33 - Monoposte - Aluminio
+TBR33V0000008	TBR 16/33 - Monoposte - Aluminio
+TBR33V0000009	TBR 25/33 - Monoposte - Aluminio
+TBR33V0000010	TBR 40/33 - Monoposte - Aluminio
+TTR13V0000001	TTR 10/13 - Monoposte - Cobre
+TTR13V0000002	TTR 16/13 - Monoposte - Cobre
+TTR13V0000003	TTR 25/13 - Monoposte - Cobre
+TTR13V0000004	TTR 40/13 - Monoposte - Cobre
+TTR13V0000005	TTR 63/13 - Monoposte - Cobre
+TTR13V0000006	TTR 10/13 - Monoposte - Aluminio
+TTR13V0000007	TTR 16/13 - Monoposte - Aluminio
+TTR13V0000008	TTR 25/13 - Monoposte - Aluminio
+TTR13V0000009	TTR 40/13 - Monoposte - Aluminio
+TTR13V0000010	TTR 63/13 - Monoposte - Aluminio
+TTR13V0000011	TTR 63/13 - Monoposte - Cobre - TIPO EDENOR
+TTR15V0000001	TTR 10/15 - Monoposte - Cobre - TIPO EDEMSA
+TTR15V0000002	TTR 16/15 - Monoposte - Cobre - TIPO EDEMSA
+TTR33V0000001	TTR 10/33 - Monoposte - Cobre
+TTR33V0000002	TTR 16/33 - Monoposte - Cobre
+TTR33V0000003	TTR 25/33 - Monoposte - Cobre
+TTR33V0000004	TTR 40/33 - Monoposte - Cobre
+TTR33V0000005	TTR 63/33 - Monoposte - Cobre
+TTR33V0000006	TTR 10/33 - Monoposte - Aluminio
+TTR33V0000007	TTR 16/33 - Monoposte - Aluminio
+TTR33V0000008	TTR 25/33 - Monoposte - Aluminio
+TTR33V0000009	TTR 40/33 - Monoposte - Aluminio
+TTR33V0000010	TTR 63/33 - Monoposte - Aluminio
+TTD13V0000001	TTD 16/13 - Tanque Expansion - Plataforma - Cobre
+TTD13V0000002	TTD 25/13 - Tanque Expansion - Plataforma - Cobre
+TTD13V0000003	TTD 40/13 - Tanque Expansion - Plataforma - Cobre
+TTD13V0000004	TTD 63/13 - Tanque Expansion - Plataforma - Cobre
+TTD13V0000005	TTD 100/13 - Tanque Expansion - Plataforma - Cobre
+TTD13V0000006	TTD 125/13 - Tanque Expansion - Plataforma - Cobre
+TTD13V0000007	TTD 160/13 - Tanque Expansion - Plataforma - Cobre
+TTD13V0000008	TTD 200/13 - Tanque Expansion - Plataforma - Cobre
+TTD13V0000009	TTD 250/13 - Tanque Expansion - Plataforma - Cobre
+TTD13V0000010	TTD 315/13 - Tanque Expansion - Plataforma - Cobre
+TTD13V0000011	TTD 400/13 - Tanque Expansion - Plataforma - Cobre
+TTD13V0000012	TTD 500/13 - Tanque Expansion - Plataforma - Cobre
+TTD13V0000013	TTD 630/13 - Tanque Expansion - Plataforma - Cobre
+TTD13V0000014	TTD 800/13 - Tanque Expansion - Plataforma - Cobre
+TTD13V0000015	TTD 1000/13 - Tanque Expansion - Plataforma - Cobre
+TTD13V0000016	TTD 1250/13 - Tanque Expansion - Plataforma - Cobre
+TTD13V0000017	TTD 1500/13 - Tanque Expansion - Plataforma - Cobre
+TTD13V0000018	TTD 1600/13 - Tanque Expansion - Plataforma - Cobre
+TTD13V0000019	TTD 2000/13 - Tanque Expansion - Plataforma - Cobre
+TTD13V0000020	TTD 16/13 - Tanque Expansion - Plataforma - Aluminio
+TTD13V0000021	TTD 25/13 - Tanque Expansion - Plataforma - Aluminio
+TTD13V0000022	TTD 40/13 - Tanque Expansion - Plataforma - Aluminio
+TTD13V0000023	TTD 63/13 - Tanque Expansion - Plataforma - Aluminio
+TTD13V0000024	TTD 100/13 - Tanque Expansion - Plataforma - Aluminio
+TTD13V0000025	TTD 125/13 - Tanque Expansion - Plataforma - Aluminio
+TTD13V0000026	TTD 160/13 - Tanque Expansion - Plataforma - Aluminio
+TTD13V0000027	TTD 200/13 - Tanque Expansion - Plataforma - Aluminio
+TTD13V0000028	TTD 250/13 - Tanque Expansion - Plataforma - Aluminio
+TTD13V0000029	TTD 315/13 - Tanque Expansion - Plataforma - Aluminio
+TTD13V0000030	TTD 400/13 - Tanque Expansion - Plataforma - Aluminio
+TTD13V0000031	TTD 500/13 - Tanque Expansion - Plataforma - Aluminio
+TTD13V0000032	TTD 630/13 - Tanque Expansion - Plataforma - Aluminio
+TTD13V0000033	TTD 800/13 - Tanque Expansion - Plataforma - Aluminio
+TTD13V0000034	TTD 1000/13 - Tanque Expansion - Plataforma - Aluminio
+TTD13V0000035	TTD 1250/13 - Tanque Expansion - Plataforma - Aluminio
+TTD13V0000036	TTD 1500/13 - Tanque Expansion - Plataforma - Aluminio
+TTD13V0000037	TTD 1600/13 - Tanque Expansion - Plataforma - Aluminio
+TTD13V0000038	TTD 2000/13 - Tanque Expansion - Plataforma - Aluminio
+TTD13V0000039	TTD 16/13 - Llenado Integral - Plataforma - Cobre
+TTD13V0000040	TTD 25/13 - Llenado Integral - Plataforma - Cobre
+TTD13V0000041	TTD 40/13 - Llenado Integral - Plataforma - Cobre
+TTD13V0000042	TTD 63/13 - Llenado Integral - Plataforma - Cobre
+TTD13V0000043	TTD 100/13 - Llenado Integral - Plataforma - Cobre
+TTD13V0000044	TTD 125/13 - Llenado Integral - Plataforma - Cobre
+TTD13V0000045	TTD 160/13 - Llenado Integral - Plataforma - Cobre
+TTD13V0000046	TTD 200/13 - Llenado Integral - Plataforma - Cobre
+TTD13V0000047	TTD 250/13 - Llenado Integral - Plataforma - Cobre
+TTD13V0000048	TTD 315/13 - Llenado Integral - Plataforma - Cobre
+TTD13V0000049	TTD 400/13 - Llenado Integral - Plataforma - Cobre
+TTD13V0000050	TTD 500/13 - Llenado Integral - Plataforma - Cobre
+TTD13V0000051	TTD 630/13 - Llenado Integral - Plataforma - Cobre
+TTD13V0000052	TTD 800/13 - Llenado Integral - Plataforma - Cobre
+TTD13V0000053	TTD 1000/13 - Llenado Integral - Plataforma - Cobre
+TTD13V0000054	TTD 1250/13 - Llenado Integral- Plataforma - Cobre
+TTD13V0000055	TTD 1500/13 - Llenado Integral - Plataforma - Cobre
+TTD13V0000056	TTD 1600/13 - Llenado Integral - Plataforma - Cobre
+TTD13V0000057	TTD 2000/13 - Llenado Integral - Plataforma - Cobre
+TTD13V0000058	TTD 16/13 - Llenado Integral - Plataforma - Aluminio
+TTD13V0000059	TTD 25/13 - Llenado Integral - Plataforma - Aluminio
+TTD13V0000060	TTD 40/13 - Llenado Integral - Plataforma - Aluminio
+TTD13V0000061	TTD 63/13 - Llenado Integral - Plataforma - Aluminio
+TTD13V0000062	TTD 100/13 - Llenado Integral - Plataforma - Aluminio
+TTD13V0000063	TTD 125/13 - Llenado Integral - Plataforma - Aluminio
+TTD13V0000064	TTD 160/13 - Llenado Integral - Plataforma - Aluminio
+TTD13V0000065	TTD 200/13 - Llenado Integral - Plataforma - Aluminio
+TTD13V0000066	TTD 250/13 - Llenado Integral - Plataforma - Aluminio
+TTD13V0000067	TTD 315/13 - Llenado Integral- Plataforma - Aluminio
+TTD13V0000068	TTD 400/13 - Llenado Integral - Plataforma - Aluminio
+TTD13V0000069	TTD 500/13 - Llenado Integral - Plataforma - Aluminio
+TTD13V0000070	TTD 630/13 - Llenado Integral - Plataforma - Aluminio
+TTD13V0000071	TTD 800/13 - Llenado Integral - Plataforma - Aluminio
+TTD13V0000072	TTD 1000/13 - Llenado Integral - Plataforma - Aluminio
+TTD13V0000073	TTD 1250/13 - Llenado Integral - Plataforma - Aluminio
+TTD13V0000074	TTD 1500/13 - Llenado Integral - Plataforma - Aluminio
+TTD13V0000075	TTD 1600/13 - Llenado Integral - Plataforma - Aluminio
+TTD13V0000076	TTD 2000/13 - Llenado Integral - Plataforma - Aluminio
+TTD13V0000077	TTD 16/13 - Tanque Expansion - Monoposte - Cobre
+TTD13V0000078	TTD 25/13 - Tanque Expansion - Monoposte - Cobre
+TTD13V0000079	TTD 40/13 - Tanque Expansion - Monoposte - Cobre
+TTD13V0000080	TTD 63/13 - Tanque Expansion - Monoposte - Cobre
+TTD13V0000081	TTD 100/13 - Tanque Expansion - Monoposte - Cobre
+TTD13V0000082	TTD 125/13 - Tanque Expansion - Monoposte - Cobre
+TTD13V0000083	TTD 160/13 - Tanque Expansion - Monoposte - Cobre
+TTD13V0000084	TTD 200/13 - Tanque Expansion - Monoposte - Cobre
+TTD13V0000085	TTD 250/13 - Tanque Expansion - Monoposte - Cobre
+TTD13V0000086	TTD 16/13 - Tanque Expansion - Monoposte - Aluminio
+TTD13V0000087	TTD 25/13 - Tanque Expansion - Monoposte - Aluminio
+TTD13V0000088	TTD 40/13 - Tanque Expansion - Monoposte - Aluminio
+TTD13V0000089	TTD 63/13 - Tanque Expansion - Monoposte - Aluminio
+TTD13V0000090	TTD 100/13 - Tanque Expansion - Monoposte - Aluminio
+TTD13V0000091	TTD 125/13 - Tanque Expansion - Monoposte - Aluminio
+TTD13V0000092	TTD 160/13 - Tanque Expansion - Monoposte - Aluminio
+TTD13V0000093	TTD 200/13 - Tanque Expansion - Monoposte - Aluminio
+TTD13V0000094	TTD 250/13 - Tanque Expansion - Monoposte - Aluminio
+TTD13V0000095	TTD 16/13 - Llenado Integral - Monoposte - Cobre
+TTD13V0000096	TTD 25/13 - Llenado Integral - Monoposte - Cobre
+TTD13V0000097	TTD 40/13 - Llenado Integral - Monoposte - Cobre
+TTD13V0000098	TTD 63/13 - Llenado Integral - Monoposte - Cobre
+TTD13V0000099	TTD 100/13 - Llenado Integral - Monoposte - Cobre
+TTD13V0000100	TTD 125/13 - Llenado Integral - Monoposte - Cobre
+TTD13V0000101	TTD 160/13 - Llenado Integral - Monoposte - Cobre
+TTD13V0000102	TTD 200/13 - Llenado Integral - Monoposte - Cobre
+TTD13V0000103	TTD 250/13 - Llenado Integral - Monoposte - Cobre
+TTD13V0000104	TTD 16/13 - Llenado Integral - Monoposte - Aluminio
+TTD13V0000105	TTD 25/13 - Llenado Integral - Monoposte - Aluminio
+TTD13V0000106	TTD 40/13 - Llenado Integral - Monoposte - Aluminio
+TTD13V0000107	TTD 63/13 - Llenado Integral - Monoposte - Aluminio
+TTD13V0000108	TTD 100/13 - Llenado Integral - Monoposte - Aluminio
+TTD13V0000109	TTD 125/13 - Llenado Integral - Monoposte - Aluminio
+TTD13V0000110	TTD 160/13 - Llenado Integral - Monoposte - Aluminio
+TTD13V0000111	TTD 200/13 - Llenado Integral - Monoposte - Aluminio
+TTD13V0000112	TTD 250/13 - Llenado Integral - Monoposte - Aluminio
+TTD13V0000113	TTD 160/13 - Llenado Integral - Monoposte - Cobre - TIPO EDENOR
+TTD13V0000114	TTD 200/13 - Tanque Expansion - Plataforma - Cobre - TIPO DPEC
+TTD13V0000115	TTD 315/13 - Tanque Expansion - Plataforma - Cobre - TIPO DPEC
+TTD13V0000116	TTD 500/13 - Tanque Expansion - Plataforma - Cobre - TIPO DPEC
+TTD13V0000117	TTD 630/13 - Tanque Expansion - Plataforma - Cobre - TIPO DPEC
+TTD13V0000118	TTD 800/13 - Tanque Expansion - Plataforma - Cobre - TIPO DPEC
+TTD13V0000119	TTD 160/13 - Tanque Expansion - Plataforma - Aluminio - TIPO DPEC
+TTD13V0000120	TTD 200/13 - Tanque Expansion - Plataforma - Aluminio - TIPO DPEC
+TTD13V0000121	TTD 315/13 - Tanque Expansion - Plataforma - Aluminio - TIPO DPEC
+TTD33V0000001	TTD 16/33 - Tanque Expansion - Plataforma - Cobre
+TTD33V0000002	TTD 25/33 - Tanque Expansion - Plataforma - Cobre
+TTD33V0000003	TTD 40/33 - Tanque Expansion - Plataforma - Cobre
+TTD33V0000004	TTD 63/33 - Tanque Expansion - Plataforma - Cobre
+TTD33V0000005	TTD 100/33 - Tanque Expansion - Plataforma - Cobre
+TTD33V0000006	TTD 125/33 - Tanque Expansion - Plataforma - Cobre
+TTD33V0000007	TTD 160/33 - Tanque Expansion - Plataforma - Cobre
+TTD33V0000008	TTD 200/33 - Tanque Expansion - Plataforma - Cobre
+TTD33V0000009	TTD 250/33 - Tanque Expansion - Plataforma - Cobre
+TTD33V0000010	TTD 315/33 - Tanque Expansion - Plataforma - Cobre
+TTD33V0000011	TTD 400/33 - Tanque Expansion - Plataforma - Cobre
+TTD33V0000012	TTD 500/33 - Tanque Expansion - Plataforma - Cobre
+TTD33V0000013	TTD 630/33 - Tanque Expansion - Plataforma - Cobre
+TTD33V0000014	TTD 800/33 - Tanque Expansion - Plataforma - Cobre
+TTD33V0000015	TTD 1000/33 - Tanque Expansion - Plataforma - Cobre
+TTD33V0000016	TTD 1250/33 - Tanque Expansion - Plataforma - Cobre
+TTD33V0000017	TTD 1500/33 - Tanque Expansion - Plataforma - Cobre
+TTD33V0000018	TTD 1600/33 - Tanque Expansion - Plataforma - Cobre
+TTD33V0000019	TTD 2000/33 - Tanque Expansion - Plataforma - Cobre
+TTD33V0000020	TTD 16/33 - Tanque Expansion - Plataforma - Aluminio
+TTD33V0000021	TTD 25/33 - Tanque Expansion - Plataforma - Aluminio
+TTD33V0000022	TTD 40/33 - Tanque Expansion - Plataforma - Aluminio
+TTD33V0000023	TTD 63/33 - Tanque Expansion - Plataforma - Aluminio
+TTD33V0000024	TTD 100/33 - Tanque Expansion - Plataforma - Aluminio
+TTD33V0000025	TTD 125/33 - Tanque Expansion - Plataforma - Aluminio
+TTD33V0000026	TTD 160/33 - Tanque Expansion - Plataforma - Aluminio
+TTD33V0000027	TTD 200/33 - Tanque Expansion - Plataforma - Aluminio
+TTD33V0000028	TTD 250/33 - Tanque Expansion - Plataforma - Aluminio
+TTD33V0000029	TTD 315/33 - Tanque Expansion - Plataforma - Aluminio
+TTD33V0000030	TTD 400/33 - Tanque Expansion - Plataforma - Aluminio
+TTD33V0000031	TTD 500/33 - Tanque Expansion - Plataforma - Aluminio
+TTD33V0000032	TTD 630/33 - Tanque Expansion - Plataforma - Aluminio
+TTD33V0000033	TTD 800/33 - Tanque Expansion - Plataforma - Aluminio
+TTD33V0000034	TTD 1000/33 - Tanque Expansion - Plataforma - Aluminio
+TTD33V0000035	TTD 1250/33 - Tanque Expansion - Plataforma - Aluminio
+TTD33V0000036	TTD 1500/33 - Tanque Expansion - Plataforma - Aluminio
+TTD33V0000037	TTD 1600/33 - Tanque Expansion - Plataforma - Aluminio
+TTD33V0000038	TTD 2000/33 - Tanque Expansion - Plataforma - Aluminio
+TTD33V0000039	TTD 16/33 - Llenado Integral - Plataforma - Cobre
+TTD33V0000040	TTD 25/33 - Llenado Integral - Plataforma - Cobre
+TTD33V0000041	TTD 40/33 - Llenado Integral - Plataforma - Cobre
+TTD33V0000042	TTD 63/33 - Llenado Integral - Plataforma - Cobre
+TTD33V0000043	TTD 100/33 - Llenado Integral - Plataforma - Cobre
+TTD33V0000044	TTD 125/33 - Llenado Integral - Plataforma - Cobre
+TTD33V0000045	TTD 160/33 - Llenado Integral - Plataforma - Cobre
+TTD33V0000046	TTD 200/33 - Llenado Integral - Plataforma - Cobre
+TTD33V0000047	TTD 250/33 - Llenado Integral - Plataforma - Cobre
+TTD33V0000048	TTD 315/33 - Llenado Integral - Plataforma - Cobre
+TTD33V0000049	TTD 400/33 - Llenado Integral - Plataforma - Cobre
+TTD33V0000050	TTD 500/33 - Llenado Integral - Plataforma - Cobre
+TTD33V0000051	TTD 630/33 - Llenado Integral - Plataforma - Cobre
+TTD33V0000052	TTD 800/33 - Llenado Integral- Plataforma - Cobre
+TTD33V0000053	TTD 1000/33 - Llenado Integral - Plataforma - Cobre
+TTD33V0000054	TTD 1250/33 - Llenado Integral - Plataforma - Cobre
+TTD33V0000055	TTD 1500/33 - Llenado Integral - Plataforma - Cobre
+TTD33V0000056	TTD 1600/33 - Llenado Integral - Plataforma - Cobre
+TTD33V0000057	TTD 2000/33 - Llenado Integral - Plataforma - Cobre
+TTD33V0000058	TTD 16/33 - Llenado Integral - Plataforma - Aluminio
+TTD33V0000059	TTD 25/33 - Llenado Integral - Plataforma - Aluminio
+TTD33V0000060	TTD 40/33 - Llenado Integral - Plataforma - Aluminio
+TTD33V0000061	TTD 63/33 - Llenado Integral - Plataforma - Aluminio
+TTD33V0000062	TTD 100/33 - Llenado Integral - Plataforma - Aluminio
+TTD33V0000063	TTD 125/33 - Llenado Integral - Plataforma - Aluminio
+TTD33V0000064	TTD 160/33 - Llenado Integral - Plataforma - Aluminio
+TTD33V0000065	TTD 200/33 - Llenado Integral - Plataforma - Aluminio
+TTD33V0000066	TTD 250/33 - Llenado Integral - Plataforma - Aluminio
+TTD33V0000067	TTD 315/33 - Llenado Integral - Plataforma - Aluminio
+TTD33V0000068	TTD 400/33 - Llenado Integral - Plataforma - Aluminio
+TTD33V0000069	TTD 500/33 - Llenado Integral - Plataforma - Aluminio
+TTD33V0000070	TTD 630/33 - Llenado Integral - Plataforma - Aluminio
+TTD33V0000071	TTD 800/33 - Llenado Integral - Plataforma - Aluminio
+TTD33V0000072	TTD 1000/33 - Llenado Integral - Plataforma - Aluminio
+TTD33V0000073	TTD 1250/33 - Llenado Integral - Plataforma - Aluminio
+TTD33V0000074	TTD 1500/33 - Llenado Integral - Plataforma - Aluminio
+TTD33V0000075	TTD 1600/33 - Llenado Integral - Plataforma - Aluminio
+TTD33V0000076	TTD 2000/33 - Llenado Integral - Plataforma - Aluminio
+TTD33V0000077	TTD 16/33 - Tanque Expansion - Monoposte - Cobre
+TTD33V0000078	TTD 25/33 - Tanque Expansion - Monoposte - Cobre
+TTD33V0000079	TTD 40/33 - Tanque Expansion - Monoposte - Cobre
+TTD33V0000080	TTD 63/33 - Tanque Expansion - Monoposte - Cobre
+TTD33V0000081	TTD 100/33 - Tanque Expansion - Monoposte - Cobre
+TTD33V0000082	TTD 125/33 - Tanque Expansion - Monoposte - Cobre
+TTD33V0000083	TTD 160/33 - Tanque Expansion - Monoposte - Cobre
+TTD33V0000084	TTD 200/33 - Tanque Expansion - Monoposte - Cobre
+TTD33V0000085	TTD 250/33 - Tanque Expansion - Monoposte - Cobre
+TTD33V0000086	TTD 16/33 - Tanque Expansion - Monoposte - Aluminio
+TTD33V0000087	TTD 25/33 - Tanque Expansion - Monoposte - Aluminio
+TTD33V0000088	TTD 40/33 - Tanque Expansion - Monoposte - Aluminio
+TTD33V0000089	TTD 63/33 - Tanque Expansion - Monoposte - Aluminio
+TTD33V0000090	TTD 100/33 - Tanque Expansion - Monoposte - Aluminio
+TTD33V0000091	TTD 125/33 - Tanque Expansion - Monoposte - Aluminio
+TTD33V0000092	TTD 160/33 - Tanque Expansion - Monoposte - Aluminio
+TTD33V0000093	TTD 200/33 - Tanque Expansion - Monoposte - Aluminio
+TTD33V0000094	TTD 250/33 - Tanque Expansion - Monoposte - Aluminio
+TTD33V0000095	TTD 16/33 - Llenado Integral - Monoposte - Cobre
+TTD33V0000096	TTD 25/33 - Llenado Integral - Monoposte - Cobre
+TTD33V0000097	TTD 40/33 - Llenado Integral - Monoposte - Cobre
+TTD33V0000098	TTD 63/33 - Llenado Integral - Monoposte - Cobre
+TTD33V0000099	TTD 100/33 - Llenado Integral - Monoposte - Cobre
+TTD33V0000100	TTD 125/33 - Llenado Integral - Monoposte - Cobre
+TTD33V0000101	TTD 160/33 - Llenado Integral - Monoposte - Cobre
+TTD33V0000102	TTD 200/33 - Llenado Integral - Monoposte - Cobre
+TTD33V0000103	TTD 250/33 - Llenado Integral - Monoposte - Cobre
+TTD33V0000104	TTD 16/33 - Llenado Integral - Monoposte - Aluminio
+TTD33V0000105	TTD 25/33 - Llenado Integral - Monoposte - Aluminio
+TTD33V0000106	TTD 40/33 - Llenado Integral - Monoposte - Aluminio
+TTD33V0000107	TTD 63/33 - Llenado Integral - Monoposte - Aluminio
+TTD33V0000108	TTD 100/33 - Llenado Integral - Monoposte - Aluminio
+TTD33V0000109	TTD 125/33 - Llenado Integral - Monoposte - Aluminio
+TTD33V0000110	TTD 160/33 - Llenado Integral - Monoposte - Aluminio
+TTD33V0000111	TTD 200/33 - Llenado Integral - Monoposte - Aluminio
+TTD33V0000112	TTD 250/33 - Llenado Integral - Monoposte - Aluminio
+TTD33V0000113	TTD 63/33 - Tanque Expansion - Plataforma - Aluminio - TIPO DPEC
+TAM13V0000001	TAM 400 13,2/13,8 - TIPO EDESTE
+TAM13V0000002	TAM 400 13,2/19,05 - TIPO EDESTE
+TAM33V0000001	TAM 400 33/19,05 - TIPO EDESTE
+TAM33V0000002	TAM 500 33/19,05 - TIPO EDESTE
+TSE13V0000001	TSE 16/13 - Transformador Seco Encapsulado en Resina - Aluminio
+TSE13V0000002	TSE 25/13 - Transformador Seco Encapsulado en Resina - Aluminio
+TSE13V0000003	TSE 40/13 - Transformador Seco Encapsulado en Resina - Aluminio
+TSE13V0000004	TSE 50/13 - Transformador Seco Encapsulado en Resina - Aluminio
+TSE13V0000005	TSE 63/13 - Transformador Seco Encapsulado en Resina - Aluminio
+TSE13V0000006	TSE 80/13 - Transformador Seco Encapsulado en Resina - Aluminio
+TSE13V0000007	TSE 100/13 - Transformador Seco Encapsulado en Resina - Aluminio
+TSE13V0000008	TSE 125/13 - Transformador Seco Encapsulado en Resina - Aluminio
+TSE13V0000009	TSE 160/13 - Transformador Seco Encapsulado en Resina - Aluminio
+TSE13V0000010	TSE 200/13 - Transformador Seco Encapsulado en Resina - Aluminio
+TSE13V0000011	TSE 250/13 - Transformador Seco Encapsulado en Resina - Aluminio
+TSE13V0000012	TSE 315/13 - Transformador Seco Encapsulado en Resina - Aluminio
+TSE13V0000013	TSE 400/13 - Transformador Seco Encapsulado en Resina - Aluminio
+TSE13V0000014	TSE 500/13 - Transformador Seco Encapsulado en Resina - Aluminio
+TSE13V0000015	TSE 630/13 - Transformador Seco Encapsulado en Resina - Aluminio
+TSE13V0000016	TSE 800/13 - Transformador Seco Encapsulado en Resina - Aluminio
+TSE13V0000017	TSE 1000/13 - Transformador Seco Encapsulado en Resina - Aluminio
+TSE13V0000018	TSE 1250/13 - Transformador Seco Encapsulado en Resina - Aluminio
+TSE13V0000019	TSE 1500/13 - Transformador Seco Encapsulado en Resina - Aluminio
+TSE13V0000020	TSE 1600/13 - Transformador Seco Encapsulado en Resina - Aluminio
+TSE13V0000021	TSE 2000/13 - Transformador Seco Encapsulado en Resina - Aluminio
+TSE13V0000022	TSE 2500/13 - Transformador Seco Encapsulado en Resina - Aluminio
+TSE13V0000023	TSE 3150/13 - Transformador Seco Encapsulado en Resina - Aluminio
+TSE13V0000024	TSE 5000/13 - Transformador Seco Encapsulado en Resina - Aluminio
+TSE33V0000001	TSE 16/33 - Transformador Seco Encapsulado en Resina - Aluminio
+TSE33V0000002	TSE 25/33 - Transformador Seco Encapsulado en Resina - Aluminio
+TSE33V0000003	TSE 40/33 - Transformador Seco Encapsulado en Resina - Aluminio
+TSE33V0000004	TSE 50/33 - Transformador Seco Encapsulado en Resina - Aluminio
+TSE33V0000005	TSE 63/33 - Transformador Seco Encapsulado en Resina - Aluminio
+TSE33V0000006	TSE 80/33 - Transformador Seco Encapsulado en Resina - Aluminio
+TSE33V0000007	TSE 100/33 - Transformador Seco Encapsulado en Resina - Aluminio
+TSE33V0000008	TSE 125/33 - Transformador Seco Encapsulado en Resina - Aluminio
+TSE33V0000009	TSE 160/33 - Transformador Seco Encapsulado en Resina - Aluminio
+TSE33V0000010	TSE 200/33 - Transformador Seco Encapsulado en Resina - Aluminio
+TSE33V0000011	TSE 250/33 - Transformador Seco Encapsulado en Resina - Aluminio
+TSE33V0000012	TSE 315/33 - Transformador Seco Encapsulado en Resina - Aluminio
+TSE33V0000013	TSE 400/33 - Transformador Seco Encapsulado en Resina - Aluminio
+TSE33V0000014	TSE 500/33 - Transformador Seco Encapsulado en Resina - Aluminio
+TSE33V0000015	TSE 630/33 - Transformador Seco Encapsulado en Resina - Aluminio
+TSE33V0000016	TSE 800/33 - Transformador Seco Encapsulado en Resina - Aluminio
+TSE33V0000017	TSE 1000/33 - Transformador Seco Encapsulado en Resina - Aluminio
+TSE33V0000018	TSE 1250/33 - Transformador Seco Encapsulado en Resina - Aluminio
+TSE33V0000019	TSE 1500/33 - Transformador Seco Encapsulado en Resina - Aluminio
+TSE33V0000020	TSE 1600/33 - Transformador Seco Encapsulado en Resina - Aluminio
+TSE33V0000021	TSE 2000/33 - Transformador Seco Encapsulado en Resina - Aluminio
+TSE33V0000022	TSE 2500/33 - Transformador Seco Encapsulado en Resina - Aluminio
+TSE33V0000023	TSE 3150/33 - Transformador Seco Encapsulado en Resina - Aluminio
+TSE33V0000024	TSE 5000/33 - Transformador Seco Encapsulado en Resina - Aluminio
+TTS33V0000001	TTS 200 33/13,86 - Transformador Trifasico Subtransmisión Reductor
+TTS33V0000002	TTS 250 33/13,86 - Transformador Trifasico Subtransmisión Reductor
+TTS33V0000003	TTS 315 33/13,86 - Transformador Trifasico Subtransmisión Reductor
+TTS33V0000004	TTS 400 33/13,86 - Transformador Trifasico Subtransmisión Reductor
+TTS33V0000005	TTS 500 33/13,86 - Transformador Trifasico Subtransmisión Reductor
+TTS33V0000006	TTS 630 33/13,86 - Transformador Trifasico Subtransmisión Reductor
+TTS33V0000007	TTS 800 33/13,86 - Transformador Trifasico Subtransmisión Reductor
+TTS33V0000008	TTS 1000 33/13,86 - Transformador Trifasico Subtransmisión Reductor
+TTS33V0000009	TTS 1250 33/13,86 - Transformador Trifasico Subtransmisión Reductor
+TTS33V0000010	TTS 1600 33/13,86 - Transformador Trifasico Subtransmisión Reductor
+TTS33V0000011	TTS 2000 33/13,86 - Transformador Trifasico Subtransmisión Reductor
+TTS33V0000012	TTS 2500 33/13,86 - Transformador Trifasico Subtransmisión Reductor
+TTS33V0000013	TTS 3150 33/13,86 - Transformador Trifasico Subtransmisión Reductor
+TTS33V0000014	TTS 4000 33/13,86 - Transformador Trifasico Subtransmisión Reductor
+TTS33V0000015	TTS 5000 33/13,86 - Transformador Trifasico Subtransmisión Reductor
+TTS33V0000016	TTS 6300 33/13,86 - Transformador Trifasico Subtransmisión Reductor
+TTS33V0000017	TTS 8000 33/13,86 - Transformador Trifasico Subtransmisión Reductor
+TTS33V0000018	TTS 10 MVA 33/13,86 - Transformador Trifasico Subtransmisión Reductor
+TTS33V0000019	TTS 12,5 MVA 33/13,86 - Transformador Trifasico Subtransmisión Reductor
+TTS33V0000020	TTS 16 MVA 33/13,86 - Transformador Trifasico Subtransmisión Reductor
+TTS33V0000021	TTS 20 MVA 33/13,86 - Transformador Trifasico Subtransmisión Reductor
+TTS33V0000022	TTS 200 13,2/34,65 - Transformador Trifasico Subtransmisión Elevador
+TTS33V0000023	TTS 250 13,2/34,65 - Transformador Trifasico Subtransmisión Elevador
+TTS33V0000024	TTS 315 13,2/34,65 - Transformador Trifasico Subtransmisión Elevador
+TTS33V0000025	TTS 400 13,2/34,65 - Transformador Trifasico Subtransmisión Elevador
+TTS33V0000026	TTS 500 13,2/34,65 - Transformador Trifasico Subtransmisión Elevador
+TTS33V0000027	TTS 630 13,2/34,65 - Transformador Trifasico Subtransmisión Elevador
+TTS33V0000028	TTS 800 13,2/34,65 - Transformador Trifasico Subtransmisión Elevador
+TTS33V0000029	TTS 1000 13,2/34,65 - Transformador Trifasico Subtransmisión Elevador
+TTS33V0000030	TTS 1250 13,2/34,65 - Transformador Trifasico Subtransmisión Elevador
+TTS33V0000031	TTS 1600 13,2/34,65 - Transformador Trifasico Subtransmisión Elevador
+TTS33V0000032	TTS 2000 13,2/34,65 - Transformador Trifasico Subtransmisión Elevador
+TTS33V0000033	TTS 2500 13,2/34,65 - Transformador Trifasico Subtransmisión Elevador
+TTS33V0000034	TTS 3150 13,2/34,65 - Transformador Trifasico Subtransmisión Elevador
+TTS33V0000035	TTS 4000 13,2/34,65 - Transformador Trifasico Subtransmisión Elevador
+TTS33V0000036	TTS 5000 13,2/34,65 - Transformador Trifasico Subtransmisión Elevador
+TTS33V0000037	TTS 6300 13,2/34,65 - Transformador Trifasico Subtransmisión Elevador
+TTS33V0000038	TTS 8000 13,2/34,65 - Transformador Trifasico Subtransmisión Elevador
+TTS33V0000039	TTS 10 MVA 13,2/34,65 - Transformador Trifasico Subtransmisión Elevador
+TTS33V0000040	TTS 12,5 MVA 13,2/34,65 - Transformador Trifasico Subtransmisión Elevador
+TTS33V0000041	TTS 16 MVA 13,2/34,65 - Transformador Trifasico Subtransmisión Elevador
+TTS33V0000042	TTS 20 MVA 13,2/34,65 - Transformador Trifasico Subtransmisión Elevador
+TTS33V0000043	TTS 630 33/13,86 - Transformador Trifasico Subtransmisión Reductor Especial 1
+CUBRUR0000001	Cuba Rural Mon/Bif Ø280 - Alto: 420mm
+CUBRUR0000002	Cuba Rural Mon/Bif Ø315 - Alto: 470mm
+CUBRUR0000003	Cuba Rural Mon/Bif Ø360 - Alto: 500mm
+CUBRUR0000004	Cuba Rural Mon/Bif Ø360 - Alto: 550mm
+CUBRUR0000005	Cuba Rural Trif Ø360 - Alto: 750mm
+CUBRUR0000006	Cuba Rural Trif Ø360 - Alto: 800mm
+CUBRUR0000007	Cuba Rural Trif Ø360 - Alto: 930mm
+CUBRUR0000008	Cuba Rural Mon/Bif Ø390 - Alto: 600mm
+CUBRUR0000009	Cuba Rural Mon/Bif Ø390 - Alto: 650mm
+CUBRUR0000010	Cuba Rural Mon/Bif Ø390 - Alto: 700mm
+CUBRUR0000011	Cuba Rural Trif Ø390 - Alto: 980mm
+CUBRUR0000012	Cuba Rural Trif Ø390 - Alto: 1110mm
+CUBRUR0000013	Cuba Rural Trif Ø390 - Alto: 1200mm
+CUBRUR0000014	Cuba Rural Mon/Bif Ø440 - Alto: 650mm
+CUBRUR0000015	Cuba Rural Trif Ø460 - Alto: 950mm
+CUBRUR0000016	Cuba Rural Mon/Bif Ø460 - Alto: 700mm
+CUBRUR0000017	Cuba Rural Trif Ø460 - Alto: 1150mm
+CUBRUR0000018	Cuba Rural Trif Ø480 - Alto: 1150mm
+CUBRUR0000019	Cuba Rural Trif Ø500 - Alto: 1180mm
+CUBRUR0000020	Cuba Rural Mon/Bif Ø520 - Alto: 800mm
+CUBRUR0000021	Cuba Rural Trif Ø520 - Alto: 1220mm
+CUBRUR0000022	Cuba Rural Trif Ø540 - Alto: 1260mm
+CUBRUR0000023	Cuba Rural Mon/Bif Ø560 - Alto: 920mm
+CUBRUR0000024	Cuba Rural Mon/Bif Ø640 - Alto: 985mm
+CUBRUR0000025	Cuba Rural Trif Ø480 - Alto: 1200mm
+CUBRUR0000026	Cuba Rural Trif Ø440 - Alto: 1200mm
+CUBRUR0000027	Cuba Rural Trif Ø360 - Alto: 900mm
+CUBRUR0000028	Cuba Rural Trif Ø460 - Alto: 1050mm
+CUBDIS0000001	Cuba Distribucion Trifasica Monoposte-Plataforma 16/13 Cu
+CUBDIS0000002	Cuba Distribucion Trifasica Monoposte-Plataforma 25/13 Cu
+CUBDIS0000003	Cuba Distribucion Trifasica Monoposte-Plataforma 40/13 Cu
+CUBDIS0000004	Cuba Distribucion Trifasica Monoposte-Plataforma 63/13 Cu
+CUBDIS0000005	Cuba Distribucion Trifasica Monoposte 100/13 Cu
+CUBDIS0000006	Cuba Distribucion Trifasica Monoposte 125/13 Cu
+CUBDIS0000007	Cuba Distribucion Trifasica Monoposte 160/13 Cu
+CUBDIS0000008	Cuba Distribucion Trifasica Monoposte 200/13 Cu
+CUBDIS0000009	Cuba Distribucion Trifasica Monoposte 250/13 Cu
+CUBDIS0000010	Cuba Distribucion Trifasica Monoposte-Plataforma 16/33 Cu
+CUBDIS0000011	Cuba Distribucion Trifasica Monoposte-Plataforma 25/33 Cu
+CUBDIS0000012	Cuba Distribucion Trifasica Monoposte-Plataforma 40/33 Cu
+CUBDIS0000013	Cuba Distribucion Trifasica Monoposte-Plataforma 63/33 Cu
+CUBDIS0000014	Cuba Distribucion Trifasica Monoposte 100/33 Cu
+CUBDIS0000015	Cuba Distribucion Trifasica Monoposte 125/33 Cu
+CUBDIS0000016	Cuba Distribucion Trifasica Monoposte 160/33 Cu
+CUBDIS0000017	Cuba Distribucion Trifasica Monoposte 200/33 Cu
+CUBDIS0000018	Cuba Distribucion Trifasica Monoposte 250/33 Cu
+CUBDIS0000019	Cuba Distribucion Trifasica Monoposte-Plataforma 16/13 Al
+CUBDIS0000020	Cuba Distribucion Trifasica Monoposte-Plataforma 25/13 Al
+CUBDIS0000021	Cuba Distribucion Trifasica Monoposte-Plataforma 40/13 Al
+CUBDIS0000022	Cuba Distribucion Trifasica Monoposte-Plataforma 63/13 Al
+CUBDIS0000023	Cuba Distribucion Trifasica Monoposte 100/13 Al
+CUBDIS0000024	Cuba Distribucion Trifasica Monoposte 125/13 Al
+CUBDIS0000025	Cuba Distribucion Trifasica Monoposte 160/13 Al
+CUBDIS0000026	Cuba Distribucion Trifasica Monoposte 200/13 Al
+CUBDIS0000027	Cuba Distribucion Trifasica Monoposte 250/13 Al
+CUBDIS0000028	Cuba Distribucion Trifasica Monoposte-Plataforma 16/33 Al
+CUBDIS0000029	Cuba Distribucion Trifasica Monoposte-Plataforma 25/33 Al
+CUBDIS0000030	Cuba Distribucion Trifasica Monoposte-Plataforma 40/33 Al
+CUBDIS0000031	Cuba Distribucion Trifasica Monoposte-Plataforma 63/33 Al
+CUBDIS0000032	Cuba Distribucion Trifasica Monoposte 100/33 Al
+CUBDIS0000033	Cuba Distribucion Trifasica Monoposte 125/33 Al
+CUBDIS0000034	Cuba Distribucion Trifasica Monoposte 160/33 Al
+CUBDIS0000035	Cuba Distribucion Trifasica Monoposte 200/33 Al
+CUBDIS0000036	Cuba Distribucion Trifasica Monoposte 250/33 Al
+CUBDIS0000037	Cuba Distribucion Trifasica Plataforma 16/13 Cu (DESUSO)
+CUBDIS0000038	Cuba Distribucion Trifasica Plataforma 25/13 Cu (DESUSO)
+CUBDIS0000039	Cuba Distribucion Trifasica Plataforma 40/13 Cu (DESUSO)
+CUBDIS0000040	Cuba Distribucion Trifasica Plataforma 63/13 Cu (DESUSO)
+CUBDIS0000041	Cuba Distribucion Trifasica Plataforma 100/13 Cu
+CUBDIS0000042	Cuba Distribucion Trifasica Plataforma 125/13 Cu
+CUBDIS0000043	Cuba Distribucion Trifasica Plataforma 160/13 Cu
+CUBDIS0000044	Cuba Distribucion Trifasica Plataforma 200/13 Cu
+CUBDIS0000045	Cuba Distribucion Trifasica Plataforma 250/13 Cu
+CUBDIS0000046	Cuba Distribucion Trifasica Plataforma 315/13 Cu
+CUBDIS0000047	Cuba Distribucion Trifasica Plataforma 400/13 Cu
+CUBDIS0000048	Cuba Distribucion Trifasica Plataforma 500/13 Cu
+CUBDIS0000049	Cuba Distribucion Trifasica Plataforma 630/13 Cu
+CUBDIS0000050	Cuba Distribucion Trifasica Plataforma 800/13 Cu
+CUBDIS0000051	Cuba Distribucion Trifasica Plataforma 1000/13 Cu
+CUBDIS0000052	Cuba Distribucion Trifasica Plataforma 1250/13 Cu
+CUBDIS0000053	Cuba Distribucion Trifasica Plataforma 1500/13 Cu
+CUBDIS0000054	Cuba Distribucion Trifasica Plataforma 1600/13 Cu
+CUBDIS0000055	Cuba Distribucion Trifasica Plataforma 2000/13 Cu
+CUBDIS0000056	Cuba Distribucion Trifasica Plataforma 16/33 Cu (DESUSO)
+CUBDIS0000057	Cuba Distribucion Trifasica Plataforma 25/33 Cu (DESUSO)
+CUBDIS0000058	Cuba Distribucion Trifasica Plataforma 40/33 Cu (DESUSO)
+CUBDIS0000059	Cuba Distribucion Trifasica Plataforma 63/33 Cu (DESUSO)
+CUBDIS0000060	Cuba Distribucion Trifasica Plataforma 100/33 Cu
+CUBDIS0000061	Cuba Distribucion Trifasica Plataforma 125/33 Cu
+CUBDIS0000062	Cuba Distribucion Trifasica Plataforma 160/33 Cu
+CUBDIS0000063	Cuba Distribucion Trifasica Plataforma 200/33 Cu
+CUBDIS0000064	Cuba Distribucion Trifasica Plataforma 250/33 Cu
+CUBDIS0000065	Cuba Distribucion Trifasica Plataforma 315/33 Cu
+CUBDIS0000066	Cuba Distribucion Trifasica Plataforma 400/33 Cu
+CUBDIS0000067	Cuba Distribucion Trifasica Plataforma 500/33 Cu
+CUBDIS0000068	Cuba Distribucion Trifasica Plataforma 630/33 Cu
+CUBDIS0000069	Cuba Distribucion Trifasica Plataforma 800/33 Cu
+CUBDIS0000070	Cuba Distribucion Trifasica Plataforma 1000/33 Cu
+CUBDIS0000071	Cuba Distribucion Trifasica Plataforma 1250/33 Cu
+CUBDIS0000072	Cuba Distribucion Trifasica Plataforma 1500/33 Cu
+CUBDIS0000073	Cuba Distribucion Trifasica Plataforma 1600/33 Cu
+CUBDIS0000074	Cuba Distribucion Trifasica Plataforma 2000/33 Cu
+CUBDIS0000075	Cuba Distribucion Trifasica Plataforma 16/13 Al (DESUSO)
+CUBDIS0000076	Cuba Distribucion Trifasica Plataforma 25/13 Al (DESUSO)
+CUBDIS0000077	Cuba Distribucion Trifasica Plataforma 40/13 Al (DESUSO)
+CUBDIS0000078	Cuba Distribucion Trifasica Plataforma 63/13 Al (DESUSO)
+CUBDIS0000079	Cuba Distribucion Trifasica Plataforma 100/13 Al
+CUBDIS0000080	Cuba Distribucion Trifasica Plataforma 125/13 Al
+CUBDIS0000081	Cuba Distribucion Trifasica Plataforma 160/13 Al
+CUBDIS0000082	Cuba Distribucion Trifasica Plataforma 200/13 Al
+CUBDIS0000083	Cuba Distribucion Trifasica Plataforma 250/13 Al
+CUBDIS0000084	Cuba Distribucion Trifasica Plataforma 315/13 Al
+CUBDIS0000085	Cuba Distribucion Trifasica Plataforma 400/13 Al
+CUBDIS0000086	Cuba Distribucion Trifasica Plataforma 500/13 Al
+CUBDIS0000087	Cuba Distribucion Trifasica Plataforma 630/13 Al
+CUBDIS0000088	Cuba Distribucion Trifasica Plataforma 800/13 Al
+CUBDIS0000089	Cuba Distribucion Trifasica Plataforma 1000/13 Al
+CUBDIS0000090	Cuba Distribucion Trifasica Plataforma 1250/13 Al
+CUBDIS0000091	Cuba Distribucion Trifasica Plataforma 1500/13 Al
+CUBDIS0000092	Cuba Distribucion Trifasica Plataforma 1600/13 Al
+CUBDIS0000093	Cuba Distribucion Trifasica Plataforma 2000/13 Al
+CUBDIS0000094	Cuba Distribucion Trifasica Plataforma 16/33 Al (DESUSO)
+CUBDIS0000095	Cuba Distribucion Trifasica Plataforma 25/33 Al (DESUSO)
+CUBDIS0000096	Cuba Distribucion Trifasica Plataforma 40/33 Al (DESUSO)
+CUBDIS0000097	Cuba Distribucion Trifasica Plataforma 63/33 Al (DESUSO)
+CUBDIS0000098	Cuba Distribucion Trifasica Plataforma 100/33 Al
+CUBDIS0000099	Cuba Distribucion Trifasica Plataforma 125/33 Al
+CUBDIS0000100	Cuba Distribucion Trifasica Plataforma 160/33 Al
+CUBDIS0000101	Cuba Distribucion Trifasica Plataforma 200/33 Al
+CUBDIS0000102	Cuba Distribucion Trifasica Plataforma 250/33 Al
+CUBDIS0000103	Cuba Distribucion Trifasica Plataforma 315/33 Al
+CUBDIS0000104	Cuba Distribucion Trifasica Plataforma 400/33 Al
+CUBDIS0000105	Cuba Distribucion Trifasica Plataforma 500/33 Al
+CUBDIS0000106	Cuba Distribucion Trifasica Plataforma 630/33 Al
+CUBDIS0000107	Cuba Distribucion Trifasica Plataforma 800/33 Al
+CUBDIS0000108	Cuba Distribucion Trifasica Plataforma 1000/33 Al
+CUBDIS0000109	Cuba Distribucion Trifasica Plataforma 1250/33 Al
+CUBDIS0000110	Cuba Distribucion Trifasica Plataforma 1500/33 Al
+CUBDIS0000111	Cuba Distribucion Trifasica Plataforma 1600/33 Al
+CUBDIS0000112	Cuba Distribucion Trifasica Plataforma 2000/33 Al
+CUBDIS0000113	Cuba Distribucion Trifasica Plataforma 800/33 Al Kenia
+TANDIS0000001	Tanque Expansion TTD 16/13 Cu
+TANDIS0000002	Tanque Expansion TTD 25/13 Cu
+TANDIS0000003	Tanque Expansion TTD 40/13 Cu
+TANDIS0000004	Tanque Expansion TTD 63/13 Cu
+TANDIS0000005	Tanque Expansion TTD 100/13 Cu
+TANDIS0000006	Tanque Expansion TTD 125/13 Cu
+TANDIS0000007	Tanque Expansion TTD 160/13 Cu
+TANDIS0000008	Tanque Expansion TTD 200/13 Cu
+TANDIS0000009	Tanque Expansion TTD 250/13 Cu
+TANDIS0000010	Tanque Expansion TTD 315/13 Cu
+TANDIS0000011	Tanque Expansion TTD 400/13 Cu
+TANDIS0000012	Tanque Expansion TTD 500/13 Cu
+TANDIS0000013	Tanque Expansion TTD 630/13 Cu
+TANDIS0000014	Tanque Expansion TTD 800/13 Cu
+TANDIS0000015	Tanque Expansion TTD 1000/13 Cu
+TANDIS0000016	Tanque Expansion TTD 1250/13 Cu
+TANDIS0000017	Tanque Expansion TTD 1500/13 Cu
+TANDIS0000018	Tanque Expansion TTD 1600/13 Cu
+TANDIS0000019	Tanque Expansion TTD 2000/13 Cu
+TANDIS0000020	Tanque Expansion TTD 16/33 Cu
+TANDIS0000021	Tanque Expansion TTD 25/33 Cu
+TANDIS0000022	Tanque Expansion TTD 40/33 Cu
+TANDIS0000023	Tanque Expansion TTD 63/33 Cu
+TANDIS0000024	Tanque Expansion TTD 100/33 Cu
+TANDIS0000025	Tanque Expansion TTD 125/33 Cu
+TANDIS0000026	Tanque Expansion TTD 160/33 Cu
+TANDIS0000027	Tanque Expansion TTD 200/33 Cu
+TANDIS0000028	Tanque Expansion TTD 250/33 Cu
+TANDIS0000029	Tanque Expansion TTD 315/33 Cu
+TANDIS0000030	Tanque Expansion TTD 400/33 Cu
+TANDIS0000031	Tanque Expansion TTD 500/33 Cu
+TANDIS0000032	Tanque Expansion TTD 630/33 Cu
+TANDIS0000033	Tanque Expansion TTD 800/33 Cu
+TANDIS0000034	Tanque Expansion TTD 1000/33 Cu
+TANDIS0000035	Tanque Expansion TTD 1250/33 Cu
+TANDIS0000036	Tanque Expansion TTD 1500/33 Cu
+TANDIS0000037	Tanque Expansion TTD 1600/33 Cu
+TANDIS0000038	Tanque Expansion TTD 2000/33 Cu
+TANDIS0000039	Tanque Expansion TTD 16/13 Al
+TANDIS0000040	Tanque Expansion TTD 25/13 Al
+TANDIS0000041	Tanque Expansion TTD 40/13 Al
+TANDIS0000042	Tanque Expansion TTD 63/13 Al
+TANDIS0000043	Tanque Expansion TTD 100/13 Al
+TANDIS0000044	Tanque Expansion TTD 125/13 Al
+TANDIS0000045	Tanque Expansion TTD 160/13 Al
+TANDIS0000046	Tanque Expansion TTD 200/13 Al
+TANDIS0000047	Tanque Expansion TTD 250/13 Al
+TANDIS0000048	Tanque Expansion TTD 315/13 Al
+TANDIS0000049	Tanque Expansion TTD 400/13 Al
+TANDIS0000050	Tanque Expansion TTD 500/13 Al
+TANDIS0000051	Tanque Expansion TTD 630/13 Al
+TANDIS0000052	Tanque Expansion TTD 800/13 Al
+TANDIS0000053	Tanque Expansion TTD 1000/13 Al
+TANDIS0000054	Tanque Expansion TTD 1250/13 Al
+TANDIS0000055	Tanque Expansion TTD 1500/13 Al
+TANDIS0000056	Tanque Expansion TTD 1600/13 Al
+TANDIS0000057	Tanque Expansion TTD 2000/13 Al
+TANDIS0000058	Tanque Expansion TTD 16/33 Al
+TANDIS0000059	Tanque Expansion TTD 25/33 Al
+TANDIS0000060	Tanque Expansion TTD 40/33 Al
+TANDIS0000061	Tanque Expansion TTD 63/33 Al
+TANDIS0000062	Tanque Expansion TTD 100/33 Al
+TANDIS0000063	Tanque Expansion TTD 125/33 Al
+TANDIS0000064	Tanque Expansion TTD 160/33 Al
+TANDIS0000065	Tanque Expansion TTD 200/33 Al
+TANDIS0000066	Tanque Expansion TTD 250/33 Al
+TANDIS0000067	Tanque Expansion TTD 315/33 Al
+TANDIS0000068	Tanque Expansion TTD 400/33 Al
+TANDIS0000069	Tanque Expansion TTD 500/33 Al
+TANDIS0000070	Tanque Expansion TTD 630/33 Al
+TANDIS0000071	Tanque Expansion TTD 800/33 Al
+TANDIS0000072	Tanque Expansion TTD 1000/33 Al
+TANDIS0000073	Tanque Expansion TTD 1250/33 Al
+TANDIS0000074	Tanque Expansion TTD 1500/33 Al
+TANDIS0000075	Tanque Expansion TTD 1600/33 Al
+TANDIS0000076	Tanque Expansion TTD 2000/33 Al
+TANTPA0000001	Tapa Tanque Expansion Lisa Ø(200mm) Esp: 1/8'
+TANTPA0000002	Tapa Tanque Expansion Lisa Ø(220mm) Esp: 1/8'
+TANTPA0000003	Tapa Tanque Expansion Lisa Ø(250mm) Esp: 1/8'
+TANTPA0000004	Tapa Tanque Expansion Lisa Ø(280mm) Esp: 1/8'
+TANTPA0000005	Tapa Tanque Expansion Lisa Ø(300mm) Esp: 1/8'
+TANTPA0000006	Tapa Tanque Expansion Lisa Ø(330mm) Esp: 1/8'
+TANTPA0000007	Tapa Tanque Expansion Lisa Ø(350mm) Esp: 1/8'
+TANTPA0000008	Tapa Tanque Expansion Lisa Ø(360mm) Esp: 1/8'
+TANTPA0000009	Tapa Tanque Expansion Lisa Ø(380mm) Esp: 1/8'
+TANTPV0000001	Tapa Tanque Expansion Lado Visor Ø(200mm) Esp: 1/8'
+TANTPV0000002	Tapa Tanque Expansion Lado Visor Ø(220mm) Esp: 1/8'
+TANTPV0000003	Tapa Tanque Expansion Lado Visor Ø(250mm) Esp: 1/8'
+TANTPV0000004	Tapa Tanque Expansion Lado Visor Ø(280mm) Esp: 1/8'
+TANTPV0000005	Tapa Tanque Expansion Lado Visor Ø(300mm) Esp: 1/8'
+TANTPV0000006	Tapa Tanque Expansion Lado Visor Ø(330mm) Esp: 1/8'
+TANTPV0000007	Tapa Tanque Expansion Lado Visor Ø(350mm) Esp: 1/8'
+TANTPV0000008	Tapa Tanque Expansion Lado Visor Ø(360mm) Esp: 1/8'
+TANTPV0000009	Tapa Tanque Expansion Lado Visor Ø(380mm) Esp: 1/8'
+TAPRUR0000001	Tapa Rural Monofasica 7.62 kV (Cuba 280mm) Esp: 1.6mm
+TAPRUR0000002	Tapa Rural Monofasica 7.62 kV (Cuba 315mm) Esp: 1.6mm
+TAPRUR0000003	Tapa Rural Monofasica 7.62 kV (Cuba 360mm) Esp: 1.6mm
+TAPRUR0000004	Tapa Rural Monofasica 7.62 kV (Cuba 390mm) Esp: 1.6mm
+TAPRUR0000005	Tapa Rural Monofasica 7.62 kV (Cuba 420mm) Esp: 3/16'
+TAPRUR0000006	Tapa Rural Monofasica 7.62 kV (Cuba 440mm) Esp: 3/16'
+TAPRUR0000007	Tapa Rural Monofasica 7.62 kV (Cuba 460mm) Esp: 3/16'
+TAPRUR0000008	Tapa Rural Monofasica 7.62 kV (Cuba 480mm) Esp: 3/16'
+TAPRUR0000009	Tapa Rural Monofasica 7.62 kV (Cuba 500mm) Esp: 3/16'
+TAPRUR0000010	Tapa Rural Monofasica 7.62 kV (Cuba 520mm) Esp: 3/16'
+TAPRUR0000011	Tapa Rural Monofasica 7.62 kV (Cuba 540mm) Esp: 3/16'
+TAPRUR0000012	Tapa Rural Monofasica 7.62 kV (Cuba 560mm) Esp: 3/16'
+TAPRUR0000013	Tapa Rural Monofasica 7.62 kV (Cuba 640mm) Esp: 3/16'
+TAPRUR0000014	Tapa Rural Monofasica 19 kV (Cuba 280mm) Esp: 1.6mm
+TAPRUR0000015	Tapa Rural Monofasica 19 kV (Cuba 315mm) Esp: 1.6mm
+TAPRUR0000016	Tapa Rural Monofasica 19 kV (Cuba 360mm) Esp: 1.6mm
+TAPRUR0000017	Tapa Rural Monofasica 19 kV (Cuba 390mm) Esp: 1.6mm
+TAPRUR0000018	Tapa Rural Monofasica 19 kV (Cuba 420mm) Esp: 3/16'
+TAPRUR0000019	Tapa Rural Monofasica 19 kV (Cuba 440mm) Esp: 3/16'
+TAPRUR0000020	Tapa Rural Monofasica 19 kV (Cuba 460mm) Esp: 3/16'
+TAPRUR0000021	Tapa Rural Monofasica 19 kV (Cuba 480mm) Esp: 3/16'
+TAPRUR0000022	Tapa Rural Monofasica 19 kV (Cuba 500mm) Esp: 3/16'
+TAPRUR0000023	Tapa Rural Monofasica 19 kV (Cuba 520mm) Esp: 3/16'
+TAPRUR0000024	Tapa Rural Monofasica 19 kV (Cuba 540mm) Esp: 3/16'
+TAPRUR0000025	Tapa Rural Monofasica 19 kV (Cuba 560mm) Esp: 3/16'
+TAPRUR0000026	Tapa Rural Monofasica 19 kV (Cuba 640mm) Esp: 3/16'
+TAPRUR0000027	Tapa Rural Bifasica 13.2 kV (Cuba 280mm) Esp: 1.6mm
+TAPRUR0000028	Tapa Rural Bifasica 13.2 kV (Cuba 315mm) Esp: 1.6mm
+TAPRUR0000029	Tapa Rural Bifasica 13.2 kV (Cuba 360mm) Esp: 1.6mm
+TAPRUR0000030	Tapa Rural Bifasica 13.2 kV (Cuba 390mm) Esp: 1.6mm
+TAPRUR0000031	Tapa Rural Bifasica 13.2 kV (Cuba 420mm) Esp: 3/16'
+TAPRUR0000032	Tapa Rural Bifasica 13.2 kV (Cuba 440mm) Esp: 3/16'
+TAPRUR0000033	Tapa Rural Bifasica 13.2 kV (Cuba 460mm) Esp: 3/16'
+TAPRUR0000034	Tapa Rural Bifasica 13.2 kV (Cuba 480mm) Esp: 3/16'
+TAPRUR0000035	Tapa Rural Bifasica 13.2 kV (Cuba 500mm) Esp: 3/16'
+TAPRUR0000036	Tapa Rural Bifasica 13.2 kV (Cuba 520mm) Esp: 3/16'
+TAPRUR0000037	Tapa Rural Bifasica 13.2 kV (Cuba 540mm) Esp: 3/16'
+TAPRUR0000038	Tapa Rural Bifasica 13.2 kV (Cuba 560mm) Esp: 3/16'
+TAPRUR0000039	Tapa Rural Bifasica 13.2 kV (Cuba 640mm) Esp: 3/16'
+TAPRUR0000040	Tapa Rural Bifasica 33 kV (Cuba 280mm) Esp: 1.6mm
+TAPRUR0000041	Tapa Rural Bifasica 33 kV (Cuba 315mm) Esp: 1.6mm
+TAPRUR0000042	Tapa Rural Bifasica 33 kV (Cuba 360mm) Esp: 1.6mm
+TAPRUR0000043	Tapa Rural Bifasica 33 kV (Cuba 390mm) Esp: 1.6mm
+TAPRUR0000044	Tapa Rural Bifasica 33 kV (Cuba 420mm) Esp: 3/16'
+TAPRUR0000045	Tapa Rural Bifasica 33 kV (Cuba 440mm) Esp: 3/16'
+TAPRUR0000046	Tapa Rural Bifasica 33 kV (Cuba 460mm) Esp: 3/16'
+TAPRUR0000047	Tapa Rural Bifasica 33 kV (Cuba 480mm) Esp: 3/16'
+TAPRUR0000048	Tapa Rural Bifasica 33 kV (Cuba 500mm) Esp: 3/16'
+TAPRUR0000049	Tapa Rural Bifasica 33 kV (Cuba 520mm) Esp: 3/16'
+TAPRUR0000050	Tapa Rural Bifasica 33 kV (Cuba 540mm) Esp: 3/16'
+TAPRUR0000051	Tapa Rural Bifasica 33 kV (Cuba 560mm) Esp: 3/16'
+TAPRUR0000052	Tapa Rural Bifasica 33 kV (Cuba 640mm) Esp: 3/16'
+TAPRUR0000053	Tapa Rural Trifasica 13.2 kV (Cuba 280mm) Esp: 1.6mm
+TAPRUR0000054	Tapa Rural Trifasica 13.2 kV (Cuba 315mm) Esp: 1.6mm
+TAPRUR0000055	Tapa Rural Trifasica 13.2 kV (Cuba 360mm) Esp: 1.6mm
+TAPRUR0000056	Tapa Rural Trifasica 13.2 kV (Cuba 390mm) Esp: 1.6mm
+TAPRUR0000057	Tapa Rural Trifasica 13.2 kV (Cuba 420mm) Esp: 3/16'
+TAPRUR0000058	Tapa Rural Trifasica 13.2 kV (Cuba 440mm) Esp: 3/16'
+TAPRUR0000059	Tapa Rural Trifasica 13.2 kV (Cuba 460mm) Esp: 3/16'
+TAPRUR0000060	Tapa Rural Trifasica 13.2 kV (Cuba 480mm) Esp: 3/16'
+TAPRUR0000061	Tapa Rural Trifasica 13.2 kV (Cuba 500mm) Esp: 3/16'
+TAPRUR0000062	Tapa Rural Trifasica 13.2 kV (Cuba 520mm) Esp: 3/16'
+TAPRUR0000063	Tapa Rural Trifasica 13.2 kV (Cuba 540mm) Esp: 3/16'
+TAPRUR0000064	Tapa Rural Trifasica 13.2 kV (Cuba 560mm) Esp: 3/16'
+TAPRUR0000065	Tapa Rural Trifasica 13.2 kV (Cuba 640mm) Esp: 3/16'
+TAPRUR0000066	Tapa Rural Trifasica 33 kV (Cuba 280mm) Esp: 1.6mm
+TAPRUR0000067	Tapa Rural Trifasica 33 kV (Cuba 315mm) Esp: 1.6mm
+TAPRUR0000068	Tapa Rural Trifasica 33 kV (Cuba 360mm) Esp: 1.6mm
+TAPRUR0000069	Tapa Rural Trifasica 33 kV (Cuba 390mm) Esp: 1.6mm
+TAPRUR0000070	Tapa Rural Trifasica 33 kV (Cuba 420mm) Esp: 3/16'
+TAPRUR0000071	Tapa Rural Trifasica 33 kV (Cuba 440mm) Esp: 3/16'
+TAPRUR0000072	Tapa Rural Trifasica 33 kV (Cuba 460mm) Esp: 3/16'
+TAPRUR0000073	Tapa Rural Trifasica 33 kV (Cuba 480mm) Esp: 3/16'
+TAPRUR0000074	Tapa Rural Trifasica 33 kV (Cuba 500mm) Esp: 3/16'
+TAPRUR0000075	Tapa Rural Trifasica 33 kV (Cuba 520mm) Esp: 3/16'
+TAPRUR0000076	Tapa Rural Trifasica 33 kV (Cuba 540mm) Esp: 3/16'
+TAPRUR0000077	Tapa Rural Trifasica 33 kV (Cuba 560mm) Esp: 3/16'
+TAPRUR0000078	Tapa Rural Trifasica 33 kV (Cuba 640mm) Esp: 3/16'
+TAPDIS0000001	Tapa Distribucion con Tanque Expansion 16/13 Cu
+TAPDIS0000002	Tapa Distribucion con Tanque Expansion 25/13 Cu
+TAPDIS0000003	Tapa Distribucion con Tanque Expansion 40/13 Cu
+TAPDIS0000004	Tapa Distribucion con Tanque Expansion 63/13 Cu
+TAPDIS0000005	Tapa Distribucion con Tanque Expansion 100/13 Cu
+TAPDIS0000006	Tapa Distribucion con Tanque Expansion 125/13 Cu
+TAPDIS0000007	Tapa Distribucion con Tanque Expansion 160/13 Cu
+TAPDIS0000008	Tapa Distribucion con Tanque Expansion 200/13 Cu
+TAPDIS0000009	Tapa Distribucion con Tanque Expansion 250/13 Cu
+TAPDIS0000010	Tapa Distribucion con Tanque Expansion 315/13 Cu
+TAPDIS0000011	Tapa Distribucion con Tanque Expansion 400/13 Cu
+TAPDIS0000012	Tapa Distribucion con Tanque Expansion 500/13 Cu
+TAPDIS0000013	Tapa Distribucion con Tanque Expansion 630/13 Cu
+TAPDIS0000014	Tapa Distribucion con Tanque Expansion 800/13 Cu
+TAPDIS0000015	Tapa Distribucion con Tanque Expansion 1000/13 Cu
+TAPDIS0000016	Tapa Distribucion con Tanque Expansion 1250/13 Cu
+TAPDIS0000017	Tapa Distribucion con Tanque Expansion 1500/13 Cu
+TAPDIS0000018	Tapa Distribucion con Tanque Expansion 1600/13 Cu
+TAPDIS0000019	Tapa Distribucion con Tanque Expansion 2000/13 Cu
+TAPDIS0000020	Tapa Distribucion con Tanque Expansion 16/33 Cu
+TAPDIS0000021	Tapa Distribucion con Tanque Expansion 25/33 Cu
+TAPDIS0000022	Tapa Distribucion con Tanque Expansion 40/33 Cu
+TAPDIS0000023	Tapa Distribucion con Tanque Expansion 63/33 Cu
+TAPDIS0000024	Tapa Distribucion con Tanque Expansion 100/33 Cu
+TAPDIS0000025	Tapa Distribucion con Tanque Expansion 125/33 Cu
+TAPDIS0000026	Tapa Distribucion con Tanque Expansion 160/33 Cu
+TAPDIS0000027	Tapa Distribucion con Tanque Expansion 200/33 Cu
+TAPDIS0000028	Tapa Distribucion con Tanque Expansion 250/33 Cu
+TAPDIS0000029	Tapa Distribucion con Tanque Expansion 315/33 Cu
+TAPDIS0000030	Tapa Distribucion con Tanque Expansion 400/33 Cu
+TAPDIS0000031	Tapa Distribucion con Tanque Expansion 500/33 Cu
+TAPDIS0000032	Tapa Distribucion con Tanque Expansion 630/33 Cu
+TAPDIS0000033	Tapa Distribucion con Tanque Expansion 800/33 Cu
+TAPDIS0000034	Tapa Distribucion con Tanque Expansion 1000/33 Cu
+TAPDIS0000035	Tapa Distribucion con Tanque Expansion 1250/33 Cu
+TAPDIS0000036	Tapa Distribucion con Tanque Expansion 1500/33 Cu
+TAPDIS0000037	Tapa Distribucion con Tanque Expansion 1600/33 Cu
+TAPDIS0000038	Tapa Distribucion con Tanque Expansion 2000/33 Cu
+TAPDIS0000039	Tapa Distribucion con Tanque Expansion 16/13 Al
+TAPDIS0000040	Tapa Distribucion con Tanque Expansion 25/13 Al
+TAPDIS0000041	Tapa Distribucion con Tanque Expansion 40/13 Al
+TAPDIS0000042	Tapa Distribucion con Tanque Expansion 63/13 Al
+TAPDIS0000043	Tapa Distribucion con Tanque Expansion 100/13 Al
+TAPDIS0000044	Tapa Distribucion con Tanque Expansion 125/13 Al
+TAPDIS0000045	Tapa Distribucion con Tanque Expansion 160/13 Al
+TAPDIS0000046	Tapa Distribucion con Tanque Expansion 200/13 Al
+TAPDIS0000047	Tapa Distribucion con Tanque Expansion 250/13 Al
+TAPDIS0000048	Tapa Distribucion con Tanque Expansion 315/13 Al
+TAPDIS0000049	Tapa Distribucion con Tanque Expansion 400/13 Al
+TAPDIS0000050	Tapa Distribucion con Tanque Expansion 500/13 Al
+TAPDIS0000051	Tapa Distribucion con Tanque Expansion 630/13 Al
+TAPDIS0000052	Tapa Distribucion con Tanque Expansion 800/13 Al
+TAPDIS0000053	Tapa Distribucion con Tanque Expansion 1000/13 Al
+TAPDIS0000054	Tapa Distribucion con Tanque Expansion 1250/13 Al
+TAPDIS0000055	Tapa Distribucion con Tanque Expansion 1500/13 Al
+TAPDIS0000056	Tapa Distribucion con Tanque Expansion 1600/13 Al
+TAPDIS0000057	Tapa Distribucion con Tanque Expansion 2000/13 Al
+TAPDIS0000058	Tapa Distribucion con Tanque Expansion 16/33 Al
+TAPDIS0000059	Tapa Distribucion con Tanque Expansion 25/33 Al
+TAPDIS0000060	Tapa Distribucion con Tanque Expansion 40/33 Al
+TAPDIS0000061	Tapa Distribucion con Tanque Expansion 63/33 Al
+TAPDIS0000062	Tapa Distribucion con Tanque Expansion 100/33 Al
+TAPDIS0000063	Tapa Distribucion con Tanque Expansion 125/33 Al
+TAPDIS0000064	Tapa Distribucion con Tanque Expansion 160/33 Al
+TAPDIS0000065	Tapa Distribucion con Tanque Expansion 200/33 Al
+TAPDIS0000066	Tapa Distribucion con Tanque Expansion 250/33 Al
+TAPDIS0000067	Tapa Distribucion con Tanque Expansion 315/33 Al
+TAPDIS0000068	Tapa Distribucion con Tanque Expansion 400/33 Al
+TAPDIS0000069	Tapa Distribucion con Tanque Expansion 500/33 Al
+TAPDIS0000070	Tapa Distribucion con Tanque Expansion 630/33 Al
+TAPDIS0000071	Tapa Distribucion con Tanque Expansion 800/33 Al
+TAPDIS0000072	Tapa Distribucion con Tanque Expansion 1000/33 Al
+TAPDIS0000073	Tapa Distribucion con Tanque Expansion 1250/33 Al
+TAPDIS0000074	Tapa Distribucion con Tanque Expansion 1500/33 Al
+TAPDIS0000075	Tapa Distribucion con Tanque Expansion 1600/33 Al
+TAPDIS0000076	Tapa Distribucion con Tanque Expansion 2000/33 Al
+TAPDIS0000077	Tapa Distribucion Llenado Integral 16/13 Cu
+TAPDIS0000078	Tapa Distribucion Llenado Integral 25/13 Cu
+TAPDIS0000079	Tapa Distribucion Llenado Integral 40/13 Cu
+TAPDIS0000080	Tapa Distribucion Llenado Integral 63/13 Cu
+TAPDIS0000081	Tapa Distribucion Llenado Integral 100/13 Cu
+TAPDIS0000082	Tapa Distribucion Llenado Integral 125/13 Cu
+TAPDIS0000083	Tapa Distribucion Llenado Integral 160/13 Cu
+TAPDIS0000084	Tapa Distribucion Llenado Integral 200/13 Cu
+TAPDIS0000085	Tapa Distribucion Llenado Integral 250/13 Cu
+TAPDIS0000086	Tapa Distribucion Llenado Integral 315/13 Cu
+TAPDIS0000087	Tapa Distribucion Llenado Integral 400/13 Cu
+TAPDIS0000088	Tapa Distribucion Llenado Integral 500/13 Cu
+TAPDIS0000089	Tapa Distribucion Llenado Integral 630/13 Cu
+TAPDIS0000090	Tapa Distribucion Llenado Integral 800/13 Cu
+TAPDIS0000091	Tapa Distribucion Llenado Integral 1000/13 Cu
+TAPDIS0000092	Tapa Distribucion Llenado Integral 1250/13 Cu
+TAPDIS0000093	Tapa Distribucion Llenado Integral 1500/13 Cu
+TAPDIS0000094	Tapa Distribucion Llenado Integral 1600/13 Cu
+TAPDIS0000095	Tapa Distribucion Llenado Integral 2000/13 Cu
+TAPDIS0000096	Tapa Distribucion Llenado Integral 16/33 Cu
+TAPDIS0000097	Tapa Distribucion Llenado Integral 25/33 Cu
+TAPDIS0000098	Tapa Distribucion Llenado Integral 40/33 Cu
+TAPDIS0000099	Tapa Distribucion Llenado Integral 63/33 Cu
+TAPDIS0000100	Tapa Distribucion Llenado Integral 100/33 Cu
+TAPDIS0000101	Tapa Distribucion Llenado Integral 125/33 Cu
+TAPDIS0000102	Tapa Distribucion Llenado Integral 160/33 Cu
+TAPDIS0000103	Tapa Distribucion Llenado Integral 200/33 Cu
+TAPDIS0000104	Tapa Distribucion Llenado Integral 250/33 Cu
+TAPDIS0000105	Tapa Distribucion Llenado Integral 315/33 Cu
+TAPDIS0000106	Tapa Distribucion Llenado Integral 400/33 Cu
+TAPDIS0000107	Tapa Distribucion Llenado Integral 500/33 Cu
+TAPDIS0000108	Tapa Distribucion Llenado Integral 630/33 Cu
+TAPDIS0000109	Tapa Distribucion Llenado Integral 800/33 Cu
+TAPDIS0000110	Tapa Distribucion Llenado Integral 1000/33 Cu
+TAPDIS0000111	Tapa Distribucion Llenado Integral 1250/33 Cu
+TAPDIS0000112	Tapa Distribucion Llenado Integral 1500/33 Cu
+TAPDIS0000113	Tapa Distribucion Llenado Integral 1600/33 Cu
+TAPDIS0000114	Tapa Distribucion Llenado Integral 2000/33 Cu
+TAPDIS0000115	Tapa Distribucion Llenado Integral 16/13 Al
+TAPDIS0000116	Tapa Distribucion Llenado Integral 25/13 Al
+TAPDIS0000117	Tapa Distribucion Llenado Integral 40/13 Al
+TAPDIS0000118	Tapa Distribucion Llenado Integral 63/13 Al
+TAPDIS0000119	Tapa Distribucion Llenado Integral 100/13 Al
+TAPDIS0000120	Tapa Distribucion Llenado Integral 125/13 Al
+TAPDIS0000121	Tapa Distribucion Llenado Integral 160/13 Al
+TAPDIS0000122	Tapa Distribucion Llenado Integral 200/13 Al
+TAPDIS0000123	Tapa Distribucion Llenado Integral 250/13 Al
+TAPDIS0000124	Tapa Distribucion Llenado Integral 315/13 Al
+TAPDIS0000125	Tapa Distribucion Llenado Integral 400/13 Al
+TAPDIS0000126	Tapa Distribucion Llenado Integral 500/13 Al
+TAPDIS0000127	Tapa Distribucion Llenado Integral 630/13 Al
+TAPDIS0000128	Tapa Distribucion Llenado Integral 800/13 Al
+TAPDIS0000129	Tapa Distribucion Llenado Integral 1000/13 Al
+TAPDIS0000130	Tapa Distribucion Llenado Integral 1250/13 Al
+TAPDIS0000131	Tapa Distribucion Llenado Integral 1500/13 Al
+TAPDIS0000132	Tapa Distribucion Llenado Integral 1600/13 Al
+TAPDIS0000133	Tapa Distribucion Llenado Integral 2000/13 Al
+TAPDIS0000134	Tapa Distribucion Llenado Integral 16/33 Al
+TAPDIS0000135	Tapa Distribucion Llenado Integral 25/33 Al
+TAPDIS0000136	Tapa Distribucion Llenado Integral 40/33 Al
+TAPDIS0000137	Tapa Distribucion Llenado Integral 63/33 Al
+TAPDIS0000138	Tapa Distribucion Llenado Integral 100/33 Al
+TAPDIS0000139	Tapa Distribucion Llenado Integral 125/33 Al
+TAPDIS0000140	Tapa Distribucion Llenado Integral 160/33 Al
+TAPDIS0000141	Tapa Distribucion Llenado Integral 200/33 Al
+TAPDIS0000142	Tapa Distribucion Llenado Integral 250/33 Al
+TAPDIS0000143	Tapa Distribucion Llenado Integral 315/33 Al
+TAPDIS0000144	Tapa Distribucion Llenado Integral 400/33 Al
+TAPDIS0000145	Tapa Distribucion Llenado Integral 500/33 Al
+TAPDIS0000146	Tapa Distribucion Llenado Integral 630/33 Al
+TAPDIS0000147	Tapa Distribucion Llenado Integral 800/33 Al
+TAPDIS0000148	Tapa Distribucion Llenado Integral 1000/33 Al
+TAPDIS0000149	Tapa Distribucion Llenado Integral 1250/33 Al
+TAPDIS0000150	Tapa Distribucion Llenado Integral 1500/33 Al
+TAPDIS0000151	Tapa Distribucion Llenado Integral 1600/33 Al
+TAPDIS0000152	Tapa Distribucion Llenado Integral 2000/33 Al
+TAPDIS0000153	Tapa Distribucion Llenado Integral 800/33 Al Kenia
+PARRUR0000001	Parte Activa Rural Monofasica 3/7 Cu
+PARRUR0000002	Parte Activa Rural Monofasica 5/7 Cu
+PARRUR0000003	Parte Activa Rural Monofasica 10/7 Cu
+PARRUR0000004	Parte Activa Rural Monofasica 16/7 Cu
+PARRUR0000005	Parte Activa Rural Monofasica 25/7 Cu
+PARRUR0000006	Parte Activa Rural Monofasica 40/7 Cu
+PARRUR0000007	Parte Activa Rural Monofasica 5/19 Cu
+PARRUR0000008	Parte Activa Rural Monofasica 10/19 Cu
+PARRUR0000009	Parte Activa Rural Monofasica 16/19 Cu
+PARRUR0000010	Parte Activa Rural Monofasica 25/19 Cu
+PARRUR0000011	Parte Activa Rural Monofasica 40/19 Cu
+PARRUR0000012	Parte Activa Rural Bifasica 5/13 Cu
+PARRUR0000013	Parte Activa Rural Bifasica 10/13 Cu
+PARRUR0000014	Parte Activa Rural Bifasica 16/13 Cu
+PARRUR0000015	Parte Activa Rural Bifasica 25/13 Cu
+PARRUR0000016	Parte Activa Rural Bifasica 40/13 Cu
+PARRUR0000017	Parte Activa Rural Bifasica 63/13 Cu
+PARRUR0000018	Parte Activa Rural Bifasica 75/13 Cu
+PARRUR0000019	Parte Activa Rural Bifasica 100/13 Cu
+PARRUR0000020	Parte Activa Rural Bifasica 5/33 Cu
+PARRUR0000021	Parte Activa Rural Bifasica 10/33 Cu
+PARRUR0000022	Parte Activa Rural Bifasica 16/33 Cu
+PARRUR0000023	Parte Activa Rural Bifasica 25/33 Cu
+PARRUR0000024	Parte Activa Rural Bifasica 40/33 Cu
+PARRUR0000025	Parte Activa Rural Trifasica 10/13 Cu
+PARRUR0000026	Parte Activa Rural Trifasica 16/13 Cu
+PARRUR0000027	Parte Activa Rural Trifasica 25/13 Cu
+PARRUR0000028	Parte Activa Rural Trifasica 40/13 Cu
+PARRUR0000029	Parte Activa Rural Trifasica 63/13 Cu
+PARRUR0000030	Parte Activa Rural Trifasica 10/33 Cu
+PARRUR0000031	Parte Activa Rural Trifasica 16/33 Cu
+PARRUR0000032	Parte Activa Rural Trifasica 25/33 Cu
+PARRUR0000033	Parte Activa Rural Trifasica 40/33 Cu
+PARRUR0000034	Parte Activa Rural Trifasica 63/33 Cu
+PARRUR0000035	Parte Activa Rural Monofasica 3/7 Al
+PARRUR0000036	Parte Activa Rural Monofasica 5/7 Al
+PARRUR0000037	Parte Activa Rural Monofasica 10/7 Al
+PARRUR0000038	Parte Activa Rural Monofasica 16/7 Al
+PARRUR0000039	Parte Activa Rural Monofasica 25/7 Al
+PARRUR0000040	Parte Activa Rural Monofasica 5/19 Al
+PARRUR0000041	Parte Activa Rural Monofasica 10/19 Al
+PARRUR0000042	Parte Activa Rural Monofasica 16/19 Al
+PARRUR0000043	Parte Activa Rural Monofasica 25/19 Al
+PARRUR0000044	Parte Activa Rural Monofasica 40/19 Al
+PARRUR0000045	Parte Activa Rural Bifasica 5/13 Al
+PARRUR0000046	Parte Activa Rural Bifasica 10/13 Al
+PARRUR0000047	Parte Activa Rural Bifasica 16/13 Al
+PARRUR0000048	Parte Activa Rural Bifasica 25/13 Al
+PARRUR0000049	Parte Activa Rural Bifasica 40/13 Al
+PARRUR0000050	Parte Activa Rural Bifasica 63/13 Al
+PARRUR0000051	Parte Activa Rural Bifasica 75/13 Al
+PARRUR0000052	Parte Activa Rural Bifasica 100/13 Al
+PARRUR0000053	Parte Activa Rural Bifasica 5/33 Al
+PARRUR0000054	Parte Activa Rural Bifasica 10/33 Al
+PARRUR0000055	Parte Activa Rural Bifasica 16/33 Al
+PARRUR0000056	Parte Activa Rural Bifasica 25/33 Al
+PARRUR0000057	Parte Activa Rural Bifasica 40/33 Al
+PARRUR0000058	Parte Activa Rural Trifasica 10/13 Al
+PARRUR0000059	Parte Activa Rural Trifasica 16/13 Al
+PARRUR0000060	Parte Activa Rural Trifasica 25/13 Al
+PARRUR0000061	Parte Activa Rural Trifasica 40/13 Al
+PARRUR0000062	Parte Activa Rural Trifasica 63/13 Al
+PARRUR0000063	Parte Activa Rural Trifasica 10/33 Al
+PARRUR0000064	Parte Activa Rural Trifasica 16/33 Al
+PARRUR0000065	Parte Activa Rural Trifasica 25/33 Al
+PARRUR0000066	Parte Activa Rural Trifasica 40/33 Al
+PARRUR0000067	Parte Activa Rural Trifasica 63/33 Al
+PARDIS0000001	Parte Activa Distribucion Trifasica 16/13 Cu
+PARDIS0000002	Parte Activa Distribucion Trifasica 25/13 Cu
+PARDIS0000003	Parte Activa Distribucion Trifasica 40/13 Cu
+PARDIS0000004	Parte Activa Distribucion Trifasica 63/13 Cu
+PARDIS0000005	Parte Activa Distribucion Trifasica 100/13 Cu
+PARDIS0000006	Parte Activa Distribucion Trifasica 125/13 Cu
+PARDIS0000007	Parte Activa Distribucion Trifasica 160/13 Cu
+PARDIS0000008	Parte Activa Distribucion Trifasica 200/13 Cu
+PARDIS0000009	Parte Activa Distribucion Trifasica 250/13 Cu
+PARDIS0000010	Parte Activa Distribucion Trifasica 315/13 Cu
+PARDIS0000011	Parte Activa Distribucion Trifasica 400/13 Cu
+PARDIS0000012	Parte Activa Distribucion Trifasica 500/13 Cu
+PARDIS0000013	Parte Activa Distribucion Trifasica 630/13 Cu
+PARDIS0000014	Parte Activa Distribucion Trifasica 800/13 Cu
+PARDIS0000015	Parte Activa Distribucion Trifasica 1000/13 Cu
+PARDIS0000016	Parte Activa Distribucion Trifasica 1250/13 Cu
+PARDIS0000017	Parte Activa Distribucion Trifasica 1500/13 Cu
+PARDIS0000018	Parte Activa Distribucion Trifasica 1600/13 Cu
+PARDIS0000019	Parte Activa Distribucion Trifasica 2000/13 Cu
+PARDIS0000020	Parte Activa Distribucion Trifasica 16/33 Cu
+PARDIS0000021	Parte Activa Distribucion Trifasica 25/33 Cu
+PARDIS0000022	Parte Activa Distribucion Trifasica 40/33 Cu
+PARDIS0000023	Parte Activa Distribucion Trifasica 63/33 Cu
+PARDIS0000024	Parte Activa Distribucion Trifasica 100/33 Cu
+PARDIS0000025	Parte Activa Distribucion Trifasica 125/33 Cu
+PARDIS0000026	Parte Activa Distribucion Trifasica 160/33 Cu
+PARDIS0000027	Parte Activa Distribucion Trifasica 200/33 Cu
+PARDIS0000028	Parte Activa Distribucion Trifasica 250/33 Cu
+PARDIS0000029	Parte Activa Distribucion Trifasica 315/33 Cu
+PARDIS0000030	Parte Activa Distribucion Trifasica 400/33 Cu
+PARDIS0000031	Parte Activa Distribucion Trifasica 500/33 Cu
+PARDIS0000032	Parte Activa Distribucion Trifasica 630/33 Cu
+PARDIS0000033	Parte Activa Distribucion Trifasica 800/33 Cu
+PARDIS0000034	Parte Activa Distribucion Trifasica 1000/33 Cu
+PARDIS0000035	Parte Activa Distribucion Trifasica 1250/33 Cu
+PARDIS0000036	Parte Activa Distribucion Trifasica 1500/33 Cu
+PARDIS0000037	Parte Activa Distribucion Trifasica 1600/33 Cu
+PARDIS0000038	Parte Activa Distribucion Trifasica 2000/33 Cu
+PARDIS0000039	Parte Activa Distribucion Trifasica 16/13 Al
+PARDIS0000040	Parte Activa Distribucion Trifasica 25/13 Al
+PARDIS0000041	Parte Activa Distribucion Trifasica 40/13 Al
+PARDIS0000042	Parte Activa Distribucion Trifasica 63/13 Al
+PARDIS0000043	Parte Activa Distribucion Trifasica 100/13 Al
+PARDIS0000044	Parte Activa Distribucion Trifasica 125/13 Al
+PARDIS0000045	Parte Activa Distribucion Trifasica 160/13 Al
+PARDIS0000046	Parte Activa Distribucion Trifasica 200/13 Al
+PARDIS0000047	Parte Activa Distribucion Trifasica 250/13 Al
+PARDIS0000048	Parte Activa Distribucion Trifasica 315/13 Al
+PARDIS0000049	Parte Activa Distribucion Trifasica 400/13 Al
+PARDIS0000050	Parte Activa Distribucion Trifasica 500/13 Al
+PARDIS0000051	Parte Activa Distribucion Trifasica 630/13 Al
+PARDIS0000052	Parte Activa Distribucion Trifasica 800/13 Al
+PARDIS0000053	Parte Activa Distribucion Trifasica 1000/13 Al
+PARDIS0000054	Parte Activa Distribucion Trifasica 1250/13 Al
+PARDIS0000055	Parte Activa Distribucion Trifasica 1500/13 Al
+PARDIS0000056	Parte Activa Distribucion Trifasica 1600/13 Al
+PARDIS0000057	Parte Activa Distribucion Trifasica 2000/13 Al
+PARDIS0000058	Parte Activa Distribucion Trifasica 16/33 Al
+PARDIS0000059	Parte Activa Distribucion Trifasica 25/33 Al
+PARDIS0000060	Parte Activa Distribucion Trifasica 40/33 Al
+PARDIS0000061	Parte Activa Distribucion Trifasica 63/33 Al
+PARDIS0000062	Parte Activa Distribucion Trifasica 100/33 Al
+PARDIS0000063	Parte Activa Distribucion Trifasica 125/33 Al
+PARDIS0000064	Parte Activa Distribucion Trifasica 160/33 Al
+PARDIS0000065	Parte Activa Distribucion Trifasica 200/33 Al
+PARDIS0000066	Parte Activa Distribucion Trifasica 250/33 Al
+PARDIS0000067	Parte Activa Distribucion Trifasica 315/33 Al
+PARDIS0000068	Parte Activa Distribucion Trifasica 400/33 Al
+PARDIS0000069	Parte Activa Distribucion Trifasica 500/33 Al
+PARDIS0000070	Parte Activa Distribucion Trifasica 630/33 Al
+PARDIS0000071	Parte Activa Distribucion Trifasica 800/33 Al
+PARDIS0000072	Parte Activa Distribucion Trifasica 1000/33 Al
+PARDIS0000073	Parte Activa Distribucion Trifasica 1250/33 Al
+PARDIS0000074	Parte Activa Distribucion Trifasica 1500/33 Al
+PARDIS0000075	Parte Activa Distribucion Trifasica 1600/33 Al
+PARDIS0000076	Parte Activa Distribucion Trifasica 2000/33 Al
+PARDIS0000077	Parte Activa Distribucion Trifasica 800/33 Al Kenia
+BOBALT0000001	Bobina AT Rural Monofasica 3/7 Cu
+BOBALT0000002	Bobina AT Rural Monofasica 5/7 Cu
+BOBALT0000003	Bobina AT Rural Monofasica 10/7 Cu
+BOBALT0000004	Bobina AT Rural Monofasica 16/7 Cu
+BOBALT0000005	Bobina AT Rural Monofasica 25/7 Cu
+BOBALT0000006	Bobina AT Rural Monofasica 40/7 Cu
+BOBALT0000007	Bobina AT Rural Monofasica 5/19 Cu
+BOBALT0000008	Bobina AT Rural Monofasica 10/19 Cu
+BOBALT0000009	Bobina AT Rural Monofasica 16/19 Cu
+BOBALT0000010	Bobina AT Rural Monofasica 25/19 Cu
+BOBALT0000011	Bobina AT Rural Monofasica 40/19 Cu
+BOBALT0000012	Bobina AT Rural Monofasica 3/7 Al
+BOBALT0000013	Bobina AT Rural Monofasica 5/7 Al
+BOBALT0000014	Bobina AT Rural Monofasica 10/7 Al
+BOBALT0000015	Bobina AT Rural Monofasica 16/7 Al
+BOBALT0000016	Bobina AT Rural Monofasica 25/7 Al
+BOBALT0000017	Bobina AT Rural Monofasica 40/7 Al
+BOBALT0000018	Bobina AT Rural Monofasica 5/19 Al
+BOBALT0000019	Bobina AT Rural Monofasica 10/19 Al
+BOBALT0000020	Bobina AT Rural Monofasica 16/19 Al
+BOBALT0000021	Bobina AT Rural Monofasica 25/19 Al
+BOBALT0000022	Bobina AT Rural Monofasica 40/19 Al
+BOBALT0000023	Bobina AT Rural Bifasica 5/13 Cu
+BOBALT0000024	Bobina AT Rural Bifasica 10/13 Cu
+BOBALT0000025	Bobina AT Rural Bifasica 16/13 Cu
+BOBALT0000026	Bobina AT Rural Bifasica 25/13 Cu
+BOBALT0000027	Bobina AT Rural Bifasica 40/13 Cu
+BOBALT0000028	Bobina AT Rural Bifasica 63/13 Cu
+BOBALT0000029	Bobina AT Rural Bifasica 75/13 Cu
+BOBALT0000030	Bobina AT Rural Bifasica 100/13 Cu
+BOBALT0000031	Bobina AT Rural Bifasica 5/33 Cu
+BOBALT0000032	Bobina AT Rural Bifasica 10/33 Cu
+BOBALT0000033	Bobina AT Rural Bifasica 16/33 Cu
+BOBALT0000034	Bobina AT Rural Bifasica 25/33 Cu
+BOBALT0000035	Bobina AT Rural Bifasica 40/33 Cu
+BOBALT0000036	Bobina AT Rural Bifasica 5/13 Al
+BOBALT0000037	Bobina AT Rural Bifasica 10/13 Al
+BOBALT0000038	Bobina AT Rural Bifasica 16/13 Al
+BOBALT0000039	Bobina AT Rural Bifasica 25/13 Al
+BOBALT0000040	Bobina AT Rural Bifasica 40/13 Al
+BOBALT0000041	Bobina AT Rural Bifasica 63/13 Al
+BOBALT0000042	Bobina AT Rural Bifasica 75/13 Al
+BOBALT0000043	Bobina AT Rural Bifasica 100/13 Al
+BOBALT0000044	Bobina AT Rural Bifasica 5/33 Al
+BOBALT0000045	Bobina AT Rural Bifasica 10/33 Al
+BOBALT0000046	Bobina AT Rural Bifasica 16/33 Al
+BOBALT0000047	Bobina AT Rural Bifasica 25/33 Al
+BOBALT0000048	Bobina AT Rural Bifasica 40/33 Al
+BOBALT0000049	Bobina AT Rural Trifasica 10/13 F1 Cu
+BOBALT0000050	Bobina AT Rural Trifasica 10/13 F2 Cu
+BOBALT0000051	Bobina AT Rural Trifasica 10/13 F3 Cu
+BOBALT0000052	Bobina AT Rural Trifasica 16/13 F1 Cu
+BOBALT0000053	Bobina AT Rural Trifasica 16/13 F2 Cu
+BOBALT0000054	Bobina AT Rural Trifasica 16/13 F3 Cu
+BOBALT0000055	Bobina AT Rural Trifasica 25/13 F1 Cu
+BOBALT0000056	Bobina AT Rural Trifasica 25/13 F2 Cu
+BOBALT0000057	Bobina AT Rural Trifasica 25/13 F3 Cu
+BOBALT0000058	Bobina AT Rural Trifasica 40/13 F1 Cu
+BOBALT0000059	Bobina AT Rural Trifasica 40/13 F2 Cu
+BOBALT0000060	Bobina AT Rural Trifasica 40/13 F3 Cu
+BOBALT0000061	Bobina AT Rural Trifasica 63/13 F1 Cu
+BOBALT0000062	Bobina AT Rural Trifasica 63/13 F2 Cu
+BOBALT0000063	Bobina AT Rural Trifasica 63/13 F3 Cu
+BOBALT0000064	Bobina AT Rural Trifasica 10/33 F1 Cu
+BOBALT0000065	Bobina AT Rural Trifasica 10/33 F2 Cu
+BOBALT0000066	Bobina AT Rural Trifasica 10/33 F3 Cu
+BOBALT0000067	Bobina AT Rural Trifasica 16/33 F1 Cu
+BOBALT0000068	Bobina AT Rural Trifasica 16/33 F2 Cu
+BOBALT0000069	Bobina AT Rural Trifasica 16/33 F3 Cu
+BOBALT0000070	Bobina AT Rural Trifasica 25/33 F1 Cu
+BOBALT0000071	Bobina AT Rural Trifasica 25/33 F2 Cu
+BOBALT0000072	Bobina AT Rural Trifasica 25/33 F3 Cu
+BOBALT0000073	Bobina AT Rural Trifasica 40/33 F1 Cu
+BOBALT0000074	Bobina AT Rural Trifasica 40/33 F2 Cu
+BOBALT0000075	Bobina AT Rural Trifasica 40/33 F3 Cu
+BOBALT0000076	Bobina AT Rural Trifasica 63/33 F1 Cu
+BOBALT0000077	Bobina AT Rural Trifasica 63/33 F2 Cu
+BOBALT0000078	Bobina AT Rural Trifasica 63/33 F3 Cu
+BOBALT0000079	Bobina AT Rural Trifasica 10/13 F1 Al
+BOBALT0000080	Bobina AT Rural Trifasica 10/13 F2 Al
+BOBALT0000081	Bobina AT Rural Trifasica 10/13 F3 Al
+BOBALT0000082	Bobina AT Rural Trifasica 16/13 F1 Al
+BOBALT0000083	Bobina AT Rural Trifasica 16/13 F2 Al
+BOBALT0000084	Bobina AT Rural Trifasica 16/13 F3 Al
+BOBALT0000085	Bobina AT Rural Trifasica 25/13 F1 Al
+BOBALT0000086	Bobina AT Rural Trifasica 25/13 F2 Al
+BOBALT0000087	Bobina AT Rural Trifasica 25/13 F3 Al
+BOBALT0000088	Bobina AT Rural Trifasica 40/13 F1 Al
+BOBALT0000089	Bobina AT Rural Trifasica 40/13 F2 Al
+BOBALT0000090	Bobina AT Rural Trifasica 40/13 F3 Al
+BOBALT0000091	Bobina AT Rural Trifasica 63/13 F1 Al
+BOBALT0000092	Bobina AT Rural Trifasica 63/13 F2 Al
+BOBALT0000093	Bobina AT Rural Trifasica 63/13 F3 Al
+BOBALT0000094	Bobina AT Rural Trifasica 10/33 F1 Al
+BOBALT0000095	Bobina AT Rural Trifasica 10/33 F2 Al
+BOBALT0000096	Bobina AT Rural Trifasica 10/33 F3 Al
+BOBALT0000097	Bobina AT Rural Trifasica 16/33 F1 Al
+BOBALT0000098	Bobina AT Rural Trifasica 16/33 F2 Al
+BOBALT0000099	Bobina AT Rural Trifasica 16/33 F3 Al
+BOBALT0000100	Bobina AT Rural Trifasica 25/33 F1 Al
+BOBALT0000101	Bobina AT Rural Trifasica 25/33 F2 Al
+BOBALT0000102	Bobina AT Rural Trifasica 25/33 F3 Al
+BOBALT0000103	Bobina AT Rural Trifasica 40/33 F1 Al
+BOBALT0000104	Bobina AT Rural Trifasica 40/33 F2 Al
+BOBALT0000105	Bobina AT Rural Trifasica 40/33 F3 Al
+BOBALT0000106	Bobina AT Rural Trifasica 63/33 F1 Al
+BOBALT0000107	Bobina AT Rural Trifasica 63/33 F2 Al
+BOBALT0000108	Bobina AT Rural Trifasica 63/33 F3 Al
+BOBALT0000109	Bobina AT Distribucion Trifasica Cuadrado 16/13 F1 Cu
+BOBALT0000110	Bobina AT Distribucion Trifasica Cuadrado 16/13 F2 Cu
+BOBALT0000111	Bobina AT Distribucion Trifasica Cuadrado 16/13 F3 Cu
+BOBALT0000112	Bobina AT Distribucion Trifasica Cuadrado 25/13 F1 Cu
+BOBALT0000113	Bobina AT Distribucion Trifasica Cuadrado 25/13 F2 Cu
+BOBALT0000114	Bobina AT Distribucion Trifasica Cuadrado 25/13 F3 Cu
+BOBALT0000115	Bobina AT Distribucion Trifasica Cuadrado 40/13 F1 Cu
+BOBALT0000116	Bobina AT Distribucion Trifasica Cuadrado 40/13 F2 Cu
+BOBALT0000117	Bobina AT Distribucion Trifasica Cuadrado 40/13 F3 Cu
+BOBALT0000118	Bobina AT Distribucion Trifasica Cuadrado 63/13 F1 Cu
+BOBALT0000119	Bobina AT Distribucion Trifasica Cuadrado 63/13 F2 Cu
+BOBALT0000120	Bobina AT Distribucion Trifasica Cuadrado 63/13 F3 Cu
+BOBALT0000121	Bobina AT Distribucion Trifasica Cuadrado 25/33 F1 Cu
+BOBALT0000122	Bobina AT Distribucion Trifasica Cuadrado 25/33 F2 Cu
+BOBALT0000123	Bobina AT Distribucion Trifasica Cuadrado 25/33 F3 Cu
+BOBALT0000124	Bobina AT Distribucion Trifasica Cuadrado 40/33 F1 Cu
+BOBALT0000125	Bobina AT Distribucion Trifasica Cuadrado 40/33 F2 Cu
+BOBALT0000126	Bobina AT Distribucion Trifasica Cuadrado 40/33 F3 Cu
+BOBALT0000127	Bobina AT Distribucion Trifasica Cuadrado 63/33 F1 Cu
+BOBALT0000128	Bobina AT Distribucion Trifasica Cuadrado 63/33 F2 Cu
+BOBALT0000129	Bobina AT Distribucion Trifasica Cuadrado 63/33 F3 Cu
+BOBALT0000130	Bobina AT Distribucion Trifasica Cuadrado 16/13 F1 Al
+BOBALT0000131	Bobina AT Distribucion Trifasica Cuadrado 16/13 F2 Al
+BOBALT0000132	Bobina AT Distribucion Trifasica Cuadrado 16/13 F3 Al
+BOBALT0000133	Bobina AT Distribucion Trifasica Cuadrado 25/13 F1 Al
+BOBALT0000134	Bobina AT Distribucion Trifasica Cuadrado 25/13 F2 Al
+BOBALT0000135	Bobina AT Distribucion Trifasica Cuadrado 25/13 F3 Al
+BOBALT0000136	Bobina AT Distribucion Trifasica Cuadrado 40/13 F1 Al
+BOBALT0000137	Bobina AT Distribucion Trifasica Cuadrado 40/13 F2 Al
+BOBALT0000138	Bobina AT Distribucion Trifasica Cuadrado 40/13 F3 Al
+BOBALT0000139	Bobina AT Distribucion Trifasica Cuadrado 63/13 F1 Al
+BOBALT0000140	Bobina AT Distribucion Trifasica Cuadrado 63/13 F2 Al
+BOBALT0000141	Bobina AT Distribucion Trifasica Cuadrado 63/13 F3 Al
+BOBALT0000142	Bobina AT Distribucion Trifasica Cuadrado 16/33 F1 Al
+BOBALT0000143	Bobina AT Distribucion Trifasica Cuadrado 16/33 F2 Al
+BOBALT0000144	Bobina AT Distribucion Trifasica Cuadrado 16/33 F3 Al
+BOBALT0000145	Bobina AT Distribucion Trifasica Cuadrado 25/33 F1 Al
+BOBALT0000146	Bobina AT Distribucion Trifasica Cuadrado 25/33 F2 Al
+BOBALT0000147	Bobina AT Distribucion Trifasica Cuadrado 25/33 F3 Al
+BOBALT0000148	Bobina AT Distribucion Trifasica Cuadrado 40/33 F1 Al
+BOBALT0000149	Bobina AT Distribucion Trifasica Cuadrado 40/33 F2 Al
+BOBALT0000150	Bobina AT Distribucion Trifasica Cuadrado 40/33 F3 Al
+BOBALT0000151	Bobina AT Distribucion Trifasica Cuadrado 63/33 F1 Al
+BOBALT0000152	Bobina AT Distribucion Trifasica Cuadrado 63/33 F2 Al
+BOBALT0000153	Bobina AT Distribucion Trifasica Cuadrado 63/33 F3 Al
+BOBALT0000154	Bobina AT Distribucion Trifasica Redondo 100/13 F1 Cu
+BOBALT0000155	Bobina AT Distribucion Trifasica Redondo 100/13 F2 Cu
+BOBALT0000156	Bobina AT Distribucion Trifasica Redondo 100/13 F3 Cu
+BOBALT0000157	Bobina AT Distribucion Trifasica Redondo 125/13 F1 Cu
+BOBALT0000158	Bobina AT Distribucion Trifasica Redondo 125/13 F2 Cu
+BOBALT0000159	Bobina AT Distribucion Trifasica Redondo 125/13 F3 Cu
+BOBALT0000160	Bobina AT Distribucion Trifasica Redondo 160/13 F1 Cu
+BOBALT0000161	Bobina AT Distribucion Trifasica Redondo 160/13 F2 Cu
+BOBALT0000162	Bobina AT Distribucion Trifasica Redondo 160/13 F3 Cu
+BOBALT0000163	Bobina AT Distribucion Trifasica Redondo 200/13 F1 Cu
+BOBALT0000164	Bobina AT Distribucion Trifasica Redondo 200/13 F2 Cu
+BOBALT0000165	Bobina AT Distribucion Trifasica Redondo 200/13 F3 Cu
+BOBALT0000166	Bobina AT Distribucion Trifasica Redondo 250/13 F1 Cu
+BOBALT0000167	Bobina AT Distribucion Trifasica Redondo 250/13 F2 Cu
+BOBALT0000168	Bobina AT Distribucion Trifasica Redondo 250/13 F3 Cu
+BOBALT0000169	Bobina AT Distribucion Trifasica Redondo 315/13 F1 Cu
+BOBALT0000170	Bobina AT Distribucion Trifasica Redondo 315/13 F2 Cu
+BOBALT0000171	Bobina AT Distribucion Trifasica Redondo 315/13 F3 Cu
+BOBALT0000172	Bobina AT Distribucion Trifasica Redondo 400/13 F1 Cu
+BOBALT0000173	Bobina AT Distribucion Trifasica Redondo 400/13 F2 Cu
+BOBALT0000174	Bobina AT Distribucion Trifasica Redondo 400/13 F3 Cu
+BOBALT0000175	Bobina AT Distribucion Trifasica Redondo 500/13 F1 Cu
+BOBALT0000176	Bobina AT Distribucion Trifasica Redondo 500/13 F2 Cu
+BOBALT0000177	Bobina AT Distribucion Trifasica Redondo 500/13 F3 Cu
+BOBALT0000178	Bobina AT Distribucion Trifasica Redondo 630/13 F1 Cu
+BOBALT0000179	Bobina AT Distribucion Trifasica Redondo 630/13 F2 Cu
+BOBALT0000180	Bobina AT Distribucion Trifasica Redondo 630/13 F3 Cu
+BOBALT0000181	Bobina AT Distribucion Trifasica Redondo 800/13 F1 Cu
+BOBALT0000182	Bobina AT Distribucion Trifasica Redondo 800/13 F2 Cu
+BOBALT0000183	Bobina AT Distribucion Trifasica Redondo 800/13 F3 Cu
+BOBALT0000184	Bobina AT Distribucion Trifasica Redondo 1000/13 F1 Cu
+BOBALT0000185	Bobina AT Distribucion Trifasica Redondo 1000/13 F2 Cu
+BOBALT0000186	Bobina AT Distribucion Trifasica Redondo 1000/13 F3 Cu
+BOBALT0000187	Bobina AT Distribucion Trifasica Redondo 1250/13 F1 Cu
+BOBALT0000188	Bobina AT Distribucion Trifasica Redondo 1250/13 F2 Cu
+BOBALT0000189	Bobina AT Distribucion Trifasica Redondo 1250/13 F3 Cu
+BOBALT0000190	Bobina AT Distribucion Trifasica Redondo 1500/13 F1 Cu
+BOBALT0000191	Bobina AT Distribucion Trifasica Redondo 1500/13 F2 Cu
+BOBALT0000192	Bobina AT Distribucion Trifasica Redondo 1500/13 F3 Cu
+BOBALT0000193	Bobina AT Distribucion Trifasica Redondo 1600/13 F1 Cu
+BOBALT0000194	Bobina AT Distribucion Trifasica Redondo 1600/13 F2 Cu
+BOBALT0000195	Bobina AT Distribucion Trifasica Redondo 1600/13 F3 Cu
+BOBALT0000196	Bobina AT Distribucion Trifasica Redondo 2000/13 F1 Cu
+BOBALT0000197	Bobina AT Distribucion Trifasica Redondo 2000/13 F2 Cu
+BOBALT0000198	Bobina AT Distribucion Trifasica Redondo 2000/13 F3 Cu
+BOBALT0000199	Bobina AT Distribucion Trifasica Redondo 100/33 F1 Cu
+BOBALT0000200	Bobina AT Distribucion Trifasica Redondo 100/33 F2 Cu
+BOBALT0000201	Bobina AT Distribucion Trifasica Redondo 100/33 F3 Cu
+BOBALT0000202	Bobina AT Distribucion Trifasica Redondo 125/33 F1 Cu
+BOBALT0000203	Bobina AT Distribucion Trifasica Redondo 125/33 F2 Cu
+BOBALT0000204	Bobina AT Distribucion Trifasica Redondo 125/33 F3 Cu
+BOBALT0000205	Bobina AT Distribucion Trifasica Redondo 160/33 F1 Cu
+BOBALT0000206	Bobina AT Distribucion Trifasica Redondo 160/33 F2 Cu
+BOBALT0000207	Bobina AT Distribucion Trifasica Redondo 160/33 F3 Cu
+BOBALT0000208	Bobina AT Distribucion Trifasica Redondo 200/33 F1 Cu
+BOBALT0000209	Bobina AT Distribucion Trifasica Redondo 200/33 F2 Cu
+BOBALT0000210	Bobina AT Distribucion Trifasica Redondo 200/33 F3 Cu
+BOBALT0000211	Bobina AT Distribucion Trifasica Redondo 250/33 F1 Cu
+BOBALT0000212	Bobina AT Distribucion Trifasica Redondo 250/33 F2 Cu
+BOBALT0000213	Bobina AT Distribucion Trifasica Redondo 250/33 F3 Cu
+BOBALT0000214	Bobina AT Distribucion Trifasica Redondo 315/33 F1 Cu
+BOBALT0000215	Bobina AT Distribucion Trifasica Redondo 315/33 F2 Cu
+BOBALT0000216	Bobina AT Distribucion Trifasica Redondo 315/33 F3 Cu
+BOBALT0000217	Bobina AT Distribucion Trifasica Redondo 400/33 F1 Cu
+BOBALT0000218	Bobina AT Distribucion Trifasica Redondo 400/33 F2 Cu
+BOBALT0000219	Bobina AT Distribucion Trifasica Redondo 400/33 F3 Cu
+BOBALT0000220	Bobina AT Distribucion Trifasica Redondo 500/33 F1 Cu
+BOBALT0000221	Bobina AT Distribucion Trifasica Redondo 500/33 F2 Cu
+BOBALT0000222	Bobina AT Distribucion Trifasica Redondo 500/33 F3 Cu
+BOBALT0000223	Bobina AT Distribucion Trifasica Redondo 630/33 F1 Cu
+BOBALT0000224	Bobina AT Distribucion Trifasica Redondo 630/33 F2 Cu
+BOBALT0000225	Bobina AT Distribucion Trifasica Redondo 630/33 F3 Cu
+BOBALT0000226	Bobina AT Distribucion Trifasica Redondo 800/33 F1 Cu
+BOBALT0000227	Bobina AT Distribucion Trifasica Redondo 800/33 F2 Cu
+BOBALT0000228	Bobina AT Distribucion Trifasica Redondo 800/33 F3 Cu
+BOBALT0000229	Bobina AT Distribucion Trifasica Redondo 1000/33 F1 Cu
+BOBALT0000230	Bobina AT Distribucion Trifasica Redondo 1000/33 F2 Cu
+BOBALT0000231	Bobina AT Distribucion Trifasica Redondo 1000/33 F3 Cu
+BOBALT0000232	Bobina AT Distribucion Trifasica Redondo 1250/33 F1 Cu
+BOBALT0000233	Bobina AT Distribucion Trifasica Redondo 1250/33 F2 Cu
+BOBALT0000234	Bobina AT Distribucion Trifasica Redondo 1250/33 F3 Cu
+BOBALT0000235	Bobina AT Distribucion Trifasica Redondo 1500/33 F1 Cu
+BOBALT0000236	Bobina AT Distribucion Trifasica Redondo 1500/33 F2 Cu
+BOBALT0000237	Bobina AT Distribucion Trifasica Redondo 1500/33 F3 Cu
+BOBALT0000238	Bobina AT Distribucion Trifasica Redondo 1600/33 F1 Cu
+BOBALT0000239	Bobina AT Distribucion Trifasica Redondo 1600/33 F2 Cu
+BOBALT0000240	Bobina AT Distribucion Trifasica Redondo 1600/33 F3 Cu
+BOBALT0000241	Bobina AT Distribucion Trifasica Redondo 2000/33 F1 Cu
+BOBALT0000242	Bobina AT Distribucion Trifasica Redondo 2000/33 F2 Cu
+BOBALT0000243	Bobina AT Distribucion Trifasica Redondo 2000/33 F3 Cu
+BOBALT0000244	Bobina AT Distribucion Trifasica Redondo 100/13 F1 Al
+BOBALT0000245	Bobina AT Distribucion Trifasica Redondo 100/13 F2 Al
+BOBALT0000246	Bobina AT Distribucion Trifasica Redondo 100/13 F3 Al
+BOBALT0000247	Bobina AT Distribucion Trifasica Redondo 125/13 F1 Al
+BOBALT0000248	Bobina AT Distribucion Trifasica Redondo 125/13 F2 Al
+BOBALT0000249	Bobina AT Distribucion Trifasica Redondo 125/13 F3 Al
+BOBALT0000250	Bobina AT Distribucion Trifasica Redondo 160/13 F1 Al
+BOBALT0000251	Bobina AT Distribucion Trifasica Redondo 160/13 F2 Al
+BOBALT0000252	Bobina AT Distribucion Trifasica Redondo 160/13 F3 Al
+BOBALT0000253	Bobina AT Distribucion Trifasica Redondo 200/13 F1 Al
+BOBALT0000254	Bobina AT Distribucion Trifasica Redondo 200/13 F2 Al
+BOBALT0000255	Bobina AT Distribucion Trifasica Redondo 200/13 F3 Al
+BOBALT0000256	Bobina AT Distribucion Trifasica Redondo 250/13 F1 Al
+BOBALT0000257	Bobina AT Distribucion Trifasica Redondo 250/13 F2 Al
+BOBALT0000258	Bobina AT Distribucion Trifasica Redondo 250/13 F3 Al
+BOBALT0000259	Bobina AT Distribucion Trifasica Redondo 315/13 F1 Al
+BOBALT0000260	Bobina AT Distribucion Trifasica Redondo 315/13 F2 Al
+BOBALT0000261	Bobina AT Distribucion Trifasica Redondo 315/13 F3 Al
+BOBALT0000262	Bobina AT Distribucion Trifasica Redondo 400/13 F1 Al
+BOBALT0000263	Bobina AT Distribucion Trifasica Redondo 400/13 F2 Al
+BOBALT0000264	Bobina AT Distribucion Trifasica Redondo 400/13 F3 Al
+BOBALT0000265	Bobina AT Distribucion Trifasica Redondo 500/13 F1 Al
+BOBALT0000266	Bobina AT Distribucion Trifasica Redondo 500/13 F2 Al
+BOBALT0000267	Bobina AT Distribucion Trifasica Redondo 500/13 F3 Al
+BOBALT0000268	Bobina AT Distribucion Trifasica Redondo 630/13 F1 Al - FL
+BOBALT0000269	Bobina AT Distribucion Trifasica Redondo 630/13 F2 Al - FL
+BOBALT0000270	Bobina AT Distribucion Trifasica Redondo 630/13 F3 Al - FL
+BOBALT0000271	Bobina AT Distribucion Trifasica Redondo 800/13 F1 Al - FL
+BOBALT0000272	Bobina AT Distribucion Trifasica Redondo 800/13 F2 Al - FL
+BOBALT0000273	Bobina AT Distribucion Trifasica Redondo 800/13 F3 Al - FL
+BOBALT0000274	Bobina AT Distribucion Trifasica Redondo 1000/13 F1 Al - FL
+BOBALT0000275	Bobina AT Distribucion Trifasica Redondo 1000/13 F2 Al - FL
+BOBALT0000276	Bobina AT Distribucion Trifasica Redondo 1000/13 F3 Al - FL
+BOBALT0000277	Bobina AT Distribucion Trifasica Redondo 1250/13 F1 Al - FL
+BOBALT0000278	Bobina AT Distribucion Trifasica Redondo 1250/13 F2 Al - FL
+BOBALT0000279	Bobina AT Distribucion Trifasica Redondo 1250/13 F3 Al - FL
+BOBALT0000280	Bobina AT Distribucion Trifasica Redondo 1500/13 F1 Al - FL
+BOBALT0000281	Bobina AT Distribucion Trifasica Redondo 1500/13 F2 Al - FL
+BOBALT0000282	Bobina AT Distribucion Trifasica Redondo 1500/13 F3 Al - FL
+BOBALT0000283	Bobina AT Distribucion Trifasica Redondo 1600/13 F1 Al - FL
+BOBALT0000284	Bobina AT Distribucion Trifasica Redondo 1600/13 F2 Al - FL
+BOBALT0000285	Bobina AT Distribucion Trifasica Redondo 1600/13 F3 Al - FL
+BOBALT0000286	Bobina AT Distribucion Trifasica Redondo 2000/13 F1 Al - FL
+BOBALT0000287	Bobina AT Distribucion Trifasica Redondo 2000/13 F2 Al - FL
+BOBALT0000288	Bobina AT Distribucion Trifasica Redondo 2000/13 F3 Al - FL
+BOBALT0000289	Bobina AT Distribucion Trifasica Redondo 100/33 F1 Al
+BOBALT0000290	Bobina AT Distribucion Trifasica Redondo 100/33 F2 Al
+BOBALT0000291	Bobina AT Distribucion Trifasica Redondo 100/33 F3 Al
+BOBALT0000292	Bobina AT Distribucion Trifasica Redondo 125/33 F1 Al
+BOBALT0000293	Bobina AT Distribucion Trifasica Redondo 125/33 F2 Al
+BOBALT0000294	Bobina AT Distribucion Trifasica Redondo 125/33 F3 Al
+BOBALT0000295	Bobina AT Distribucion Trifasica Redondo 160/33 F1 Al
+BOBALT0000296	Bobina AT Distribucion Trifasica Redondo 160/33 F2 Al
+BOBALT0000297	Bobina AT Distribucion Trifasica Redondo 160/33 F3 Al
+BOBALT0000298	Bobina AT Distribucion Trifasica Redondo 200/33 F1 Al
+BOBALT0000299	Bobina AT Distribucion Trifasica Redondo 200/33 F2 Al
+BOBALT0000300	Bobina AT Distribucion Trifasica Redondo 200/33 F3 Al
+BOBALT0000301	Bobina AT Distribucion Trifasica Redondo 250/33 F1 Al
+BOBALT0000302	Bobina AT Distribucion Trifasica Redondo 250/33 F2 Al
+BOBALT0000303	Bobina AT Distribucion Trifasica Redondo 250/33 F3 Al
+BOBALT0000304	Bobina AT Distribucion Trifasica Redondo 315/33 F1 Al
+BOBALT0000305	Bobina AT Distribucion Trifasica Redondo 315/33 F2 Al
+BOBALT0000306	Bobina AT Distribucion Trifasica Redondo 315/33 F3 Al
+BOBALT0000307	Bobina AT Distribucion Trifasica Redondo 400/33 F1 Al
+BOBALT0000308	Bobina AT Distribucion Trifasica Redondo 400/33 F2 Al
+BOBALT0000309	Bobina AT Distribucion Trifasica Redondo 400/33 F3 Al
+BOBALT0000310	Bobina AT Distribucion Trifasica Redondo 500/33 F1 Al
+BOBALT0000311	Bobina AT Distribucion Trifasica Redondo 500/33 F2 Al
+BOBALT0000312	Bobina AT Distribucion Trifasica Redondo 500/33 F3 Al
+BOBALT0000313	Bobina AT Distribucion Trifasica Redondo 630/33 F1 Al
+BOBALT0000314	Bobina AT Distribucion Trifasica Redondo 630/33 F2 Al
+BOBALT0000315	Bobina AT Distribucion Trifasica Redondo 630/33 F3 Al
+BOBALT0000316	Bobina AT Distribucion Trifasica Redondo 800/33 F1 Al - FL
+BOBALT0000317	Bobina AT Distribucion Trifasica Redondo 800/33 F2 Al - FL
+BOBALT0000318	Bobina AT Distribucion Trifasica Redondo 800/33 F3 Al - FL
+BOBALT0000319	Bobina AT Distribucion Trifasica Redondo 1000/33 F1 Al - FL
+BOBALT0000320	Bobina AT Distribucion Trifasica Redondo 1000/33 F2 Al - FL
+BOBALT0000321	Bobina AT Distribucion Trifasica Redondo 1000/33 F3 Al - FL
+BOBALT0000322	Bobina AT Distribucion Trifasica Redondo 1250/33 F1 Al - FL
+BOBALT0000323	Bobina AT Distribucion Trifasica Redondo 1250/33 F2 Al - FL
+BOBALT0000324	Bobina AT Distribucion Trifasica Redondo 1250/33 F3 Al - FL
+BOBALT0000325	Bobina AT Distribucion Trifasica Redondo 1500/33 F1 Al - FL
+BOBALT0000326	Bobina AT Distribucion Trifasica Redondo 1500/33 F2 Al - FL
+BOBALT0000327	Bobina AT Distribucion Trifasica Redondo 1500/33 F3 Al - FL
+BOBALT0000328	Bobina AT Distribucion Trifasica Redondo 1600/33 F1 Al - FL
+BOBALT0000329	Bobina AT Distribucion Trifasica Redondo 1600/33 F2 Al - FL
+BOBALT0000330	Bobina AT Distribucion Trifasica Redondo 1600/33 F3 Al - FL
+BOBALT0000331	Bobina AT Distribucion Trifasica Redondo 2000/33 F1 Al - FL
+BOBALT0000332	Bobina AT Distribucion Trifasica Redondo 2000/33 F2 Al - FL
+BOBALT0000333	Bobina AT Distribucion Trifasica Redondo 2000/33 F3 Al - FL
+BOBALT0000334	Bobina AT Distribucion Trifasica Cuadrado 16/33 F1 Cu
+BOBALT0000335	Bobina AT Distribucion Trifasica Cuadrado 16/33 F2 Cu
+BOBALT0000336	Bobina AT Distribucion Trifasica Cuadrado 16/33 F3 Cu
+BOBALT0000337	Bobina AT Distribucion Trifasica Cuadrado 100/33 F1 Al
+BOBALT0000338	Bobina AT Distribucion Trifasica Cuadrado 100/33 F2 Al
+BOBALT0000339	Bobina AT Distribucion Trifasica Cuadrado 100/33 F3 Al
+BOBBAJ0000001	Bobina BT Rural Monofasica 3/7 Cu
+BOBBAJ0000002	Bobina BT Rural Monofasica 5/7 Cu
+BOBBAJ0000003	Bobina BT Rural Monofasica 10/7 Cu
+BOBBAJ0000004	Bobina BT Rural Monofasica 16/7 Cu
+BOBBAJ0000005	Bobina BT Rural Monofasica 25/7 Cu
+BOBBAJ0000006	Bobina BT Rural Monofasica 40/7 Cu
+BOBBAJ0000007	Bobina BT Rural Monofasica 5/19 Cu
+BOBBAJ0000008	Bobina BT Rural Monofasica 10/19 Cu
+BOBBAJ0000009	Bobina BT Rural Monofasica 16/19 Cu
+BOBBAJ0000010	Bobina BT Rural Monofasica 25/19 Cu
+BOBBAJ0000011	Bobina BT Rural Monofasica 40/19 Cu
+BOBBAJ0000012	Bobina BT Rural Monofasica 3/7 Al
+BOBBAJ0000013	Bobina BT Rural Monofasica 5/7 Al
+BOBBAJ0000014	Bobina BT Rural Monofasica 10/7 Al
+BOBBAJ0000015	Bobina BT Rural Monofasica 16/7 Al
+BOBBAJ0000016	Bobina BT Rural Monofasica 25/7 Al
+BOBBAJ0000017	Bobina BT Rural Monofasica 40/7 Al
+BOBBAJ0000018	Bobina BT Rural Monofasica 5/19 Al
+BOBBAJ0000019	Bobina BT Rural Monofasica 10/19 Al
+BOBBAJ0000020	Bobina BT Rural Monofasica 16/19 Al
+BOBBAJ0000021	Bobina BT Rural Monofasica 25/19 Al
+BOBBAJ0000022	Bobina BT Rural Monofasica 40/19 Al
+BOBBAJ0000023	Bobina BT Rural Bifasica 5/13 Cu
+BOBBAJ0000024	Bobina BT Rural Bifasica 10/13 Cu
+BOBBAJ0000025	Bobina BT Rural Bifasica 16/13 Cu
+BOBBAJ0000026	Bobina BT Rural Bifasica 25/13 Cu
+BOBBAJ0000027	Bobina BT Rural Bifasica 40/13 Cu
+BOBBAJ0000028	Bobina BT Rural Bifasica 63/13 Cu
+BOBBAJ0000029	Bobina BT Rural Bifasica 75/13 Cu
+BOBBAJ0000030	Bobina BT Rural Bifasica 100/13 Cu
+BOBBAJ0000031	Bobina BT Rural Bifasica 5/33 Cu
+BOBBAJ0000032	Bobina BT Rural Bifasica 10/33 Cu
+BOBBAJ0000033	Bobina BT Rural Bifasica 16/33 Cu
+BOBBAJ0000034	Bobina BT Rural Bifasica 25/33 Cu
+BOBBAJ0000035	Bobina BT Rural Bifasica 40/33 Cu
+BOBBAJ0000036	Bobina BT Rural Bifasica 5/13 Al
+BOBBAJ0000037	Bobina BT Rural Bifasica 10/13 Al
+BOBBAJ0000038	Bobina BT Rural Bifasica 16/13 Al
+BOBBAJ0000039	Bobina BT Rural Bifasica 25/13 Al
+BOBBAJ0000040	Bobina BT Rural Bifasica 40/13 Al
+BOBBAJ0000041	Bobina BT Rural Bifasica 63/13 Al
+BOBBAJ0000042	Bobina BT Rural Bifasica 75/13 Al
+BOBBAJ0000043	Bobina BT Rural Bifasica 100/13 Al
+BOBBAJ0000044	Bobina BT Rural Bifasica 5/33 Al
+BOBBAJ0000045	Bobina BT Rural Bifasica 10/33 Al
+BOBBAJ0000046	Bobina BT Rural Bifasica 16/33 Al
+BOBBAJ0000047	Bobina BT Rural Bifasica 25/33 Al
+BOBBAJ0000048	Bobina BT Rural Bifasica 40/33 Al
+BOBBAJ0000049	Bobina BT Rural Trifasica 10/13 F1 Cu
+BOBBAJ0000050	Bobina BT Rural Trifasica 10/13 F2 Cu
+BOBBAJ0000051	Bobina BT Rural Trifasica 10/13 F3 Cu
+BOBBAJ0000052	Bobina BT Rural Trifasica 16/13 F1 Cu
+BOBBAJ0000053	Bobina BT Rural Trifasica 16/13 F2 Cu
+BOBBAJ0000054	Bobina BT Rural Trifasica 16/13 F3 Cu
+BOBBAJ0000055	Bobina BT Rural Trifasica 25/13 F1 Cu
+BOBBAJ0000056	Bobina BT Rural Trifasica 25/13 F2 Cu
+BOBBAJ0000057	Bobina BT Rural Trifasica 25/13 F3 Cu
+BOBBAJ0000058	Bobina BT Rural Trifasica 40/13 F1 Cu
+BOBBAJ0000059	Bobina BT Rural Trifasica 40/13 F2 Cu
+BOBBAJ0000060	Bobina BT Rural Trifasica 40/13 F3 Cu
+BOBBAJ0000061	Bobina BT Rural Trifasica 63/13 F1 Cu
+BOBBAJ0000062	Bobina BT Rural Trifasica 63/13 F2 Cu
+BOBBAJ0000063	Bobina BT Rural Trifasica 63/13 F3 Cu
+BOBBAJ0000064	Bobina BT Rural Trifasica 10/33 F1 Cu
+BOBBAJ0000065	Bobina BT Rural Trifasica 10/33 F2 Cu
+BOBBAJ0000066	Bobina BT Rural Trifasica 10/33 F3 Cu
+BOBBAJ0000067	Bobina BT Rural Trifasica 16/33 F1 Cu
+BOBBAJ0000068	Bobina BT Rural Trifasica 16/33 F2 Cu
+BOBBAJ0000069	Bobina BT Rural Trifasica 16/33 F3 Cu
+BOBBAJ0000070	Bobina BT Rural Trifasica 25/33 F1 Cu
+BOBBAJ0000071	Bobina BT Rural Trifasica 25/33 F2 Cu
+BOBBAJ0000072	Bobina BT Rural Trifasica 25/33 F3 Cu
+BOBBAJ0000073	Bobina BT Rural Trifasica 40/33 F1 Cu
+BOBBAJ0000074	Bobina BT Rural Trifasica 40/33 F2 Cu
+BOBBAJ0000075	Bobina BT Rural Trifasica 40/33 F3 Cu
+BOBBAJ0000076	Bobina BT Rural Trifasica 63/33 F1 Cu
+BOBBAJ0000077	Bobina BT Rural Trifasica 63/33 F2 Cu
+BOBBAJ0000078	Bobina BT Rural Trifasica 63/33 F3 Cu
+BOBBAJ0000079	Bobina BT Rural Trifasica 10/13 F1 Al
+BOBBAJ0000080	Bobina BT Rural Trifasica 10/13 F2 Al
+BOBBAJ0000081	Bobina BT Rural Trifasica 10/13 F3 Al
+BOBBAJ0000082	Bobina BT Rural Trifasica 16/13 F1 Al
+BOBBAJ0000083	Bobina BT Rural Trifasica 16/13 F2 Al
+BOBBAJ0000084	Bobina BT Rural Trifasica 16/13 F3 Al
+BOBBAJ0000085	Bobina BT Rural Trifasica 25/13 F1 Al
+BOBBAJ0000086	Bobina BT Rural Trifasica 25/13 F2 Al
+BOBBAJ0000087	Bobina BT Rural Trifasica 25/13 F3 Al
+BOBBAJ0000088	Bobina BT Rural Trifasica 40/13 F1 Al
+BOBBAJ0000089	Bobina BT Rural Trifasica 40/13 F2 Al
+BOBBAJ0000090	Bobina BT Rural Trifasica 40/13 F3 Al
+BOBBAJ0000091	Bobina BT Rural Trifasica 63/13 F1 Al
+BOBBAJ0000092	Bobina BT Rural Trifasica 63/13 F2 Al
+BOBBAJ0000093	Bobina BT Rural Trifasica 63/13 F3 Al
+BOBBAJ0000094	Bobina BT Rural Trifasica 10/33 F1 Al
+BOBBAJ0000095	Bobina BT Rural Trifasica 10/33 F2 Al
+BOBBAJ0000096	Bobina BT Rural Trifasica 10/33 F3 Al
+BOBBAJ0000097	Bobina BT Rural Trifasica 16/33 F1 Al
+BOBBAJ0000098	Bobina BT Rural Trifasica 16/33 F2 Al
+BOBBAJ0000099	Bobina BT Rural Trifasica 16/33 F3 Al
+BOBBAJ0000100	Bobina BT Rural Trifasica 25/33 F1 Al
+BOBBAJ0000101	Bobina BT Rural Trifasica 25/33 F2 Al
+BOBBAJ0000102	Bobina BT Rural Trifasica 25/33 F3 Al
+BOBBAJ0000103	Bobina BT Rural Trifasica 40/33 F1 Al
+BOBBAJ0000104	Bobina BT Rural Trifasica 40/33 F2 Al
+BOBBAJ0000105	Bobina BT Rural Trifasica 40/33 F3 Al
+BOBBAJ0000106	Bobina BT Rural Trifasica 63/33 F1 Al
+BOBBAJ0000107	Bobina BT Rural Trifasica 63/33 F2 Al
+BOBBAJ0000108	Bobina BT Rural Trifasica 63/33 F3 Al
+BOBBAJ0000109	Bobina BT Distribucion Trifasica Cuadrado 16/13 F1 Cu
+BOBBAJ0000110	Bobina BT Distribucion Trifasica Cuadrado 16/13 F2 Cu
+BOBBAJ0000111	Bobina BT Distribucion Trifasica Cuadrado 16/13 F3 Cu
+BOBBAJ0000112	Bobina BT Distribucion Trifasica Cuadrado 25/13 F1 Cu
+BOBBAJ0000113	Bobina BT Distribucion Trifasica Cuadrado 25/13 F2 Cu
+BOBBAJ0000114	Bobina BT Distribucion Trifasica Cuadrado 25/13 F3 Cu
+BOBBAJ0000115	Bobina BT Distribucion Trifasica Cuadrado 40/13 F1 Cu
+BOBBAJ0000116	Bobina BT Distribucion Trifasica Cuadrado 40/13 F2 Cu
+BOBBAJ0000117	Bobina BT Distribucion Trifasica Cuadrado 40/13 F3 Cu
+BOBBAJ0000118	Bobina BT Distribucion Trifasica Cuadrado 63/13 F1 Cu
+BOBBAJ0000119	Bobina BT Distribucion Trifasica Cuadrado 63/13 F2 Cu
+BOBBAJ0000120	Bobina BT Distribucion Trifasica Cuadrado 63/13 F3 Cu
+BOBBAJ0000121	Bobina BT Distribucion Trifasica Cuadrado 25/33 F1 Cu
+BOBBAJ0000122	Bobina BT Distribucion Trifasica Cuadrado 25/33 F2 Cu
+BOBBAJ0000123	Bobina BT Distribucion Trifasica Cuadrado 25/33 F3 Cu
+BOBBAJ0000124	Bobina BT Distribucion Trifasica Cuadrado 40/33 F1 Cu
+BOBBAJ0000125	Bobina BT Distribucion Trifasica Cuadrado 40/33 F2 Cu
+BOBBAJ0000126	Bobina BT Distribucion Trifasica Cuadrado 40/33 F3 Cu
+BOBBAJ0000127	Bobina BT Distribucion Trifasica Cuadrado 63/33 F1 Cu
+BOBBAJ0000128	Bobina BT Distribucion Trifasica Cuadrado 63/33 F2 Cu
+BOBBAJ0000129	Bobina BT Distribucion Trifasica Cuadrado 63/33 F3 Cu
+BOBBAJ0000130	Bobina BT Distribucion Trifasica Cuadrado 16/13 F1 Al
+BOBBAJ0000131	Bobina BT Distribucion Trifasica Cuadrado 16/13 F2 Al
+BOBBAJ0000132	Bobina BT Distribucion Trifasica Cuadrado 16/13 F3 Al
+BOBBAJ0000133	Bobina BT Distribucion Trifasica Cuadrado 25/13 F1 Al
+BOBBAJ0000134	Bobina BT Distribucion Trifasica Cuadrado 25/13 F2 Al
+BOBBAJ0000135	Bobina BT Distribucion Trifasica Cuadrado 25/13 F3 Al
+BOBBAJ0000136	Bobina BT Distribucion Trifasica Cuadrado 40/13 F1 Al
+BOBBAJ0000137	Bobina BT Distribucion Trifasica Cuadrado 40/13 F2 Al
+BOBBAJ0000138	Bobina BT Distribucion Trifasica Cuadrado 40/13 F3 Al
+BOBBAJ0000139	Bobina BT Distribucion Trifasica Cuadrado 63/13 F1 Al
+BOBBAJ0000140	Bobina BT Distribucion Trifasica Cuadrado 63/13 F2 Al
+BOBBAJ0000141	Bobina BT Distribucion Trifasica Cuadrado 63/13 F3 Al
+BOBBAJ0000142	Bobina BT Distribucion Trifasica Cuadrado 16/33 F1 Al
+BOBBAJ0000143	Bobina BT Distribucion Trifasica Cuadrado 16/33 F2 Al
+BOBBAJ0000144	Bobina BT Distribucion Trifasica Cuadrado 16/33 F3 Al
+BOBBAJ0000145	Bobina BT Distribucion Trifasica Cuadrado 25/33 F1 Al
+BOBBAJ0000146	Bobina BT Distribucion Trifasica Cuadrado 25/33 F2 Al
+BOBBAJ0000147	Bobina BT Distribucion Trifasica Cuadrado 25/33 F3 Al
+BOBBAJ0000148	Bobina BT Distribucion Trifasica Cuadrado 40/33 F1 Al
+BOBBAJ0000149	Bobina BT Distribucion Trifasica Cuadrado 40/33 F2 Al
+BOBBAJ0000150	Bobina BT Distribucion Trifasica Cuadrado 40/33 F3 Al
+BOBBAJ0000151	Bobina BT Distribucion Trifasica Cuadrado 63/33 F1 Al
+BOBBAJ0000152	Bobina BT Distribucion Trifasica Cuadrado 63/33 F2 Al
+BOBBAJ0000153	Bobina BT Distribucion Trifasica Cuadrado 63/33 F3 Al
+BOBBAJ0000154	Bobina BT Distribucion Trifasica Redondo 100/13 F1 Cu
+BOBBAJ0000155	Bobina BT Distribucion Trifasica Redondo 100/13 F2 Cu
+BOBBAJ0000156	Bobina BT Distribucion Trifasica Redondo 100/13 F3 Cu
+BOBBAJ0000157	Bobina BT Distribucion Trifasica Redondo 125/13 F1 Cu
+BOBBAJ0000158	Bobina BT Distribucion Trifasica Redondo 125/13 F2 Cu
+BOBBAJ0000159	Bobina BT Distribucion Trifasica Redondo 125/13 F3 Cu
+BOBBAJ0000160	Bobina BT Distribucion Trifasica Redondo 160/13 F1 Cu
+BOBBAJ0000161	Bobina BT Distribucion Trifasica Redondo 160/13 F2 Cu
+BOBBAJ0000162	Bobina BT Distribucion Trifasica Redondo 160/13 F3 Cu
+BOBBAJ0000163	Bobina BT Distribucion Trifasica Redondo 200/13 F1 Cu
+BOBBAJ0000164	Bobina BT Distribucion Trifasica Redondo 200/13 F2 Cu
+BOBBAJ0000165	Bobina BT Distribucion Trifasica Redondo 200/13 F3 Cu
+BOBBAJ0000166	Bobina BT Distribucion Trifasica Redondo 250/13 F1 Cu
+BOBBAJ0000167	Bobina BT Distribucion Trifasica Redondo 250/13 F2 Cu
+BOBBAJ0000168	Bobina BT Distribucion Trifasica Redondo 250/13 F3 Cu
+BOBBAJ0000169	Bobina BT Distribucion Trifasica Redondo 315/13 F1 Cu
+BOBBAJ0000170	Bobina BT Distribucion Trifasica Redondo 315/13 F2 Cu
+BOBBAJ0000171	Bobina BT Distribucion Trifasica Redondo 315/13 F3 Cu
+BOBBAJ0000172	Bobina BT Distribucion Trifasica Redondo 400/13 F1 Cu
+BOBBAJ0000173	Bobina BT Distribucion Trifasica Redondo 400/13 F2 Cu
+BOBBAJ0000174	Bobina BT Distribucion Trifasica Redondo 400/13 F3 Cu
+BOBBAJ0000175	Bobina BT Distribucion Trifasica Redondo 500/13 F1 Cu
+BOBBAJ0000176	Bobina BT Distribucion Trifasica Redondo 500/13 F2 Cu
+BOBBAJ0000177	Bobina BT Distribucion Trifasica Redondo 500/13 F3 Cu
+BOBBAJ0000178	Bobina BT Distribucion Trifasica Redondo 630/13 F1 Cu
+BOBBAJ0000179	Bobina BT Distribucion Trifasica Redondo 630/13 F2 Cu
+BOBBAJ0000180	Bobina BT Distribucion Trifasica Redondo 630/13 F3 Cu
+BOBBAJ0000181	Bobina BT Distribucion Trifasica Redondo 800/13 F1 Cu
+BOBBAJ0000182	Bobina BT Distribucion Trifasica Redondo 800/13 F2 Cu
+BOBBAJ0000183	Bobina BT Distribucion Trifasica Redondo 800/13 F3 Cu
+BOBBAJ0000184	Bobina BT Distribucion Trifasica Redondo 1000/13 F1 Cu
+BOBBAJ0000185	Bobina BT Distribucion Trifasica Redondo 1000/13 F2 Cu
+BOBBAJ0000186	Bobina BT Distribucion Trifasica Redondo 1000/13 F3 Cu
+BOBBAJ0000187	Bobina BT Distribucion Trifasica Redondo 1250/13 F1 Cu
+BOBBAJ0000188	Bobina BT Distribucion Trifasica Redondo 1250/13 F2 Cu
+BOBBAJ0000189	Bobina BT Distribucion Trifasica Redondo 1250/13 F3 Cu
+BOBBAJ0000190	Bobina BT Distribucion Trifasica Redondo 1500/13 F1 Cu
+BOBBAJ0000191	Bobina BT Distribucion Trifasica Redondo 1500/13 F2 Cu
+BOBBAJ0000192	Bobina BT Distribucion Trifasica Redondo 1500/13 F3 Cu
+BOBBAJ0000193	Bobina BT Distribucion Trifasica Redondo 1600/13 F1 Cu
+BOBBAJ0000194	Bobina BT Distribucion Trifasica Redondo 1600/13 F2 Cu
+BOBBAJ0000195	Bobina BT Distribucion Trifasica Redondo 1600/13 F3 Cu
+BOBBAJ0000196	Bobina BT Distribucion Trifasica Redondo 2000/13 F1 Cu
+BOBBAJ0000197	Bobina BT Distribucion Trifasica Redondo 2000/13 F2 Cu
+BOBBAJ0000198	Bobina BT Distribucion Trifasica Redondo 2000/13 F3 Cu
+BOBBAJ0000199	Bobina BT Distribucion Trifasica Redondo 100/33 F1 Cu
+BOBBAJ0000200	Bobina BT Distribucion Trifasica Redondo 100/33 F2 Cu
+BOBBAJ0000201	Bobina BT Distribucion Trifasica Redondo 100/33 F3 Cu
+BOBBAJ0000202	Bobina BT Distribucion Trifasica Redondo 125/33 F1 Cu
+BOBBAJ0000203	Bobina BT Distribucion Trifasica Redondo 125/33 F2 Cu
+BOBBAJ0000204	Bobina BT Distribucion Trifasica Redondo 125/33 F3 Cu
+BOBBAJ0000205	Bobina BT Distribucion Trifasica Redondo 160/33 F1 Cu
+BOBBAJ0000206	Bobina BT Distribucion Trifasica Redondo 160/33 F2 Cu
+BOBBAJ0000207	Bobina BT Distribucion Trifasica Redondo 160/33 F3 Cu
+BOBBAJ0000208	Bobina BT Distribucion Trifasica Redondo 200/33 F1 Cu
+BOBBAJ0000209	Bobina BT Distribucion Trifasica Redondo 200/33 F2 Cu
+BOBBAJ0000210	Bobina BT Distribucion Trifasica Redondo 200/33 F3 Cu
+BOBBAJ0000211	Bobina BT Distribucion Trifasica Redondo 250/33 F1 Cu
+BOBBAJ0000212	Bobina BT Distribucion Trifasica Redondo 250/33 F2 Cu
+BOBBAJ0000213	Bobina BT Distribucion Trifasica Redondo 250/33 F3 Cu
+BOBBAJ0000214	Bobina BT Distribucion Trifasica Redondo 315/33 F1 Cu
+BOBBAJ0000215	Bobina BT Distribucion Trifasica Redondo 315/33 F2 Cu
+BOBBAJ0000216	Bobina BT Distribucion Trifasica Redondo 315/33 F3 Cu
+BOBBAJ0000217	Bobina BT Distribucion Trifasica Redondo 400/33 F1 Cu
+BOBBAJ0000218	Bobina BT Distribucion Trifasica Redondo 400/33 F2 Cu
+BOBBAJ0000219	Bobina BT Distribucion Trifasica Redondo 400/33 F3 Cu
+BOBBAJ0000220	Bobina BT Distribucion Trifasica Redondo 500/33 F1 Cu
+BOBBAJ0000221	Bobina BT Distribucion Trifasica Redondo 500/33 F2 Cu
+BOBBAJ0000222	Bobina BT Distribucion Trifasica Redondo 500/33 F3 Cu
+BOBBAJ0000223	Bobina BT Distribucion Trifasica Redondo 630/33 F1 Cu
+BOBBAJ0000224	Bobina BT Distribucion Trifasica Redondo 630/33 F2 Cu
+BOBBAJ0000225	Bobina BT Distribucion Trifasica Redondo 630/33 F3 Cu
+BOBBAJ0000226	Bobina BT Distribucion Trifasica Redondo 800/33 F1 Cu
+BOBBAJ0000227	Bobina BT Distribucion Trifasica Redondo 800/33 F2 Cu
+BOBBAJ0000228	Bobina BT Distribucion Trifasica Redondo 800/33 F3 Cu
+BOBBAJ0000229	Bobina BT Distribucion Trifasica Redondo 1000/33 F1 Cu
+BOBBAJ0000230	Bobina BT Distribucion Trifasica Redondo 1000/33 F2 Cu
+BOBBAJ0000231	Bobina BT Distribucion Trifasica Redondo 1000/33 F3 Cu
+BOBBAJ0000232	Bobina BT Distribucion Trifasica Redondo 1250/33 F1 Cu
+BOBBAJ0000233	Bobina BT Distribucion Trifasica Redondo 1250/33 F2 Cu
+BOBBAJ0000234	Bobina BT Distribucion Trifasica Redondo 1250/33 F3 Cu
+BOBBAJ0000235	Bobina BT Distribucion Trifasica Redondo 1500/33 F1 Cu
+BOBBAJ0000236	Bobina BT Distribucion Trifasica Redondo 1500/33 F2 Cu
+BOBBAJ0000237	Bobina BT Distribucion Trifasica Redondo 1500/33 F3 Cu
+BOBBAJ0000238	Bobina BT Distribucion Trifasica Redondo 1600/33 F1 Cu
+BOBBAJ0000239	Bobina BT Distribucion Trifasica Redondo 1600/33 F2 Cu
+BOBBAJ0000240	Bobina BT Distribucion Trifasica Redondo 1600/33 F3 Cu
+BOBBAJ0000241	Bobina BT Distribucion Trifasica Redondo 2000/33 F1 Cu
+BOBBAJ0000242	Bobina BT Distribucion Trifasica Redondo 2000/33 F2 Cu
+BOBBAJ0000243	Bobina BT Distribucion Trifasica Redondo 2000/33 F3 Cu
+BOBBAJ0000244	Bobina BT Distribucion Trifasica Redondo 100/13 F1 Al
+BOBBAJ0000245	Bobina BT Distribucion Trifasica Redondo 100/13 F2 Al
+BOBBAJ0000246	Bobina BT Distribucion Trifasica Redondo 100/13 F3 Al
+BOBBAJ0000247	Bobina BT Distribucion Trifasica Redondo 125/13 F1 Al
+BOBBAJ0000248	Bobina BT Distribucion Trifasica Redondo 125/13 F2 Al
+BOBBAJ0000249	Bobina BT Distribucion Trifasica Redondo 125/13 F3 Al
+BOBBAJ0000250	Bobina BT Distribucion Trifasica Redondo 160/13 F1 Al
+BOBBAJ0000251	Bobina BT Distribucion Trifasica Redondo 160/13 F2 Al
+BOBBAJ0000252	Bobina BT Distribucion Trifasica Redondo 160/13 F3 Al
+BOBBAJ0000253	Bobina BT Distribucion Trifasica Redondo 200/13 F1 Al
+BOBBAJ0000254	Bobina BT Distribucion Trifasica Redondo 200/13 F2 Al
+BOBBAJ0000255	Bobina BT Distribucion Trifasica Redondo 200/13 F3 Al
+BOBBAJ0000256	Bobina BT Distribucion Trifasica Redondo 250/13 F1 Al
+BOBBAJ0000257	Bobina BT Distribucion Trifasica Redondo 250/13 F2 Al
+BOBBAJ0000258	Bobina BT Distribucion Trifasica Redondo 250/13 F3 Al
+BOBBAJ0000259	Bobina BT Distribucion Trifasica Redondo 315/13 F1 Al
+BOBBAJ0000260	Bobina BT Distribucion Trifasica Redondo 315/13 F2 Al
+BOBBAJ0000261	Bobina BT Distribucion Trifasica Redondo 315/13 F3 Al
+BOBBAJ0000262	Bobina BT Distribucion Trifasica Redondo 400/13 F1 Al
+BOBBAJ0000263	Bobina BT Distribucion Trifasica Redondo 400/13 F2 Al
+BOBBAJ0000264	Bobina BT Distribucion Trifasica Redondo 400/13 F3 Al
+BOBBAJ0000265	Bobina BT Distribucion Trifasica Redondo 500/13 F1 Al
+BOBBAJ0000266	Bobina BT Distribucion Trifasica Redondo 500/13 F2 Al
+BOBBAJ0000267	Bobina BT Distribucion Trifasica Redondo 500/13 F3 Al
+BOBBAJ0000268	Bobina BT Distribucion Trifasica Redondo 630/13 F1 Al - FL
+BOBBAJ0000269	Bobina BT Distribucion Trifasica Redondo 630/13 F2 Al - FL
+BOBBAJ0000270	Bobina BT Distribucion Trifasica Redondo 630/13 F3 Al - FL
+BOBBAJ0000271	Bobina BT Distribucion Trifasica Redondo 800/13 F1 Al - FL
+BOBBAJ0000272	Bobina BT Distribucion Trifasica Redondo 800/13 F2 Al - FL
+BOBBAJ0000273	Bobina BT Distribucion Trifasica Redondo 800/13 F3 Al - FL
+BOBBAJ0000274	Bobina BT Distribucion Trifasica Redondo 1000/13 F1 Al - FL
+BOBBAJ0000275	Bobina BT Distribucion Trifasica Redondo 1000/13 F2 Al - FL
+BOBBAJ0000276	Bobina BT Distribucion Trifasica Redondo 1000/13 F3 Al - FL
+BOBBAJ0000277	Bobina BT Distribucion Trifasica Redondo 1250/13 F1 Al - FL
+BOBBAJ0000278	Bobina BT Distribucion Trifasica Redondo 1250/13 F2 Al - FL
+BOBBAJ0000279	Bobina BT Distribucion Trifasica Redondo 1250/13 F3 Al - FL
+BOBBAJ0000280	Bobina BT Distribucion Trifasica Redondo 1500/13 F1 Al - FL
+BOBBAJ0000281	Bobina BT Distribucion Trifasica Redondo 1500/13 F2 Al - FL
+BOBBAJ0000282	Bobina BT Distribucion Trifasica Redondo 1500/13 F3 Al - FL
+BOBBAJ0000283	Bobina BT Distribucion Trifasica Redondo 1600/13 F1 Al - FL
+BOBBAJ0000284	Bobina BT Distribucion Trifasica Redondo 1600/13 F2 Al - FL
+BOBBAJ0000285	Bobina BT Distribucion Trifasica Redondo 1600/13 F3 Al - FL
+BOBBAJ0000286	Bobina BT Distribucion Trifasica Redondo 2000/13 F1 Al - FL
+BOBBAJ0000287	Bobina BT Distribucion Trifasica Redondo 2000/13 F2 Al - FL
+BOBBAJ0000288	Bobina BT Distribucion Trifasica Redondo 2000/13 F3 Al - FL
+BOBBAJ0000289	Bobina BT Distribucion Trifasica Redondo 100/33 F1 Al
+BOBBAJ0000290	Bobina BT Distribucion Trifasica Redondo 100/33 F2 Al
+BOBBAJ0000291	Bobina BT Distribucion Trifasica Redondo 100/33 F3 Al
+BOBBAJ0000292	Bobina BT Distribucion Trifasica Redondo 125/33 F1 Al
+BOBBAJ0000293	Bobina BT Distribucion Trifasica Redondo 125/33 F2 Al
+BOBBAJ0000294	Bobina BT Distribucion Trifasica Redondo 125/33 F3 Al
+BOBBAJ0000295	Bobina BT Distribucion Trifasica Redondo 160/33 F1 Al
+BOBBAJ0000296	Bobina BT Distribucion Trifasica Redondo 160/33 F2 Al
+BOBBAJ0000297	Bobina BT Distribucion Trifasica Redondo 160/33 F3 Al
+BOBBAJ0000298	Bobina BT Distribucion Trifasica Redondo 200/33 F1 Al
+BOBBAJ0000299	Bobina BT Distribucion Trifasica Redondo 200/33 F2 Al
+BOBBAJ0000300	Bobina BT Distribucion Trifasica Redondo 200/33 F3 Al
+BOBBAJ0000301	Bobina BT Distribucion Trifasica Redondo 250/33 F1 Al
+BOBBAJ0000302	Bobina BT Distribucion Trifasica Redondo 250/33 F2 Al
+BOBBAJ0000303	Bobina BT Distribucion Trifasica Redondo 250/33 F3 Al
+BOBBAJ0000304	Bobina BT Distribucion Trifasica Redondo 315/33 F1 Al
+BOBBAJ0000305	Bobina BT Distribucion Trifasica Redondo 315/33 F2 Al
+BOBBAJ0000306	Bobina BT Distribucion Trifasica Redondo 315/33 F3 Al
+BOBBAJ0000307	Bobina BT Distribucion Trifasica Redondo 400/33 F1 Al
+BOBBAJ0000308	Bobina BT Distribucion Trifasica Redondo 400/33 F2 Al
+BOBBAJ0000309	Bobina BT Distribucion Trifasica Redondo 400/33 F3 Al
+BOBBAJ0000310	Bobina BT Distribucion Trifasica Redondo 500/33 F1 Al
+BOBBAJ0000311	Bobina BT Distribucion Trifasica Redondo 500/33 F2 Al
+BOBBAJ0000312	Bobina BT Distribucion Trifasica Redondo 500/33 F3 Al
+BOBBAJ0000313	Bobina BT Distribucion Trifasica Redondo 630/33 F1 Al - FL
+BOBBAJ0000314	Bobina BT Distribucion Trifasica Redondo 630/33 F2 Al - FL
+BOBBAJ0000315	Bobina BT Distribucion Trifasica Redondo 630/33 F3 Al - FL
+BOBBAJ0000316	Bobina BT Distribucion Trifasica Redondo 800/33 F1 Al - FL
+BOBBAJ0000317	Bobina BT Distribucion Trifasica Redondo 800/33 F2 Al - FL
+BOBBAJ0000318	Bobina BT Distribucion Trifasica Redondo 800/33 F3 Al - FL
+BOBBAJ0000319	Bobina BT Distribucion Trifasica Redondo 1000/33 F1 Al - FL
+BOBBAJ0000320	Bobina BT Distribucion Trifasica Redondo 1000/33 F2 Al - FL
+BOBBAJ0000321	Bobina BT Distribucion Trifasica Redondo 1000/33 F3 Al - FL
+BOBBAJ0000322	Bobina BT Distribucion Trifasica Redondo 1250/33 F1 Al - FL
+BOBBAJ0000323	Bobina BT Distribucion Trifasica Redondo 1250/33 F2 Al - FL
+BOBBAJ0000324	Bobina BT Distribucion Trifasica Redondo 1250/33 F3 Al - FL
+BOBBAJ0000325	Bobina BT Distribucion Trifasica Redondo 1500/33 F1 Al - FL
+BOBBAJ0000326	Bobina BT Distribucion Trifasica Redondo 1500/33 F2 Al - FL
+BOBBAJ0000327	Bobina BT Distribucion Trifasica Redondo 1500/33 F3 Al - FL
+BOBBAJ0000328	Bobina BT Distribucion Trifasica Redondo 1600/33 F1 Al - FL
+BOBBAJ0000329	Bobina BT Distribucion Trifasica Redondo 1600/33 F2 Al - FL
+BOBBAJ0000330	Bobina BT Distribucion Trifasica Redondo 1600/33 F3 Al - FL
+BOBBAJ0000331	Bobina BT Distribucion Trifasica Redondo 2000/33 F1 Al - FL
+BOBBAJ0000332	Bobina BT Distribucion Trifasica Redondo 2000/33 F2 Al - FL
+BOBBAJ0000333	Bobina BT Distribucion Trifasica Redondo 2000/33 F3 Al - FL
+BOBBAJ0000334	Bobina BT Distribucion Trifasica Cuadrado 16/33 F1 Cu
+BOBBAJ0000335	Bobina BT Distribucion Trifasica Cuadrado 16/33 F2 Cu
+BOBBAJ0000336	Bobina BT Distribucion Trifasica Cuadrado 16/33 F3 Cu
+BOBBAJ0000337	Bobina BT Distribucion Trifasica Cuadrado 100/33 F1 Al
+BOBBAJ0000338	Bobina BT Distribucion Trifasica Cuadrado 100/33 F2 Al
+BOBBAJ0000339	Bobina BT Distribucion Trifasica Cuadrado 100/33 F3 Al
