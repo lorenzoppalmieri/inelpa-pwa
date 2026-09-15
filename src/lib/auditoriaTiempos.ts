@@ -37,6 +37,7 @@ export type TipoAnomalia =
   | 'almuerzo_largo'
   | 'almuerzo_duplicado'
   | 'ecuacion_rota'
+  | 'solape_operario'
 
 export interface Anomalia {
   tipo: TipoAnomalia
@@ -170,6 +171,69 @@ const TITULOS: Record<TipoAnomalia, string> = {
   almuerzo_largo: 'Almuerzos por encima del tope de 30′',
   almuerzo_duplicado: 'Almuerzos duplicados el mismo día',
   ecuacion_rota: 'Descuadre en la sumatoria de totales',
+  solape_operario: 'Un colaborador con dos tareas al mismo tiempo',
+}
+
+// ============================================================
+// v2.17 — SOLAPES DE UN MISMO COLABORADOR
+//
+// Un colaborador no puede estar haciendo dos cosas a la vez. Cuando en el Gantt
+// aparecen dos barras suyas pisandose, la causa casi siempre es que en la tablet
+// arranco la segunda tarea sin cerrar la primera. Los tiempos quedan mal en las
+// DOS: la primera sigue corriendo y se come horas que no trabajo en ella.
+//
+// Esto NO se corrige solo: hay que abrir las tareas y arreglar los horarios. El
+// auditor las nombra y nada mas, igual que el resto de las anomalias.
+//
+// Solo mira tareas ya arrancadas (`inicioReal`), porque las pendientes las
+// acomoda la cascada de `programar()` y ahi un solape no significa nada.
+// ============================================================
+interface Intervalo { t: Tarea; ini: number; fin: number; abierta: boolean }
+
+function solapesDeOperario(tareas: Tarea[], nombreOperario?: (id: string) => string): Anomalia[] {
+  const out: Anomalia[] = []
+  const porOperario = new Map<string, Intervalo[]>()
+
+  for (const t of tareas) {
+    if (!t.operarioId || !t.inicioReal) continue
+    const ini = new Date(t.inicioReal).getTime()
+    if (!Number.isFinite(ini)) continue
+    // Sin fin cargado la tarea sigue abierta: se la trata como un instante, no
+    // como un intervalo hasta el infinito. Asi se detecta el caso real —arranco
+    // la segunda mientras la primera seguia corriendo— sin inventar solapes
+    // contra todo lo que venga despues.
+    const fin = t.finReal ? new Date(t.finReal).getTime() : ini
+    if (!Number.isFinite(fin) || fin < ini) continue   // ya lo reporta fin_antes_inicio
+    const arr = porOperario.get(t.operarioId) ?? []
+    arr.push({ t, ini, fin, abierta: !t.finReal })
+    porOperario.set(t.operarioId, arr)
+  }
+
+  for (const [, arr] of porOperario) {
+    arr.sort((a, b) => a.ini - b.ini)
+    for (let i = 0; i < arr.length; i++) {
+      for (let j = i + 1; j < arr.length; j++) {
+        const a = arr[i], b = arr[j]
+        // Ordenadas por inicio: si b arranca despues del fin de a, ninguna de
+        // las siguientes puede pisarla tampoco.
+        if (b.ini >= a.fin) break
+        // Dos abiertas en el mismo instante no son un solape medible.
+        if (a.abierta && b.abierta) continue
+        const minutos = Math.round((Math.min(a.fin, b.fin) - b.ini) / 60000)
+        const et = etiquetaTarea(a.t, nombreOperario)
+        const otra = [b.t.modelo, b.t.nroTransformador ? `N° ${b.t.nroTransformador}` : '']
+          .filter(Boolean).join(' ')
+        out.push({
+          tipo: 'solape_operario',
+          tareaId: a.t.id,
+          detalle: minutos > 0
+            ? `${et}: se pisa ${minutos}′ con ${otra}`
+            : `${et}: arrancó ${otra} sin cerrar esta`,
+        })
+      }
+    }
+  }
+  return out
 }
 
 /**
@@ -196,6 +260,9 @@ export function auditarTiempos(
     if (esReparacion(t)) continue
     anomalias.push(...auditarTarea(t, nombreOperario))
   }
+  // v2.17: el solape es una anomalia ENTRE tareas, no de una sola, asi que se
+  // calcula sobre el conjunto y no dentro de auditarTarea.
+  anomalias.push(...solapesDeOperario(tareas.filter((t) => !esReparacion(t)), nombreOperario))
   for (const e of ecuaciones) {
     if (!e.ok) {
       anomalias.push({

@@ -1,0 +1,176 @@
+import { describe, expect, it } from 'vitest'
+import type { Tarea } from '../../types'
+import { programar } from '../programacion'
+import { auditarTiempos, type Totales } from '../auditoriaTiempos'
+
+// ============================================================
+// v2.17 — CASCADA DEL GANTT CON FORMATOS DE FECHA MEZCLADOS.
+//
+// El bug que estos tests cubren: `programar()` comparaba instantes con `<` y
+// `>` sobre strings ISO. En la app conviven tres formatos para el MISMO
+// instante, segun de donde venga el dato:
+//
+//   tablet    2026-09-14T10:30:00.000Z
+//   Supabase  2026-09-14T10:30:00+00:00
+//   tests     2026-09-14T07:30:00.000-03:00
+//
+// Como texto no son iguales ni ordenan bien ('+' < '.' en ASCII), los cursores
+// de maquina y operario no frenaban a la tarea siguiente y las barras se
+// pisaban con los datos perfectamente cargados. Es la tercera vez que este
+// error aparece en el proyecto (huecos.ts, fusionarIntervalos v2.12).
+//
+// Planta: Lun-Jue 07:00-16:00, Vie 07:00-15:00. Lunes 14/9/2026.
+// ============================================================
+
+/** Mismo instante, escrito en los tres formatos que circulan por la app. */
+const zulu = (h: number, m = 0) =>          // como lo manda la tablet
+  `2026-09-14T${String(h + 3).padStart(2, '0')}:${String(m).padStart(2, '0')}:00.000Z`
+const supa = (h: number, m = 0) =>          // como lo devuelve Supabase
+  `2026-09-14T${String(h + 3).padStart(2, '0')}:${String(m).padStart(2, '0')}:00+00:00`
+const local = (h: number, m = 0) =>         // hora de planta, offset explicito
+  `2026-09-14T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00.000-03:00`
+
+function tarea(over: Partial<Tarea> & { id: string }): Tarea {
+  return {
+    sectorId: 'bob_dist_at' as Tarea['sectorId'],
+    maquinaId: 'm_bob_01', operarioId: 'op1',
+    modelo: 'TTD 100/13', semana: '2026-W38', prioridad: 1,
+    estado: 'pendiente', tiempoEstandarMin: 60, paradas: [],
+    ...over,
+  }
+}
+
+const ms = (iso: string) => new Date(iso).getTime()
+
+/** Cuenta pares de tareas del mismo recurso cuyos planes se pisan. */
+function solapes(tareas: Tarea[], plan: Map<string, { startISO: string; endISO: string }>, clave: (t: Tarea) => string | undefined) {
+  const porRecurso = new Map<string, { ini: number; fin: number }[]>()
+  for (const t of tareas) {
+    const k = clave(t); const p = plan.get(t.id)
+    if (!k || !p) continue
+    const arr = porRecurso.get(k) ?? []
+    arr.push({ ini: ms(p.startISO), fin: ms(p.endISO) })
+    porRecurso.set(k, arr)
+  }
+  let n = 0
+  for (const [, arr] of porRecurso) {
+    arr.sort((a, b) => a.ini - b.ini)
+    for (let i = 1; i < arr.length; i++) if (arr[i].ini < arr[i - 1].fin) n++
+  }
+  return n
+}
+
+describe('los tres formatos de fecha describen el mismo instante', () => {
+  it('zulu, supabase y local son iguales como instante (y distintos como texto)', () => {
+    expect(ms(zulu(8))).toBe(ms(supa(8)))
+    expect(ms(zulu(8))).toBe(ms(local(8)))
+    // Justamente por esto no se puede comparar como texto:
+    expect(zulu(8)).not.toBe(supa(8))
+    expect(supa(8) < zulu(8)).toBe(true)   // '+' < '.' — el mismo instante "parece" anterior
+  })
+})
+
+describe('cascada sin solapamientos con formatos mezclados', () => {
+  it('una tarea en curso que se pasa del estimado empuja a las pendientes', () => {
+    // A arrancó 08:00 con 60' estimados y a las 11:00 sigue abierta: ocupó la
+    // máquina y al operario 3 horas. B y C no pueden arrancar antes de las 11.
+    const ts = [
+      tarea({ id: 'A', estado: 'en_proceso', inicioReal: supa(8), tiempoEstandarMin: 60 }),
+      tarea({ id: 'B', inicioPlanificado: zulu(9) }),
+      tarea({ id: 'C', inicioPlanificado: local(10) }),
+    ]
+    const plan = programar(ts, zulu(11))
+
+    expect(solapes(ts, plan, (t) => t.maquinaId)).toBe(0)
+    expect(solapes(ts, plan, (t) => t.operarioId)).toBe(0)
+    // Ninguna pendiente arranca en el pasado.
+    expect(ms(plan.get('B')!.startISO)).toBeGreaterThanOrEqual(ms(zulu(11)))
+    expect(ms(plan.get('C')!.startISO)).toBeGreaterThanOrEqual(ms(plan.get('B')!.endISO))
+  })
+
+  it('el cursor frena aunque el fin venga de Supabase y el inicio de la tablet', () => {
+    // ESTE es el caso que fallaba: A cierra en formato Supabase, B está
+    // planificada en formato tablet. Comparando como texto el cursor no
+    // empujaba y B se dibujaba encima de A.
+    const ts = [
+      tarea({ id: 'A', estado: 'finalizada', inicioReal: supa(8), finReal: supa(12), tiempoEstandarMin: 240 }),
+      tarea({ id: 'B', inicioPlanificado: zulu(8), tiempoEstandarMin: 60 }),
+    ]
+    const plan = programar(ts, zulu(7))
+
+    expect(ms(plan.get('B')!.startISO)).toBeGreaterThanOrEqual(ms(supa(12)))
+    expect(solapes(ts, plan, (t) => t.maquinaId)).toBe(0)
+  })
+
+  it('dos personas distintas en máquinas distintas siguen en paralelo', () => {
+    const ts = [
+      tarea({ id: 'A', maquinaId: 'm_bob_01', operarioId: 'op1', inicioPlanificado: supa(8) }),
+      tarea({ id: 'B', maquinaId: 'm_bob_02', operarioId: 'op2', inicioPlanificado: zulu(8) }),
+    ]
+    const plan = programar(ts, local(7))
+    // Arrancan a la misma hora: el paralelismo real no se rompe.
+    expect(ms(plan.get('A')!.startISO)).toBe(ms(plan.get('B')!.startISO))
+  })
+
+  it('un mismo operario en dos máquinas distintas NO trabaja en paralelo', () => {
+    const ts = [
+      tarea({ id: 'A', maquinaId: 'm_bob_01', operarioId: 'op1', inicioPlanificado: supa(8) }),
+      tarea({ id: 'B', maquinaId: 'm_bob_02', operarioId: 'op1', inicioPlanificado: zulu(8) }),
+    ]
+    const plan = programar(ts, local(7))
+    expect(solapes(ts, plan, (t) => t.operarioId)).toBe(0)
+  })
+
+  it('tolera tareas sin fecha sin romper la cola', () => {
+    const ts = [
+      tarea({ id: 'A', inicioPlanificado: undefined, prioridad: 2 }),
+      tarea({ id: 'B', inicioPlanificado: supa(9), prioridad: 1 }),
+    ]
+    const plan = programar(ts, zulu(8))
+    expect(plan.size).toBe(2)
+    expect(solapes(ts, plan, (t) => t.maquinaId)).toBe(0)
+  })
+})
+
+describe('auditor: solape de un mismo colaborador', () => {
+  const totOk: Totales = {
+    n: 0, estimado: 0, real: 0, demorado: 0, justificada: 0,
+    sinJust: 0, adelanto: 0, aplicada: 0, excedente: 0,
+  }
+  const solapeDe = (ts: Tarea[]) =>
+    auditarTiempos(ts, totOk).anomalias.filter((a) => a.tipo === 'solape_operario')
+
+  it('detecta dos tareas cerradas que se pisan', () => {
+    const ts = [
+      tarea({ id: 'A', estado: 'finalizada', inicioReal: supa(8), finReal: supa(12), tiempoEstandarMin: 240 }),
+      tarea({ id: 'B', estado: 'finalizada', inicioReal: zulu(10), finReal: zulu(14), tiempoEstandarMin: 240 }),
+    ]
+    const r = solapeDe(ts)
+    expect(r).toHaveLength(1)
+    expect(r[0].detalle).toContain('120′')   // 10:00 → 12:00
+  })
+
+  it('detecta que arrancó la segunda sin cerrar la primera', () => {
+    const ts = [
+      tarea({ id: 'A', estado: 'finalizada', inicioReal: supa(8), finReal: supa(12), tiempoEstandarMin: 240 }),
+      tarea({ id: 'B', estado: 'en_proceso', inicioReal: zulu(10) }),
+    ]
+    expect(solapeDe(ts)).toHaveLength(1)
+  })
+
+  it('no marca tareas consecutivas', () => {
+    const ts = [
+      tarea({ id: 'A', estado: 'finalizada', inicioReal: supa(8), finReal: supa(10), tiempoEstandarMin: 120 }),
+      tarea({ id: 'B', estado: 'finalizada', inicioReal: zulu(10), finReal: zulu(12), tiempoEstandarMin: 120 }),
+    ]
+    expect(solapeDe(ts)).toHaveLength(0)
+  })
+
+  it('no marca solape entre colaboradores distintos', () => {
+    const ts = [
+      tarea({ id: 'A', operarioId: 'op1', estado: 'finalizada', inicioReal: supa(8), finReal: supa(12), tiempoEstandarMin: 240 }),
+      tarea({ id: 'B', operarioId: 'op2', estado: 'finalizada', inicioReal: zulu(10), finReal: zulu(14), tiempoEstandarMin: 240 }),
+    ]
+    expect(solapeDe(ts)).toHaveLength(0)
+  })
+})

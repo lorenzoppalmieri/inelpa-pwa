@@ -1,6 +1,6 @@
-import { type PointerEvent as ReactPointerEvent, useMemo, useRef, useState } from 'react'
+import { type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from 'react'
 import type { Tarea, EstadoTarea, Maquina } from '../../types'
-import { sectorById, causaLabel, esParadaNoProductiva, esSectorBobinado, nombreSemielaborado, minutosRecupTarea } from '../../types'
+import { sectorById, causaLabel, esParadaNoProductiva, nombreSemielaborado, minutosRecupTarea } from '../../types'
 import { componentePorCodigo } from '../../data/catalogo'
 import { hhmm, fmtDur, isoWeek, fechaCorta } from '../../lib/time'
 import { proximoInstanteLaborable, tramosLaborables, calcularTiempoNetoProductivo, calcularTiempoProductivo, type GrupoAlmuerzo } from '../../lib/calendario'
@@ -96,6 +96,16 @@ function segmentosPorDia(startISO: string, endISO: string, dias: Date[]) {
   return segs
 }
 
+/**
+ * Instante de un ISO en ms.
+ *
+ * NUNCA comparar dos ISO como texto: las tablets escriben `...Z` y Supabase
+ * `...+00:00`, asi que el mismo instante compara distinto y el orden sale mal.
+ * Es el error que ya rompio huecos.ts, fusionarIntervalos (v2.12) y el
+ * auto-shift del Gantt (v2.17).
+ */
+const msIso = (iso: string): number => new Date(iso).getTime()
+
 interface Segmento { tarea: Tarea; idx: number; left: number; width: number; estimada: boolean; esInicio: boolean; plan: Plan; row: number }
 // Apilado vertical de sub-filas dentro de un carril.
 const FILA_TOP = 11   // offset de la 1ra fila (px)
@@ -118,7 +128,25 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
   // v1.17: click en una barra -> abrir esa tarea en "Asignar tareas" (solo planificador).
   onTareaClick?: (t: Tarea) => void
 }) {
-  const ahora = new Date()
+  // ============================================================
+  // v2.17 — RELOJ VIVO. Antes esto era `const ahora = new Date()` a secas: se
+  // recalculaba en cada render, pero NADA disparaba un render. El Gantt solo se
+  // refrescaba cuando cambiaba algo en Dexie (useLiveQuery), asi que con la
+  // planta quieta la linea roja de "ahora" y toda la cascada de pendientes
+  // quedaban congeladas en la hora en que se abrio el tablero.
+  //
+  // Es justo lo que hace que el plan deje de coincidir con la realidad: la
+  // regla "una pendiente nunca arranca en el pasado" depende de que `ahora`
+  // avance. AlertaMaterial.tsx ya lo resolvia asi; el Gantt nunca lo tuvo.
+  //
+  // 60s es suficiente: la grilla mas fina es de 1 hora, y un tick mas corto
+  // recalcularia programar() sobre 1400+ tareas sin que se note en pantalla.
+  // ============================================================
+  const [ahora, setAhora] = useState(() => new Date())
+  useEffect(() => {
+    const id = setInterval(() => setAhora(new Date()), 60_000)
+    return () => clearInterval(id)
+  }, [])
   const ahoraISO = ahora.toISOString()
   const [escala, setEscala] = useState<Escala>('semana')
   const [fechaSel, setFechaSel] = useState<string>(() => new Date().toLocaleDateString('en-CA'))
@@ -222,37 +250,38 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
     for (const [laneId, ts] of porLane) {
       const conPlan = ts.map((t) => ({ t, p: plan.get(t.id) }))
         .filter((x): x is { t: Tarea; p: Plan } => !!x.p)
-        .sort((a, b) => (a.p.startISO < b.p.startISO ? -1 : a.p.startISO > b.p.startISO ? 1 : 0))
-      // v1.17: BOBINADO produce 1 bobina por maquina -> NO hay paralelo: una sola
-      // fila secuencial (el auto-shift ya encola las tareas con igual hora de
-      // arranque). El apilado en sub-filas queda solo para sectores con paralelo
-      // real (Montaje Parte Activa / Post Horno).
+        // Por INSTANTE, no por texto (mismo motivo que en programacion.ts v2.17).
+        .sort((a, b) => msIso(a.p.startISO) - msIso(b.p.startISO))
+
+      // ============================================================
+      // v2.17 — SE ELIMINA EL COLAPSO A UNA SOLA FILA.
       //
-      // v1.81 — ARREGLO. Esa premisa vale por MAQUINA, no por sector. Agrupado
-      // por sector (que es el modo por DEFECTO del tablero), un carril como
-      // "Bobinado Distribucion A.T." junta hasta 30 bobinadoras trabajando en
-      // paralelo: forzarlas todas a la fila 0 las dibujaba UNA ENCIMA DE OTRA.
-      // No era un problema del auto-shift —la cascada esta bien y no genera
-      // solapamientos dentro de un mismo recurso— sino del apilado visual.
-      // Ahora el colapso a una sola fila se aplica solo cuando el carril ES una
-      // sola maquina; si hay varias, decide el packing greedy de abajo.
-      const maquinasEnLane = new Set(ts.map((t) => t.maquinaId))
-      const laneBobinado = ts.length > 0 && maquinasEnLane.size <= 1
-        && ts.every((t) => esSectorBobinado(t.sectorId))
+      // Historia: v1.17 forzaba todas las tareas de un carril de bobinado a la
+      // fila 0 ("una bobinadora hace una bobina por vez, no hay paralelo").
+      // v1.81 descubrio que esa premisa vale por MAQUINA y no por sector, y
+      // limito el colapso a `maquinasEnLane.size <= 1`.
+      //
+      // Reapareceio igual. Agrupado por COLABORADOR —que es como mira Lorenzo el
+      // tablero de bobinado— cada carril es una persona con una sola maquina, o
+      // sea que la condicion se cumple SIEMPRE y todas sus tareas volvian a la
+      // fila 0. Dos barras que se pisan se dibujaban una encima de la otra.
+      //
+      // La decision es sacarlo del todo, no volver a acotarlo: el packing greedy
+      // de abajo YA devuelve una sola fila cuando no hay solapamiento, que es el
+      // caso normal. El colapso no ahorraba nada y solo servia para ocultar
+      // solapamientos reales. Si dos barras aparecen apiladas ahora, es porque
+      // de verdad se pisan — y eso hay que verlo, no taparlo.
+      // ============================================================
       const rowDe = new Map<string, number>()
-      if (laneBobinado) {
-        for (const { t } of conPlan) rowDe.set(t.id, 0)
-        filas.set(laneId, 1)
-      } else {
-        // Packing greedy: cada tarea va a la 1ra sub-fila libre (cuyo fin <= su inicio).
-        const finDeFila: string[] = []
-        for (const { t, p } of conPlan) {
-          let r = finDeFila.findIndex((fin) => fin <= p.startISO)
-          if (r === -1) { r = finDeFila.length; finDeFila.push(p.endISO) } else finDeFila[r] = p.endISO
-          rowDe.set(t.id, r)
-        }
-        filas.set(laneId, Math.max(1, finDeFila.length))
+      // Packing greedy: cada tarea va a la 1ra sub-fila libre (cuyo fin <= su inicio).
+      const finDeFila: number[] = []
+      for (const { t, p } of conPlan) {
+        const ini = msIso(p.startISO)
+        let r = finDeFila.findIndex((fin) => fin <= ini)
+        if (r === -1) { r = finDeFila.length; finDeFila.push(msIso(p.endISO)) } else finDeFila[r] = msIso(p.endISO)
+        rowDe.set(t.id, r)
       }
+      filas.set(laneId, Math.max(1, finDeFila.length))
 
       const arr: Segmento[] = []
       for (const { t, p } of conPlan) {
