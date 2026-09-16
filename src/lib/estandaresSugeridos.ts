@@ -1,5 +1,5 @@
 import type { Tarea, TiempoEstandar, AreaDemora, SectorId } from '../types'
-import { areaDemora, claveEstandar, esReparacion, sectorById } from '../types'
+import { areaDemora, claveEstandar, esReparacion, modeloBase, sectorById } from '../types'
 import { componentePorCodigo } from '../data/catalogo'
 import { tiempoNetoMin, tiempoEstimadoMin } from './kpi'
 
@@ -10,6 +10,9 @@ import { tiempoNetoMin, tiempoEstimadoMin } from './kpi'
 // Regla de negocio BIFURCADA (agrupamiento condicional):
 //   - Bobinado: el estandar depende de MODELO + MAQUINA (automatica vs manual).
 //               -> se agrupa por la combinacion (modelo, maquina).
+//               v2.20: el MODELO es el modelo BASE, sin la fase. Las tres
+//               bobinas de un trifasico (F1/F2/F3) llevan el mismo tiempo, asi
+//               que sus muestras van todas al mismo grupo. Ver `modeloBase`.
 //   - Montaje (y demas sectores manuales): trabajo en equipo, sin maquina.
 //               -> se agrupa SOLO por MODELO (estandar "global" del modelo).
 // La clave la resuelve `claveEstandar` (types) para que sea deterministica y
@@ -75,9 +78,14 @@ export function sugerenciasEstandar(
 
     const area = areaDemora(t.sectorId)
     const usaMaquina = area === 'bobinado'
-    const id = claveEstandar(t.sectorId, t.modelo, t.maquinaId, t.componenteCodigo)
-    // En bobinado el "modelo" a mostrar es la BOBINA (semielaborado); en el resto, el modelo.
-    const etiquetaModelo = usaMaquina ? (componentePorCodigo(t.componenteCodigo)?.descripcion ?? t.modelo) : t.modelo
+    // v2.20: la descripcion del semielaborado entra en la clave para que las
+    // tres fases del mismo modelo caigan en un solo grupo (ver modeloBase).
+    const desc = componentePorCodigo(t.componenteCodigo)?.descripcion
+    const id = claveEstandar(t.sectorId, t.modelo, t.maquinaId, t.componenteCodigo, desc)
+    // En bobinado el "modelo" a mostrar es la BOBINA (semielaborado) SIN la fase;
+    // en el resto, el modelo. La etiqueta tiene que coincidir con el agrupamiento
+    // o la tabla diria "63/13 F1" para una fila que junta F1, F2 y F3.
+    const etiquetaModelo = usaMaquina ? modeloBase(desc ?? t.modelo) : modeloBase(t.modelo)
     const g = grupos.get(id) ?? {
       area, sectorId: t.sectorId, modelo: etiquetaModelo, maquinaId: usaMaquina ? t.maquinaId : undefined, netos: [], estandares: [],
     }

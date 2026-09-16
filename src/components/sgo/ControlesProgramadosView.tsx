@@ -183,24 +183,28 @@ export function EditorControl({ registro, usuario, onClose }: { registro: Contro
       norma: norma || undefined, requisito: requisito.trim() || undefined, instrucciones: instrucciones.trim(),
       responsable: responsable.trim(), frecuencia, proximaFecha, toleranciaDias: Math.max(0, Math.trunc(Number(tolerancia) || 0)), activo,
       creadoEn: registro?.creadoEn ?? ahora, creadoPor: registro?.creadoPor ?? usuario,
+      semana5S: registro?.semana5S,
+      plantillaCampoId: registro?.plantillaCampoId,
       actualizadoEn: new Date().toISOString(), actualizadoPor: usuario,
     }
-    await guardarControlProgramadoSGO(control)
-    setGuardando(false); onClose()
+    try { await guardarControlProgramadoSGO(control); onClose() }
+    catch (error) { window.alert(error instanceof Error ? error.message : 'No se pudo guardar la programación.') }
+    finally { setGuardando(false) }
   }
 
   return <Modal titulo={registro ? 'Editar control programado' : 'Nuevo control programado'} onClose={onClose}>
+    {registro?.semana5S && <p className="meta">Ocurrencia semanal automática: disponible desde el lunes {registro.semana5S}, vence el viernes {registro.proximaFecha}. La baja afecta sólo esta semana, no las siguientes.</p>}
     <div className="field"><label>Título *</label><input className="input" value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Ej. Verificación dimensional de bobinas terminadas" /></div>
     <div className="sgo-control-form-grid">
-      <div className="field"><label>Tipo</label><select className="input" value={tipo} onChange={(e) => setTipo(e.target.value as TipoControlSGO)}>{TIPOS_CONTROL_SGO.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}</select></div>
-      <div className="field"><label>Área</label><select className="input" value={area} onChange={(e) => setArea(e.target.value as AreaSGOId)}>{AREAS_SGO.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}</select></div>
+      <div className="field"><label>Tipo</label><select className="input" value={tipo} disabled={!!registro?.semana5S} onChange={(e) => setTipo(e.target.value as TipoControlSGO)}>{TIPOS_CONTROL_SGO.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}</select></div>
+      <div className="field"><label>Área</label><select className="input" value={area} disabled={!!registro?.semana5S} onChange={(e) => setArea(e.target.value as AreaSGOId)}>{AREAS_SGO.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}</select></div>
       <div className="field"><label>Pilar</label><select className="input" value={pilar} onChange={(e) => setPilar(e.target.value as PilarSGO)}>{PILARES_SGO.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}</select></div>
       <div className="field"><label>Norma / sistema</label><select className="input" value={norma} onChange={(e) => setNorma(e.target.value as NormaControlSGO | '')}><option value="">Sin norma asociada</option>{NORMAS_CONTROL_SGO.map((n) => <option key={n.id} value={n.id}>{n.label}</option>)}</select></div>
       <div className="field"><label>Cláusula / requisito</label><input className="input" value={requisito} onChange={(e) => setRequisito(e.target.value)} placeholder="Ej. 8.5.1 / IT-B08" /></div>
       <div className="field"><label>Responsable *</label><input className="input" value={responsable} onChange={(e) => setResponsable(e.target.value)} placeholder="Lara, Azul…" /></div>
-      <div className="field"><label>Frecuencia</label><select className="input" value={frecuencia} onChange={(e) => setFrecuencia(e.target.value as FrecuenciaControlSGO)}>{FRECUENCIAS_CONTROL_SGO.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}</select></div>
-      <div className="field"><label>Próxima fecha *</label><input className="input" type="date" value={proximaFecha} onChange={(e) => setProximaFecha(e.target.value)} /></div>
-      <div className="field"><label>Tolerancia (días)</label><input className="input" type="number" min="0" step="1" value={tolerancia} onChange={(e) => setTolerancia(e.target.value)} /></div>
+      <div className="field"><label>Frecuencia</label><select className="input" value={frecuencia} disabled={!!registro?.semana5S} onChange={(e) => setFrecuencia(e.target.value as FrecuenciaControlSGO)}>{FRECUENCIAS_CONTROL_SGO.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}</select></div>
+      <div className="field"><label>Próxima fecha *</label><input className="input" type="date" value={proximaFecha} disabled={!!registro?.semana5S} onChange={(e) => setProximaFecha(e.target.value)} /></div>
+      <div className="field"><label>Tolerancia (días)</label><input className="input" type="number" min="0" step="1" value={tolerancia} disabled={!!registro?.semana5S} onChange={(e) => setTolerancia(e.target.value)} /></div>
     </div>
     <div className="field"><label>Qué se debe controlar *</label><textarea className="input" rows={4} value={instrucciones} onChange={(e) => setInstrucciones(e.target.value)} placeholder="Método, muestra, característica, documento o evidencia esperada." /></div>
     <label className="check-inline"><input type="checkbox" checked={activo} onChange={(e) => setActivo(e.target.checked)} /> Control activo</label>

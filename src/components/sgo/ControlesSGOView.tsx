@@ -4,7 +4,7 @@ import { db } from '../../db/dexie'
 import { fechaLocalISO, sumarDiasLocalISO } from '../../lib/time'
 import {
   FRECUENCIAS_CONTROL_SGO, RESULTADOS_CONTROL_SGO, TIPOS_CONTROL_SGO,
-  estadoProgramacionControl, type ControlProgramadoSGO, type EjecucionControlSGO,
+  esAuditoria5SEspecial, ejecucionEnFecha, estadoProgramacionControl, type ControlProgramadoSGO, type EjecucionControlSGO,
   type EstadoProgramacionControl, type ResultadoControlSGO, type TipoControlSGO,
 } from '../../sgo/controles'
 import { AREAS_5S_POR_AUDITOR, PLANTILLA_5S_RIT_9_2_12, respuestaEsHallazgo, semaforoCampo } from '../../sgo/controlesCampo'
@@ -39,7 +39,7 @@ const resultadoLabel = (id: ResultadoControlSGO) => RESULTADOS_CONTROL_SGO.find(
 const esAuditoriaCampo = (control?: ControlProgramadoSGO) => Boolean(control && (control.tipo === 'auditoria_campo' || control.plantillaCampoId === PLANTILLA_5S_RIT_9_2_12.id))
 
 function tipoLabel(control: ControlProgramadoSGO) {
-  if (esAuditoriaCampo(control) && control.frecuencia === 'unico') return 'Auditoría 5S especial'
+  if (esAuditoriaCampo(control) && esAuditoria5SEspecial(control)) return 'Auditoría 5S especial'
   if (esAuditoriaCampo(control)) return 'Auditoría 5S'
   return TIPOS_CONTROL_SGO.find((tipo) => tipo.id === control.tipo)?.label ?? 'Control SGO'
 }
@@ -105,7 +105,7 @@ export default function ControlesSGOView({ usuario, onOpenEvento, controlInicial
       proximos: controles.filter((c) => estadoProgramacionControl(c, hoy) === 'proximo').length,
       realizados: recientes.length,
       hallazgos: recientes.filter((e) => e.resultado === 'no_conforme' || e.resultado === 'observacion').length,
-      enFecha: recientes.length ? Math.round(recientes.filter((e) => e.ejecutadoEn.slice(0, 10) <= e.fechaProgramada).length / recientes.length * 100) : 0,
+      enFecha: recientes.length ? Math.round(recientes.filter(ejecucionEnFecha).length / recientes.length * 100) : 0,
     }
   }, [controles, ejecuciones, desde30, hoy])
 
@@ -142,7 +142,7 @@ export default function ControlesSGOView({ usuario, onOpenEvento, controlInicial
 
   return <div className="sgo-controles sgo-controles-unificados">
     <div className="card sgo-controles-unificados-cabecera">
-      <div><div className="section-title">CONTROLES SGO</div><div className="meta">Una sola agenda para programar, realizar y consultar controles y auditorías.</div></div>
+      <div><div className="section-title">CONTROLES SGO</div><div className="meta">5S semanal: disponible desde el lunes y con plazo hasta el viernes inclusive. Preferentemente jueves o viernes. Cada semana conserva sus propios controles e informes.</div></div>
       <div className="row-actions">
         {lorenzo && <button className="btn btn-primary" onClick={() => { setSeccion('programacion'); setEditor(null) }}>+ Nuevo control</button>}
       </div>
@@ -303,7 +303,7 @@ function ControlCard({ control, usuario, ultima, hoy, seccion, lorenzo, onRealiz
   return <article className={`card sgo-control-card control-${estado.clase}`}>
     <div className="sgo-control-card-principal">
       <div className="sgo-control-fecha"><strong>{control.proximaFecha.slice(8, 10)}</strong><span>{new Intl.DateTimeFormat('es-AR', { month: 'short' }).format(new Date(`${control.proximaFecha}T12:00:00`))}</span></div>
-      <div><div className="sgo-control-titulo"><strong>{control.titulo}</strong><span className={`estado-chip control-chip-${estado.clase}`}>{estado.label}</span></div><div className="sgo-control-etiquetas"><span className="sgo-control-tipo-chip">{tipoLabel(control)}</span>{control.frecuencia === 'unico' && <span className="sgo-control-tipo-chip especial">Especial</span>}</div><div className="meta">{areaSGOLabel(control.areaId)} · {frecuenciaLabel(control.frecuencia)} · Responsable: <strong>{control.responsable}</strong> · Próximo: {fechaLarga(control.proximaFecha)}</div><p>{control.instrucciones}</p>{ultima && <div className="meta">Último control: {fechaHora(ultima.ejecutadoEn)} · <strong>{resultadoLabel(ultima.resultado)}</strong> · {ultima.ejecutadoPor}</div>}</div>
+      <div><div className="sgo-control-titulo"><strong>{control.titulo}</strong><span className={`estado-chip control-chip-${estado.clase}`}>{control.semana5S && !control.activo ? (ultima ? 'Realizado' : 'Retirado de agenda') : control.semana5S && control.semana5S <= hoy && control.proximaFecha >= hoy ? 'Esta semana' : estado.label}</span></div><div className="sgo-control-etiquetas"><span className="sgo-control-tipo-chip">{tipoLabel(control)}</span>{esAuditoria5SEspecial(control) && <span className="sgo-control-tipo-chip especial">Especial</span>}</div><div className="meta">{areaSGOLabel(control.areaId)} · {control.semana5S ? 'Semanal automática' : frecuenciaLabel(control.frecuencia)} · Responsable: <strong>{control.responsable}</strong> · {control.semana5S ? `Desde el lunes ${fechaLarga(control.semana5S)} · Vence el viernes:` : 'Próximo:'} {fechaLarga(control.proximaFecha)}</div><p>{control.instrucciones}</p>{ultima && <div className="meta">Último control: {fechaHora(ultima.ejecutadoEn)} · <strong>{resultadoLabel(ultima.resultado)}</strong> · {ultima.ejecutadoPor}</div>}</div>
     </div>
     <div className="row-actions">{lorenzo && <button className="btn" onClick={onEditar}>Editar programación</button>}{seccion === 'agenda' && control.activo && <button className="btn btn-primary" onClick={onRealizar}>Realizar</button>}<RetirarControlButton control={control} usuario={usuario} /></div>
   </article>

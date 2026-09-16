@@ -523,7 +523,12 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
   const estandarSugerido = useMemo(() => {
     if (esProto || soloReparacion || tipo === 'reparacion') return undefined
     if (!ordenSel?.modelo || !maquinaId) return undefined
-    const key = claveEstandar(sectorId, ordenSel.modelo, maquinaId, componenteCodigo || undefined)
+    // v2.20: se pasa la DESCRIPCION del semielaborado, no solo el codigo, para
+    // que la clave sea la del modelo base (sin F1/F2/F3). Tiene que ser el mismo
+    // llamado que hace `sugerenciasEstandar`: si acá se buscara por codigo y allá
+    // se agrupara por modelo base, el estandar aprobado no se aplicaria nunca.
+    const desc = componentePorCodigo(componenteCodigo || undefined)?.descripcion
+    const key = claveEstandar(sectorId, ordenSel.modelo, maquinaId, componenteCodigo || undefined, desc)
     return estandaresGuardados.find((e) => e.id === key)?.minutos
   }, [estandaresGuardados, sectorId, ordenSel?.modelo, maquinaId, componenteCodigo, esProto, soloReparacion, tipo])
   // Al cambiar la combinacion, si hay un estandar aprendido, precarga el valor.

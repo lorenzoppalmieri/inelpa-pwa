@@ -12,7 +12,8 @@ export default function RetirarControlButton({ control, usuario, disabled, onRet
 
   async function retirar() {
     if (guardando || disabled) return
-    if (!window.confirm(`¿Eliminar de la agenda el control "${control.titulo}"?\n\nSe retirará de pendientes, vencidos y la matriz. También se detendrá su programación futura. No se marcará como realizado.\n\nLos informes, fotos y hallazgos anteriores se conservarán. Podrás reactivarlo desde Programación → Inactivos. Esta decisión quedará registrada al sincronizar.\n\n¿Confirmás la baja de esta programación?`)) return
+    const alcance = control.semana5S ? 'Se retira únicamente esta semana. La próxima semana se generará normalmente.' : 'También se detendrá su programación futura.'
+    if (!window.confirm(`¿Eliminar de la agenda el control "${control.titulo}"?\n\nSe retirará de pendientes, vencidos y la matriz. ${alcance} No se marcará como realizado.\n\nLos informes, fotos y hallazgos anteriores se conservarán. Podrás reactivarlo desde Programación → Inactivos. Esta decisión quedará registrada al sincronizar.\n\n¿Confirmás la baja de esta programación?`)) return
     setGuardando(true)
     setError('')
     try {

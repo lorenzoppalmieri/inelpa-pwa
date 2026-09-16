@@ -454,16 +454,72 @@ export interface TiempoEstandar {
   actualizado: string    // ISO de la ultima actualizacion
 }
 
+// ============================================================
+// MODELO BASE — la fase NO distingue un estandar  (v2.20)
+//
+// Las tres bobinas de un trifasico son codigos distintos en SAP
+// (BOBALT0000151 / 152 / 153) y sus descripciones terminan en F1, F2 y F3. Pero
+// bobinar la fase 1, la 2 o la 3 lleva EXACTAMENTE lo mismo: el diseño del
+// transformador no cambia entre fases.
+//
+// Agrupar por codigo partia la muestra en tres y daba tres sugerencias
+// distintas para el mismo trabajo — y cada una con un tercio de los datos, que
+// es justo lo que hace inestable a una mediana. Con las tres juntas, 15 bobinas
+// producidas son 15 muestras y no tres grupos de cinco.
+//
+// Se limpia solo el marcador de fase. El resto de la descripcion (potencia,
+// tension, AT/BT, material, linea, forma) SI distingue y se conserva entero.
+//
+// OJO CON LA POSICION: el marcador NO va al final. En el maestro de SAP la fase
+// va en el MEDIO, entre la tension y el material:
+//
+//     Bobina AT Distribucion Trifasica Cuadrado 63/33 F1 Al
+//                                              ^^^^
+//
+// La primera version de esta funcion anclaba la expresion a `$` y por lo tanto
+// no limpiaba absolutamente nada — el agrupamiento seguia partido en tres y el
+// bug quedaba igual. Lo agarro el test contra el catalogo real.
+//
+// Se verifico en catalogoComponentes.json que el token F1/F2/F3 aparece
+// UNICAMENTE en descripciones de bobinas: cubas, tapas, tanques, partes activas
+// y prensayugos no lo usan. Por eso es seguro sacarlo en cualquier posicion.
+// El borde de palabra evita comerse un "F4" o un "F10" si algun dia existieran.
+// ============================================================
+const RE_FASE = /\s*[-–·]?\s*\b(?:F\s?[123]|FASE\s?[123])\b/gi
+
+/** Descripcion del semielaborado sin el marcador de fase, para agrupar. */
+export function modeloBase(desc: string): string {
+  return (desc ?? '')
+    .replace(RE_FASE, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+}
+
 // Clave deterministica de agrupamiento de estandares segun la regla bifurcada.
-//   - Bobinado: BOBINA (semielaborado) + MAQUINA. Cada bobina (AT/BT, modelo)
-//     tiene su propio tiempo segun la maquina (automatica vs manual). Si no hay
-//     componente (raro), cae al modelo.
+//   - Bobinado: BOBINA (semielaborado, SIN la fase) + MAQUINA. El tiempo depende
+//     del modelo de bobina y de si la maquina es automatica o manual.
 //   - Montaje y demas manuales: SECTOR (operacion) + MODELO -> PA, PO, dist y
 //     rural quedan como estandares SEPARADOS (tienen tiempos distintos).
-export function claveEstandar(sectorId: SectorId, modelo: string, maquinaId?: string, componenteCodigo?: string): string {
-  return areaDemora(sectorId) === 'bobinado'
-    ? `bobinado||${componenteCodigo || modelo}||${maquinaId ?? ''}`
-    : `${sectorId}||${modelo}`
+//
+// OJO: este id es la PK de `tiempos_estandar` Y la clave con la que
+// PlanificacionView busca el estandar aprendido. Los dos lados tienen que usar
+// esta misma funcion: si el modal agrupa de una forma y el planificador busca de
+// otra, se aprueban estandares que despues nunca se aplican.
+//
+// `descripcionComponente` es la descripcion del semielaborado (la resuelve quien
+// llama, que es el que tiene el catalogo a mano; meter el catalogo aca haria un
+// import circular). Si no viene, se cae al codigo — peor agrupado, pero
+// deterministico.
+export function claveEstandar(
+  sectorId: SectorId,
+  modelo: string,
+  maquinaId?: string,
+  componenteCodigo?: string,
+  descripcionComponente?: string,
+): string {
+  if (areaDemora(sectorId) !== 'bobinado') return `${sectorId}||${modeloBase(modelo)}`
+  const base = descripcionComponente ? modeloBase(descripcionComponente) : (componenteCodigo || modelo)
+  return `bobinado||${base}||${maquinaId ?? ''}`
 }
 
 // ============================================================

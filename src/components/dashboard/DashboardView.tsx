@@ -339,8 +339,11 @@ function DashboardCuerpo(props: {
         ? <GanttOperativo tareas={filtradas} agrupar={agrupar} maquinas={maquinasVisibles} operarios={operariosVisibles} nombreOperario={nombreOperario} nombreMaquina={nombreMaquina} puedeMoverProduccion={puedeMoverProduccion} onTareaClick={onTareaClick} />
         : <KpiPanel tareas={kpiFiltradas} nombreOperario={nombreOperario} nombreMaquina={nombreMaquina} huecos={huecos} />}
 
+      {/* v2.20: ya no recibe `tareas`. El modal lee TODO el historial de
+          finalizadas desde Dexie: un estándar se afina con todo lo producido,
+          no con el período que el usuario tenga filtrado en pantalla. */}
       {mostrarSugerencias && (
-        <SugerenciasEstandar tareas={kpiFiltradas} nombreMaquina={nombreMaquina} onClose={() => setMostrarSugerencias(false)} />
+        <SugerenciasEstandar nombreMaquina={nombreMaquina} onClose={() => setMostrarSugerencias(false)} />
       )}
     </>
   )

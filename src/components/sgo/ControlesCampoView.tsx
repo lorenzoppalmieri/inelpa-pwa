@@ -19,7 +19,7 @@ import {
 } from '../../sgo/evidenciasCampo'
 import { datosMejoraDesdeEvento } from '../../sgo/mejoras'
 import { actualizarIndicadoresMensuales5S } from '../../sgo/indicadoresMensuales5S'
-import { proximaFechaControl, tipoEventoDesdeControl, type ControlProgramadoSGO, type EjecucionControlSGO } from '../../sgo/controles'
+import { esAuditoria5SEspecial, ejecucionEnFecha, proximaFechaControl, tipoEventoDesdeControl, type ControlProgramadoSGO, type EjecucionControlSGO } from '../../sgo/controles'
 import {
   AREAS_SGO, PILARES_SGO, areaSGOLabel, codigoEventoSGO,
   type AccionSGO, type AreaSGOId, type EventoSGO, type PilarSGO,
@@ -56,7 +56,7 @@ export default function ControlesCampoView({ usuario, onOpenEvento }: { usuario:
   const ultimos30 = historial.filter((e) => e.ejecutadoEn.slice(0, 10) >= desde30)
   const promedio = ultimos30.length ? Math.round(ultimos30.reduce((t, e) => t + (e.auditoriaCampo?.porcentajeCumplimiento ?? 0), 0) / ultimos30.length) : 0
   const hallazgos = ultimos30.reduce((t, e) => t + (e.auditoriaCampo?.respuestas.filter(respuestaEsHallazgo).length ?? 0), 0)
-  const enFecha = ultimos30.length ? Math.round((ultimos30.filter((e) => e.ejecutadoEn.slice(0, 10) <= e.fechaProgramada).length / ultimos30.length) * 100) : 0
+  const enFecha = ultimos30.length ? Math.round((ultimos30.filter(ejecucionEnFecha).length / ultimos30.length) * 100) : 0
 
   return <div className="sgo-campo">
     <div className="card sgo-campo-cabecera">
@@ -92,9 +92,9 @@ export default function ControlesCampoView({ usuario, onOpenEvento }: { usuario:
     {pendientes.length === 0 ? <div className="empty">No hay controles 5S programados para este filtro. Podés programar un área o iniciar un control directo.</div>
       : <div className="sgo-campo-agenda">{pendientes.map((control) => <article className={`card sgo-campo-agenda-card ${control.proximaFecha < hoy ? 'vencido' : ''}`} key={control.id}>
         <div>
-          <strong>{control.frecuencia === 'unico' ? 'ESPECIAL · ' : ''}{areaSGOLabel(control.areaId)}</strong>
+          <strong>{esAuditoria5SEspecial(control) ? 'ESPECIAL · ' : ''}{areaSGOLabel(control.areaId)}</strong>
           <div className="meta">{control.responsable} · {control.proximaFecha < hoy ? 'Vencido' : control.proximaFecha === hoy ? 'Para hoy' : `Próximo: ${fechaLarga(control.proximaFecha)}`}</div>
-          {control.frecuencia === 'unico' && <div className="meta">{control.instrucciones}</div>}
+          {esAuditoria5SEspecial(control) && <div className="meta">{control.instrucciones}</div>}
           <div className="meta">{PLANTILLA_5S_RIT_9_2_12.documento.codigo} · versión {PLANTILLA_5S_RIT_9_2_12.documento.version}</div>
         </div>
         <button className="btn btn-primary" onClick={() => setControlActivo(control)}>Realizar</button>
@@ -289,6 +289,9 @@ export function EjecutarControlCampo({ control, usuario, historial, onClose }: {
   }
 
   async function finalizar() {
+    if (control?.semana5S && historial.some(e => e.controlId === control.id)) {
+      window.alert('Esta semana ya tiene una auditoría registrada para el área. Consultá su informe; no es necesario repetirla.'); return
+    }
     if (!auditor.trim() || !encargado.trim()) { window.alert('Seleccioná el auditor real y completá el encargado del área.'); return }
     const respuestasParaValidar = respuestas.map((respuesta) => fotosPendientes[respuesta.itemId]
       ? { ...respuesta, evidenciaPaths: [...(respuesta.evidenciaPaths ?? []), '__foto_pendiente_offline__'] }
@@ -306,8 +309,8 @@ export function EjecutarControlCampo({ control, usuario, historial, onClose }: {
       const now = new Date().toISOString()
       const anterior = historial.find((e) => e.auditoriaCampo?.areaId === area)?.auditoriaCampo?.porcentajeCumplimiento
       const baseAuditoria: AuditoriaCampoSGO = {
-        tipo: '5s', modalidad: registroControl.frecuencia === 'unico' ? 'especial' : 'programada',
-        motivoEspecial: registroControl.frecuencia === 'unico' ? registroControl.instrucciones : undefined,
+        tipo: '5s', modalidad: esAuditoria5SEspecial(registroControl) ? 'especial' : 'programada',
+        motivoEspecial: esAuditoria5SEspecial(registroControl) ? registroControl.instrucciones : undefined,
         plantillaId: PLANTILLA_5S_RIT_9_2_12.id, plantillaVersion: PLANTILLA_5S_RIT_9_2_12.version,
         documento: PLANTILLA_5S_RIT_9_2_12.documento, areaId: area, auditor: auditor.trim(), usuarioAcceso: usuario,
         encargadoArea: encargado.trim(), ubicacion: ubicacion.trim() || undefined, turno: turno || undefined,
@@ -369,8 +372,11 @@ export function EjecutarControlCampo({ control, usuario, historial, onClose }: {
         eventoId: eventoIds[0], auditoriaCampo: auditoria,
       }
       await guardarEjecucionControlSGO(ejecucion)
+      // La ocurrencia semanal se completa en el servidor al recibir su informe.
+      // No enviar un upsert de programación con la sesión de Lara/Nicolás.
       const siguiente = proximaFechaControl(registroControl)
-      await guardarControlProgramadoSGO({
+      if (registroControl.semana5S) await db.controlesProgramadosSGO.update(registroControl.id, { activo: false })
+      else await guardarControlProgramadoSGO({
         ...registroControl, responsable: auditor.trim(), plantillaCampoId: PLANTILLA_5S_RIT_9_2_12.id,
         proximaFecha: siguiente ?? registroControl.proximaFecha, activo: Boolean(siguiente) && registroControl.activo,
         actualizadoEn: now, actualizadoPor: usuario,

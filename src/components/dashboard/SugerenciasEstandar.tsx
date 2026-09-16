@@ -11,8 +11,7 @@ import { sugerenciasEstandar, estandarDesdeSugerencia, type SugerenciaEstandar }
 // afinar los tiempos estimados usando la MEDIANA de los tiempos reales del período.
 // El planificador aprueba individual o globalmente; recién ahí se persiste.
 // ============================================================
-export default function SugerenciasEstandar({ tareas, nombreMaquina, onClose }: {
-  tareas: Tarea[]
+export default function SugerenciasEstandar({ nombreMaquina, onClose }: {
   nombreMaquina: (id: string) => string
   onClose: () => void
 }) {
@@ -20,7 +19,20 @@ export default function SugerenciasEstandar({ tareas, nombreMaquina, onClose }: 
   const [aprobadas, setAprobadas] = useState<Set<string>>(new Set<string>())
   const [guardando, setGuardando] = useState(false)
 
-  // Se recalcula sobre las tareas del período y los estándares vigentes.
+  // ============================================================
+  // v2.20 — SOBRE TODO EL HISTORIAL, no sobre el período de la pantalla.
+  //
+  // Antes las tareas llegaban por props, ya filtradas por el período elegido en
+  // KPIs. Eso hacía que la sugerencia cambiara según qué filtro tuvieras puesto
+  // y que modelos con poca producción nunca llegaran a las 3 muestras mínimas.
+  // Un tiempo estándar es un dato estructural: se afina con TODO lo que se
+  // fabricó, no con lo del mes que estás mirando.
+  // ============================================================
+  const tareas = useLiveQuery(
+    () => db.tareas.filter((t: Tarea) => t.estado === 'finalizada').toArray(),
+    [],
+  ) ?? []
+
   const sugerencias = useMemo(
     () => sugerenciasEstandar(tareas, estandares, nombreMaquina, { umbral: 0.05, minMuestras: 3 }),
     [tareas, estandares, nombreMaquina],

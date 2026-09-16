@@ -38,6 +38,8 @@ export interface ControlProgramadoSGO {
   actualizadoEn: string
   actualizadoPor: string
   plantillaCampoId?: string
+  /** Lunes de una ocurrencia automática 5S. proximaFecha es su viernes límite. */
+  semana5S?: string
 }
 
 export interface EjecucionControlSGO {
@@ -58,6 +60,20 @@ export interface EjecucionControlSGO {
   eventoId?: string
   auditoriaLogistica?: DatosAuditoriaLogistica
   auditoriaCampo?: AuditoriaCampoSGO
+}
+
+export function esAuditoria5SEspecial(control: ControlProgramadoSGO): boolean {
+  return control.frecuencia === 'unico' && !control.semana5S
+}
+
+export function fechaArgentina(iso: string): string {
+  const partes = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Buenos_Aires', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(iso))
+  const valor = (tipo: string) => partes.find(p => p.type === tipo)?.value
+  return `${valor('year')}-${valor('month')}-${valor('day')}`
+}
+
+export function ejecucionEnFecha(ejecucion: EjecucionControlSGO): boolean {
+  return fechaArgentina(ejecucion.ejecutadoEn) <= ejecucion.fechaProgramada
 }
 
 /** Baja recuperable de la programación: no acredita ejecución ni borra informes. */

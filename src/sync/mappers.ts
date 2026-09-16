@@ -437,6 +437,7 @@ export function auditoriaSGOFromRow(r: AuditoriaSGORow): AuditoriaSGO {
 }
 
 export interface ControlProgramadoSGORow {
+  semana_5s?: string | null
   id: string
   titulo: string
   tipo: string
@@ -485,7 +486,7 @@ export function controlProgramadoSGOFromRow(r: ControlProgramadoSGORow): Control
     responsable: r.responsable, frecuencia: r.frecuencia as ControlProgramadoSGO['frecuencia'],
     proximaFecha: r.proxima_fecha, toleranciaDias: r.tolerancia_dias, activo: r.activo,
     creadoEn: r.creado_en, creadoPor: r.creado_por, actualizadoEn: r.actualizado_en, actualizadoPor: r.actualizado_por,
-    plantillaCampoId: u(r.plantilla_campo_id),
+    plantillaCampoId: u(r.plantilla_campo_id), semana5S: u(r.semana_5s),
   }
 }
 
@@ -497,6 +498,7 @@ export function controlProgramadoSGOToRow(c: ControlProgramadoSGO): ControlProgr
     tolerancia_dias: c.toleranciaDias, activo: c.activo, creado_en: c.creadoEn,
     creado_por: c.creadoPor, actualizado_en: c.actualizadoEn, actualizado_por: c.actualizadoPor,
     plantilla_campo_id: c.plantillaCampoId ?? null,
+    ...(c.semana5S ? { semana_5s: c.semana5S } : {}),
   }
 }
 
