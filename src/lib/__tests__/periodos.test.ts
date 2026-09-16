@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Tarea } from '../../types'
-import { opcionesPeriodo, rangoPeriodo, tareaEnPeriodo } from '../periodos'
+import { fechaDeReferencia, opcionesPeriodo, rangoPeriodo, tareaEnPeriodo } from '../periodos'
 
 // ============================================================
 // v2.07 — Filtro de período compartido entre KPIs y "Asignar tareas".
@@ -83,6 +83,65 @@ describe('qué tareas entran', () => {
   it('el último día del rango entra completo', () => {
     const ultimo = tarea(enDia(2026, 8, 12))
     expect(tareaEnPeriodo(ultimo, 'rango', AHORA, undefined, '2026-09-10', '2026-09-12')).toBe(true)
+  })
+})
+
+// ============================================================
+// v2.22 — Las finalizadas se anclan al FIN.
+//
+// El punto ciego que esto corrige: una tarea que arranca un mes y termina el
+// siguiente quedaba contada en el mes en que casi no se trabajó en ella, y no
+// aparecía al filtrar el mes en que realmente se terminó.
+// ============================================================
+const finalizada = (inicioReal: string, finReal?: string): Tarea => ({
+  ...tarea(undefined, inicioReal),
+  estado: 'finalizada',
+  finReal,
+})
+
+describe('ancla de las tareas finalizadas', () => {
+  it('EL CASO REPORTADO: arrancó en agosto, terminó en septiembre', () => {
+    const t = finalizada(enDia(2026, 7, 28), enDia(2026, 8, 3))
+    expect(tareaEnPeriodo(t, 'mes_actual', AHORA)).toBe(true)      // septiembre: SÍ
+    expect(tareaEnPeriodo(t, 'mes_anterior', AHORA)).toBe(false)   // agosto: ya no
+  })
+
+  it('EL CASO DEL RANGO: arrancó el 05/09, terminó el 08/09, se filtra 07→11', () => {
+    const t = finalizada(enDia(2026, 8, 5), enDia(2026, 8, 8))
+    expect(tareaEnPeriodo(t, 'rango', AHORA, undefined, '2026-09-07', '2026-09-11')).toBe(true)
+  })
+
+  it('una finalizada sin fin cargado no desaparece: cae al inicio', () => {
+    const t = finalizada(enDia(2026, 8, 5), undefined)
+    expect(tareaEnPeriodo(t, 'mes_actual', AHORA)).toBe(true)
+  })
+
+  it('las que NO están finalizadas se siguen ubicando por el arranque', () => {
+    const enCurso: Tarea = { ...tarea(undefined, enDia(2026, 7, 28)), estado: 'en_proceso' }
+    expect(tareaEnPeriodo(enCurso, 'mes_anterior', AHORA)).toBe(true)
+    expect(tareaEnPeriodo(enCurso, 'mes_actual', AHORA)).toBe(false)
+  })
+
+  it('fechaDeReferencia elige el campo correcto según el estado', () => {
+    const ini = enDia(2026, 7, 28), fin = enDia(2026, 8, 3)
+    expect(fechaDeReferencia(finalizada(ini, fin))).toBe(fin)
+    expect(fechaDeReferencia({ ...tarea(undefined, ini), estado: 'pausada' })).toBe(ini)
+    expect(fechaDeReferencia(tarea(enDia(2026, 8, 20)))).toBe(enDia(2026, 8, 20))
+  })
+})
+
+describe('comparación por instante, no por texto', () => {
+  // Las tablets escriben `...Z` y Supabase devuelve `...+00:00`. Como texto el
+  // mismo instante compara distinto ('+' < '.' en ASCII), así que las tareas del
+  // borde del período entraban o quedaban afuera sin motivo.
+  it('un fin en formato Supabase cae en el mismo período que en formato tablet', () => {
+    const zulu = '2026-09-10T13:00:00.000Z'
+    const supa = '2026-09-10T13:00:00+00:00'
+    const a = finalizada(enDia(2026, 8, 9), zulu)
+    const b = finalizada(enDia(2026, 8, 9), supa)
+    expect(tareaEnPeriodo(a, 'mes_actual', AHORA)).toBe(tareaEnPeriodo(b, 'mes_actual', AHORA))
+    expect(tareaEnPeriodo(a, 'dia', AHORA, '2026-09-10')).toBe(tareaEnPeriodo(b, 'dia', AHORA, '2026-09-10'))
+    expect(tareaEnPeriodo(a, 'dia', AHORA, '2026-09-10')).toBe(true)
   })
 })
 

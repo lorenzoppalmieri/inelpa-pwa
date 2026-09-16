@@ -3,6 +3,8 @@ import { minutosEntre } from './time'
 import { calcularTiempoNetoProductivo } from './calendario'
 import { minutosHuecoPorTarea } from './huecos'
 import { paradasDeCorte } from './cortesLuz'
+// periodos.ts solo importa TIPOS de ../types, asi que no hay import circular.
+import { fechaDeReferencia } from './periodos'
 import { causaLabel, esParadaNoProductiva, esReparacion, minutosRecupTarea } from '../types'
 
 // ============================================================
@@ -395,12 +397,31 @@ export function metricasDeLista(tareas: Tarea[], hastaISO?: string): Map<string,
   return out
 }
 
-// Filtra tareas cuyo trabajo cae dentro de [desdeISO, hastaISO) segun su
-// inicio real (o planificado). Base del filtro de periodo del Dashboard (v1.4).
+// ============================================================
+// Filtra tareas dentro de [desdeISO, hastaISO). Base del filtro de periodo del
+// Dashboard (v1.4).
+//
+// v2.22 — DOS CORRECCIONES, las mismas que en `tareaEnPeriodo`:
+//
+// 1) LAS FINALIZADAS SE UBICAN POR SU FIN, no por su arranque. Una bobina que
+//    empezo el 28/8 y se termino el 3/9 se contaba en AGOSTO y no aparecia al
+//    filtrar septiembre. La produccion de un mes es lo que se TERMINO ese mes.
+//
+// 2) SE COMPARA POR INSTANTE, no como texto. `rangoPeriodo` devuelve `...Z` y
+//    las tareas vienen de Supabase con `...+00:00`: como string el mismo
+//    instante compara distinto y las tareas del borde entraban o quedaban
+//    afuera sin motivo. Cuarta vez que aparece este error en el proyecto.
+//
+// La regla vive en `fechaDeReferencia` (lib/periodos) y la usan ESTA funcion y
+// el filtro de "Asignar tareas". Tener dos criterios era lo que hacia que las
+// dos pantallas mostraran conjuntos distintos para el mismo periodo.
+// ============================================================
 export function filtrarPorRango(tareas: Tarea[], desdeISO: string, hastaISO: string): Tarea[] {
+  const desde = new Date(desdeISO).getTime()
+  const hasta = new Date(hastaISO).getTime()
   return tareas.filter((t) => {
-    const ref = t.inicioReal ?? t.inicioPlanificado
-    return ref != null && ref >= desdeISO && ref < hastaISO
+    const ref = new Date(fechaDeReferencia(t) ?? '').getTime()
+    return Number.isFinite(ref) && ref >= desde && ref < hasta
   })
 }
 

@@ -119,9 +119,44 @@ export function rangoPeriodo(
 }
 
 /**
- * ¿La tarea cae en el período? La referencia es el arranque REAL, y si todavía
- * no arrancó, el planificado: así una tarea pendiente aparece en el mes en que
- * está agendada y no desaparece del listado hasta que alguien la inicie.
+ * Fecha con la que una tarea se ubica en el tiempo.
+ *
+ * v2.22 — LAS FINALIZADAS SE ANCLAN AL FIN, NO AL ARRANQUE.
+ *
+ * Antes la referencia era siempre el inicio, y eso dejaba un punto ciego: una
+ * bobina que arrancó el 28 de agosto y se terminó el 3 de septiembre no aparecía
+ * al filtrar septiembre. Quedaba contada en agosto, el mes en el que casi no se
+ * trabajó en ella. En bobinado, donde las tareas cruzan días y fines de semana
+ * todo el tiempo, esto escondía trabajo terminado.
+ *
+ * La regla ahora:
+ *   - FINALIZADA  -> `finReal`. Una pieza pertenece al período en que quedó
+ *                    hecha. Es también lo correcto para los KPIs: la producción
+ *                    de septiembre es lo que se terminó en septiembre.
+ *   - el resto    -> `inicioReal`, y si todavía no arrancó, `inicioPlanificado`,
+ *                    para que una pendiente aparezca en el mes en que está
+ *                    agendada y no desaparezca del listado.
+ *
+ * Fallback: una finalizada sin `finReal` (dato mal cerrado) cae al inicio en vez
+ * de desaparecer del tablero. El Auditor de Tiempos ya la reclama por su lado.
+ */
+export function fechaDeReferencia(t: Tarea): string | undefined {
+  if (t.estado === 'finalizada') return t.finReal ?? t.inicioReal ?? t.inicioPlanificado
+  return t.inicioReal ?? t.inicioPlanificado
+}
+
+/** Instante de un ISO en ms. NaN si no es una fecha válida. */
+const ms = (iso?: string): number => (iso ? new Date(iso).getTime() : NaN)
+
+/**
+ * ¿La tarea cae en el período?
+ *
+ * OJO CON LA COMPARACIÓN: se compara por INSTANTE, nunca como texto. `rangoPeriodo`
+ * devuelve `toISOString()` (siempre `...Z`) y las tareas vienen de Supabase con
+ * `...+00:00`. Como texto, el mismo instante compara distinto —'+' es menor que
+ * '.' en ASCII— y tareas del borde del período entraban o quedaban afuera sin
+ * motivo. Es el mismo error que ya rompió `huecos.ts`, `fusionarIntervalos`
+ * (v2.12) y el auto-shift del Gantt (v2.17); acá estaba desde v2.07.
  */
 export function tareaEnPeriodo(
   t: Tarea,
@@ -132,8 +167,8 @@ export function tareaEnPeriodo(
   hastaISO?: string,
 ): boolean {
   if (periodo === 'todas') return true
-  const ref = t.inicioReal ?? t.inicioPlanificado
-  if (!ref) return false
+  const ref = ms(fechaDeReferencia(t))
+  if (!Number.isFinite(ref)) return false
   const { desde, hasta } = rangoPeriodo(periodo, now, diaISO, desdeISO, hastaISO)
-  return ref >= desde && ref < hasta
+  return ref >= ms(desde) && ref < ms(hasta)
 }
