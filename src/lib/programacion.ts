@@ -14,22 +14,34 @@ import { sumarMinutosLaborables, proximoInstanteLaborable, type GrupoAlmuerzo, G
 // corte) queda como estaba: sin limite, porque ahi el paralelismo es real y
 // variable, y forzarlo mentiria sobre la capacidad de la linea.
 //
-// OJO CON EL DEFAULT: es 1, no "sin limite". Hasta v2.17 la cascada tenia UN
-// cursor por recurso, o sea que ya serializaba todo a una tarea por vez. Poner
-// Infinity como default habria cambiado en silencio el comportamiento de
-// Montaje PA/PO Distribucion, PO Rural, herreria y corte, que Lorenzo pidio
-// expresamente NO tocar. El unico sector que cambia es montaje_pa_rural.
+// v2.19 — MONTAJE VA SIN LIMITE (decision de Lorenzo, 16/9/2026).
 //
-// Este numero se usa para DOS cosas que tienen que dar lo mismo:
-//   1) la cascada de abajo, que encola las pendientes;
-//   2) el apilado en sub-filas del Gantt.
-// Por eso vive aca y no en el componente: si cada uno tuviera su propia regla,
-// volveriamos a tener el cálculo diciendo una cosa y el dibujo otra, que es
-// exactamente como nacieron los bugs de v1.81 y v2.17.
+// Los carriles de montaje no son personas: son CUENTAS DE EQUIPO. "Equipo
+// Montaje PA Distribucion" son 5 personas trabajando sobre la misma linea, que
+// llevan 5 partes activas en paralelo. Serializarlas de a una —que es lo que
+// hacia la cascada— le dibujaba al planificador una cola larguisima que no
+// existe, y le escondia que en realidad tiene lugar para seguir cargando.
+//
+// Se eligio "sin limite" antes que un numero por sector: la dotacion de cada
+// linea cambia, y un tope mal puesto miente igual que no tener ninguno, solo
+// que en la direccion contraria. Sin limite, cada tarea de montaje arranca en
+// su hora planificada y el Gantt muestra la carga real; si la linea esta
+// sobrecargada se ve por la cantidad de barras superpuestas, no por una cola
+// inventada. (Esto reemplaza el "PA Rural = 2" de v2.18: 2 era correcto como
+// dotacion, pero como TOPE tampoco aportaba.)
+//
+// Bobinado sigue en 1 y eso NO es negociable: ahi el carril es una persona con
+// una bobinadora, y "no puede empezar otra si no finalizo una" es la regla que
+// pidieron los planificadores. Herreria y corte quedan en 1, como estaban.
+//
+// ESTE NUMERO NO TOPEA LAS FILAS DEL GANTT. El render siempre abre las filas que
+// haga falta para que ninguna barra tape a otra (ver GanttOperativo v2.19).
+// Aca solo se decide cuanto encola la cascada; alla, como se dibuja. Confundir
+// las dos cosas fue el bug de v2.18.
 // ============================================================
 export function capacidadRecurso(sectorId: SectorId): number {
-  if (sectorId === 'montaje_pa_rural') return 2   // dos partes activas a la vez
-  return 1                                         // bobinado y todo el resto
+  if (sectorId.startsWith('montaje')) return Infinity
+  return 1   // bobinado (una persona, una bobinadora), herreria, corte, laboratorio
 }
 
 // ============================================================
@@ -103,9 +115,17 @@ function claveOrden(t: Tarea): string {
 // ------------------------------------------------------------
 class Huecos {
   private slots: number[]
-  constructor(capacidad: number) { this.slots = new Array(Math.max(1, capacidad)).fill(-Infinity) }
-  libreDesde(): number { return Math.min(...this.slots) }
+  /** true = capacidad infinita: el recurso nunca frena a nadie (montaje). */
+  private sinLimite: boolean
+  constructor(capacidad: number) {
+    // OJO: `new Array(Infinity)` explota. La capacidad infinita se modela con un
+    // flag, no con un array gigante.
+    this.sinLimite = !Number.isFinite(capacidad)
+    this.slots = this.sinLimite ? [] : new Array(Math.max(1, capacidad)).fill(-Infinity)
+  }
+  libreDesde(): number { return this.sinLimite ? -Infinity : Math.min(...this.slots) }
   ocupar(finMs: number): void {
+    if (this.sinLimite) return
     let i = 0
     for (let k = 1; k < this.slots.length; k++) if (this.slots[k] < this.slots[i]) i = k
     // El hueco nunca retrocede: si ya estaba ocupado mas alla, se respeta.

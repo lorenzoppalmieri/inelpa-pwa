@@ -309,25 +309,27 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
       // de verdad se pisan — y eso hay que verlo, no taparlo.
       // ============================================================
       // ============================================================
-      // v2.18 — EL CARRIL NO PUEDE TENER MAS FILAS QUE LA CAPACIDAD DEL RECURSO.
+      // EL RENDER NUNCA TOPEA LAS FILAS.  (v2.19 — corrige v2.18)
       //
-      // Un bobinador hace una bobina por vez -> UNA fila, sus tareas una al lado
-      // de la otra. Montaje PA Rural admite dos partes activas -> dos filas. El
-      // resto sigue con el packing libre de siempre.
+      // v2.18 limitaba las sub-filas a `capacidadRecurso`, que vale 1 para casi
+      // todo. Resultado: el carril "Equipo Montaje PA Distribucion" —una cuenta
+      // de EQUIPO que lleva 5 partes activas en paralelo— quedaba con las 5
+      // barras aplastadas en el renglon 0, ilegible. Era una regresion.
       //
-      // La capacidad sale de `capacidadRecurso`, la MISMA funcion que usa la
-      // cascada. Si el dibujo tuviera su propia regla volveriamos al problema de
-      // v1.81/v2.17: el calculo diciendo una cosa y la pantalla otra.
+      // El error de fondo fue mezclar dos cosas distintas:
+      //   - CAPACIDAD (cuantas tareas puede hacer de verdad un recurso) es un
+      //     dato de PLANIFICACION y vive en `programar()`, que encola las
+      //     pendientes segun eso;
+      //   - FILAS (cuantos renglones hacen falta para que ninguna barra tape a
+      //     otra) es un problema de DIBUJO y no tiene tope posible: si dos
+      //     barras se pisan hay que separarlas, sí o sí.
       //
-      // Con la cascada bien, un carril de capacidad 1 nunca necesita una segunda
-      // fila. Si igual dos tareas se pisan, es porque las dos YA ARRANCARON y
-      // sus tiempos reales se superponen (alguien abrio la segunda sin cerrar la
-      // primera en la tablet). Eso no se acomoda: se dibuja en la fila unica y
-      // se MARCA, para que el error se vea en lugar de taparse.
+      // Con la cascada bien, un bobinador no genera solapamientos y su carril
+      // sale en UNA fila solo, sin necesidad de forzarlo. Si igual aparecen dos
+      // filas en bobinado es porque dos tareas YA INICIADAS se pisan de verdad
+      // (alguien abrio la segunda sin cerrar la primera en la tablet): eso no se
+      // tapa, se MARCA en rojo y se corrige el dato.
       // ============================================================
-      const cap = Math.min(...conPlan.map((x) => capacidadRecurso(x.t.sectorId)), Infinity)
-      const capFilas = Number.isFinite(cap) && cap > 0 ? cap : Infinity
-
       const rowDe = new Map<string, number>()
       const choque = new Map<string, string>()   // tareaId -> con quien choca
       // Packing greedy: cada tarea va a la 1ra sub-fila libre (cuyo fin <= su inicio).
@@ -338,21 +340,19 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
         const fin = msIso(p.endISO)
         let r = finDeFila.findIndex((f) => f <= ini)
         if (r === -1) {
-          if (finDeFila.length < capFilas) {
-            r = finDeFila.length
-            finDeFila.push(fin)
-            ultimaDeFila.push(t.id)
-          } else {
-            // No hay fila libre y no se puede abrir otra: choque real. Va a la
-            // fila que se libera antes y queda marcada junto con la que ocupa.
-            r = finDeFila.reduce((mejor, f, i) => (f < finDeFila[mejor] ? i : mejor), 0)
-            const conQuien = ultimaDeFila[r]
+          // Se abre una fila nueva. Si el recurso NO deberia poder tener dos
+          // tareas a la vez (capacidad 1: un bobinador), esa fila extra es la
+          // senal de un dato mal cargado: se dibuja igual, pero marcada.
+          if (capacidadRecurso(t.sectorId) <= finDeFila.length) {
+            const conQuien = ultimaDeFila[finDeFila.length - 1]
             const otra = conPlan.find((x) => x.t.id === conQuien)?.t
-            choque.set(t.id, otra ? `${otra.modelo}${otra.nroTransformador ? ` N° ${otra.nroTransformador}` : ''}` : 'otra tarea')
-            if (conQuien) choque.set(conQuien, `${t.modelo}${t.nroTransformador ? ` N° ${t.nroTransformador}` : ''}`)
-            finDeFila[r] = Math.max(finDeFila[r], fin)
-            ultimaDeFila[r] = t.id
+            const nombre = (x?: Tarea) => x ? `${x.modelo}${x.nroTransformador ? ` N° ${x.nroTransformador}` : ''}` : 'otra tarea'
+            choque.set(t.id, nombre(otra))
+            if (conQuien) choque.set(conQuien, nombre(t))
           }
+          r = finDeFila.length
+          finDeFila.push(fin)
+          ultimaDeFila.push(t.id)
         } else {
           finDeFila[r] = fin
           ultimaDeFila[r] = t.id

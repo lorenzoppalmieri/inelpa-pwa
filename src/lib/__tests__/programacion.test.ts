@@ -154,28 +154,66 @@ describe('capacidad del recurso', () => {
     expect(ms(plan.get('C')!.startISO)).toBeGreaterThanOrEqual(ms(plan.get('B')!.endISO))
   })
 
-  it('Montaje PA Rural admite DOS partes activas a la vez, la tercera espera', () => {
+  // v2.19: los carriles de montaje son CUENTAS DE EQUIPO (5 personas sobre la
+  // misma línea), no individuos. No se encolan: arrancan todas a su hora.
+  it('el Equipo Montaje PA Distribución lleva 5 partes activas en paralelo', () => {
+    const pa = (id: string) => tarea({
+      id, sectorId: 'montaje_pa_dist' as Tarea['sectorId'],
+      maquinaId: 'm_montaje_pa_dist_01', operarioId: 'equipo_pa_dist',
+      inicioPlanificado: local(8), tiempoEstandarMin: 120,
+    })
+    const ts = ['A', 'B', 'C', 'D', 'E'].map(pa)
+    const plan = programar(ts, local(7))
+    const arranques = new Set(ts.map((t) => ms(plan.get(t.id)!.startISO)))
+    expect(arranques.size).toBe(1)   // las cinco a la misma hora
+  })
+
+  it('montaje rural tampoco se encola', () => {
     const pa = (id: string) => tarea({
       id, sectorId: 'montaje_pa_rural' as Tarea['sectorId'],
-      maquinaId: 'm_montaje_pa_rural_01', operarioId: 'opR',
+      maquinaId: 'm_montaje_pa_rural_01', operarioId: 'equipo_pa_rural',
       inicioPlanificado: local(8), tiempoEstandarMin: 120,
     })
     const ts = [pa('A'), pa('B'), pa('C')]
     const plan = programar(ts, local(7))
-    // A y B arrancan juntas...
-    expect(ms(plan.get('A')!.startISO)).toBe(ms(plan.get('B')!.startISO))
-    // ...y C recién cuando se libera la primera de las dos.
-    expect(ms(plan.get('C')!.startISO)).toBeGreaterThanOrEqual(ms(plan.get('A')!.endISO))
+    expect(ms(plan.get('C')!.startISO)).toBe(ms(plan.get('A')!.startISO))
   })
 
-  it('Montaje PA Distribución NO cambia: sigue serializando de a una', () => {
-    const pa = (id: string) => tarea({
-      id, sectorId: 'montaje_pa_dist' as Tarea['sectorId'],
-      maquinaId: 'm_montaje_pa_dist_01', operarioId: 'opD',
-      inicioPlanificado: local(8), tiempoEstandarMin: 120,
-    })
-    const ts = [pa('A'), pa('B')]
+  it('bobinado SÍ se encola aunque montaje no', () => {
+    const ts = [
+      tarea({ id: 'A', inicioPlanificado: local(8), tiempoEstandarMin: 120 }),
+      tarea({ id: 'B', inicioPlanificado: local(8), tiempoEstandarMin: 120 }),
+    ]
     const plan = programar(ts, local(7))
+    expect(ms(plan.get('B')!.startISO)).toBeGreaterThanOrEqual(ms(plan.get('A')!.endISO))
+  })
+})
+
+describe('efecto dominó en tiempo real', () => {
+  it('la pendiente se corre sola a medida que avanza la hora', () => {
+    // A arrancó 08:00 con 60' estimados pero sigue abierta. B está detrás.
+    const ts = [
+      tarea({ id: 'A', estado: 'en_proceso', inicioReal: local(8), tiempoEstandarMin: 60 }),
+      tarea({ id: 'B', inicioPlanificado: local(9), tiempoEstandarMin: 60 }),
+    ]
+    // Mismo set de tareas, mirado en dos momentos distintos: lo único que
+    // cambia es el reloj, y B tiene que haberse movido hacia adelante.
+    const aLas10 = programar(ts, local(10))
+    const aLas11 = programar(ts, local(11))
+    expect(ms(aLas11.get('B')!.startISO)).toBeGreaterThan(ms(aLas10.get('B')!.startISO))
+    // Y nunca se le encima a A.
+    expect(ms(aLas11.get('B')!.startISO)).toBeGreaterThanOrEqual(ms(aLas11.get('A')!.endISO))
+  })
+
+  it('si el empujón pasa el cierre, la pendiente salta al día siguiente', () => {
+    const ts = [
+      tarea({ id: 'A', estado: 'en_proceso', inicioReal: local(8), tiempoEstandarMin: 60 }),
+      tarea({ id: 'B', inicioPlanificado: local(9), tiempoEstandarMin: 120 }),
+    ]
+    // Son las 15:40: A sigue abierta y ya no entran 2h antes del cierre, así que
+    // B arranca hoy pero TERMINA mañana — nunca fuera del horario de planta.
+    const plan = programar(ts, local(15, 40))
+    expect(diaAr(plan.get('B')!.endISO)).toBe('martes')
     expect(ms(plan.get('B')!.startISO)).toBeGreaterThanOrEqual(ms(plan.get('A')!.endISO))
   })
 })
