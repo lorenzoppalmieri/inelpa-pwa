@@ -101,6 +101,7 @@ export interface TareaRow {
   fase: string | null
   nro_transformador: string | null
   semana: string
+  semana_objetivo: string | null   // v2.23: foto congelada al crear
   prioridad: number
   estado: string
   tiempo_estandar_min: number
@@ -559,6 +560,9 @@ export function tareaFromRow(r: TareaRow, paradas: Parada[] = []): Tarea {
     fase: u(r.fase),
     nroTransformador: u(r.nro_transformador),
     semana: r.semana,
+    // v2.23: si la fila es anterior a la migracion cae a `semana`, que para una
+    // tarea que nunca se movio es el mismo valor.
+    semanaObjetivo: u(r.semana_objetivo) ?? r.semana,
     prioridad: r.prioridad,
     estado: r.estado as EstadoTarea,
     tiempoEstandarMin: r.tiempo_estandar_min,
@@ -1259,6 +1263,10 @@ export function tareaToRow(t: Tarea): TareaRow {
     fase: t.fase ?? null,
     nro_transformador: t.nroTransformador ?? null,
     semana: t.semana,
+    // v2.23: se sube tal cual viene. Si la tarea ya la tiene, el UPDATE la
+    // reescribe con el MISMO valor; nadie la recalcula al editar ni al arrastrar,
+    // que es justamente lo que la mantiene congelada.
+    semana_objetivo: t.semanaObjetivo ?? t.semana,
     prioridad: t.prioridad,
     estado: t.estado,
     tiempo_estandar_min: t.tiempoEstandarMin,

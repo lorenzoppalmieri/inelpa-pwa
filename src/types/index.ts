@@ -251,7 +251,27 @@ export interface Tarea {
   modelo: string           // modelo de transformador / bobina
   fase?: string            // mono / bifasico / trifasico (relevante en bobinado)
   nroTransformador?: string
-  semana: string           // ISO week, ej "2026-W24"
+  semana: string           // ISO week, ej "2026-W24". MUTABLE: se recalcula desde
+                           // `inicioPlanificado` al crear, editar y arrastrar en el Gantt.
+  // ============================================================
+  // v2.23 — SEMANA OBJETIVO: LA FOTO QUE NO SE TOCA.
+  //
+  // `semana` no sirve para medir cumplimiento porque se REESCRIBE cada vez que
+  // la planificadora mueve la tarea. Si una bobina de la semana 38 se pasa a la
+  // 39, desaparece del objetivo de la 38 y el colaborador queda 7/7 cuando en
+  // realidad le faltaron 3. El objetivo se achicaba solo con cada demora.
+  //
+  // `semanaObjetivo` se escribe UNA VEZ, al crear la tarea, y no se toca nunca
+  // mas: ni al editar, ni al arrastrar, ni al reasignar. Es lo que le exigieron
+  // a esa semana, y el historial tiene que poder decirlo un año despues.
+  //
+  // El auto-shift del Gantt no la afecta porque `programar()` es puro display y
+  // no escribe en la base — eso ya estaba bien y no se toca.
+  //
+  // Opcional por compatibilidad: las tareas anteriores a v2.23 no la tienen y el
+  // SQL de migracion las rellena con `semana`. Ver FECHA_CORTE_OBJETIVOS.
+  // ============================================================
+  semanaObjetivo?: string  // ISO week congelada al crear. NUNCA actualizar.
   prioridad: number        // 1 = mas alta
   estado: EstadoTarea
   tiempoEstandarMin: number // tiempo estandar de la operacion (min)

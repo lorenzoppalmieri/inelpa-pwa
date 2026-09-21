@@ -444,6 +444,9 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
       if (candISO < nowISO) candISO = nowISO
       const snapped = proximoInstanteLaborable(candISO, almuerzo)
 
+      // v2.23: se actualiza `semana` (cuándo se va a hacer) pero NUNCA
+      // `semanaObjetivo` (para cuándo se había pedido). Arrastrar una barra es
+      // reprogramar, no renegociar el objetivo de la semana pasada.
       const patch: Partial<Tarea> = { inicioPlanificado: snapped, semana: isoWeek(new Date(snapped)) }
       if (reasignable && laneId && laneId !== SIN_ASIGNAR) {
         if (agrupar === 'maquina') {

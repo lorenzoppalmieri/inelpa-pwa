@@ -87,6 +87,12 @@ export default function EditarTarea({ tarea, maquinas, usuarios, onClose }: {
       operarioId: operarioId || undefined,
       inicioPlanificado,
       semana: isoWeek(new Date(inicioPlanificado)),
+      // v2.23: `semanaObjetivo` NO se recalcula acá a propósito. Mover una tarea
+      // atrasada a la semana que viene cambia CUÁNDO se va a hacer, no para qué
+      // semana se había pedido. Si se recalculara, el objetivo de la semana
+      // vieja se achicaría solo y el cumplimiento daría siempre 100%.
+      // Se reenvía el valor original para que el upsert no lo pise con null.
+      semanaObjetivo: tarea.semanaObjetivo ?? tarea.semana,
     })
     setGuardando(false)
     onClose()

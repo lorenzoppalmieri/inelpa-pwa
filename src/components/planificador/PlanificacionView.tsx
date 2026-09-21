@@ -590,6 +590,12 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
       nroTransformador: nroTransformador.trim() || undefined,
       cliente: cliente.trim() || undefined,
       semana: isoWeek(new Date(inicioPlanificado)),
+      // v2.23: ESTE ES EL UNICO LUGAR donde se escribe `semanaObjetivo`. Es la
+      // semana para la que se le exigio el trabajo al colaborador, y queda
+      // congelada: ni editar la tarea ni arrastrarla en el Gantt la cambian.
+      // Sin esto, mover una tarea atrasada la sacaba del objetivo de la semana
+      // vieja y el cumplimiento daba 7/7 en vez de 7/10.
+      semanaObjetivo: isoWeek(new Date(inicioPlanificado)),
       prioridad: Math.max(1, Number(prioridad) || 1),
       estado: 'pendiente',
       tiempoEstandarMin: Math.max(1, Number(estandar) || 1),

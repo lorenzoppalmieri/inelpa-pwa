@@ -156,6 +156,8 @@ export function construirTareaPO(pa: Tarea, op: OpcionesPO): Tarea {
     cliente: pa.cliente,
     componenteCodigo: undefined,
     semana: isoWeek(new Date(inicioPlanificado)),
+    // v2.23: la PO nace acá, así que acá se congela su objetivo.
+    semanaObjetivo: isoWeek(new Date(inicioPlanificado)),
     prioridad: pa.prioridad,
     estado: 'pendiente',
     tiempoEstandarMin: estandar,
