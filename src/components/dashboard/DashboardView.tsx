@@ -168,7 +168,12 @@ export default function DashboardView() {
 
       <div className="tabs tabs-nav no-print">
         <button className={'tab' + (vista === 'gantt' ? ' active' : '')} onClick={() => setVista('gantt')}><span className="nav-ico" aria-hidden="true">📈</span><span className="nav-txt-largo">Gantt operativo</span><span className="nav-txt-corto">Gantt</span></button>
-        <button className={'tab' + (vista === 'andon' ? ' active' : '')} onClick={() => setVista('andon')}><span className="nav-ico" aria-hidden="true">🏆</span><span className="nav-txt-largo">🏆 Andon</span><span className="nav-txt-corto">Andon</span></button>
+        {/* v2.23: el Andon muestra cumplimiento individual por colaborador, así
+            que deja de ser visible para los operarios. `verDashboard` es false
+            en ese rol. El guard de verdad está dentro de AndonView. */}
+        {permisos?.verDashboard && (
+          <button className={'tab' + (vista === 'andon' ? ' active' : '')} onClick={() => setVista('andon')}><span className="nav-ico" aria-hidden="true">🏆</span><span className="nav-txt-largo">🏆 Andon</span><span className="nav-txt-corto">Andon</span></button>
+        )}
         <button className={'tab' + (vista === 'kpis' ? ' active' : '')} onClick={() => setVista('kpis')}><span className="nav-ico" aria-hidden="true">📊</span><span className="nav-txt-largo">Eficiencia / KPIs</span><span className="nav-txt-corto">KPIs</span></button>
         <button className={'tab' + (vista === 'cuellos' ? ' active' : '')} onClick={() => setVista('cuellos')}><span className="nav-ico" aria-hidden="true">🔎</span><span className="nav-txt-largo">Cuellos / OEE</span><span className="nav-txt-corto">Cuellos</span></button>
         {(permisos?.cargarProgramacion || permisos?.crearReparacion) && (

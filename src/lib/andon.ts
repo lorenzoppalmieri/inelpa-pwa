@@ -54,6 +54,14 @@ export function esRetrabajoArea(t: Tarea, area: AndonAreaId): boolean {
   return esReparacion(t) && SECTORES_AREA[area].includes(t.sectorId)
 }
 
+// v2.23: el drill-down del Andon necesita bajar del AREA (que es como se pagan
+// los premios) a los SECTORES concretos, que es como estan cargadas las tareas.
+// Ojo que no es 1 a 1: 'montaje_dist' son PA y PO, y 'corte_conformado' aparece
+// en las dos herrerias.
+export function sectoresDeArea(area: AndonAreaId): SectorId[] {
+  return SECTORES_AREA[area] as SectorId[]
+}
+
 // Areas ANDON que le corresponden a un conjunto de sectores (para el operario,
 // que solo ve sus sectores: se le muestran las areas de su equipo).
 const SECTOR_A_AREA: Partial<Record<SectorId, AndonAreaId[]>> = {

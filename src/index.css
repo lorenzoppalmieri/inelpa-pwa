@@ -516,6 +516,12 @@ button { font-family: inherit; cursor: pointer; border: none; }
 .gantt-bar.reparacion {
   background-image: repeating-linear-gradient(45deg, rgba(255,255,255,.14), rgba(255,255,255,.14) 5px, transparent 5px, transparent 11px);
 }
+/* v2.23 — Tarjeta del Andon clickeable (entra al cierre por colaborador). */
+.andon-card.clickable { cursor: pointer; transition: transform .12s ease, box-shadow .12s ease; }
+.andon-card.clickable:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,.35); }
+.andon-card.clickable:focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
+.andon-vermas { margin-top: 8px; font-size: .82rem; opacity: .75; }
+
 /* v2.18 — CHOQUE: dos tareas del mismo colaborador pisandose en un carril que
    ya esta en su capacidad (un bobinador no puede tener dos bobinas a la vez).
    La fila sigue siendo una sola, pero la barra queda marcada para que el error

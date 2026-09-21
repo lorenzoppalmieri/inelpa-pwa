@@ -8,7 +8,6 @@ import type { EstadoTarea, Tarea, CausaParada } from '../../types'
 import { sectorById, TIPO_ESTACION_LABEL, maquinaSirveSector, esSectorBobinado, causaLabel, areaDemora, compararFifo } from '../../types'
 import { guardarTarea } from '../../sync/syncEngine'
 import TareaCard from './TareaCard'
-import AndonView from '../dashboard/AndonView'
 import MensajesInbox, { useMensajesNoLeidos } from '../mensajes/MensajesInbox'
 // v2.17: se fueron los imports de ModalParada, avisos de mantenimiento y NC de
 // calidad. La pausa de estación ya no puede tener otra causa que almuerzo, así
@@ -42,10 +41,13 @@ export default function OperarioView() {
     if (usuario) localStorage.removeItem(lsKey(usuario.id))
   }
 
-  // v1.10: el operario alterna entre su trabajo y el tablero ANDON (premios).
+  // v1.10: el operario alterna entre su trabajo y los mensajes.
+  // v2.23: se retiró la pestaña ANDON. Dejó de ser el tablero de premios del
+  // equipo y pasó a mostrar el cumplimiento individual de cada colaborador
+  // (7/10 por persona), que no corresponde que circule por la planta.
   // OJO: el estado va aca, pero el "return" condicional debe ir DESPUES de todos
   // los hooks (Reglas de Hooks), si no React crashea (pantalla en blanco).
-  const [pantalla, setPantalla] = useState<'trabajo' | 'andon' | 'mensajes'>('trabajo')
+  const [pantalla, setPantalla] = useState<'trabajo' | 'mensajes'>('trabajo')
   const noLeidos = useMensajesNoLeidos()
 
   // Estaciones disponibles para el operario: las de sus sectores. Para bobinado,
@@ -161,11 +163,6 @@ export default function OperarioView() {
         <span className="nav-txt-largo">Mi trabajo</span>
         <span className="nav-txt-corto">Mi trabajo</span>
       </button>
-      <button className={'tab' + (pantalla === 'andon' ? ' active' : '')} onClick={() => setPantalla('andon')}>
-        <span className="nav-ico" aria-hidden="true">🏆</span>
-        <span className="nav-txt-largo">🏆 Andon</span>
-        <span className="nav-txt-corto">Andon</span>
-      </button>
       <button className={'tab' + (pantalla === 'mensajes' ? ' active' : '')} onClick={() => setPantalla('mensajes')}>
         <span className="nav-ico" aria-hidden="true">💬</span>
         <span className="nav-txt-largo">💬 Mensajes{noLeidos > 0 ? ` (${noLeidos})` : ''}</span>
@@ -173,7 +170,6 @@ export default function OperarioView() {
       </button>
     </div>
   )
-  if (pantalla === 'andon') return <div>{tabsTop}<AndonView /></div>
   if (pantalla === 'mensajes') return <div>{tabsTop}<MensajesInbox /></div>
 
   if (!maquinas) return <div className="meta">Cargando estaciones...</div>
