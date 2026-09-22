@@ -786,6 +786,10 @@ button.logi-kpi, button.card { color: inherit; font: inherit; }
 .grupo-barra-fill { display: block; height: 100%; border-radius: 999px; transition: width .3s ease; }
 .grupo-pct { font-size: .78rem; font-weight: 700; color: var(--texto-tenue); min-width: 34px; }
 .grupo-curso { font-size: .74rem; font-weight: 600; color: var(--estado-proceso); }
+/* v2.24: promedio de potencia encubada. Solo aparece en las barras de Montaje PO.
+   Discreto a proposito: es un dato de contexto, no compite con el % de avance. */
+.grupo-kva { font-size: .74rem; color: var(--texto-tenue); white-space: nowrap; }
+.grupo-kva strong { color: var(--texto); font-variant-numeric: tabular-nums; }
 
 /* ---------- Tabla de detalle por tarea (metricas exactas) ---------- */
 .tabla-detalle { width: 100%; border-collapse: collapse; font-size: .82rem; }

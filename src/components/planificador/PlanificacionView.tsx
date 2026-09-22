@@ -5,7 +5,7 @@ import {
   SECTORES, sectorById,
   MATERIALES, lineaDesdeModelo, materialLabel, CATEGORIA_COMPONENTE_LABEL,
   MODELO_PROTOTIPO, esOrdenPrototipo,
-  operariosParaSector, esSectorHerreria, maquinaSirveSector, claveEstandar,
+  operariosParaSector, esSectorHerreria, maquinaSirveSector, claveEstandar, esReparacion,
   componenteSirveSector, componenteEsDeOtroSector, normalizarNroOrden,
   type MaterialBobina, type SectorId, type OrdenProduccion, type Tarea,
   type Semielaborado, type EstadoSemielaborado, type TipoTarea, type Feriado, type EstadoTarea,
@@ -21,6 +21,11 @@ import { isoWeek, fechaCorta, hhmm } from '../../lib/time'
 import { tiempoNetoMin } from '../../lib/kpi'
 import { puedeGenerarPO, construirTareaPO, tieneEstandarAprendido } from '../../lib/puenteMontaje'
 import { tareaEnPeriodo, labelPeriodo, hoyLocalISO, primerDiaDelMesISO, type Periodo } from '../../lib/periodos'
+import { potenciaKVA } from '../../lib/potencia'
+
+// v2.24: sectores donde el transformador queda ENCUBADO. El promedio de potencia
+// solo se calcula acá; en el resto de las barras no se dibuja nada.
+const ES_SECTOR_PO: SectorId[] = ['montaje_po_dist', 'montaje_po_rural']
 import FiltroPeriodo from '../ui/FiltroPeriodo'
 import EditarTarea from './EditarTarea'
 import RetrabajosLab from './RetrabajosLab'
@@ -732,21 +737,39 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
   // sección. Ahora va UNA vez, arriba de todo, y sigue siendo dinámico: sumar
   // tareas sube el denominador y cerrarlas sube el numerador.
   const avance = useMemo(() => {
-    const m = new Map<string, { label: string; total: number; fin: number; curso: number }>()
+    // v2.24: `kvaSuma`/`kvaN` acumulan la potencia encubada. Solo se cargan para
+    // tareas FINALIZADAS de Montaje PO (es donde el transformador queda
+    // encubado); en el resto quedan en 0 y la etiqueta no se dibuja, así las
+    // demás barras salen exactamente igual que antes.
+    const m = new Map<string, { label: string; total: number; fin: number; curso: number; kvaSuma: number; kvaN: number }>()
     for (const t of visibles) {
       let key: string, label: string
       if (agruparPor === 'maquina') { key = t.maquinaId; label = nombreMaquina(t.maquinaId) }
       else if (agruparPor === 'operario') { key = t.operarioId ?? '__sin__'; label = t.operarioId ? nombreOperario(t.operarioId) : 'Sin asignar' }
       else if (agruparPor === 'modelo') { key = t.modelo || '__sin__'; label = t.modelo || 'Sin modelo' }
       else { key = t.sectorId; label = sectorById(t.sectorId).nombre }
-      const g = m.get(key) ?? { label, total: 0, fin: 0, curso: 0 }
+      const g = m.get(key) ?? { label, total: 0, fin: 0, curso: 0, kvaSuma: 0, kvaN: 0 }
       g.total++
       if (t.estado === 'finalizada') g.fin++
       else if (t.estado === 'en_proceso' || t.estado === 'pausada') g.curso++
+
+      // Promedio encubado: solo Montaje PO, solo finalizadas. Se excluyen las
+      // reparaciones y los prototipos — no son producción encubada y su "modelo"
+      // es texto libre, así que ensuciarían el promedio.
+      if (ES_SECTOR_PO.includes(t.sectorId) && t.estado === 'finalizada'
+          && !esReparacion(t) && !t.esPrototipo) {
+        const kva = potenciaKVA(t.modelo)
+        if (kva != null) { g.kvaSuma += kva; g.kvaN++ }
+      }
       m.set(key, g)
     }
     return [...m.values()]
-      .map((g) => ({ ...g, pct: g.total > 0 ? Math.round((g.fin / g.total) * 100) : 0 }))
+      .map((g) => ({
+        ...g,
+        pct: g.total > 0 ? Math.round((g.fin / g.total) * 100) : 0,
+        // null = no corresponde mostrarlo (o no hubo nada legible).
+        kvaProm: g.kvaN > 0 ? Math.round(g.kvaSuma / g.kvaN) : null,
+      }))
       .sort((a, b) => a.label.localeCompare(b.label))
   }, [visibles, agruparPor, nombreMaquina, nombreOperario])
 
@@ -1099,6 +1122,13 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
               </span>
               <span className="grupo-pct">{g.pct}%</span>
               {g.curso > 0 && <span className="grupo-curso">▶ {g.curso} en curso</span>}
+              {/* v2.24: promedio de potencia encubada. Solo aparece en Montaje PO
+                  (ver el cálculo en `avance`); el resto de las barras queda igual. */}
+              {g.kvaProm != null && (
+                <span className="grupo-kva" title={`Promedio de potencia de las ${g.kvaN} tarea(s) finalizadas de Montaje PO en este filtro`}>
+                  Promedio encubado: <strong>{g.kvaProm} kVA</strong>
+                </span>
+              )}
             </div>
           ))}
         </div>
