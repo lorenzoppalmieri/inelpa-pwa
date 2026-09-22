@@ -330,6 +330,31 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
       // (alguien abrio la segunda sin cerrar la primera en la tablet): eso no se
       // tapa, se MARCA en rojo y se corrige el dato.
       // ============================================================
+      // ============================================================
+      // v2.25 — UNA PERSONA, UNA FILA. Las sub-filas son solo para EQUIPOS.
+      //
+      // Regla de planta (Lorenzo, 22/9/2026): un colaborador individual va
+      // SIEMPRE en una sola línea horizontal. Apilar hacia abajo solo tiene
+      // sentido en Montaje PA/PO, donde el carril es una cuenta de EQUIPO y hay
+      // varias personas trabajando de verdad en paralelo.
+      //
+      // `capacidadRecurso` ya distingue las dos cosas: Infinity en montaje
+      // (equipo), 1 en bobinado y el resto (persona). Es la misma función que usa
+      // la cascada, así que el dibujo no puede contradecir al cálculo.
+      //
+      // LA ÚNICA EXCEPCIÓN, aceptada explícitamente: dos tareas YA INICIADAS que
+      // se pisan de verdad. Eso pasó en la planta —alguien arrancó la segunda sin
+      // cerrar la primera— y no se puede dibujar en una sola fila sin tapar una.
+      // Ahí sí se abre la segunda fila y se marca en rojo.
+      //
+      // Una PENDIENTE nunca abre fila: si llegara a chocar, es que la cascada
+      // falló, y taparlo con una sub-fila esconde el problema en vez de mostrarlo.
+      // Se la manda a la fila 0 igual. (El solapamiento que originó todo esto era
+      // justamente una pendiente; se corrigió en programacion.ts v2.25.)
+      // ============================================================
+      const esEquipo = conPlan.length > 0
+        && conPlan.every((x) => !Number.isFinite(capacidadRecurso(x.t.sectorId)))
+
       const rowDe = new Map<string, number>()
       const choque = new Map<string, string>()   // tareaId -> con quien choca
       // Packing greedy: cada tarea va a la 1ra sub-fila libre (cuyo fin <= su inicio).
@@ -340,19 +365,28 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
         const fin = msIso(p.endISO)
         let r = finDeFila.findIndex((f) => f <= ini)
         if (r === -1) {
-          // Se abre una fila nueva. Si el recurso NO deberia poder tener dos
-          // tareas a la vez (capacidad 1: un bobinador), esa fila extra es la
-          // senal de un dato mal cargado: se dibuja igual, pero marcada.
-          if (capacidadRecurso(t.sectorId) <= finDeFila.length) {
-            const conQuien = ultimaDeFila[finDeFila.length - 1]
-            const otra = conPlan.find((x) => x.t.id === conQuien)?.t
-            const nombre = (x?: Tarea) => x ? `${x.modelo}${x.nroTransformador ? ` N° ${x.nroTransformador}` : ''}` : 'otra tarea'
-            choque.set(t.id, nombre(otra))
-            if (conQuien) choque.set(conQuien, nombre(t))
+          // No entra en ninguna fila abierta.
+          const puedeApilar = esEquipo || (!p.estimada && finDeFila.length > 0)
+          if (!puedeApilar && finDeFila.length > 0) {
+            // Colaborador individual con una pendiente que choca: NO se apila.
+            // Va a la fila 0 y el dominó de la cascada es el que tiene que
+            // haberla corrido; si igual se ve encimada, el bug está en el motor.
+            r = 0
+            finDeFila[0] = Math.max(finDeFila[0], fin)
+          } else {
+            if (!esEquipo && finDeFila.length > 0) {
+              // Dos INICIADAS que se pisan: el caso aceptado. Se marca para que
+              // el encargado lo corrija, pero no se oculta.
+              const conQuien = ultimaDeFila[finDeFila.length - 1]
+              const otra = conPlan.find((x) => x.t.id === conQuien)?.t
+              const nombre = (x?: Tarea) => x ? `${x.modelo}${x.nroTransformador ? ` N° ${x.nroTransformador}` : ''}` : 'otra tarea'
+              choque.set(t.id, nombre(otra))
+              if (conQuien) choque.set(conQuien, nombre(t))
+            }
+            r = finDeFila.length
+            finDeFila.push(fin)
+            ultimaDeFila.push(t.id)
           }
-          r = finDeFila.length
-          finDeFila.push(fin)
-          ultimaDeFila.push(t.id)
         } else {
           finDeFila[r] = fin
           ultimaDeFila[r] = t.id

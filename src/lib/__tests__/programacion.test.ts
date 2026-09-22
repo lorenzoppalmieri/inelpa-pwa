@@ -189,6 +189,51 @@ describe('capacidad del recurso', () => {
   })
 })
 
+// ============================================================
+// v2.25 — EL BUG DE LA PENDIENTE PISADA.
+//
+// Reportado el 22/9/2026 con una captura: el tooltip marcaba "SE PISA CON" sobre
+// una tarea PENDIENTE, cuando una pendiente por definición nunca debería chocar
+// (la cascada la encola). La causa era el ORDEN de procesamiento.
+// ============================================================
+describe('las iniciadas ocupan el recurso antes de encolar las pendientes', () => {
+  it('EL CASO REPORTADO: una iniciada que arrancó tarde no pisa a la pendiente', () => {
+    // P está planificada 10:33. S arrancó 11:00 (más tarde de lo planificado).
+    // Procesando por fecha mezclada, P se colocaba primero en 10:33-14:33 y S
+    // caía encima en 11:00.
+    const ts = [
+      tarea({ id: 'P', inicioPlanificado: local(10, 33), tiempoEstandarMin: 210 }),
+      tarea({ id: 'S', estado: 'en_proceso', inicioReal: local(11), tiempoEstandarMin: 120 }),
+    ]
+    const plan = programar(ts, local(9))
+
+    expect(solapes(ts, plan, (t) => t.operarioId)).toBe(0)
+    expect(solapes(ts, plan, (t) => t.maquinaId)).toBe(0)
+    // La pendiente se corre DETRÁS de la iniciada, no al revés.
+    expect(ms(plan.get('P')!.startISO)).toBeGreaterThanOrEqual(ms(plan.get('S')!.endISO))
+  })
+
+  it('la iniciada conserva su hora real: la que se mueve es la pendiente', () => {
+    const ts = [
+      tarea({ id: 'P', inicioPlanificado: local(10, 33), tiempoEstandarMin: 210 }),
+      tarea({ id: 'S', estado: 'en_proceso', inicioReal: local(11), tiempoEstandarMin: 120 }),
+    ]
+    const plan = programar(ts, local(9))
+    expect(ms(plan.get('S')!.startISO)).toBe(ms(local(11)))
+    expect(plan.get('S')!.estimada).toBe(false)
+  })
+
+  it('con varias pendientes atrás, ninguna se encima', () => {
+    const ts = [
+      tarea({ id: 'P1', inicioPlanificado: local(9), tiempoEstandarMin: 60 }),
+      tarea({ id: 'P2', inicioPlanificado: local(10), tiempoEstandarMin: 60 }),
+      tarea({ id: 'S', estado: 'en_proceso', inicioReal: local(9, 30), tiempoEstandarMin: 180 }),
+    ]
+    const plan = programar(ts, local(8))
+    expect(solapes(ts, plan, (t) => t.operarioId)).toBe(0)
+  })
+})
+
 describe('efecto dominó en tiempo real', () => {
   it('la pendiente se corre sola a medida que avanza la hora', () => {
     // A arrancó 08:00 con 60' estimados pero sigue abierta. B está detrás.

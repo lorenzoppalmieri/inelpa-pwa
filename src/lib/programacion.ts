@@ -147,7 +147,28 @@ export function programar(tareas: Tarea[], ahoraISO: string, grupo: GrupoAlmuerz
 
   // Se procesa TODO en orden cronologico (no por maquina): asi los cursores de
   // maquina y de operario se van llenando en el orden real de ejecucion.
-  const ordenadas = [...tareas].sort((a, b) => {
+  // ============================================================
+  // v2.25 — LAS INICIADAS SE PROCESAN PRIMERO. TODAS.
+  //
+  // Antes se ordenaba TODO junto por fecha de arranque, mezclando iniciadas y
+  // pendientes. Eso dejaba pasar este solapamiento:
+  //
+  //   Pendiente P, planificada 10:33  -> se coloca primero: ocupa 10:33-14:33
+  //   Iniciada  S, arrancó    11:00  -> se procesa despues y se dibuja en 11:00,
+  //                                     porque una iniciada es un HECHO y no se mueve
+  //   => S queda encima de P.
+  //
+  // Una pendiente solo esquiva lo que se proceso ANTES que ella, asi que una
+  // iniciada que arranco mas tarde de lo que estaba planificada la siguiente le
+  // caia encima. Sintoma reportado: barras "que se pisan" con una tarea PENDIENTE
+  // marcada, cuando una pendiente por definicion nunca deberia chocar.
+  //
+  // Ahora se hacen dos pasadas: primero se marcan TODAS las ocupaciones reales
+  // (que son datos, no decisiones), y recien despues se encolan las pendientes
+  // contra el panorama completo. Dentro de cada grupo se conserva el orden
+  // cronologico de siempre.
+  // ============================================================
+  const porFecha = (a: Tarea, b: Tarea): number => {
     // Se ordena por INSTANTE, no por texto: ver la nota de v2.17 arriba.
     const ak = ms(claveOrden(a)), bk = ms(claveOrden(b))
     const aOk = Number.isFinite(ak), bOk = Number.isFinite(bk)
@@ -155,7 +176,11 @@ export function programar(tareas: Tarea[], ahoraISO: string, grupo: GrupoAlmuerz
     if (aOk && !bOk) return -1
     if (!aOk && bOk) return 1
     return a.prioridad - b.prioridad
-  })
+  }
+  const ordenadas = [
+    ...tareas.filter((t) => t.inicioReal).sort(porFecha),
+    ...tareas.filter((t) => !t.inicioReal).sort(porFecha),
+  ]
 
   for (const t of ordenadas) {
     const mk = t.maquinaId
