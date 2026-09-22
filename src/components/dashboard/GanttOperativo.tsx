@@ -357,43 +357,57 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
 
       const rowDe = new Map<string, number>()
       const choque = new Map<string, string>()   // tareaId -> con quien choca
-      // Packing greedy: cada tarea va a la 1ra sub-fila libre (cuyo fin <= su inicio).
-      const finDeFila: number[] = []
-      const ultimaDeFila: string[] = []
-      for (const { t, p } of conPlan) {
-        const ini = msIso(p.startISO)
-        const fin = msIso(p.endISO)
-        let r = finDeFila.findIndex((f) => f <= ini)
-        if (r === -1) {
-          // No entra en ninguna fila abierta.
-          const puedeApilar = esEquipo || (!p.estimada && finDeFila.length > 0)
-          if (!puedeApilar && finDeFila.length > 0) {
-            // Colaborador individual con una pendiente que choca: NO se apila.
-            // Va a la fila 0 y el dominó de la cascada es el que tiene que
-            // haberla corrido; si igual se ve encimada, el bug está en el motor.
-            r = 0
-            finDeFila[0] = Math.max(finDeFila[0], fin)
-          } else {
-            if (!esEquipo && finDeFila.length > 0) {
-              // Dos INICIADAS que se pisan: el caso aceptado. Se marca para que
-              // el encargado lo corrija, pero no se oculta.
-              const conQuien = ultimaDeFila[finDeFila.length - 1]
-              const otra = conPlan.find((x) => x.t.id === conQuien)?.t
-              const nombre = (x?: Tarea) => x ? `${x.modelo}${x.nroTransformador ? ` N° ${x.nroTransformador}` : ''}` : 'otra tarea'
-              choque.set(t.id, nombre(otra))
-              if (conQuien) choque.set(conQuien, nombre(t))
-            }
-            r = finDeFila.length
-            finDeFila.push(fin)
-            ultimaDeFila.push(t.id)
+      const nombreDe = (x?: Tarea) =>
+        x ? `${x.modelo}${x.nroTransformador ? ` N° ${x.nroTransformador}` : ''}` : 'otra tarea'
+
+      if (!esEquipo) {
+        // ------------------------------------------------------------
+        // v2.26 — UNA PERSONA, UNA FILA. SIN EXCEPCIONES.
+        //
+        // Decisión de Lorenzo (22/9/2026), con la captura delante: "la doble fila
+        // en bobinado tiene que desaparecer, se tienen que colar uno atrás del
+        // otro". En v2.25 se permitía una segunda fila para dos tareas YA
+        // INICIADAS que se pisaran de verdad; ya no.
+        //
+        // EL TRADE-OFF, para que quede escrito: si dos tareas iniciadas del
+        // mismo colaborador se superponen en sus tiempos REALES, ahora se dibujan
+        // una encima de la otra y una queda tapada. No se falsean los horarios
+        // —eso rompería la coincidencia con los KPIs y con Detalle por tarea—,
+        // así que la señal se conserva por otros dos lados:
+        //   1) la barra queda con borde rojo y el tooltip dice con cuál choca;
+        //   2) el Auditor de Tiempos la lista como `solape_operario`, con nombre
+        //      del colaborador y minutos.
+        // ------------------------------------------------------------
+        let finFila = -Infinity
+        let ultima: string | undefined
+        for (const { t, p } of conPlan) {
+          const ini = msIso(p.startISO)
+          if (ini < finFila && ultima) {
+            const otra = conPlan.find((x) => x.t.id === ultima)?.t
+            choque.set(t.id, nombreDe(otra))
+            choque.set(ultima, nombreDe(t))
           }
-        } else {
-          finDeFila[r] = fin
-          ultimaDeFila[r] = t.id
+          rowDe.set(t.id, 0)
+          finFila = Math.max(finFila, msIso(p.endISO))
+          ultima = t.id
         }
-        rowDe.set(t.id, r)
+        filas.set(laneId, 1)
+      } else {
+        // ------------------------------------------------------------
+        // EQUIPOS (Montaje PA/PO): el paralelismo es real —varias personas sobre
+        // la misma línea— así que acá SÍ se abren las filas que hagan falta.
+        // Packing greedy: cada tarea va a la 1ra sub-fila libre.
+        // ------------------------------------------------------------
+        const finDeFila: number[] = []
+        for (const { t, p } of conPlan) {
+          const ini = msIso(p.startISO)
+          let r = finDeFila.findIndex((f) => f <= ini)
+          if (r === -1) { r = finDeFila.length; finDeFila.push(msIso(p.endISO)) }
+          else finDeFila[r] = msIso(p.endISO)
+          rowDe.set(t.id, r)
+        }
+        filas.set(laneId, Math.max(1, finDeFila.length))
       }
-      filas.set(laneId, Math.max(1, finDeFila.length))
       for (const [id, con] of choque) choques.set(id, con)
 
       const arr: Segmento[] = []
