@@ -423,8 +423,27 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
   const [nroTransformador, setNroTransformador] = useState('')
   const [cliente, setCliente] = useState('')   // v1.38: cliente (o Stock) para Montaje PO
   // v1.4: dia + hora de arranque planificado (alimenta el Gantt y el auto-shift).
-  const [fechaPlan, setFechaPlan] = useState(() => new Date().toLocaleDateString('en-CA'))
-  const [horaPlan, setHoraPlan] = useState('07:00')
+  // ============================================================
+  // v2.28 — LA FECHA DE ARRANQUE PASA A SER OPCIONAL. VACÍA = A LA COLA.
+  //
+  // Antes era obligatoria y venía precargada con "hoy 07:00". Dos trampas:
+  //   1) la planificadora cargaba una fecha sin saberlo;
+  //   2) NO se reseteaba después de crear la tarea: si una vez se ponía la
+  //      semana que viene (para una tarea puntual), esa fecha quedaba pegada
+  //      para todas las siguientes.
+  // Y en la cascada del Gantt una fecha FUTURA es un "no antes de": la tarea no
+  // se adelanta aunque haya lugar. Resultado reportado (23/9/2026): en Bobinado
+  // Dist. B.T. las pendientes saltaban a la semana siguiente dejando un hueco,
+  // mientras los otros sectores se encadenaban bien.
+  //
+  // Ahora: vacío = la tarea entra a la COLA del colaborador y se pega detrás de
+  // la última que tenga (inicioPlanificado = instante de creación, que ya está
+  // en el pasado para la cascada). Con fecha = es una reserva real, "no antes de"
+  // — sirve para cuando el material llega el lunes, por ejemplo. El arrastre en
+  // el Gantt sigue funcionando igual.
+  // ============================================================
+  const [fechaPlan, setFechaPlan] = useState('')
+  const [horaPlan, setHoraPlan] = useState('')
   // v1.6: habilitar la hora de recuperacion (16-17 / 15-16) para esta tarea.
   const [horaRecup, setHoraRecup] = useState(false)
   // v1.8/v1.9: tipo de tarea. Los encargados solo cargan reparaciones.
@@ -542,12 +561,13 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
   }, [estandarSugerido])
 
   // v1.16: ¿faltan campos para poder asignar? (deshabilita el boton).
+  // v2.28: la fecha/hora de arranque ya NO es obligatoria (vacía = a la cola).
   const faltanCampos = (soloReparacion || tipo === 'reparacion')
-    ? (!descripcion.trim() || !maquinaId || !fechaPlan || !horaPlan)
+    ? (!descripcion.trim() || !maquinaId)
     : esProto // v1.18: prototipo no requiere orden ni semielaborado, pero sí la nota
-      ? (!notaProto.trim() || !maquinaId || (operariosDelSector.length > 0 && !operarioId) || !fechaPlan || !horaPlan)
+      ? (!notaProto.trim() || !maquinaId || (operariosDelSector.length > 0 && !operarioId))
       : (!ordenId || !maquinaId || (operariosDelSector.length > 0 && !operarioId)
-          || (sectorTieneSemi && !componenteCodigo) || !fechaPlan || !horaPlan)
+          || (sectorTieneSemi && !componenteCodigo))
 
   // v1.16: carga actual (en vivo) del colaborador y la maquina seleccionados.
   const cargaOperario = useMemo(() => operarioId ? resumenCarga(todasTareas, (t) => t.operarioId === operarioId) : null, [todasTareas, operarioId])
@@ -579,9 +599,15 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
     }
     if (!maquinaId) { setMsg('Selecciona una estacion (maquina/box/linea) para el sector.'); return }
     if (operariosDelSector.length > 0 && !operarioId) { setMsg('Selecciona un colaborador.'); return }
-    if (!fechaPlan || !horaPlan) { setMsg('Indica dia y hora de arranque.'); return }
-    // Dia+hora elegidos -> ISO local. La semana ISO se deriva de esa fecha.
-    const inicioPlanificado = new Date(`${fechaPlan}T${horaPlan}`).toISOString()
+    // v2.28: sin fecha -> A LA COLA. `inicioPlanificado` = ahora: para la cascada
+    // ya está en el pasado, así que la tarea arranca cuando se libere el
+    // colaborador, pegada a la última que tenga. Entre pendientes sin fecha el
+    // orden es el de creación (FIFO), porque la cascada ordena por esta fecha.
+    // Con fecha -> reserva "no antes de". Si pusieron día pero no hora, 07:00.
+    const conFecha = !!fechaPlan
+    const inicioPlanificado = conFecha
+      ? new Date(`${fechaPlan}T${horaPlan || '07:00'}`).toISOString()
+      : new Date().toISOString()
     const t: Tarea = {
       id: crypto.randomUUID(),
       tipo: esRep ? 'reparacion' : 'fabricacion',
@@ -616,6 +642,9 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
     }
     await guardarTarea(t)
     setNroTransformador(''); setCliente(''); setComponenteCodigo(''); setHoraRecup(false); setDescripcion(''); setEsProto(false); setNotaProto('')
+    // v2.28: la fecha TAMBIÉN se limpia. Era la única que quedaba pegada, y una
+    // fecha futura puesta para una tarea puntual contaminaba todas las siguientes.
+    setFechaPlan(''); setHoraPlan('')
     const queTipo = esRep ? 'Reparacion' : proto ? 'Prototipo' : 'Tarea'
     setMsg(`${queTipo} asignad${queTipo === 'Tarea' ? 'a' : queTipo === 'Prototipo' ? 'o' : 'a'} a ${nombreOperario(operarioId)} · ${nombreMaquina(maquinaId)} en ${sectorById(sectorId).nombre}.`)
   }
@@ -845,9 +874,16 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
           <h3>{t.tipo === 'reparacion' ? '🔧 ' : ''}{t.modelo}{t.nroTransformador ? ` · ${t.nroTransformador}` : ''}{t.tipo === 'reparacion' && <span className="estado-chip" style={{ background: 'var(--reparacion)', color: '#fff', marginLeft: 8 }}>Reparación</span>}</h3>
           <div className="meta">
             {sectorById(t.sectorId).nombre} · {nombreOperario(t.operarioId)} · {nombreMaquina(t.maquinaId)} · Prioridad <strong>{t.prioridad}</strong> · Estandar <strong>{t.tiempoEstandarMin}m</strong>
+            {/* v2.28: una pendiente cuya fecha planificada ya pasó NO tiene un
+                arranque fijo: está en la cola y la cascada la ubica detrás de la
+                última tarea del colaborador. Mostrarle "Arranque plan. 22/09
+                07:00" era mentirle — ese número no decide nada. Solo se muestra
+                la fecha cuando es una RESERVA a futuro, que sí la frena. */}
             {t.inicioReal
               ? <> · Arranque real <strong>{fechaCorta(t.inicioReal)} {hhmm(t.inicioReal)}</strong></>
-              : t.inicioPlanificado ? <> · Arranque plan. <strong>{fechaCorta(t.inicioPlanificado)} {hhmm(t.inicioPlanificado)}</strong></> : null}
+              : t.inicioPlanificado && new Date(t.inicioPlanificado).getTime() > Date.now()
+                ? <> · Reservada desde <strong>{fechaCorta(t.inicioPlanificado)} {hhmm(t.inicioPlanificado)}</strong></>
+                : t.estado === 'pendiente' ? <> · <strong>En cola</strong></> : null}
             {/* v2.09: fin de la tarea. Se condiciona por `finReal` y NO por el
                 estado: al REABRIR una tarea se limpia finReal pero el estado
                 pasa a 'en_proceso', así que mirar el estado dejaría colgada una
@@ -1036,13 +1072,22 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
               ? <div className="meta" style={{ marginTop: 4, color: 'var(--estado-fin)' }}>✓ Sugerido por datos reales (mediana): {estandarSugerido} min</div>
               : <div className="meta" style={{ marginTop: 4 }}>Sin estándar aprendido aún · valor por defecto (editable)</div>}
           </div>
+          {/* v2.28: opcionales. Vacío = la tarea va a la cola del colaborador y se
+              encadena detrás de la última. Solo se completa para RESERVAR una
+              fecha (ej. el material llega el lunes). */}
           <div className="field">
-            <label>Dia de arranque</label>
+            <label>Día de arranque <span className="meta">(opcional)</span></label>
             <input className="input" type="date" value={fechaPlan} onChange={(e) => setFechaPlan(e.target.value)} />
+            <div className="meta" style={{ marginTop: 2 }}>
+              {fechaPlan
+                ? <>Reservada: no arranca antes de esta fecha. <button type="button" className="btn-link" onClick={() => { setFechaPlan(''); setHoraPlan('') }}>Quitar fecha</button></>
+                : 'Vacío = a la cola del colaborador, detrás de su última tarea.'}
+            </div>
           </div>
           <div className="field">
-            <label>Hora de arranque</label>
-            <input className="input" type="time" value={horaPlan} onChange={(e) => setHoraPlan(e.target.value)} />
+            <label>Hora de arranque <span className="meta">(opcional)</span></label>
+            <input className="input" type="time" value={horaPlan} disabled={!fechaPlan}
+              onChange={(e) => setHoraPlan(e.target.value)} placeholder="07:00" />
           </div>
           <div className="field">
             <label>Hora de recuperación (16–17 / 15–16)</label>

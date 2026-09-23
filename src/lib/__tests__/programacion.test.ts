@@ -234,6 +234,41 @@ describe('las iniciadas ocupan el recurso antes de encolar las pendientes', () =
   })
 })
 
+// ============================================================
+// v2.28 — COLA vs RESERVA.
+// Una pendiente sin fecha entra con inicioPlanificado = instante de creación
+// (ya en el pasado). Una con fecha futura es una reserva "no antes de".
+// ============================================================
+describe('tareas en cola (sin fecha) vs reservadas (fecha futura)', () => {
+  it('las pendientes en cola se encadenan una detrás de la otra desde ahora', () => {
+    // Creadas a las 08:00, 08:01 y 08:02, sin fecha: son la cola.
+    const ts = [
+      tarea({ id: 'C1', inicioPlanificado: local(8, 0), tiempoEstandarMin: 60 }),
+      tarea({ id: 'C2', inicioPlanificado: local(8, 1), tiempoEstandarMin: 60 }),
+      tarea({ id: 'C3', inicioPlanificado: local(8, 2), tiempoEstandarMin: 60 }),
+    ]
+    const plan = programar(ts, local(9))
+    expect(ms(plan.get('C1')!.startISO)).toBe(ms(local(9)))
+    expect(ms(plan.get('C2')!.startISO)).toBe(ms(plan.get('C1')!.endISO))
+    expect(ms(plan.get('C3')!.startISO)).toBe(ms(plan.get('C2')!.endISO))
+  })
+
+  it('EL CASO REPORTADO: una fecha futura pegada deja un hueco hasta esa fecha', () => {
+    // Esto es lo que pasaba en Bobinado B.T.: la fecha del formulario quedaba
+    // en la semana siguiente y la tarea no se adelantaba aunque hubiera lugar.
+    const reservada = tarea({ id: 'R', inicioPlanificado: '2026-09-21T07:00:00.000-03:00', tiempoEstandarMin: 60 })
+    const plan = programar([reservada], local(9))
+    // Se respeta la reserva: NO arranca el lunes 14 aunque la bobinadora esté libre.
+    expect(ms(plan.get('R')!.startISO)).toBe(ms('2026-09-21T07:00:00.000-03:00'))
+  })
+
+  it('la misma tarea en cola arranca ya', () => {
+    const enCola = tarea({ id: 'R', inicioPlanificado: local(8), tiempoEstandarMin: 60 })
+    const plan = programar([enCola], local(9))
+    expect(ms(plan.get('R')!.startISO)).toBe(ms(local(9)))
+  })
+})
+
 describe('efecto dominó en tiempo real', () => {
   it('la pendiente se corre sola a medida que avanza la hora', () => {
     // A arrancó 08:00 con 60' estimados pero sigue abierta. B está detrás.
