@@ -320,10 +320,10 @@ export interface MetricasTarea {
   justificadaExcedente: number
 
   /**
-   * v2.03 — Minutos de TIEMPO MUERTO previos a esta tarea (Bobinado), ya
-   * incluidos dentro de `real`. Se expone aparte para poder mostrarlo: si al
-   * operario le crece la demora y no ve de dónde salió, el número no le sirve
-   * a nadie. Ver `lib/huecos.ts`.
+   * v2.03 — Minutos de TIEMPO MUERTO previos a esta tarea (Bobinado).
+   * v2.27 — INFORMATIVO: ya NO está incluido en `real` (ni por lo tanto en
+   * Neto ni en Demora sin justificar). El Neto es solo tiempo trabajado; esto
+   * es tiempo en que el colaborador no tenía tarea abierta. Ver `lib/huecos.ts`.
    */
   hueco: number
 }
@@ -331,12 +331,9 @@ export interface MetricasTarea {
 /**
  * @param hastaISO corte para tareas EN CURSO (normalmente "ahora").
  *                 Si se omite, se usa el fin real de la tarea.
- * @param huecoMin v2.03 — minutos de tiempo muerto previos (solo Bobinado). Se
- *                 suman al Tiempo Real y de ahí se deriva todo lo demás, así las
- *                 tres identidades del auditor siguen cerrando solas. Por
- *                 default 0: quien llama a `metricasTarea` con una sola tarea
- *                 sigue obteniendo exactamente lo mismo que antes de v2.03.
- *                 Para que los huecos se apliquen hay que usar `metricasDeLista`.
+ * @param huecoMin minutos de tiempo muerto previos (solo Bobinado). Desde v2.27
+ *                 solo se REPORTA en el campo `hueco`; no se suma a ningún
+ *                 tiempo. Por default 0.
  */
 export function metricasTarea(t: Tarea, hastaISO?: string, huecoMin = 0): MetricasTarea {
   const estimado = tiempoEstimadoMin(t)
@@ -351,13 +348,35 @@ export function metricasTarea(t: Tarea, hastaISO?: string, huecoMin = 0): Metric
   // v2.01: se REDONDEA PRIMERO y todo lo demas se deriva de los enteros. Antes
   // cada campo se redondeaba por separado y las identidades se iban 1 minuto
   // por tarea; con 200 tareas en pantalla eso son 3 horas de descuadre.
-  // v2.03: el HUECO de tiempo muerto previo entra acá, dentro del Tiempo Real,
-  // como si la tarea hubiera arrancado apenas terminó la anterior. Se inyecta en
-  // `real` y NO en `sinJustificar`: al derivarse todo de `real`, las tres
-  // identidades del auditor siguen cerrando sin tocar nada más. Parchear
-  // `sinJustificar` a mano rompería el balance.
+  //
+  // ============================================================
+  // v2.27 — EL TIEMPO MUERTO YA NO ENTRA EN EL REAL NI EN EL NETO.
+  //
+  // Regla de Lorenzo (23/9/2026), para TODOS los indicadores:
+  //   "el tiempo neto calculado es el tiempo de producción: no cuenta los
+  //    almuerzos, ni paradas, ni tiempo que la empresa está cerrada — solo
+  //    calcula el tiempo que el colaborador trabajó".
+  // Y la comparación es siempre ESTIMADO vs NETO.
+  //
+  // En v2.03 el hueco entre tareas se sumaba acá, dentro de `real`, para que
+  // cayera en Demora sin justificar. Pero el hueco es justamente tiempo en que
+  // el colaborador NO estaba trabajando en ninguna tarea: meterlo en el Real
+  // contradice la definición. Y como se medía desde el fin de la tarea anterior
+  // SIN límite de días, un bobinador que volvía después de dos semanas sin
+  // tareas cargadas (vacaciones sin ausencia registrada, días sin planificar)
+  // recibía 12 jornadas enteras en UNA tarea: el caso reportado de una bobina
+  // con 102 h de Neto hecha en menos de dos días.
+  //
+  // `hueco` se sigue midiendo y exponiendo (columna "Tiempo muerto" del
+  // Detalle), pero ahora es un dato INFORMATIVO aparte: no toca `real`, así que
+  // tampoco toca Neto, Demorado ni Demora sin justificar. Las tres identidades
+  // del auditor siguen cerrando porque todo se sigue derivando de `real`.
+  //
+  // No hace falta migrar nada: ningún tiempo se guarda calculado. Todo el
+  // histórico se recalcula solo la próxima vez que se abre la pantalla.
+  // ============================================================
   const hueco = Math.max(0, Math.round(huecoMin))
-  const real = Math.round(tiempoRealHasta(t, fin)) + hueco
+  const real = Math.round(tiempoRealHasta(t, fin))
   const justificada = Math.round(minutosParada(t, fin))
   const noProductivo = Math.round(minutosNoProductivos(t, fin))
   const demorado = Math.max(0, real - estimado)

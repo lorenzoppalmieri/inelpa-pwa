@@ -103,7 +103,7 @@ export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina, h
         adelanto: m.adelanto,          // lo que se gano cuando salio antes
         aplicada: m.justificadaAplicada,
         excedente: m.justificadaExcedente,
-        hueco: m.hueco,                // v2.03: tiempo muerto previo, ya dentro de `real`
+        hueco: m.hueco,                // tiempo muerto previo. v2.27: INFORMATIVO, ya NO está dentro de `real`
       }
     })
       .filter((r) => !txt || `${r.nombre} ${r.nro} ${r.operario} ${r.maquina}`.toLowerCase().includes(txt))
@@ -198,11 +198,11 @@ export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina, h
               <div className="l">Real</div>
               <div className="n">{fmtDur(tot.real)}</div>
               <div className="s">{tot.real >= tot.estimado ? '+' : '−'}{fmtDur(Math.abs(tot.real - tot.estimado))} vs estimado</div>
-              {/* v2.03: sin esta línea el operario ve que le creció la demora y no
-                  tiene forma de saber que fue tiempo muerto entre tareas. */}
+              {/* v2.27: el tiempo muerto se sigue mostrando, pero como dato APARTE.
+                  Ya no suma al Real ni al Neto: esos son solo tiempo trabajado. */}
               {tot.hueco > 0 && (
-                <div className="sub-desc" title="Tiempo entre el fin de una tarea y el arranque de la siguiente (o entre la apertura de planta y la primera del día). Ya está incluido en el Real. Solo Bobinado.">
-                  Tiempo muerto <b>{fmtDur(tot.hueco)}</b>
+                <div className="sub-desc" title="Tiempo entre el fin de una tarea y el arranque de la siguiente (o entre la apertura de planta y la primera del día). Es informativo: NO está sumado al Real ni al Neto. Solo Bobinado.">
+                  Tiempo muerto (aparte) <b>{fmtDur(tot.hueco)}</b>
                 </div>
               )}
             </div>

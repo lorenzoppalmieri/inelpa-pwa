@@ -147,15 +147,34 @@ describe('inyección en las métricas', () => {
     tarea({ id: 'B', tiempoEstandarMin: 60, inicioReal: M(1, 10, 30), finReal: M(1, 11, 30) }),
   ]
 
-  it('el hueco entra en el Tiempo Real y cae en Demora sin justificar', () => {
+  // v2.27 — CAMBIO DE REGLA (Lorenzo, 23/9/2026). Antes este test afirmaba que
+  // el hueco entraba en el Real (60 + 30 = 90) y caía en Demora sin justificar.
+  // Ahora el Neto es SOLO tiempo trabajado, en todos los indicadores: el hueco
+  // se sigue midiendo, pero como dato aparte que no toca ningún tiempo.
+  it('el hueco se mide pero NO entra en el Real ni en la demora', () => {
     const sin = metricasTarea(ts[1])
     const con = metricasDeLista(ts).get('B')!
     expect(sin.real).toBe(60)
-    expect(sin.sinJustificar).toBe(0)   // clavada en el estándar
-    expect(con.hueco).toBe(30)
-    expect(con.real).toBe(90)           // 60 + 30 de tiempo muerto
-    expect(con.demorado).toBe(30)
-    expect(con.sinJustificar).toBe(30)  // nadie lo justificó
+    expect(con.hueco).toBe(30)          // se sigue midiendo...
+    expect(con.real).toBe(60)           // ...pero el Real es solo lo trabajado
+    expect(con.demorado).toBe(0)        // clavada en el estándar
+    expect(con.sinJustificar).toBe(0)
+  })
+
+  it('EL CASO REPORTADO: volver después de semanas sin tareas no infla la tarea', () => {
+    // Última tarea el 1/9, la siguiente el 2/9... pero imaginemos que entre medio
+    // no hubo nada: el hueco puede ser enorme. Antes esas jornadas entraban
+    // enteras en el Real de UNA tarea (el caso de 102 h de Neto en una bobina).
+    // B va de 09:00 a 10:00: ojo con elegir una franja que toque los 15' de
+    // limpieza (15:45-16:00) o el almuerzo, porque el motor los descuenta —
+    // la primera versión de este test usaba 15-16 y daba 45, que era lo correcto.
+    const lejos = [
+      tarea({ id: 'A', inicioReal: M(1, 8), finReal: M(1, 9) }),
+      tarea({ id: 'B', tiempoEstandarMin: 60, inicioReal: M(2, 9), finReal: M(2, 10) }),
+    ]
+    const b = metricasDeLista(lejos).get('B')!
+    expect(b.hueco).toBeGreaterThan(400)   // más de una jornada de tiempo muerto
+    expect(b.real).toBe(60)                // y aun así la tarea mide lo que duró
   })
 
   it('las 3 identidades del auditor siguen cerrando con huecos', () => {

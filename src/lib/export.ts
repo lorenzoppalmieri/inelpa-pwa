@@ -143,7 +143,7 @@ export function exportarDetalleTareasCSV(
       nombreMaquina(t.maquinaId),
       sectorById(t.sectorId).nombre,
       m.estimado,
-      m.real,           // ya incluye el tiempo muerto
+      m.real,           // v2.27: solo tiempo trabajado; el tiempo muerto va en su columna aparte
       m.hueco,
       m.demorado,
       m.justificada,
