@@ -671,7 +671,11 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
                           border: b.estimada ? '1px dashed rgba(255,255,255,.5)' : 'none',
                           color: b.tarea.estado === 'pausada' && !reparacion ? '#1a1206' : '#fff',
                         }}
-                        title={`${choqueCon ? `⚠ SE PISA CON: ${choqueCon} — este colaborador no puede tener dos tareas a la vez; hay que corregir los horarios.\n\n` : ''}${reparacion ? '🔧 REPARACIÓN · ' : ''}Semielaborado: ${semiTxt}\nModelo: ${b.tarea.modelo}\n${b.tarea.estado} · ${nombreMaquina(b.tarea.maquinaId)} · ${b.tarea.operarioId ? nombreOperario(b.tarea.operarioId) : 'sin colaborador'} · ${rangoFechaHora(b.plan.startISO, b.plan.endISO)} · ${fmtDur(b.tarea.tiempoEstandarMin)}${reparacion ? ' · no productivo (excluido del OEE)' : ''}${recup ? ` · recuperación +${recupMin}m` : ''}${arrastrable ? ' · arrastrá para reprogramar' : ''}${resumenParadas(b.tarea)}`}
+                        title={`${choqueCon ? `⚠ SE PISA CON: ${choqueCon} — este colaborador no puede tener dos tareas a la vez; hay que corregir los horarios.\n\n` : ''}${reparacion ? '🔧 REPARACIÓN · ' : ''}Semielaborado: ${semiTxt}\nModelo: ${b.tarea.modelo}${
+                          /* v2.29: la planificadora usa "N° transformador" también para
+                             dejar observaciones. Si está vacío no se muestra la línea. */
+                          b.tarea.nroTransformador?.trim() ? `\nN° Trafo / Obs: ${b.tarea.nroTransformador.trim()}` : ''
+                        }\n${b.tarea.estado} · ${nombreMaquina(b.tarea.maquinaId)} · ${b.tarea.operarioId ? nombreOperario(b.tarea.operarioId) : 'sin colaborador'} · ${rangoFechaHora(b.plan.startISO, b.plan.endISO)} · ${fmtDur(b.tarea.tiempoEstandarMin)}${reparacion ? ' · no productivo (excluido del OEE)' : ''}${recup ? ` · recuperación +${recupMin}m` : ''}${arrastrable ? ' · arrastrá para reprogramar' : ''}${resumenParadas(b.tarea)}`}
                       >
                         {reparacion && b.esInicio && <span className="gantt-rep-tag">🔧</span>}
                         {recup && b.esInicio && <span className="gantt-recup-tag">⏱+{recupMin === 60 ? '1h' : `${recupMin}m`}</span>}
