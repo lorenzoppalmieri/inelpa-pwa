@@ -269,6 +269,56 @@ describe('tareas en cola (sin fecha) vs reservadas (fecha futura)', () => {
   })
 })
 
+// ============================================================
+// v2.30 — LA COLA SE ARMA POR ORDEN DE ASIGNACIÓN (`creada`), en todas las áreas.
+// ============================================================
+describe('orden de carga de la planificadora', () => {
+  it('sigue el orden en que se ASIGNARON, no la hora planificada', () => {
+    // Las tres con la misma hora precargada (el formulario viejo ponía 07:00),
+    // asignadas en el orden B, C, A. La cola tiene que respetar ese orden.
+    const ts = [
+      tarea({ id: 'A', inicioPlanificado: local(7), creada: local(8, 30), tiempoEstandarMin: 60 }),
+      tarea({ id: 'B', inicioPlanificado: local(7), creada: local(8, 10), tiempoEstandarMin: 60 }),
+      tarea({ id: 'C', inicioPlanificado: local(7), creada: local(8, 20), tiempoEstandarMin: 60 }),
+    ]
+    const plan = programar(ts, local(9))
+    const orden = [...ts].sort((x, y) => ms(plan.get(x.id)!.startISO) - ms(plan.get(y.id)!.startISO)).map((t) => t.id)
+    expect(orden).toEqual(['B', 'C', 'A'])
+  })
+
+  it('EL CASO PEDIDO: con una en proceso, cada nueva se pega a la derecha de la anterior', () => {
+    const ts = [
+      tarea({ id: 'EP', estado: 'en_proceso', inicioReal: local(8), tiempoEstandarMin: 120 }),
+      tarea({ id: 'N1', inicioPlanificado: local(9), creada: local(9), tiempoEstandarMin: 60 }),
+      tarea({ id: 'N2', inicioPlanificado: local(9, 5), creada: local(9, 5), tiempoEstandarMin: 60 }),
+    ]
+    const plan = programar(ts, local(9, 10))
+    expect(ms(plan.get('N1')!.startISO)).toBe(ms(plan.get('EP')!.endISO))
+    expect(ms(plan.get('N2')!.startISO)).toBe(ms(plan.get('N1')!.endISO))
+  })
+
+  it('una reserva a futuro NO arrastra a las que se cargaron después', () => {
+    // R se asignó primero pero está reservada para el viernes. Q se asignó
+    // después y va a la cola: tiene que arrancar YA, no el viernes.
+    const ts = [
+      tarea({ id: 'R', inicioPlanificado: '2026-09-18T07:00:00.000-03:00', creada: local(8), tiempoEstandarMin: 60 }),
+      tarea({ id: 'Q', inicioPlanificado: local(8, 5), creada: local(8, 5), tiempoEstandarMin: 60 }),
+    ]
+    const plan = programar(ts, local(9))
+    expect(ms(plan.get('Q')!.startISO)).toBe(ms(local(9)))
+    expect(ms(plan.get('R')!.startISO)).toBe(ms('2026-09-18T07:00:00.000-03:00'))
+  })
+
+  it('las tareas viejas sin `creada` caen al orden por hora planificada, como antes', () => {
+    const ts = [
+      tarea({ id: 'X', inicioPlanificado: local(8, 20), tiempoEstandarMin: 60 }),
+      tarea({ id: 'Y', inicioPlanificado: local(8, 10), tiempoEstandarMin: 60 }),
+    ]
+    const plan = programar(ts, local(9))
+    expect(ms(plan.get('Y')!.startISO)).toBeLessThan(ms(plan.get('X')!.startISO))
+  })
+})
+
 describe('efecto dominó en tiempo real', () => {
   it('la pendiente se corre sola a medida que avanza la hora', () => {
     // A arrancó 08:00 con 60' estimados pero sigue abierta. B está detrás.

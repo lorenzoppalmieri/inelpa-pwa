@@ -177,9 +177,46 @@ export function programar(tareas: Tarea[], ahoraISO: string, grupo: GrupoAlmuerz
     if (!aOk && bOk) return 1
     return a.prioridad - b.prioridad
   }
+  // ============================================================
+  // v2.30 — LA COLA SE ARMA POR ORDEN DE CARGA.
+  //
+  // Regla de Lorenzo (24/9/2026), para TODAS las áreas: si el colaborador tiene
+  // una tarea en proceso y Rocío le asigna otra, va inmediatamente a la derecha;
+  // la siguiente que cargue, a la derecha de esa; y así. El orden de la cola es
+  // el orden en que se fueron ASIGNANDO.
+  //
+  // Antes las pendientes se ordenaban por fecha de arranque planificada. Eso
+  // fallaba de dos maneras:
+  //  - con el formulario viejo, muchas tareas quedaban con la misma hora
+  //    precargada ("hoy 07:00") y el orden entre ellas salía al azar;
+  //  - el Gantt y la tablet del operario mostraban la cola en órdenes distintos
+  //    (la tablet ya usaba el instante de asignación, `creada`, desde v1.46).
+  //
+  // Ahora hay tres grupos, en este orden:
+  //   1) INICIADAS por inicioReal: son hechos, ocupan el recurso primero (v2.25).
+  //   2) EN COLA (sin fecha, o con fecha ya pasada) por instante de ASIGNACIÓN:
+  //      la cola propiamente dicha. Empate -> prioridad -> id (estable).
+  //   3) RESERVADAS (fecha a futuro) por su fecha: "no antes de". Van DESPUÉS de
+  //      la cola a propósito — si fueran intercaladas por fecha de creación, una
+  //      reserva para el lunes arrastraría a todas las que se cargaron después
+  //      hasta el lunes, que es justo el hueco que se quería eliminar.
+  // ============================================================
+  const ahoraMs = ms(ahoraISO)
+  const reservada = (t: Tarea) => ms(t.inicioPlanificado) > ahoraMs
+  // Instante de asignación. Las tareas viejas sin `creada` caen al planificado,
+  // igual que la clave FIFO de la tablet (claveFifoTarea en types).
+  const asignada = (t: Tarea): number => {
+    const v = ms(t.creada ?? t.inicioPlanificado)
+    return Number.isFinite(v) ? v : Number.MAX_SAFE_INTEGER
+  }
+  const porAsignacion = (a: Tarea, b: Tarea): number =>
+    (asignada(a) - asignada(b)) || (a.prioridad - b.prioridad) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+
+  const pendientes = tareas.filter((t) => !t.inicioReal)
   const ordenadas = [
     ...tareas.filter((t) => t.inicioReal).sort(porFecha),
-    ...tareas.filter((t) => !t.inicioReal).sort(porFecha),
+    ...pendientes.filter((t) => !reservada(t)).sort(porAsignacion),
+    ...pendientes.filter(reservada).sort(porFecha),
   ]
 
   for (const t of ordenadas) {
