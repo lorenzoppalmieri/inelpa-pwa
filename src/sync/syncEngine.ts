@@ -905,21 +905,131 @@ async function empujar(op: SyncOp): Promise<EmpujeResultado> {
 // ============================================================
 // v1.18: ESCAPE HATCH — purgar / reintentar la cola de sync (para PC trabada).
 // ============================================================
-// Borra TODA la cola local pendiente (descarta cambios no subidos). Uso de
-// emergencia cuando la cola quedo trabada; devuelve cuantas ops se purgaron.
-export async function purgarColaSync(): Promise<number> {
-  const ops = await db.syncQueue.filter((op) => !op.sincronizado).toArray()
-  await db.syncQueue.clear()
-  await refreshPendientes()
+// ============================================================
+// v2.31 — PÉRDIDA DE DATOS EN LAS TABLETS (28/9/2026).
+//
+// Reporte: "Reintentar no hace nada, la única salida es Purgar, y purgar
+// borra las tareas que los operarios terminaron". Tres causas:
+//
+// 1) Reintentar DISPARABA el reenvío sin esperarlo (`void procesarCola()`) y
+//    devolvía al instante. El modal nunca sabía qué había pasado.
+// 2) Si justo había un ciclo de sync corriendo (cada 20s, más focus/visibility),
+//    `procesarCola` salía por `if (procesando) return` y el reintento se perdía
+//    en silencio.
+// 3) LA DE FONDO: una operación con error DEFINITIVO (permiso, dato inválido,
+//    columna inexistente) se vuelve a rechazar igual cada vez. Reintentar la
+//    saca del parking, falla en el acto y vuelve al parking. Y el MOTIVO solo
+//    iba a la consola del navegador, que en una tablet no ve nadie.
+//
+// Ahora: reintentar ESPERA el ciclo en curso, corre uno propio, y devuelve qué
+// pasó con cada operación; el modal lista los errores con su motivo; y purgar
+// DESCARGA UN RESPALDO antes de borrar. El respaldo es la red de seguridad: el
+// payload de cada operación es la fila completa, así que se puede reconstruir.
+// ============================================================
+
+/** Una operación que no pudo subir, con el motivo, para mostrarla en pantalla. */
+export interface OpConError {
+  id: string
+  entidad: string
+  entidadId: string
+  tipo: string
+  motivo: string
+  intentos: number
+  ts: string
+}
+
+export async function listarErroresSync(): Promise<OpConError[]> {
+  const ops = await db.syncQueue.filter((op) => !!op.errorSync).toArray()
+  return ops.sort(porFecha).map((op) => ({
+    id: op.id, entidad: op.entidad, entidadId: op.entidadId, tipo: op.tipo,
+    motivo: op.errorSync ?? '', intentos: op.intentos ?? 0, ts: op.ts,
+  }))
+}
+
+/**
+ * Descarga como JSON TODO lo que no subió (pendientes y con error).
+ * Es lo único que evita perder trabajo si después se purga: cada operación
+ * lleva la fila completa (la tarea con sus horarios, la parada, etc.).
+ * @returns cuántas operaciones se exportaron (0 = no había nada).
+ */
+export async function exportarColaPendiente(): Promise<number> {
+  const ops = (await db.syncQueue.filter((op) => !op.sincronizado).toArray()).sort(porFecha)
+  if (ops.length === 0) return 0
+  const contenido = JSON.stringify({ exportado: new Date().toISOString(), cantidad: ops.length, ops }, null, 2)
+  const blob = new Blob([contenido], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `respaldo_sync_${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}.json`
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
   return ops.length
 }
-// Reintenta las ops descartadas por error (limpia el flag para reprocesarlas).
-export async function reintentarErroresSync(): Promise<number> {
+
+// Borra TODA la cola local pendiente (descarta cambios no subidos). Uso de
+// emergencia cuando la cola quedo trabada; devuelve cuantas ops se purgaron.
+// v2.31: SIEMPRE descarga el respaldo antes. Si no se pudo generar, no purga.
+export async function purgarColaSync(): Promise<{ purgadas: number; respaldadas: number }> {
+  const ops = await db.syncQueue.filter((op) => !op.sincronizado).toArray()
+  let respaldadas = 0
+  if (ops.length > 0) {
+    respaldadas = await exportarColaPendiente()
+    if (respaldadas !== ops.length) throw new Error('No se pudo generar el respaldo. No se purgó nada.')
+  }
+  await db.syncQueue.clear()
+  await refreshPendientes()
+  return { purgadas: ops.length, respaldadas }
+}
+
+/** Espera a que termine el ciclo de sync en curso, con tope, para no pisarlo. */
+async function esperarCicloLibre(maxMs = 20000): Promise<void> {
+  const hasta = Date.now() + maxMs
+  while (procesando && Date.now() < hasta) {
+    await new Promise((r) => setTimeout(r, 250))
+  }
+}
+
+export interface ResultadoReintento {
+  reintentadas: number
+  subieron: number
+  /** Volvieron a fallar: error DEFINITIVO. Reintentar no las va a arreglar. */
+  siguenConError: number
+  /** Quedaron en cola esperando (sin red o error transitorio). No se pierden. */
+  enEspera: number
+  sinConexion: boolean
+  sesionInvalida: boolean
+}
+
+// Reintenta las ops con error y ESPERA el resultado (v2.31).
+export async function reintentarErroresSync(): Promise<ResultadoReintento> {
   const errs = await db.syncQueue.filter((op) => !!op.errorSync).toArray()
+  const vacio: ResultadoReintento = {
+    reintentadas: 0, subieron: 0, siguenConError: 0, enEspera: 0,
+    sinConexion: !navigator.onLine, sesionInvalida: !!estado.sesionInvalida,
+  }
+  if (errs.length === 0) return vacio
+
   for (const op of errs) await db.syncQueue.update(op.id, { errorSync: undefined, intentos: 0 })
   await refreshPendientes()
-  void procesarCola()
-  return errs.length
+
+  // Si hay un ciclo corriendo, se lo espera: antes `procesarCola` salía por el
+  // guard `procesando` y el reintento se perdía sin avisar.
+  await esperarCicloLibre()
+  await procesarCola()
+
+  const despues = await db.syncQueue.bulkGet(errs.map((o) => o.id))
+  let subieron = 0, siguenConError = 0, enEspera = 0
+  for (const op of despues) {
+    if (!op || op.sincronizado) subieron++
+    else if (op.errorSync) siguenConError++
+    else enEspera++
+  }
+  return {
+    reintentadas: errs.length, subieron, siguenConError, enEspera,
+    sinConexion: !navigator.onLine, sesionInvalida: !!estado.sesionInvalida,
+  }
 }
 
 // ============================================================
