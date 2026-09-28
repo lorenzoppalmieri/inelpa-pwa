@@ -230,7 +230,11 @@ export function programar(tareas: Tarea[], ahoraISO: string, grupo: GrupoAlmuerz
     // o sea que el Gantt le planificaba trabajo en la franja de recuperacion a
     // TODOS, la hubieran devuelto o no.
     const recup = minutosRecupTarea(t)
-    const sumar = (desde: string, min: number) => sumarMinutosLaborables(desde, min, grupo, recup)
+    // v2.32: se pasa el COLABORADOR para que sus días de ausencia se salteen
+    // como un fin de semana. Antes la cascada solo conocía los feriados y le
+    // dibujaba tareas el día que la persona tenía cargado que faltaba.
+    const sumar = (desde: string, min: number) =>
+      sumarMinutosLaborables(desde, min, grupo, recup, t.operarioId)
 
     if (t.inicioReal) {
       // Ya arranco: se dibuja donde realmente paso. Si sigue abierta y ya paso su
@@ -264,7 +268,7 @@ export function programar(tareas: Tarea[], ahoraISO: string, grupo: GrupoAlmuerz
     // Si no entra en lo que queda del dia, sumarMinutosLaborables la parte y la
     // sigue al dia siguiente; pasado el viernes cae el lunes a las 07:00. El
     // desborde a la semana que viene sale de aca, no hace falta nada extra.
-    startISO = proximoInstanteLaborable(startISO, grupo, recup)
+    startISO = proximoInstanteLaborable(startISO, grupo, recup, t.operarioId)
     const endISO = sumar(startISO, t.tiempoEstandarMin)
     out.set(t.id, { startISO, endISO, estimada: true })
     if (mk) huecosDe(finMaquina, mk, t.sectorId).ocupar(ms(endISO))

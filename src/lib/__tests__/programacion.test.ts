@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import type { Tarea } from '../../types'
 import { programar } from '../programacion'
+import { setAusencias, setFeriados } from '../calendario'
 import { auditarTiempos, type Totales } from '../auditoriaTiempos'
 
 // ============================================================
@@ -316,6 +317,50 @@ describe('orden de carga de la planificadora', () => {
     ]
     const plan = programar(ts, local(9))
     expect(ms(plan.get('Y')!.startISO)).toBeLessThan(ms(plan.get('X')!.startISO))
+  })
+})
+
+// ============================================================
+// v2.32 — LA CASCADA SALTEA LAS AUSENCIAS DEL COLABORADOR.
+// Caso reportado (28/9/2026): Florencia ausente el lunes 28; martes 29 y
+// miércoles 30 la planta no produce. Sus pendientes tienen que arrancar el
+// JUEVES 1/10 a las 07:00, no el lunes.
+// ============================================================
+describe('ausencias en la planificación', () => {
+  const LUNES_28 = '2026-09-28T07:00:00.000-03:00'
+  const JUEVES_1 = '2026-10-01T07:00:00.000-03:00'
+
+  afterEach(() => { setAusencias(new Map()); setFeriados([]) })
+
+  it('EL CASO REPORTADO: ausente el lunes y planta cerrada mar/mié -> arranca el jueves', () => {
+    setAusencias(new Map([['flor', new Set(['2026-09-28'])]]))
+    setFeriados(['2026-09-29', '2026-09-30'])
+    const t = tarea({ id: 'F1', operarioId: 'flor', maquinaId: 'm_bob_02', inicioPlanificado: '2026-09-25T10:00:00.000-03:00', tiempoEstandarMin: 60 })
+    const plan = programar([t], LUNES_28)
+    expect(ms(plan.get('F1')!.startISO)).toBe(ms(JUEVES_1))
+  })
+
+  it('un compañero que SÍ viene arranca el lunes igual', () => {
+    setAusencias(new Map([['flor', new Set(['2026-09-28'])]]))
+    setFeriados(['2026-09-29', '2026-09-30'])
+    const otro = tarea({ id: 'O1', operarioId: 'otro', maquinaId: 'm_bob_03', inicioPlanificado: '2026-09-25T10:00:00.000-03:00', tiempoEstandarMin: 60 })
+    const plan = programar([otro], LUNES_28)
+    expect(ms(plan.get('O1')!.startISO)).toBe(ms(LUNES_28))
+  })
+
+  it('una tarea que no entra el viernes salta la ausencia del lunes', () => {
+    // Viernes 25 a las 14:00, 3 h de trabajo: 1 h el viernes (cierra 15:00) y
+    // el resto tendría que ir al lunes... pero el lunes falta, así que sigue el martes.
+    setAusencias(new Map([['flor', new Set(['2026-09-28'])]]))
+    const t = tarea({ id: 'F2', operarioId: 'flor', maquinaId: 'm_bob_02', inicioPlanificado: '2026-09-25T14:00:00.000-03:00', tiempoEstandarMin: 180 })
+    const plan = programar([t], '2026-09-25T13:00:00.000-03:00')
+    const fin = new Date(plan.get('F2')!.endISO)
+    expect(fin.getDate()).toBe(29)   // martes 29, no lunes 28
+  })
+
+  it('sin ausencias cargadas, todo igual que antes', () => {
+    const t = tarea({ id: 'N', operarioId: 'flor', inicioPlanificado: '2026-09-25T10:00:00.000-03:00', tiempoEstandarMin: 60 })
+    expect(ms(programar([t], LUNES_28).get('N')!.startISO)).toBe(ms(LUNES_28))
   })
 })
 

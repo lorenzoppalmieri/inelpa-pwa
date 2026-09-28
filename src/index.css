@@ -577,6 +577,16 @@ button { font-family: inherit; cursor: pointer; border: none; }
   opacity: .95;
 }
 .gantt-grid-line { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--borde); }
+/* v2.32: día de ausencia del colaborador en su carril. Trama distinta a la de
+   planta cerrada (esa es gris y vale para todos); esta es ámbar y es de UNA
+   persona, para que se entienda que el hueco es porque no vino. */
+.gantt-banda-ausente {
+  position: absolute; top: 0; bottom: 0; z-index: 1; pointer-events: auto;
+  background: repeating-linear-gradient(-45deg, rgba(245,158,11,.20), rgba(245,158,11,.20) 6px, transparent 6px, transparent 12px);
+  border-left: 1px dashed rgba(245,158,11,.5); border-right: 1px dashed rgba(245,158,11,.5);
+  display: flex; align-items: center; justify-content: center;
+}
+.gantt-banda-ausente span { font-size: .7rem; font-weight: 700; color: #fbbf24; opacity: .85; }
 .gantt-banda-muerta {
   position: absolute; top: 0; bottom: 0;
   background: repeating-linear-gradient(45deg, rgba(100,116,139,.28), rgba(100,116,139,.28) 5px, transparent 5px, transparent 10px);

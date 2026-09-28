@@ -252,15 +252,35 @@ export function minutosProductivosDia(fecha: Date, grupo: GrupoAlmuerzo = GRUPO_
   return tramosLaborables(fecha, grupo).reduce((s, t) => s + (t.finMin - t.iniMin), 0)
 }
 
+// ============================================================
+// v2.32 — LAS AUSENCIAS TAMBIÉN CUENTAN PARA PLANIFICAR, no solo para medir.
+//
+// En v2.04 las ausencias se conectaron a la MEDICIÓN: `tramosLaborables` recibe
+// el `operarioId` y, si ese día la persona faltó, devuelve el día vacío (igual
+// que un fin de semana). Así el Tiempo Real no le cuenta el día que no vino.
+//
+// Pero estas tres funciones —las que usa la CASCADA del Gantt para encadenar
+// tareas— nunca le pasaban el colaborador. Resultado reportado (28/9/2026):
+// Florencia tenía cargada una ausencia el lunes 28 y el Gantt le seguía
+// dibujando las pendientes ese lunes. Los feriados sí se saltaban porque no
+// dependen de la persona.
+//
+// Ahora aceptan `operarioId` y lo bajan a `tramosLaborables`. Sin él, se
+// comportan exactamente igual que antes: nadie más cambia.
+// ============================================================
+
 // Primer instante productivo del proximo dia laborable posterior a `d`.
-function siguienteApertura(d: Date, grupo: GrupoAlmuerzo, recupMin = 60): Date {
+function siguienteApertura(d: Date, grupo: GrupoAlmuerzo, recupMin = 60, operarioId?: string): Date {
   const n = new Date(d)
   n.setDate(n.getDate() + 1)
   n.setHours(0, 0, 0, 0)
   for (let i = 0; i < 14; i++) {
-    if (tramosLaborables(n, grupo, recupMin).length > 0) return conMinutos(n, APERTURA_MIN)
+    if (tramosLaborables(n, grupo, recupMin, false, operarioId).length > 0) return conMinutos(n, APERTURA_MIN)
     n.setDate(n.getDate() + 1)
   }
+  // Ausencia de más de dos semanas (licencia larga): se devuelve el día 15 y el
+  // llamador vuelve a llamar — `proximoInstanteLaborable` tiene su propia guarda
+  // y sigue avanzando hasta encontrar un día en que la persona esté.
   return conMinutos(n, APERTURA_MIN)
 }
 
@@ -272,17 +292,17 @@ function siguienteApertura(d: Date, grupo: GrupoAlmuerzo, recupMin = 60): Date {
 // para no cambiar el resto de los llamadores de un saque, pero `programar()`
 // pasa el valor real de cada tarea (`minutosRecupTarea`, que es 0 si no la
 // marco). Ver el comentario de minutosProductivosDia.
-export function proximoInstanteLaborable(iso: string, grupo: GrupoAlmuerzo = GRUPO_ALMUERZO_DEFAULT, recupMin = 60): string {
+export function proximoInstanteLaborable(iso: string, grupo: GrupoAlmuerzo = GRUPO_ALMUERZO_DEFAULT, recupMin = 60, operarioId?: string): string {
   let cursor = new Date(iso)
   let guard = 0
   while (guard++ < 4000) {
     const curMin = minDelDia(cursor)
-    const tr = tramosLaborables(cursor, grupo, recupMin).find((t) => curMin < t.finMin)
+    const tr = tramosLaborables(cursor, grupo, recupMin, false, operarioId).find((t) => curMin < t.finMin)
     if (tr) {
       if (curMin < tr.iniMin) return conMinutos(cursor, tr.iniMin).toISOString()
       return cursor.toISOString()
     }
-    cursor = siguienteApertura(cursor, grupo, recupMin)
+    cursor = siguienteApertura(cursor, grupo, recupMin, operarioId)
   }
   return cursor.toISOString()
 }
@@ -292,15 +312,15 @@ export function proximoInstanteLaborable(iso: string, grupo: GrupoAlmuerzo = GRU
 //
 // Es lo que hace que una tarea que no entra en lo que queda del dia siga al
 // siguiente, y que la cola del viernes a la tarde caiga el lunes a las 07:00.
-export function sumarMinutosLaborables(inicioISO: string, minutos: number, grupo: GrupoAlmuerzo = GRUPO_ALMUERZO_DEFAULT, recupMin = 60): string {
-  let cursor = new Date(proximoInstanteLaborable(inicioISO, grupo, recupMin))
+export function sumarMinutosLaborables(inicioISO: string, minutos: number, grupo: GrupoAlmuerzo = GRUPO_ALMUERZO_DEFAULT, recupMin = 60, operarioId?: string): string {
+  let cursor = new Date(proximoInstanteLaborable(inicioISO, grupo, recupMin, operarioId))
   let restante = Math.max(0, minutos)
   let guard = 0
   while (restante > 0 && guard++ < 4000) {
     const curMin = minDelDia(cursor)
-    const tramos = tramosLaborables(cursor, grupo, recupMin)
+    const tramos = tramosLaborables(cursor, grupo, recupMin, false, operarioId)
     const tr = tramos.find((t) => curMin < t.finMin)
-    if (!tr) { cursor = siguienteApertura(cursor, grupo, recupMin); continue }
+    if (!tr) { cursor = siguienteApertura(cursor, grupo, recupMin, operarioId); continue }
     if (curMin < tr.iniMin) cursor = conMinutos(cursor, tr.iniMin)
     const ini = minDelDia(cursor)
     const disponible = tr.finMin - ini
@@ -310,7 +330,7 @@ export function sumarMinutosLaborables(inicioISO: string, minutos: number, grupo
     } else {
       restante -= disponible
       const sig = tramos.find((t) => t.iniMin >= tr.finMin)
-      cursor = sig ? conMinutos(cursor, sig.iniMin) : siguienteApertura(cursor, grupo, recupMin)
+      cursor = sig ? conMinutos(cursor, sig.iniMin) : siguienteApertura(cursor, grupo, recupMin, operarioId)
     }
   }
   return cursor.toISOString()

@@ -3,7 +3,7 @@ import type { Tarea, EstadoTarea, Maquina } from '../../types'
 import { sectorById, causaLabel, esParadaNoProductiva, nombreSemielaborado, minutosRecupTarea } from '../../types'
 import { componentePorCodigo } from '../../data/catalogo'
 import { hhmm, fmtDur, isoWeek, fechaCorta } from '../../lib/time'
-import { proximoInstanteLaborable, tramosLaborables, calcularTiempoNetoProductivo, calcularTiempoProductivo, type GrupoAlmuerzo } from '../../lib/calendario'
+import { proximoInstanteLaborable, tramosLaborables, calcularTiempoNetoProductivo, calcularTiempoProductivo, estaAusente, type GrupoAlmuerzo } from '../../lib/calendario'
 import { programar, capacidadRecurso, type Plan } from '../../lib/programacion'
 import { desglosePausas, demoraSinJustificarHasta, type TramoPausa } from '../../lib/kpi'
 import { guardarTarea } from '../../sync/syncEngine'
@@ -626,6 +626,19 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
                     const width = ((bd.fin - bd.ini) / DAY_MIN / N) * 100
                     return <div key={`${idx}-${j}`} className="gantt-banda-muerta" style={{ left: `${left}%`, width: `${width}%` }} title="Sin producción" />
                   }))}
+                  {/* v2.32: días de AUSENCIA del colaborador, en su propio carril.
+                      Sin esto el hueco que deja la cascada al saltearlos se leía
+                      como "no le planificaron nada", no como "no vino". Solo tiene
+                      sentido agrupando por colaborador: en un carril de sector o
+                      de máquina hay varias personas. */}
+                  {agrupar === 'operario' && lane.id !== SIN_ASIGNAR && dias.map((day, idx) =>
+                    estaAusente(lane.id, day) ? (
+                      <div key={`aus-${idx}`} className="gantt-banda-ausente"
+                        style={{ left: `${(idx / N) * 100}%`, width: `${(1 / N) * 100}%` }}
+                        title="Ausente — cargado en Ausentismo. Sus tareas se corren al próximo día que trabaja.">
+                        <span>Ausente</span>
+                      </div>
+                    ) : null)}
                   {escala === 'semana' && dias.slice(1).map((_, i) => (
                     <div key={`sep${i}`} className="gantt-grid-line" style={{ left: `${((i + 1) / N) * 100}%`, background: 'var(--borde)', width: 2 }} />
                   ))}
