@@ -60,6 +60,15 @@ export default function TareaCard({ tarea, onIniciar }: { tarea: Tarea; onInicia
   const tabletCompartida = esMontajeRural(tarea.sectorId)
   const usuarios = useLiveQuery(() => db.usuarios.toArray(), []) ?? []
   const roster = tabletCompartida ? colaboradoresReales(tarea.sectorId, usuarios) : []
+  // v2.33: N° de OF para el título. Con la integración SAP la OF pasa a ser el
+  // dato de trazabilidad de la planta: es lo primero que tiene que leer el
+  // operario. Se busca por `ordenId` (la tarea guarda el id, no el número), así
+  // que si la planificadora corrige el número en la orden, la tarjeta se
+  // actualiza sola. Las reparaciones no tienen orden y no muestran nada.
+  const orden = useLiveQuery(
+    () => (tarea.ordenId ? db.ordenes.get(tarea.ordenId) : undefined),
+    [tarea.ordenId],
+  )
   const [asignando, setAsignando] = useState(false)
 
   /** Asigna (o desasigna) el responsable REAL de la tarea. Escribe en Dexie y
@@ -248,7 +257,9 @@ export default function TareaCard({ tarea, onIniciar }: { tarea: Tarea; onInicia
     <div className="card">
       <div className="card-header">
         <div>
-          <h3>{titulo}{tarea.fase ? ` · ${tarea.fase}` : ''}</h3>
+          {/* v2.33: la OF va ADENTRO del mismo <h3>, así tiene exactamente el
+              tamaño y el peso del título, en todas las áreas. */}
+          <h3>{orden?.nroOrden ? `${orden.nroOrden} - ` : ''}{titulo}{tarea.fase ? ` · ${tarea.fase}` : ''}</h3>
           <div className="meta">{sector.nombre}{comp ? ` · Modelo ${tarea.modelo}` : ''}</div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>

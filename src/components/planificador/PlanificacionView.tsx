@@ -188,6 +188,8 @@ function PanelOrdenes() {
   const [cantidad, setCantidad] = useState('1')
   const [fechaEntrega, setFechaEntrega] = useState('')
   const [msg, setMsg] = useState('')
+  // v2.33: orden que se está editando (null = ninguna).
+  const [editando, setEditando] = useState<OrdenProduccion | null>(null)
 
   // La linea se infiere del prefijo del modelo (TTD=distribucion, TMR/TBR/TTR=rural).
   const linea = modelo ? lineaDesdeModelo(modelo) : null
@@ -373,17 +375,170 @@ function PanelOrdenes() {
                   {nTareas > 0 && <> · <strong>{nTareas}</strong> tarea(s)</>}
                 </div>
               </div>
-              <button
-                className="btn btn-rojo"
-                title={nTareas > 0 ? 'No se puede: la orden ya tiene tareas en planta' : 'Eliminar orden (error de carga)'}
-                onClick={() => borrarOrden(o)}
-              >🗑</button>
+              {/* v2.33: editar la orden (error de tipeo en la OF o el contrato). */}
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button className="btn" title="Editar orden" onClick={() => setEditando(o)}>✏️</button>
+                <button
+                  className="btn btn-rojo"
+                  title={nTareas > 0 ? 'No se puede: la orden ya tiene tareas en planta' : 'Eliminar orden (error de carga)'}
+                  onClick={() => borrarOrden(o)}
+                >🗑</button>
+              </div>
             </div>
           </div>
         )
       })}
       {(!ordenes || ordenes.length === 0) && <div className="empty">Aun no hay ordenes cargadas.</div>}
+
+      {editando && (
+        <EditarOrden
+          orden={editando}
+          otras={(ordenes ?? []).filter((x) => x.id !== editando.id)}
+          nTareas={todasTareas.filter((t) => t.ordenId === editando.id).length}
+          onCerrar={(texto) => { setEditando(null); if (texto) setMsg(texto) }}
+        />
+      )}
     </>
+  )
+}
+
+// ============================================================
+// v2.33 — EDITAR UNA ORDEN DE FABRICACIÓN.
+//
+// Con la integración SAP la OF pasa a ser el dato de trazabilidad de la planta,
+// así que un error de tipeo en el número tiene que poder corregirse sin borrar
+// y recrear la orden (que además no se puede si ya tiene tareas).
+//
+// Se guarda con el MISMO `id`: `guardarOrden` hace put en Dexie + upsert en
+// Supabase por id, o sea un UPDATE del registro existente, nunca uno nuevo.
+// Las tareas apuntan a la orden por `ordenId`, no por el número, así que
+// corregir el número se refleja solo en todas las tarjetas.
+//
+// REGLA DE SEGURIDAD — el MODELO solo se edita si la orden no tiene tareas.
+// Las tareas copian el modelo y el semielaborado al crearse: si se cambiara el
+// modelo de una orden con tareas, quedarían bobinas de un modelo colgando de una
+// orden que dice otro. Es la misma regla que ya tiene el borrado.
+// ============================================================
+function EditarOrden({ orden, otras, nTareas, onCerrar }: {
+  orden: OrdenProduccion
+  otras: OrdenProduccion[]
+  nTareas: number
+  onCerrar: (mensaje?: string) => void
+}) {
+  const [nro, setNro] = useState(orden.nroOrden)
+  const [contrato, setContrato] = useState(orden.nroContrato ?? '')
+  const [modelo, setModelo] = useState(orden.modelo)
+  const [material, setMaterial] = useState<MaterialBobina>(orden.material)
+  const [cantidad, setCantidad] = useState(String(orden.cantidad))
+  const [entrega, setEntrega] = useState(orden.fechaEntrega)
+  const [error, setError] = useState('')
+  const [guardando, setGuardando] = useState(false)
+
+  const modeloBloqueado = nTareas > 0
+  const modeloSel = modeloPorNombre(modelo)
+
+  // Mismo control de duplicados que el alta (v2.16), sin contarse a sí misma.
+  const duplicada = useMemo(() => {
+    const n = normalizarNroOrden(nro)
+    return n ? otras.find((o) => normalizarNroOrden(o.nroOrden) === n) : undefined
+  }, [nro, otras])
+
+  function elegirModelo(nombre: string) {
+    setModelo(nombre)
+    const m = modeloPorNombre(nombre)
+    if (m?.material) setMaterial(m.material)
+  }
+
+  async function guardar() {
+    setError('')
+    if (!nro.trim() || !modelo || !material || !entrega) { setError('Completá N° de orden, modelo, material y fecha de entrega.'); return }
+    if (duplicada) { setError(`Ya existe la orden ${duplicada.nroOrden}. Usá otro número.`); return }
+    const cant = Math.max(1, Number(cantidad) || 1)
+    if (cant < orden.cantidad && nTareas > 0
+        && !window.confirm(`La orden tiene ${nTareas} tarea(s) cargada(s) y estás bajando la cantidad de ${orden.cantidad} a ${cant}.\n\nRevisá que no queden tareas de más para esta orden. ¿Guardar igual?`)) return
+    setGuardando(true)
+    const actualizada: OrdenProduccion = {
+      ...orden,                                   // conserva id y creada: es un UPDATE
+      nroOrden: nro.trim(),
+      nroContrato: contrato.trim() || undefined,
+      modelo: modeloBloqueado ? orden.modelo : modelo,
+      material: modeloBloqueado ? orden.material : material,
+      linea: lineaDesdeModelo(modeloBloqueado ? orden.modelo : modelo),
+      cantidad: cant,
+      fechaEntrega: entrega,
+    }
+    await guardarOrden(actualizada)
+    setGuardando(false)
+    onCerrar(orden.nroOrden !== actualizada.nroOrden
+      ? `Orden ${orden.nroOrden} → ${actualizada.nroOrden} actualizada. Las ${nTareas} tarea(s) ya muestran el número nuevo.`
+      : `Orden ${actualizada.nroOrden} actualizada.`)
+  }
+
+  return (
+    <div className="modal-overlay" onClick={() => onCerrar()}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="section-title" style={{ marginTop: 0 }}>✏️ Editar orden {orden.nroOrden}</div>
+        <div className="form-grid">
+          <div className="field">
+            <label>N° de orden (OF)</label>
+            <input className="input" value={nro} onChange={(e) => setNro(e.target.value)} autoFocus />
+          </div>
+          <div className="field">
+            <label>N° de contrato / OV (opcional)</label>
+            <input className="input" value={contrato} onChange={(e) => setContrato(e.target.value)} />
+          </div>
+          <div className="field">
+            <label>Modelo de transformador</label>
+            <select className="input" value={modelo} disabled={modeloBloqueado} onChange={(e) => elegirModelo(e.target.value)}>
+              <option value={MODELO_PROTOTIPO}>🧪 PROTOTIPO (prueba)</option>
+              <optgroup label="Distribucion">
+                {MODELOS_CATALOGO.filter((m) => m.linea === 'distribucion').map((m) => <option key={m.codigo} value={m.nombre}>{m.nombre}</option>)}
+              </optgroup>
+              <optgroup label="Rural">
+                {MODELOS_CATALOGO.filter((m) => m.linea === 'rural').map((m) => <option key={m.codigo} value={m.nombre}>{m.nombre}</option>)}
+              </optgroup>
+            </select>
+            {modeloBloqueado && (
+              <div className="meta" style={{ marginTop: 2 }}>
+                No se puede cambiar: la orden ya tiene {nTareas} tarea(s) con este modelo.
+              </div>
+            )}
+          </div>
+          <div className="field">
+            <label>Material</label>
+            <select className="input" value={material} disabled={modeloBloqueado || !!modeloSel?.material}
+              onChange={(e) => setMaterial(e.target.value as MaterialBobina)}>
+              {MATERIALES.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+            </select>
+          </div>
+          <div className="field">
+            <label>Cantidad</label>
+            <input className="input" type="number" min={1} value={cantidad} onChange={(e) => setCantidad(e.target.value)} />
+          </div>
+          <div className="field">
+            <label>Fecha de entrega</label>
+            <input className="input" type="date" value={entrega} onChange={(e) => setEntrega(e.target.value)} />
+          </div>
+        </div>
+
+        {duplicada && (
+          <div className="balance-alert warn" style={{ marginTop: 12 }}>
+            <div className="ba-linea">
+              <span className="ba-ico">⚠</span>
+              <span className="ba-txt"><strong>El N° {duplicada.nroOrden} ya está cargado</strong> ({duplicada.modelo}). Usá otro número.</span>
+            </div>
+          </div>
+        )}
+        {error && <div className="meta" style={{ color: 'var(--rojo)', marginTop: 10 }}>{error}</div>}
+
+        <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+          <button className="btn btn-primary" style={{ flex: 1 }} disabled={guardando || !!duplicada} onClick={() => void guardar()}>
+            {guardando ? 'Guardando…' : 'Guardar cambios'}
+          </button>
+          <button className="btn" onClick={() => onCerrar()}>Cancelar</button>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -405,6 +560,13 @@ const ESTADOS_TAREA: { id: 'todos' | EstadoTarea; label: string }[] = [
 // ------------------------------------------------------------
 function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsumido }: { soloReparacion?: boolean; focoTareaId?: string | null; onFocoConsumido?: () => void }) {
   const ordenes = useLiveQuery(() => db.ordenes.toArray(), [])
+  // v2.33: N° de OF por id de orden, para destacarla en cada tarjeta sin buscar
+  // la orden tarea por tarea. La tarea guarda `ordenId`, no el número, así que
+  // corregir la OF en la orden actualiza todas las tarjetas.
+  const nroOrdenDe = useMemo(
+    () => new Map((ordenes ?? []).map((o) => [o.id, o.nroOrden])),
+    [ordenes],
+  )
   const maquinas = useLiveQuery(() => db.maquinas.toArray(), [])
   const usuarios = useLiveQuery(() => db.usuarios.toArray(), [])
   // v1.17: el listado ya NO filtra por semana ISO (causaba que tareas finalizadas
@@ -871,6 +1033,10 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
     <div className={'card' + (resaltado === t.id ? ' card-foco' : '')} id={'tarea-' + t.id} key={t.id}>
       <div className="card-header">
         <div>
+          {/* v2.33: la OF primero y destacada. Con SAP es el dato de trazabilidad. */}
+          {t.ordenId && nroOrdenDe.get(t.ordenId) && (
+            <div className="tarea-of">{nroOrdenDe.get(t.ordenId)}</div>
+          )}
           <h3>{t.tipo === 'reparacion' ? '🔧 ' : ''}{t.modelo}{t.nroTransformador ? ` · ${t.nroTransformador}` : ''}{t.tipo === 'reparacion' && <span className="estado-chip" style={{ background: 'var(--reparacion)', color: '#fff', marginLeft: 8 }}>Reparación</span>}</h3>
           <div className="meta">
             {sectorById(t.sectorId).nombre} · {nombreOperario(t.operarioId)} · {nombreMaquina(t.maquinaId)} · Prioridad <strong>{t.prioridad}</strong> · Estandar <strong>{t.tiempoEstandarMin}m</strong>
@@ -898,9 +1064,15 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
               : null}
           </div>
         </div>
-        <span className={'estado-chip e-' + (t.estado === 'en_proceso' ? 'proceso' : t.estado === 'pausada' ? 'pausa' : t.estado === 'finalizada' ? 'finalizado' : 'pendiente')}>
-          {t.estado}
-        </span>
+        {/* v2.33: ETAPA (sector) y ESTADO, los dos a la vista y legibles. Antes el
+            chip mostraba el valor técnico ("en_proceso") y la etapa quedaba
+            perdida en la línea gris de abajo. */}
+        <div className="tarea-etapa-estado">
+          <span className="estado-chip tarea-etapa">{sectorById(t.sectorId).nombre}</span>
+          <span className={'estado-chip e-' + (t.estado === 'en_proceso' ? 'proceso' : t.estado === 'pausada' ? 'pausa' : t.estado === 'finalizada' ? 'finalizado' : 'pendiente')}>
+            {t.estado === 'en_proceso' ? 'En proceso' : t.estado === 'pausada' ? 'Pausada' : t.estado === 'finalizada' ? 'Finalizada' : 'Pendiente'}
+          </span>
+        </div>
       </div>
       {(!soloReparacion || t.tipo === 'reparacion') && (
         <div className="row-actions">

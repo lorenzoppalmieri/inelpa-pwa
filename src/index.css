@@ -796,6 +796,12 @@ button.logi-kpi, button.card { color: inherit; font: inherit; }
 .grupo-barra-fill { display: block; height: 100%; border-radius: 999px; transition: width .3s ease; }
 .grupo-pct { font-size: .78rem; font-weight: 700; color: var(--texto-tenue); min-width: 34px; }
 .grupo-curso { font-size: .74rem; font-weight: 600; color: var(--estado-proceso); }
+/* v2.33: N° de OF destacado en las tarjetas de "Asignar tareas". Con la
+   integración SAP es el dato de trazabilidad: tiene que leerse antes que todo. */
+.tarea-of { font-size: 1.35rem; font-weight: 900; letter-spacing: .02em; color: var(--texto);
+  line-height: 1.15; margin-bottom: 2px; font-variant-numeric: tabular-nums; }
+.tarea-etapa-estado { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.tarea-etapa { background: rgba(59,130,246,.18); color: var(--azul-claro); white-space: nowrap; }
 /* v2.28: botón con aspecto de link (ej. "Quitar fecha" en el alta de tareas). */
 .btn-link { background: none; border: none; padding: 0; color: var(--azul-claro); cursor: pointer;
   text-decoration: underline; font: inherit; }
