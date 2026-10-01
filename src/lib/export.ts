@@ -64,7 +64,10 @@ export function exportarKpisCSV(
   nombreMaquina: (id: string) => string,
   periodoLabel: string,
 ): boolean {
-  const fin = tareas.filter(esFinalizada)
+  // v2.34: sin reparaciones. El OEE ya las excluía adentro de `calcularOEE`,
+  // pero los contadores de "Tareas finalizadas" de este archivo las sumaban:
+  // el reporte decía N tareas y el porcentaje se calculaba sobre menos.
+  const fin = tareas.filter((t) => esFinalizada(t) && !esReparacion(t))
   if (fin.length === 0) return false
 
   const filas: Celda[][] = []

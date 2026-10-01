@@ -625,6 +625,20 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
   const [periodoDesde, setPeriodoDesde] = useState<string>(primerDiaDelMesISO)
   const [periodoHasta, setPeriodoHasta] = useState<string>(hoyLocalISO)
   const [filtroEstado, setFiltroEstado] = useState<'todos' | EstadoTarea>('todos')
+  // ============================================================
+  // v2.34 — FABRICACIÓN y REPARACIONES, SEPARADAS.
+  //
+  // Antes el listado y sus barras de progreso mezclaban las dos: una reparación
+  // terminada sumaba a "X / Y completadas" como si fuera una unidad fabricada,
+  // y el avance de producción parecía mayor al real.
+  //
+  // Ahora el listado muestra UNA de las dos por vez. Por defecto, Fabricación:
+  // las barras cuentan solo producción. Con "Reparaciones" se ve el control
+  // aislado: qué se reparó, qué falta y quién lo hizo, con sus propias barras.
+  //
+  // Los encargados (que solo cargan reparaciones) arrancan en Reparaciones.
+  // ============================================================
+  const [vistaTipo, setVistaTipo] = useState<'fabricacion' | 'reparacion'>(soloReparacion ? 'reparacion' : 'fabricacion')
   // v1.17: tarea resaltada al venir desde un click en el Gantt.
   const [resaltado, setResaltado] = useState<string | null>(null)
   // v2.13: id de la PA cuya PO se está generando. Bloquea el botón mientras
@@ -914,9 +928,13 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
       if (!tareaEnPeriodo(t, periodoLista, now, periodoDia, periodoDesde, periodoHasta)) return false
       if (filtroEstado !== 'todos' && t.estado !== filtroEstado) return false
       if (filtroSector !== 'todos' && t.sectorId !== filtroSector) return false
+      // v2.34: una sola clase de tarea por vez (ver `vistaTipo`). Como las barras
+      // de avance y las secciones se arman desde `visibles`, esto alcanza para
+      // que las reparaciones dejen de sumar a la producción.
+      if ((vistaTipo === 'reparacion') !== esReparacion(t)) return false
       return true
     })
-  }, [tareasOrdenadas, periodoLista, periodoDia, periodoDesde, periodoHasta, filtroEstado, filtroSector])
+  }, [tareasOrdenadas, periodoLista, periodoDia, periodoDesde, periodoHasta, filtroEstado, filtroSector, vistaTipo])
 
   // v1.16: agrupacion dinamica (sector / estacion / colaborador) para legibilidad.
   // v1.44: cada grupo calcula su AVANCE = finalizadas / programadas. Es dinamico:
@@ -1299,7 +1317,26 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
         )}
       </div>
 
-      <div className="section-title">Tareas · {labelPeriodo(periodoLista)} ({visibles.length}{visibles.length !== tareasOrdenadas.length ? ` de ${tareasOrdenadas.length}` : ''})</div>
+      <div className="section-title">
+        {vistaTipo === 'reparacion' ? '🔧 Reparaciones' : 'Tareas'} · {labelPeriodo(periodoLista)} ({visibles.length}{visibles.length !== tareasOrdenadas.length ? ` de ${tareasOrdenadas.length}` : ''})
+      </div>
+
+      {/* v2.34: Fabricación / Reparaciones. Nunca se mezclan en el listado ni en
+          las barras de avance: una reparación no es una unidad fabricada. */}
+      <div className="tabs" style={{ marginBottom: 10 }}>
+        <button className={'tab' + (vistaTipo === 'fabricacion' ? ' active' : '')} onClick={() => setVistaTipo('fabricacion')}>
+          🏭 Fabricación
+        </button>
+        <button className={'tab' + (vistaTipo === 'reparacion' ? ' active' : '')} onClick={() => setVistaTipo('reparacion')}>
+          🔧 Reparaciones
+        </button>
+      </div>
+      {vistaTipo === 'reparacion' && (
+        <div className="meta" style={{ marginBottom: 10 }}>
+          Control de reparaciones: no suman a la producción, a los objetivos ni a ningún KPI de la planta.
+          Agrupá por colaborador para ver quién hizo cada una.
+        </div>
+      )}
 
       {/* v2.07: mismo filtro de período que "Eficiencia / KPIs". Los selectores
           de fecha aparecen solo cuando el período los pide. */}
