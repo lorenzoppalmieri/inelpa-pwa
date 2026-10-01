@@ -379,10 +379,24 @@ export function metricasTarea(t: Tarea, hastaISO?: string, huecoMin = 0): Metric
   const real = Math.round(tiempoRealHasta(t, fin))
   const justificada = Math.round(minutosParada(t, fin))
   const noProductivo = Math.round(minutosNoProductivos(t, fin))
+  return derivarMetricas(estimado, real, justificada, noProductivo, hueco, esReparacion(t))
+}
+
+/**
+ * Las métricas DERIVADAS a partir de las cuatro medidas (ya redondeadas).
+ *
+ * v2.35: se extrajo de `metricasTarea` para que la versión recortada por período
+ * (`metricasTareaEnVentana`) use EXACTAMENTE la misma cuenta. Dos copias de estas
+ * fórmulas es lo que ya causó descuadres entre pantallas (ver v1.67 y v2.01).
+ */
+function derivarMetricas(
+  estimado: number, real: number, justificada: number, noProductivo: number,
+  hueco: number, reparacion: boolean,
+): MetricasTarea {
   const demorado = Math.max(0, real - estimado)
   const adelanto = Math.max(0, estimado - real)
   // Las reparaciones no penalizan: son trabajo no productivo por definición.
-  const sinJustificar = esReparacion(t) ? 0 : Math.max(0, demorado - justificada)
+  const sinJustificar = reparacion ? 0 : Math.max(0, demorado - justificada)
   // Se despeja de sinJustificar (en vez de MIN(justificada, demorado)) para que
   // `aplicada + sinJustificar === demorado` valga TAMBIEN en las reparaciones,
   // donde sinJustificar se fuerza a 0. Contrapartida: en una reparacion
@@ -414,6 +428,141 @@ export function metricasDeLista(tareas: Tarea[], hastaISO?: string): Map<string,
   const out = new Map<string, MetricasTarea>()
   for (const t of tareas) out.set(t.id, metricasTarea(t, hastaISO, huecos.get(t.id) ?? 0))
   return out
+}
+
+// ============================================================
+// v2.35 — RECORTE POR PERÍODO + ESTÁNDAR PRORRATEADO.
+//
+// Pedido de Lorenzo (1/10/2026): si una tarea o una demora cruza de una semana
+// (o un mes) a otra, cada período tiene que hacerse cargo SOLO de los minutos
+// que transcurrieron dentro de él. Antes la tarea entera —con todas sus
+// demoras— caía en un único período y lo inflaba.
+//
+// DOS CLASES DE INDICADOR, y se tratan distinto:
+//
+//  - De FLUJO DE TIEMPO (Pareto de demoras, activo vs parada, disponibilidad):
+//    se RECORTA. Una demora del viernes 14:00 al lunes 08:00 reparte sus
+//    minutos hábiles entre las dos semanas.
+//
+//  - De COMPARACIÓN POR PIEZA (estimado vs neto, desvíos, demora sin
+//    justificar): el estándar es de la pieza ENTERA, así que recortar solo el
+//    neto inventaría eficiencia. Ejemplo que se usó para decidir: bobina de
+//    300', 120' el viernes y 180' + 60' de demora el lunes. Recortando a secas,
+//    el lunes mostraba 180' contra 300' = "40% más rápido", y en realidad hizo
+//    exacto el estándar.
+//    Decisión de Lorenzo: PRORRATEAR. Cada período recibe una parte del
+//    estándar proporcional al neto que se trabajó en él: viernes 120' vs 120',
+//    lunes 180' vs 180'. La eficiencia de la pieza se conserva y cada semana
+//    carga con sus horas.
+//
+// CONSECUENCIA A SABER: el prorrateo necesita el neto TOTAL de la pieza, que se
+// conoce recién cuando termina. Mientras una tarea sigue abierta, su porción no
+// tiene estándar (fracción 0) y no entra en las comparaciones — sí en los
+// indicadores de flujo. Cuando termina, los períodos anteriores que tocó se
+// recalculan solos. O sea: el número de una semana pasada puede moverse hasta
+// que se cierran todas las tareas que trabajaron en ella.
+//
+// Si la tarea cae ENTERA dentro del período, el resultado es idéntico al de
+// `metricasTarea` (se la llama directamente): en el caso común no cambia nada.
+// ============================================================
+
+/** Período de los KPIs: [desde, hasta). */
+export interface VentanaKPI { desde: string; hasta: string }
+
+/** Recorta intervalos a la ventana. Los que quedan vacíos se descartan. */
+export function recortarIntervalos(xs: Intervalo[], v: VentanaKPI): Intervalo[] {
+  const d = msIso(v.desde), h = msIso(v.hasta)
+  const out: Intervalo[] = []
+  for (const x of xs) {
+    const ini = Math.max(msIso(x.inicio), d)
+    const fin = Math.min(msIso(x.fin), h)
+    if (fin > ini) out.push({ inicio: new Date(ini).toISOString(), fin: new Date(fin).toISOString() })
+  }
+  return out
+}
+
+/** Lo que la tarea estuvo abierta: [inicioReal, finReal ?? ahora]. */
+function tramoTarea(t: Tarea, ahoraISO?: string): Intervalo | null {
+  if (!t.inicioReal) return null
+  const fin = t.finReal ?? ahoraISO ?? new Date().toISOString()
+  return msIso(fin) > msIso(t.inicioReal) ? { inicio: t.inicioReal, fin } : null
+}
+
+/** ¿La tarea estuvo trabajándose en algún momento de la ventana? */
+export function trabajoEnVentana(t: Tarea, v: VentanaKPI, ahoraISO?: string): boolean {
+  const tr = tramoTarea(t, ahoraISO)
+  return !!tr && msIso(tr.inicio) < msIso(v.hasta) && msIso(tr.fin) > msIso(v.desde)
+}
+
+/**
+ * Tareas que TRABAJARON dentro del período (se solapan con él), terminadas o no.
+ * Es la selección que corresponde a indicadores recortados: una tarea que empezó
+ * la semana pasada y sigue abierta también le aporta minutos a esta semana.
+ */
+export function tareasEnVentana(tareas: Tarea[], v: VentanaKPI, ahoraISO?: string): Tarea[] {
+  return tareas.filter((t) => trabajoEnVentana(t, v, ahoraISO))
+}
+
+export interface MetricasVentana extends MetricasTarea {
+  /** true = la tarea cruzó un borde del período: son los números de su porción. */
+  parcial: boolean
+  /** Parte del estándar imputada al período (1 = entera, 0 = abierta o fuera). */
+  fraccion: number
+}
+
+/**
+ * Métricas de UNA tarea restringidas a la ventana, con el estándar prorrateado.
+ * Todo se mide en minutos HÁBILES (noches, fines de semana, feriados y ausencias
+ * fuera), igual que `metricasTarea`.
+ */
+export function metricasTareaEnVentana(t: Tarea, v: VentanaKPI, ahoraISO?: string, huecoMin = 0): MetricasVentana {
+  const ahora = ahoraISO ?? new Date().toISOString()
+  const corte = t.finReal ? undefined : ahora
+  const tr = tramoTarea(t, ahora)
+
+  // Caso común: la tarea cae ENTERA dentro del período -> idéntico a lo de siempre.
+  if (tr && msIso(tr.inicio) >= msIso(v.desde) && msIso(tr.fin) <= msIso(v.hasta)) {
+    return { ...metricasTarea(t, corte, huecoMin), parcial: false, fraccion: t.finReal ? 1 : 0 }
+  }
+  const est = tiempoEstimadoMin(t)
+  const nada = { ...derivarMetricas(0, 0, 0, 0, 0, esReparacion(t)), parcial: true, fraccion: 0 }
+  if (!tr) return { ...derivarMetricas(est, 0, 0, 0, 0, esReparacion(t)), parcial: false, fraccion: 0 }
+
+  // Porción de la tarea que cae en la ventana.
+  const [porcion] = recortarIntervalos([tr], v)
+  if (!porcion) return nada
+  const vp: VentanaKPI = { desde: porcion.inicio, hasta: porcion.fin }
+
+  const recup = minutosRecupTarea(t)
+  const { prod, noProd } = cubosDePausas(t, ahora)
+  const wall = calcularTiempoNetoProductivo(new Date(porcion.inicio), new Date(porcion.fin), {
+    recupMin: recup, sinAlmuerzo: true, operarioId: t.operarioId,
+  })
+  // Mismas reglas que la tarea entera: pausas fusionadas, y donde un almuerzo
+  // pisa una demora gana el almuerzo. Solo que todo recortado a la porción.
+  const noProdW = medirIntervalos(fusionarIntervalos(recortarIntervalos(noProd, vp)), recup, t.operarioId)
+  const justW = medirIntervalos(restarIntervalos(recortarIntervalos(prod, vp), noProd), recup, t.operarioId)
+
+  const real = Math.round(Math.max(0, wall - noProdW))
+  const justificada = Math.round(justW)
+  const noProductivo = Math.round(noProdW)
+
+  // Prorrateo del estándar: solo para tareas TERMINADAS (hace falta el total).
+  let fraccion = 0
+  if (t.finReal) {
+    const tot = metricasTarea(t)
+    const netoTot = tot.real - tot.justificada
+    if (netoTot > 0) fraccion = Math.max(0, real - justificada) / netoTot
+    else if (tot.real > 0) fraccion = real / tot.real
+    fraccion = Math.min(1, Math.max(0, fraccion))
+  }
+  const estimado = Math.round(est * fraccion)
+
+  // El tiempo muerto (informativo) se imputa al período en que arrancó la tarea.
+  const arrancoAca = msIso(t.inicioReal!) >= msIso(v.desde) && msIso(t.inicioReal!) < msIso(v.hasta)
+  const hueco = arrancoAca ? Math.max(0, Math.round(huecoMin)) : 0
+
+  return { ...derivarMetricas(estimado, real, justificada, noProductivo, hueco, esReparacion(t)), parcial: true, fraccion }
 }
 
 // ============================================================
@@ -455,13 +604,26 @@ export interface OEE {
 //  Disponibilidad = tiempo operativo / tiempo bruto (bruto - paradas) / bruto
 //  Rendimiento    = tiempo estandar / tiempo neto (ideal vs real efectivo)
 //  Calidad        = piezas OK / piezas totales
-export function calcularOEE(tareas: Tarea[]): OEE {
+export function calcularOEE(tareas: Tarea[], v?: VentanaKPI): OEE {
   // v1.8: las reparaciones son tiempo no productivo -> NO entran al OEE.
-  const fin = tareas.filter((t) => t.estado === 'finalizada' && t.inicioReal && t.finReal && !esReparacion(t))
+  // v2.35: con período, entran las terminadas que TRABAJARON en él, con su
+  // porción de tiempo y su parte prorrateada del estándar.
+  const fin = tareas.filter((t) => t.estado === 'finalizada' && t.inicioReal && t.finReal && !esReparacion(t)
+    && (!v || trabajoEnVentana(t, v)))
   if (fin.length === 0) return { disponibilidad: 0, rendimiento: 0, calidad: 0, oee: 0 }
 
   let bruto = 0, paradas = 0, estandar = 0, neto = 0, ok = 0
   for (const t of fin) {
+    if (t.calidadOk !== false) ok++
+    if (v) {
+      const m = metricasTareaEnVentana(t, v)
+      if (m.real <= 0) continue
+      bruto += m.real
+      paradas += m.justificada
+      neto += Math.max(1, m.real - m.justificada)
+      estandar += m.estimado
+      continue
+    }
     // Base = tiempo disponible (sin almuerzo); las paradas son solo productivas.
     const base = Math.max(1, tiempoDisponible(t))
     const par = minutosParada(t)
@@ -469,7 +631,6 @@ export function calcularOEE(tareas: Tarea[]): OEE {
     paradas += par
     neto += Math.max(1, base - par)
     estandar += t.tiempoEstandarMin
-    if (t.calidadOk !== false) ok++
   }
   const disponibilidad = bruto > 0 ? (bruto - paradas) / bruto : 0
   const rendimiento = neto > 0 ? Math.min(1, estandar / neto) : 0
@@ -512,14 +673,18 @@ export interface DesvioModelo {
 // La justificada sale de minutosParada(), que fusiona intervalos superpuestos y
 // le da prioridad al almuerzo: los numeros coinciden por construccion con la
 // tabla "Detalle por tarea" y con el Gantt.
-export function desviosPorModelo(tareas: Tarea[], huecos?: Map<string, number>): DesvioModelo[] {
-  const fin = tareas.filter((t) => t.estado === 'finalizada' && t.inicioReal && t.finReal && !esReparacion(t))
+export function desviosPorModelo(tareas: Tarea[], huecos?: Map<string, number>, v?: VentanaKPI): DesvioModelo[] {
+  const fin = tareas.filter((t) => t.estado === 'finalizada' && t.inicioReal && t.finReal && !esReparacion(t)
+    && (!v || trabajoEnVentana(t, v)))
   const map = new Map<string, { est: number; real: number; just: number; n: number }>()
   for (const t of fin) {
     const k = t.modelo
     // v2.03: `huecos` viene calculado sobre TODAS las tareas (ver metricasDeLista).
     // Si no se pasa, se comporta igual que antes: sin tiempo muerto.
-    const m = metricasTarea(t, undefined, huecos?.get(t.id) ?? 0) // fuente unica de la cuenta
+    // v2.35: con período, la porción recortada con el estándar prorrateado.
+    const m = v
+      ? metricasTareaEnVentana(t, v, undefined, huecos?.get(t.id) ?? 0)
+      : metricasTarea(t, undefined, huecos?.get(t.id) ?? 0) // fuente unica de la cuenta
     const cur = map.get(k) ?? { est: 0, real: 0, just: 0, n: 0 }
     cur.est += m.estimado
     cur.real += m.real
@@ -551,7 +716,7 @@ export interface ParetoItem {
 }
 
 // Pareto de demoras: causas ordenadas por minutos perdidos + % acumulado.
-export function paretoDemoras(tareas: Tarea[]): ParetoItem[] {
+export function paretoDemoras(tareas: Tarea[], v?: VentanaKPI): ParetoItem[] {
   const map = new Map<CausaParada, { min: number; ev: number }>()
   // Se itera por tarea (no flatMap) para conservar su flag de hora de recuperacion:
   // una parada en la franja 16-17h / vie 15-16h solo cuenta si la tarea la recupera.
@@ -563,9 +728,20 @@ export function paretoDemoras(tareas: Tarea[]): ParetoItem[] {
     for (const x of desglosePausas(t)) {
       if (!x.productiva) continue   // el almuerzo no es una demora
       if (x.abierta) continue       // parada en curso sin cierre: no se computa
-      if (x.minutos <= 0) continue
+      // v2.35: con período, solo los minutos de la demora que caen DENTRO de él.
+      // Una demora del viernes 14:00 al lunes 08:00 reparte sus minutos hábiles
+      // entre las dos semanas en vez de cargarse entera en una.
+      let minutos = x.minutos
+      if (v) {
+        const [dentro] = recortarIntervalos([{ inicio: x.inicio, fin: x.fin }], v)
+        minutos = dentro
+          ? calcularTiempoNetoProductivo(new Date(dentro.inicio), new Date(dentro.fin),
+            { recupMin: minutosRecupTarea(t), sinAlmuerzo: true, operarioId: t.operarioId })
+          : 0
+      }
+      if (minutos <= 0) continue
       const cur = map.get(x.causa) ?? { min: 0, ev: 0 }
-      cur.min += x.minutos
+      cur.min += minutos
       cur.ev++
       map.set(x.causa, cur)
     }
@@ -585,7 +761,7 @@ export interface EficienciaOperario {
   eficiencia: number // activos / (activos+parada)
 }
 
-export function eficienciaPorOperario(tareas: Tarea[]): Map<string, EficienciaOperario> {
+export function eficienciaPorOperario(tareas: Tarea[], v?: VentanaKPI): Map<string, EficienciaOperario> {
   const map = new Map<string, EficienciaOperario>()
   for (const t of tareas) {
     if (!t.inicioReal) continue
@@ -593,9 +769,19 @@ export function eficienciaPorOperario(tareas: Tarea[]): Map<string, EficienciaOp
     // v1.2: operarioId es opcional (se estampa al iniciar). Sin operario no hay
     // a quien atribuir la eficiencia: se omite de este KPI.
     if (!t.operarioId) continue
-    const par = minutosParada(t)
-    const bruto = t.finReal ? tiempoDisponible(t) : 0
-    const activos = Math.max(0, bruto - par)
+    let par: number, activos: number
+    if (v) {
+      // v2.35: es un indicador de FLUJO de tiempo -> se recorta al período, y
+      // las tareas todavía abiertas aportan sus minutos hasta ahora.
+      if (!trabajoEnVentana(t, v)) continue
+      const m = metricasTareaEnVentana(t, v)
+      par = m.justificada
+      activos = Math.max(0, m.real - m.justificada)
+    } else {
+      par = minutosParada(t)
+      const bruto = t.finReal ? tiempoDisponible(t) : 0
+      activos = Math.max(0, bruto - par)
+    }
     const cur = map.get(t.operarioId) ?? { operarioId: t.operarioId, activos: 0, parada: 0, eficiencia: 0 }
     cur.activos += activos
     cur.parada += par

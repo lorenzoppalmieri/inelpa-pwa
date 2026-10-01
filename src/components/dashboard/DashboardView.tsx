@@ -4,7 +4,7 @@ import { db } from '../../db/dexie'
 import { useAuth } from '../../auth/AuthContext'
 import { SECTORES, materialLabel, esSectorBobinado, BOBINADO_SECTORES, type LineaProduccion, type SectorId, type Tarea, type Maquina } from '../../types'
 import { isoWeek } from '../../lib/time'
-import { filtrarPorRango } from '../../lib/kpi'
+import { tareasEnVentana, type VentanaKPI } from '../../lib/kpi'
 import { minutosHuecoPorTarea } from '../../lib/huecos'
 import { rangoPeriodo, labelPeriodo, type Periodo } from '../../lib/periodos'
 import FiltroPeriodo from '../ui/FiltroPeriodo'
@@ -131,13 +131,19 @@ export default function DashboardView() {
 
   // KPIs: tareas del periodo elegido (dia / mes actual / anterior / anual) +
   // filtros extra por maquina y colaborador (para analisis y toma de decisiones).
+  // v2.35 — el período es una VENTANA: entran las tareas que trabajaron dentro
+  // de ella (aunque hayan empezado antes o sigan abiertas) y cada indicador
+  // cuenta solo los minutos que caen adentro. Ver "recorte por ventana" en kpi.ts.
+  const kpiVentana = useMemo<VentanaKPI>(() => {
+    const { desde, hasta } = rangoPeriodo(periodo, new Date(), kpiFecha, kpiDesde, kpiHasta)
+    return { desde, hasta }
+  }, [periodo, kpiFecha, kpiDesde, kpiHasta])
   const kpiFiltradas = useMemo(() => {
     let base = (todasTareas ?? []).filter(pasaFiltros)
     if (kpiMaquina !== 'todas') base = base.filter((t) => t.maquinaId === kpiMaquina)
     if (kpiOperario !== 'todos') base = base.filter((t) => t.operarioId === kpiOperario)
-    const { desde, hasta } = rangoPeriodo(periodo, new Date(), kpiFecha, kpiDesde, kpiHasta)
-    return filtrarPorRango(base, desde, hasta)
-  }, [todasTareas, pasaFiltros, periodo, kpiMaquina, kpiOperario, kpiFecha, kpiDesde, kpiHasta])
+    return tareasEnVentana(base, kpiVentana)
+  }, [todasTareas, pasaFiltros, kpiVentana, kpiMaquina, kpiOperario])
 
   if (!tareas || !usuarios) return <div className="meta">Cargando dashboard...</div>
 
@@ -210,7 +216,7 @@ export default function DashboardView() {
             kpiDesde={kpiDesde} setKpiDesde={setKpiDesde}
             kpiHasta={kpiHasta} setKpiHasta={setKpiHasta}
             sectoresVisibles={sectoresVisibles}
-            filtradas={filtradas} kpiFiltradas={kpiFiltradas}
+            filtradas={filtradas} kpiFiltradas={kpiFiltradas} kpiVentana={kpiVentana}
             maquinasVisibles={maquinasVisibles} operariosVisibles={operariosVisibles}
             nombreOperario={nombreOperario} nombreMaquina={nombreMaquina}
             materialTarea={materialTarea}
@@ -245,6 +251,8 @@ function DashboardCuerpo(props: {
   sectoresVisibles: typeof SECTORES
   filtradas: Tarea[]
   kpiFiltradas: Tarea[]
+  /** v2.35 — período de los KPIs, para recortar tiempos y demoras en el borde. */
+  kpiVentana: VentanaKPI
   maquinasVisibles: Maquina[]
   operariosVisibles: { id: string; nombre: string }[]
   nombreOperario: (id: string) => string
@@ -255,7 +263,7 @@ function DashboardCuerpo(props: {
   puedeMoverProduccion: boolean
   onTareaClick?: (t: Tarea) => void
 }) {
-  const { vista, linea, setLinea, sectorFiltro, setSectorFiltro, agrupar, setAgrupar, periodo, setPeriodo, kpiMaquina, setKpiMaquina, kpiOperario, setKpiOperario, kpiFecha, setKpiFecha, kpiDesde, setKpiDesde, kpiHasta, setKpiHasta, sectoresVisibles, filtradas, kpiFiltradas, maquinasVisibles, operariosVisibles, nombreOperario, nombreMaquina, materialTarea, huecos, puedeMoverProduccion, onTareaClick } = props
+  const { vista, linea, setLinea, sectorFiltro, setSectorFiltro, agrupar, setAgrupar, periodo, setPeriodo, kpiMaquina, setKpiMaquina, kpiOperario, setKpiOperario, kpiFecha, setKpiFecha, kpiDesde, setKpiDesde, kpiHasta, setKpiHasta, sectoresVisibles, filtradas, kpiFiltradas, kpiVentana, maquinasVisibles, operariosVisibles, nombreOperario, nombreMaquina, materialTarea, huecos, puedeMoverProduccion, onTareaClick } = props
 
   const periodoLabel = periodo === 'rango'
     ? `Rango ${kpiDesde} a ${kpiHasta}`
@@ -312,7 +320,7 @@ function DashboardCuerpo(props: {
               className="btn btn-primary"
               disabled={!puedeKpi}
               title={puedeKpi ? 'Descargar KPIs/OEE del periodo en CSV (Excel)' : 'No hay tareas finalizadas en el periodo'}
-              onClick={() => exportarKpisCSV(kpiFiltradas, nombreMaquina, periodoLabel)}
+              onClick={() => exportarKpisCSV(kpiFiltradas, nombreMaquina, periodoLabel, kpiVentana)}
             >⬇ Exportar KPIs (Excel)</button>
             <button
               className="btn"
@@ -342,7 +350,7 @@ function DashboardCuerpo(props: {
 
       {vista === 'gantt'
         ? <GanttOperativo tareas={filtradas} agrupar={agrupar} maquinas={maquinasVisibles} operarios={operariosVisibles} nombreOperario={nombreOperario} nombreMaquina={nombreMaquina} puedeMoverProduccion={puedeMoverProduccion} onTareaClick={onTareaClick} />
-        : <KpiPanel tareas={kpiFiltradas} nombreOperario={nombreOperario} nombreMaquina={nombreMaquina} huecos={huecos} />}
+        : <KpiPanel tareas={kpiFiltradas} nombreOperario={nombreOperario} nombreMaquina={nombreMaquina} huecos={huecos} ventana={kpiVentana} />}
 
       {/* v2.20: ya no recibe `tareas`. El modal lee TODO el historial de
           finalizadas desde Dexie: un estándar se afina con todo lo producido,

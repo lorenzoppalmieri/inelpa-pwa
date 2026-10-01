@@ -1,6 +1,6 @@
 import type { Tarea, EstadoTarea } from '../types'
 import { sectorById, esReparacion, nombreSemielaborado } from '../types'
-import { calcularOEE, metricasTarea } from './kpi'
+import { calcularOEE, metricasTarea, metricasTareaEnVentana, type VentanaKPI } from './kpi'
 import { programar } from './programacion'
 import { componentePorCodigo } from '../data/catalogo'
 import { fmtDur } from './time'
@@ -63,6 +63,8 @@ export function exportarKpisCSV(
   tareas: Tarea[],
   nombreMaquina: (id: string) => string,
   periodoLabel: string,
+  /** v2.35 — período: el OEE del CSV se recorta igual que el de la pantalla. */
+  ventana?: VentanaKPI,
 ): boolean {
   // v2.34: sin reparaciones. El OEE ya las excluía adentro de `calcularOEE`,
   // pero los contadores de "Tareas finalizadas" de este archivo las sumaban:
@@ -85,7 +87,7 @@ export function exportarKpisCSV(
   const porMaq = new Map<string, Tarea[]>()
   for (const t of fin) { const a = porMaq.get(t.maquinaId) ?? []; a.push(t); porMaq.set(t.maquinaId, a) }
   ;[...porMaq.entries()]
-    .map(([id, ts]) => ({ nombre: nombreMaquina(id), ts, oee: calcularOEE(ts) }))
+    .map(([id, ts]) => ({ nombre: nombreMaquina(id), ts, oee: calcularOEE(ts, ventana) }))
     .sort((a, b) => a.nombre.localeCompare(b.nombre))
     .forEach(({ nombre, ts, oee }) => filas.push([nombre, p1(oee.disponibilidad), p1(oee.rendimiento), p1(oee.calidad), p1(oee.oee), ts.length]))
   filas.push([])
@@ -96,13 +98,13 @@ export function exportarKpisCSV(
   const porSec = new Map<string, Tarea[]>()
   for (const t of fin) { const a = porSec.get(t.sectorId) ?? []; a.push(t); porSec.set(t.sectorId, a) }
   ;[...porSec.entries()]
-    .map(([id, ts]) => ({ nombre: sectorById(id as Tarea['sectorId']).nombre, ts, oee: calcularOEE(ts) }))
+    .map(([id, ts]) => ({ nombre: sectorById(id as Tarea['sectorId']).nombre, ts, oee: calcularOEE(ts, ventana) }))
     .sort((a, b) => a.nombre.localeCompare(b.nombre))
     .forEach(({ nombre, ts, oee }) => filas.push([nombre, p1(oee.disponibilidad), p1(oee.rendimiento), p1(oee.calidad), p1(oee.oee), ts.length]))
   filas.push([])
 
   // Total planta
-  const g = calcularOEE(fin)
+  const g = calcularOEE(fin, ventana)
   filas.push(['TOTAL PLANTA', p1(g.disponibilidad), p1(g.rendimiento), p1(g.calidad), p1(g.oee), fin.length])
 
   descargarCSV(`OEE_${slug(periodoLabel)}_${sello()}.csv`, filas)
@@ -119,6 +121,8 @@ export function exportarDetalleTareasCSV(
   etiqueta = 'detalle',
   /** v2.03 — tiempo muerto por tarea. Sin esto el CSV contradice a la tabla. */
   huecos?: Map<string, number>,
+  /** v2.35 — período: si se pasa, cada tarea va con su porción recortada, igual que la tabla. */
+  ventana?: VentanaKPI,
 ): boolean {
   const fin = tareas.filter((t) => t.estado === 'finalizada' && !esReparacion(t))
   if (fin.length === 0) return false
@@ -128,16 +132,18 @@ export function exportarDetalleTareasCSV(
   filas.push(['Filtro', etiqueta])
   filas.push(['Generado', new Date().toLocaleString('es-AR')])
   filas.push(['Tareas finalizadas', fin.length])
+  if (ventana) filas.push(['Período', `${fechaHora(ventana.desde)} a ${fechaHora(ventana.hasta)} (tareas que cruzan el borde: solo su porción)`])
   filas.push([])
   filas.push(['Tarea (semielaborado)', 'Modelo', 'N transformador', 'Colaborador', 'Estacion', 'Sector',
     'Estimado (min)', 'Real (min)', 'Tiempo muerto (min)', 'Demorado (min)',
-    'Demora justificada (min)', 'Demora sin justificar (min)'])
+    'Demora justificada (min)', 'Demora sin justificar (min)', 'Parcial'])
   for (const t of fin) {
     const comp = componentePorCodigo(t.componenteCodigo)
     // v2.03: UNA sola llamada a metricasTarea. Antes esta función recalculaba el
     // demorado por su cuenta y llamaba a tres helpers distintos, así que era otra
     // versión de la misma cuenta conviviendo con la de la tabla.
-    const m = metricasTarea(t, undefined, huecos?.get(t.id) ?? 0)
+    const mv = ventana ? metricasTareaEnVentana(t, ventana, undefined, huecos?.get(t.id) ?? 0) : null
+    const m = mv ?? metricasTarea(t, undefined, huecos?.get(t.id) ?? 0)
     filas.push([
       nombreSemielaborado(t, comp?.descripcion),
       t.modelo,
@@ -151,6 +157,7 @@ export function exportarDetalleTareasCSV(
       m.demorado,
       m.justificada,
       m.sinJustificar,
+      mv?.parcial ? 'SI' : '',
     ])
   }
   descargarCSV(`Detalle_tareas_${slug(etiqueta)}_${sello()}.csv`, filas)

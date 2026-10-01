@@ -4,7 +4,7 @@ import type { Tarea } from '../../types'
 import { esReparacion, nombreSemielaborado, causaLabel } from '../../types'
 import { componentePorCodigo } from '../../data/catalogo'
 import { fmtDur, hhmm, fechaCorta } from '../../lib/time'
-import { metricasTarea, desglosePausas } from '../../lib/kpi'
+import { metricasTarea, metricasTareaEnVentana, trabajoEnVentana, desglosePausas, type VentanaKPI } from '../../lib/kpi'
 import { auditarTiempos } from '../../lib/auditoriaTiempos'
 import TimeBalanceAlert from './TimeBalanceAlert'
 import { exportarDetalleTareasCSV } from '../../lib/export'
@@ -20,7 +20,7 @@ import FiltrosMovil from '../ui/FiltrosMovil'
 //   | Demora justificada (=suma de paradas registradas) | Demora sin justificar
 //   (=Demorado - Demora justificada = tiempo perdido sin motivo reportado).
 // ============================================================
-export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina, huecos }: {
+export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina, huecos, ventana }: {
   tareas: Tarea[]
   nombreOperario: (id: string) => string
   nombreMaquina: (id: string) => string
@@ -31,6 +31,13 @@ export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina, h
    * aparecería como si hubiera estado sin hacer nada. Ver `lib/huecos.ts`.
    */
   huecos?: Map<string, number>
+  /**
+   * v2.35 — período. Una tarea que cruzó el borde muestra SU PORCIÓN: los
+   * minutos que caen dentro del período y la parte proporcional del estándar.
+   * Se marca como "parcial" para que nadie se sorprenda de ver una bobina con
+   * la mitad del tiempo.
+   */
+  ventana?: VentanaKPI
 }) {
   const { usuario } = useAuth()
   const eventosSGO = useLiveQuery(() => db.eventosSGO.toArray(), []) ?? []
@@ -78,7 +85,8 @@ export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina, h
   }
 
   const filas = useMemo(() => {
-    const fin = tareas.filter((t) => t.estado === 'finalizada' && !esReparacion(t))
+    const fin = tareas.filter((t) => t.estado === 'finalizada' && !esReparacion(t)
+      && (!ventana || trabajoEnVentana(t, ventana)))
     const txt = q.trim().toLowerCase()
     return fin.map((t) => {
       const comp = componentePorCodigo(t.componenteCodigo)
@@ -87,10 +95,13 @@ export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina, h
       // recalculaba el demorado por su cuenta (`Real - Estimado`) y llamaba tres
       // veces a las funciones de kpi; con eso ya habia dos versiones de la misma
       // cuenta conviviendo, que es exactamente como empiezan los descuadres.
-      const m = metricasTarea(t, undefined, huecos?.get(t.id) ?? 0)
+      // v2.35: con período, la versión recortada (misma cuenta, ver kpi.ts).
+      const mv = ventana ? metricasTareaEnVentana(t, ventana, undefined, huecos?.get(t.id) ?? 0) : null
+      const m = mv ?? metricasTarea(t, undefined, huecos?.get(t.id) ?? 0)
       return {
         t,
         id: t.id,
+        parcial: mv?.parcial ?? false,
         nombre,
         nro: t.nroTransformador ?? '',
         operario: t.operarioId ? nombreOperario(t.operarioId) : '—',
@@ -110,7 +121,7 @@ export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina, h
       .filter((r) => !soloDemora || r.sinJust > 0)
       .filter((r) => !idsAuditoria || idsAuditoria.includes(r.id))
       .sort((a, b) => b.sinJust - a.sinJust)
-  }, [tareas, q, soloDemora, idsAuditoria, nombreOperario, nombreMaquina, huecos])
+  }, [tareas, q, soloDemora, idsAuditoria, nombreOperario, nombreMaquina, huecos, ventana])
 
   // v1.44: TOTALES del acumulado. Se calculan SOLO sobre las filas que están
   // efectivamente en pantalla (ya filtradas por el buscador y el check de demora),
@@ -168,7 +179,7 @@ export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina, h
           className="btn btn-primary"
           disabled={filas.length === 0}
           title={filas.length === 0 ? 'No hay tareas para exportar' : 'Descargar la tabla filtrada en Excel (CSV)'}
-          onClick={() => exportarDetalleTareasCSV(filas.map((r) => r.t), nombreOperario, nombreMaquina, 'detalle', huecos)}
+          onClick={() => exportarDetalleTareasCSV(filas.map((r) => r.t), nombreOperario, nombreMaquina, 'detalle', huecos, ventana)}
         >⬇ Exportar (Excel)</button>
       </FiltrosMovil>
 
@@ -279,7 +290,16 @@ export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina, h
                 + ` · ${fechaCorta(d.inicio)} ${hhmm(d.inicio)}`
                 + (d.obs ? `\n   "${d.obs}"` : '')).join('\n')
               return <tr key={r.id} className={r.sinJust > 0 ? 'fila-demora' : ''}>
-                <td data-label="Tarea">{r.nombre}{r.nro ? ` · ${r.nro}` : ''}</td>
+                <td data-label="Tarea">
+                  {r.nombre}{r.nro ? ` · ${r.nro}` : ''}
+                  {/* v2.35: la tarea cruzó el borde del período; los números son su porción. */}
+                  {r.parcial && (
+                    <span className="meta" style={{ marginLeft: 6, color: 'var(--naranja)' }}
+                      title="La tarea empezó o terminó fuera del período: se muestran solo los minutos que cayeron dentro, con la parte proporcional del estándar.">
+                      ◐ parcial
+                    </span>
+                  )}
+                </td>
                 <td data-label="Colaborador">{r.operario}</td>
                 <td data-label="Estación">{r.maquina}</td>
                 <td className="num" data-label="Estimado">{fmtDur(r.estimado)}</td>

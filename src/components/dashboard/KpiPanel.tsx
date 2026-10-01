@@ -1,5 +1,5 @@
 import type { Tarea } from '../../types'
-import { calcularOEE, desviosPorModelo, eficienciaPorOperario, excedeTolerancia, pct } from '../../lib/kpi'
+import { calcularOEE, desviosPorModelo, eficienciaPorOperario, excedeTolerancia, filtrarPorRango, pct, type VentanaKPI } from '../../lib/kpi'
 import { fmtDur } from '../../lib/time'
 import ParetoDemoras from './ParetoDemoras'
 import EstimadoVsRealizado from './EstimadoVsRealizado'
@@ -23,7 +23,7 @@ function KpiBar({ label, value }: { label: string; value: number }) {
   )
 }
 
-export default function KpiPanel({ tareas, nombreOperario, nombreMaquina, huecos }: {
+export default function KpiPanel({ tareas, nombreOperario, nombreMaquina, huecos, ventana }: {
   tareas: Tarea[]
   nombreOperario: (id: string) => string
   nombreMaquina: (id: string) => string
@@ -33,10 +33,20 @@ export default function KpiPanel({ tareas, nombreOperario, nombreMaquina, huecos
    * filtrada por sector y período y no serviría para calcularlo.
    */
   huecos?: Map<string, number>
+  /**
+   * v2.35 — período elegido. Con él, cada indicador cuenta solo los minutos que
+   * transcurrieron DENTRO del período: demoras y tiempos se recortan en el borde
+   * y el estándar de las tareas que cruzan se prorratea. Ver `metricasTareaEnVentana`.
+   */
+  ventana?: VentanaKPI
 }) {
-  const oee = calcularOEE(tareas)
-  const desvios = desviosPorModelo(tareas, huecos)
-  const efic = [...eficienciaPorOperario(tareas).values()].sort((a, b) => b.eficiencia - a.eficiencia)
+  const oee = calcularOEE(tareas, ventana)
+  const desvios = desviosPorModelo(tareas, huecos, ventana)
+  const efic = [...eficienciaPorOperario(tareas, ventana).values()].sort((a, b) => b.eficiencia - a.eficiencia)
+  // "Tiempos por semielaborado" es la duración de PIEZAS ENTERAS: un pedazo de
+  // bobina no sirve para una mediana. Va con las terminadas dentro del período
+  // (regla de v2.22), no con el solapamiento que usa el resto.
+  const piezasDelPeriodo = ventana ? filtrarPorRango(tareas, ventana.desde, ventana.hasta) : tareas
 
   return (
     <div>
@@ -55,7 +65,7 @@ export default function KpiPanel({ tareas, nombreOperario, nombreMaquina, huecos
 
       {/* Tiempo estimado vs realizado (por maquina / modelo) */}
       <div className="section-title">Tiempo estimado vs realizado</div>
-      <EstimadoVsRealizado tareas={tareas} nombreMaquina={nombreMaquina} huecos={huecos} />
+      <EstimadoVsRealizado tareas={tareas} nombreMaquina={nombreMaquina} huecos={huecos} ventana={ventana} />
 
       {/* Neto vs Estandar por modelo.
           v2.00: la barra graficaba el Real CRUDO (con las esperas ya justificadas
@@ -95,7 +105,7 @@ export default function KpiPanel({ tareas, nombreOperario, nombreMaquina, huecos
           cargo esta bobina?"), mientras que el detalle sirve para auditar una
           tarea puntual. */}
       <div className="section-title">Tiempos reales por semielaborado</div>
-      <TiemposPorSemi tareas={tareas} />
+      <TiemposPorSemi tareas={piezasDelPeriodo} />
 
       {/* v1.16: detalle por tarea con las 5 metricas canonicas (filtrable). */}
       <div className="section-title">Detalle por tarea (Estimado · Real · Demorado · Demora justificada · Demora sin justificar)</div>
@@ -103,11 +113,11 @@ export default function KpiPanel({ tareas, nombreOperario, nombreMaquina, huecos
           que la app tiene guardadas y cómo se arma la demora sin justificar. */}
       <DiagnosticoTiempos tareas={tareas} nombreOperario={nombreOperario} />
 
-      <DetalleTareas tareas={tareas} nombreOperario={nombreOperario} nombreMaquina={nombreMaquina} huecos={huecos} />
+      <DetalleTareas tareas={tareas} nombreOperario={nombreOperario} nombreMaquina={nombreMaquina} huecos={huecos} ventana={ventana} />
 
       {/* Pareto de demoras */}
       <div className="section-title">Pareto de demoras</div>
-      <ParetoDemoras tareas={tareas} />
+      <ParetoDemoras tareas={tareas} ventana={ventana} />
 
       {/* Eficiencia por operario */}
       <div className="section-title">Eficiencia por colaborador (activo vs parada)</div>

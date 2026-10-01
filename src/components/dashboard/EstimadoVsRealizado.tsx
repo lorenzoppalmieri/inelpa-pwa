@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { Tarea } from '../../types'
 import { esReparacion } from '../../types'
-import { metricasTarea, excedeTolerancia, TOLERANCIA_DESVIO } from '../../lib/kpi'
+import { metricasTarea, metricasTareaEnVentana, trabajoEnVentana, excedeTolerancia, TOLERANCIA_DESVIO, type VentanaKPI } from '../../lib/kpi'
 
 // ============================================================
 // KPI Tiempo Estimado vs NETO (sin librerias de graficos: divs + CSS).
@@ -66,15 +66,20 @@ export default function EstimadoVsRealizado({ tareas, nombreMaquina, huecos }: {
    * `lib/huecos.ts`. Si no se pasa, el gráfico se comporta como antes de v2.03.
    */
   huecos?: Map<string, number>
+  /** v2.35: período. Con él, cada tarea aporta su porción y su estándar prorrateado. */
+  ventana?: VentanaKPI
 }) {
   const [agrupar, setAgrupar] = useState<Agrupar>('maquina')
 
   const filas = useMemo<Fila[]>(() => {
-    const fin = tareas.filter((t) => t.estado === 'finalizada' && !esReparacion(t))
+    const fin = tareas.filter((t) => t.estado === 'finalizada' && !esReparacion(t)
+      && (!ventana || trabajoEnVentana(t, ventana)))
     const map = new Map<string, Fila>()
     for (const t of fin) {
       const clave = agrupar === 'maquina' ? nombreMaquina(t.maquinaId) : t.modelo
-      const m = metricasTarea(t, undefined, huecos?.get(t.id) ?? 0)
+      const m = ventana
+        ? metricasTareaEnVentana(t, ventana, undefined, huecos?.get(t.id) ?? 0)
+        : metricasTarea(t, undefined, huecos?.get(t.id) ?? 0)
       const cur = map.get(clave) ?? { clave, estimado: 0, real: 0, justificada: 0, neto: 0, n: 0 }
       cur.estimado += m.estimado
       cur.real += m.real
@@ -87,7 +92,7 @@ export default function EstimadoVsRealizado({ tareas, nombreMaquina, huecos }: {
     }
     // Peor desvio primero (lo que mas conviene mirar).
     return [...map.values()].sort((a, b) => desvio(b) - desvio(a))
-  }, [tareas, agrupar, nombreMaquina, huecos])
+  }, [tareas, agrupar, nombreMaquina, huecos, ventana])
 
   // Escala global (compara magnitudes entre filas y dentro de cada fila).
   const max = Math.max(1, ...filas.flatMap((f) => [f.estimado, f.neto]))

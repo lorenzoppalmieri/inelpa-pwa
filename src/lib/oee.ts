@@ -89,9 +89,15 @@ const vacio = (): ComponentesOEE => ({
   turnoMin: 0, paradasMin: 0, operativoMin: 0, estandarMin: 0, piezas: 0, piezasOk: 0,
 })
 
-/** ¿La tarea trabajó dentro de la ventana? Se mira por su inicio real. */
+/**
+ * ¿La tarea trabajó dentro de la ventana? Se mira por su inicio real.
+ * v2.35: por instante (ms), no como texto — `...Z` contra `...+00:00` del mismo
+ * momento comparaba distinto y las tareas del borde entraban o no al azar.
+ */
 function dentro(t: Tarea, v: Ventana): boolean {
-  return !!t.inicioReal && t.inicioReal >= v.desdeISO && t.inicioReal < v.hastaISO
+  if (!t.inicioReal) return false
+  const ms = new Date(t.inicioReal).getTime()
+  return Number.isFinite(ms) && ms >= new Date(v.desdeISO).getTime() && ms < new Date(v.hastaISO).getTime()
 }
 
 /**
