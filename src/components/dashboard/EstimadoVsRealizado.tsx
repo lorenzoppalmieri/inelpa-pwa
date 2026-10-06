@@ -57,7 +57,7 @@ function desvio(f: Fila): number {
   return f.estimado > 0 ? (f.neto - f.estimado) / f.estimado : 0
 }
 
-export default function EstimadoVsRealizado({ tareas, nombreMaquina, huecos }: {
+export default function EstimadoVsRealizado({ tareas, nombreMaquina, huecos, ventana }: {
   tareas: Tarea[]
   nombreMaquina: (id: string) => string
   /**
