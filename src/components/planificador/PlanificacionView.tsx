@@ -906,10 +906,15 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
     // v1.17: el lapso "finalizada -> reabierta" se registra como una parada NO
     // productiva automatica (causa 'reapertura'), para que ese tiempo muerto (error
     // de carga o retrabajo) NO cuente ni en Real ni en Neto al re-finalizar.
+    // v2.36: la tarea conserva TODOS sus atributos (tipo, orden, semielaborado,
+    // estándar, semanaObjetivo): una de Fabricación sigue siendo de Fabricación.
+    // Solo cambia el estado y se limpia el cierre. La parada automática ahora se
+    // llama "Tarea cerrada temporalmente" (antes decía "retrabajo").
     const ahora = new Date().toISOString()
     const paradas = [...t.paradas]
-    if (t.finReal && t.finReal < ahora) {
-      paradas.push({ id: crypto.randomUUID(), tareaId: t.id, causa: 'reapertura', inicio: t.finReal, fin: ahora, observacion: 'Tiempo entre finalización y reapertura (no productivo)' })
+    // Comparación por instante, no como texto (`Z` vs `+00:00`).
+    if (t.finReal && new Date(t.finReal).getTime() < new Date(ahora).getTime()) {
+      paradas.push({ id: crypto.randomUUID(), tareaId: t.id, causa: 'reapertura', inicio: t.finReal, fin: ahora, observacion: 'Tiempo que la tarea estuvo cerrada antes de reabrirse (no cuenta como trabajado)' })
     }
     await guardarTarea({ ...t, estado: 'en_proceso', finReal: undefined, calidadOk: undefined, defecto: undefined, paradas })
     setMsg('Tarea reabierta: el tiempo entre la finalización y ahora no se cuenta.')

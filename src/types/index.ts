@@ -1586,7 +1586,12 @@ export const CAUSAS_PARADA: CausaParadaDef[] = [
   // v1.17: parada AUTOMATICA (no la elige el operario; areas:[] la oculta del modal).
   // Cubre el lapso entre que una tarea se finaliza y se REABRE: tiempo NO productivo
   // que no debe contar (error de carga o retrabajo).
-  { id: 'reapertura', label: 'Reapertura / retrabajo (no productivo)', categoria: 'no_productiva', areas: [] },
+  // v2.36: el nombre era "Reapertura / retrabajo (no productivo)". En el Gantt la
+  // tarea parecía haberse convertido en retrabajo, cuando el caso más común es una
+  // tarea de FABRICACIÓN que se cierra un tiempo por falta de material. La
+  // reapertura nunca tocó el tipo de la tarea: sólo cambia el nombre. El `id`
+  // queda igual (lo referencian las paradas guardadas y la FK de Supabase).
+  { id: 'reapertura', label: 'Tarea cerrada temporalmente', categoria: 'no_productiva', areas: [] },
 ]
 
 // v1.11: causas de ABASTECIMIENTO que disparan la alerta de Logistica cuando una
