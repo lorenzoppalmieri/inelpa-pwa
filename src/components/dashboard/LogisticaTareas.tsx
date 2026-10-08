@@ -4,7 +4,7 @@ import { db } from '../../db/dexie'
 import { useAuth } from '../../auth/AuthContext'
 import { esSuperAdmin } from '../../auth/roles'
 import type { TareaLogistica, PrioridadLog, PlantillaRecurrente } from '../../types'
-import { PRIORIDADES_LOG, RESPONSABLES_LOGISTICA, MOTIVOS_BLOQUEO_LOG, responsablesDe } from '../../types'
+import { PRIORIDADES_LOG, RESPONSABLES_LOGISTICA, MOTIVOS_BLOQUEO_LOG, responsablesDe, MOTIVO_REAPERTURA_LOG, vecesReabierta } from '../../types'
 import { guardarTareaLogistica, eliminarTareaLogistica, guardarPlantilla } from '../../sync/syncEngine'
 import { fmtDur, fechaCorta, hhmm } from '../../lib/time'
 import { minutosLaboralesLogistica } from '../../lib/calendario'
@@ -337,7 +337,31 @@ export default function LogisticaTareas({
   }
   async function reabrir(t: TareaLogistica) {
     // Reabre a "en curso" si ya se habia iniciado, o a "pendiente" si nunca arranco.
-    await guardarTareaLogistica({ ...t, estado: t.iniciada ? 'en_curso' : 'pendiente', pausadaEn: undefined, bloqueoMotivo: undefined, finalizada: undefined, finalizadaPor: undefined })
+    //
+    // v1.82: el hueco entre la finalización y ahora NO es trabajo. Antes se
+    // borraba `finalizada` a secas y el tiempo activo pasaba a medirse de nuevo
+    // desde el inicio hasta AHORA, así que una tarea cerrada el lunes y reabierta
+    // el jueves sumaba tres días de "trabajo" que nadie hizo.
+    // Se descuenta igual que una pausa y queda registrado para que se vea.
+    const ahora = new Date().toISOString()
+    const muerto = t.finalizada ? minutosLaboralesLogistica(t.finalizada, ahora) : 0
+    const bloqueos = muerto > 0 && t.finalizada
+      ? [...(t.bloqueos ?? []), { motivo: MOTIVO_REAPERTURA_LOG, inicio: t.finalizada, fin: ahora }]
+      : t.bloqueos
+
+    await guardarTareaLogistica({
+      ...t,
+      estado: t.iniciada ? 'en_curso' : 'pendiente',
+      pausadaEn: undefined,
+      bloqueoMotivo: undefined,
+      finalizada: undefined,
+      finalizadaPor: undefined,
+      minutosPausada: (t.minutosPausada ?? 0) + muerto,
+      bloqueos,
+    })
+    setMsg(muerto > 0
+      ? `Tarea reabierta. Las ${fmtDur(muerto)} entre el cierre y ahora no se cuentan como trabajo.`
+      : 'Tarea reabierta.')
   }
 
   // Minutos de pausa acumulados (incluye la pausa vigente si está pausada ahora).
@@ -601,6 +625,7 @@ export default function LogisticaTareas({
               <h3><span className={'prio-chip prio-' + t.prioridad}>{PRIO_LABEL[t.prioridad]}</span> {t.titulo}</h3>
               <div className="meta">
                 {respTxt(t)} · Pedida {fechaCorta(t.creada)} {hhmm(t.creada)} · Finalizada {t.finalizada ? `${fechaCorta(t.finalizada)} ${hhmm(t.finalizada)}` : '—'} · <strong style={{ color: 'var(--estado-fin)' }}>resuelta en {fmtDur(minsActivos(t))}</strong>{t.estimadoMin ? <> · estimado {fmtDur(t.estimadoMin)}</> : null}{t.minutosPausada ? <> · pausas: {fmtDur(t.minutosPausada)}</> : null}
+                {vecesReabierta(t) > 0 ? <> · <strong style={{ color: 'var(--naranja)' }}>reabierta {vecesReabierta(t)} vez(ces)</strong></> : null}
               </div>
               {t.detalle ? <div className="meta texto-libre">{t.detalle}</div> : null}
               {t.notaCierre && <div className="meta texto-libre" style={{ fontStyle: 'italic' }}>📝 {t.notaCierre}</div>}

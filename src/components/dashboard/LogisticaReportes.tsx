@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
 import type { TareaLogistica, PrioridadLog } from '../../types'
-import { responsablesDe, RESPONSABLES_LOGISTICA } from '../../types'
+import { responsablesDe, RESPONSABLES_LOGISTICA, esBloqueoNoComputable } from '../../types'
 import { fmtDur } from '../../lib/time'
 import { minutosLaboralesLogistica } from '../../lib/calendario'
 import { minutosActivosLog, minutosEsperaLog } from '../../lib/tiemposLogistica'
@@ -117,17 +117,22 @@ export default function LogisticaReportes() {
     const conteoDia = idx.map((d, i) => ({ dia: dias[i], n: tp.filter((t) => new Date(t.creada).getDay() === d).length }))
 
     // 7) Pareto de tiempo perdido por CAUSA de bloqueo (los abiertos cuentan hasta ahora).
+    // v1.82: el tiempo muerto por REAPERTURA descuenta del tiempo activo pero NO
+    // entra acá: no es una traba de planta a corregir, es una tarea que se cerró
+    // antes de tiempo. Si entrara, taparía las causas reales del ranking.
     const bloq = new Map<string, { min: number; n: number }>()
+    let reaperturaMin = 0, reaperturaN = 0
     for (const t of tp) for (const b of t.bloqueos ?? []) {
       const min = minutosLaboralesLogistica(b.inicio, b.fin ?? ahoraISO)
       if (min <= 0) continue
+      if (esBloqueoNoComputable(b.motivo)) { reaperturaMin += min; reaperturaN++; continue }
       const cur = bloq.get(b.motivo) ?? { min: 0, n: 0 }
       cur.min += min; cur.n++; bloq.set(b.motivo, cur)
     }
     const bloqueos = [...bloq.entries()].map(([motivo, v]) => ({ motivo, min: v.min, n: v.n })).sort((a, b) => b.min - a.min)
     const bloqueoTotal = bloqueos.reduce((a, b) => a + b.min, 0)
 
-    return { finalizadas, abiertas, pendientesSinTomar, promGeneral, porVolumen, porVelocidad, cargaArr, sinAsignar, totalAbiertas, shareMax, porPrioridad, espera, conteoDia, bloqueos, bloqueoTotal }
+    return { finalizadas, abiertas, pendientesSinTomar, promGeneral, porVolumen, porVelocidad, cargaArr, sinAsignar, totalAbiertas, shareMax, porPrioridad, espera, conteoDia, bloqueos, bloqueoTotal, reaperturaMin, reaperturaN }
   }, [tareas, ahoraISO, periodo])
 
   const selectorPeriodo = (
@@ -224,6 +229,13 @@ export default function LogisticaReportes() {
               valor={`${fmtDur(min)} · ${Math.round((min / rep.bloqueoTotal) * 100)}%`} ratio={min / maxBloq} color="var(--rojo)" />
           ))}
         <div className="meta" style={{ marginTop: 6 }}>Dónde se pierde más tiempo por trabas externas: prioridad para reforzar procesos o material.</div>
+        {/* v1.82: la reapertura descuenta tiempo pero no es una traba a corregir. */}
+        {rep.reaperturaN > 0 && (
+          <div className="meta" style={{ marginTop: 4 }}>
+            No entra en el ranking: <strong>{fmtDur(rep.reaperturaMin)}</strong> de tiempo muerto por {rep.reaperturaN} reapertura(s).
+            Se descuenta del tiempo activo, pero es una tarea cerrada antes de tiempo, no una traba de planta.
+          </div>
+        )}
       </div>
 
       {/* 3) Carga abierta por operario */}

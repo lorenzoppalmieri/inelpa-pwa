@@ -599,6 +599,30 @@ export const MOTIVOS_BLOQUEO_LOG: string[] = [
   'Esperando indicación', 'Acceso/lugar ocupado', 'Otro',
 ]
 
+// v1.82 — TIEMPO MUERTO POR REAPERTURA.
+// Si una tarea se finaliza y después se reabre, las horas que pasaron en el
+// medio NO son trabajo: nadie estuvo haciendo nada. Antes se borraba `finalizada`
+// y el tiempo activo volvía a medirse desde el inicio hasta AHORA, así que ese
+// hueco se sumaba como si se hubiera trabajado.
+//
+// Se registra como un bloqueo cerrado con este motivo reservado. Se usa la
+// columna `bloqueos` que YA existe (jsonb) en vez de crear una nueva: una
+// columna sin migrar hace fallar el upsert entero y la tarea se pierde.
+//
+// NO es elegible por el operario (no está en MOTIVOS_BLOQUEO_LOG) y queda FUERA
+// del Pareto de cuellos de botella: no es una traba de planta a corregir.
+export const MOTIVO_REAPERTURA_LOG = 'Reapertura (tiempo muerto)'
+
+/** ¿Este bloqueo descuenta tiempo pero NO entra al ranking de causas? */
+export function esBloqueoNoComputable(motivo: string): boolean {
+  return motivo === MOTIVO_REAPERTURA_LOG
+}
+
+/** Cuántas veces se reabrió una tarea (para mostrarlo en la tarjeta). */
+export function vecesReabierta(t: TareaLogistica): number {
+  return (t.bloqueos ?? []).filter((b) => esBloqueoNoComputable(b.motivo)).length
+}
+
 // Lista de colaboradores asignados a una tarea logistica. Usa el array nuevo
 // (responsables) y cae al campo legacy (responsable) para tareas viejas.
 export function responsablesDe(t: TareaLogistica): string[] {
