@@ -45,6 +45,37 @@ export function capacidadRecurso(sectorId: SectorId): number {
 }
 
 // ============================================================
+// v2.37 — ENCADENADO ESTRICTO POR COLABORADOR (solo Soldadura Cuba y Tapa Dist.)
+//
+// Reclamo (13/10/2026): en Soldadura Distribución el "trencito" no funcionaba.
+// A unos colaboradores se les apilaban las tareas y a otros se les iban a fines
+// de octubre con días vacíos en el medio. Bobinado y Montaje andan bien.
+//
+// CAUSA: la cascada encola cada pendiente por MÁQUINA y por OPERARIO. En
+// bobinado eso es lo mismo (cada bobinador tiene su bobinadora). En soldadura la
+// "máquina" es un BOX, y los boxes no están atados a una persona: si Rocío carga
+// tareas de dos soldadores en el mismo box, el segundo espera a que el primero
+// termine TODA su cola en ese box -> sus barras saltan días o semanas aunque él
+// esté libre. Además una fecha planificada a futuro funcionaba como "no antes
+// de" y clavaba la tarea en esa fecha.
+//
+// REGLA para estos sectores (y SOLO estos):
+//  - las pendientes se encadenan por COLABORADOR, en orden de asignación, una
+//    pegada a la otra: arranca donde termina la anterior (o ahora);
+//  - el box NO frena (sigue anotándose, pero no se espera por él);
+//  - la fecha planificada no se usa como reserva.
+// Las iniciadas no cambian: son hechos y siguen ocupando al colaborador hasta su
+// fin (o hasta ahora si se pasaron del estimado), así que empujan a las demás.
+// El resto de los sectores no pasa por acá: su cálculo queda idéntico.
+// ============================================================
+const SECTORES_ENCADENADO_ESTRICTO: ReadonlySet<SectorId> = new Set<SectorId>(['soldadura_dist'])
+
+export function esEncadenadoEstricto(t: Pick<Tarea, 'sectorId' | 'operarioId'>): boolean {
+  // Sin colaborador no hay a quién encadenar: se usa la lógica general.
+  return SECTORES_ENCADENADO_ESTRICTO.has(t.sectorId) && !!t.operarioId
+}
+
+// ============================================================
 // Programacion con auto-shift (multi-dia). Lo usan el Gantt (para dibujar) y la
 // exportacion, para volcar la misma cola que el usuario ve en pantalla.
 //
@@ -139,6 +170,16 @@ export function programar(tareas: Tarea[], ahoraISO: string, grupo: GrupoAlmuerz
   // que Montaje PA Rural pueda llevar dos partes activas en paralelo.
   const finMaquina = new Map<string, Huecos>()
   const finOperario = new Map<string, Huecos>()
+  // v2.37: hasta cuándo está ocupada cada PERSONA, con todo lo que tiene (de
+  // cualquier sector). Solo lo LEEN las tareas de encadenado estricto; para el
+  // resto es un registro más que no cambia nada. Va aparte de `finOperario`
+  // porque la capacidad de esos huecos depende del sector de la primera tarea
+  // que se vio de esa persona.
+  const ocupadoHasta = new Map<string, number>()
+  const anotarOperario = (op: string | undefined, finMs: number) => {
+    if (!op || !Number.isFinite(finMs)) return
+    ocupadoHasta.set(op, Math.max(ocupadoHasta.get(op) ?? -Infinity, finMs))
+  }
   const huecosDe = (mapa: Map<string, Huecos>, clave: string, sectorId: SectorId): Huecos => {
     let h = mapa.get(clave)
     if (!h) { h = new Huecos(capacidadRecurso(sectorId)); mapa.set(clave, h) }
@@ -202,7 +243,8 @@ export function programar(tareas: Tarea[], ahoraISO: string, grupo: GrupoAlmuerz
   //      hasta el lunes, que es justo el hueco que se quería eliminar.
   // ============================================================
   const ahoraMs = ms(ahoraISO)
-  const reservada = (t: Tarea) => ms(t.inicioPlanificado) > ahoraMs
+  // v2.37: en los sectores de encadenado estricto no hay reservas: todo es cola.
+  const reservada = (t: Tarea) => !esEncadenadoEstricto(t) && ms(t.inicioPlanificado) > ahoraMs
   // Instante de asignación. Las tareas viejas sin `creada` caen al planificado,
   // igual que la clave FIFO de la tablet (claveFifoTarea en types).
   const asignada = (t: Tarea): number => {
@@ -246,6 +288,21 @@ export function programar(tareas: Tarea[], ahoraISO: string, grupo: GrupoAlmuerz
       // El recurso queda ocupado hasta el fin (real si cerro, proyectado si sigue).
       if (mk) huecosDe(finMaquina, mk, t.sectorId).ocupar(ms(endISO))
       if (ok) huecosDe(finOperario, ok, t.sectorId).ocupar(ms(endISO))
+      anotarOperario(ok, ms(endISO))
+      continue
+    }
+
+    // v2.37: encadenado estricto (Soldadura Dist.). Arranca donde se libera el
+    // COLABORADOR, o ahora; ni el box ni la fecha planificada lo corren.
+    if (esEncadenadoEstricto(t)) {
+      let iniMs = Math.max(ahoraMs, ocupadoHasta.get(ok!) ?? -Infinity)
+      if (!Number.isFinite(iniMs)) iniMs = ahoraMs
+      const iniISO = proximoInstanteLaborable(new Date(iniMs).toISOString(), grupo, recup, t.operarioId)
+      const finISO = sumar(iniISO, t.tiempoEstandarMin)
+      out.set(t.id, { startISO: iniISO, endISO: finISO, estimada: true })
+      if (mk) huecosDe(finMaquina, mk, t.sectorId).ocupar(ms(finISO))
+      if (ok) huecosDe(finOperario, ok, t.sectorId).ocupar(ms(finISO))
+      anotarOperario(ok, ms(finISO))
       continue
     }
 
@@ -273,6 +330,7 @@ export function programar(tareas: Tarea[], ahoraISO: string, grupo: GrupoAlmuerz
     out.set(t.id, { startISO, endISO, estimada: true })
     if (mk) huecosDe(finMaquina, mk, t.sectorId).ocupar(ms(endISO))
     if (ok) huecosDe(finOperario, ok, t.sectorId).ocupar(ms(endISO))
+    anotarOperario(ok, ms(endISO))
   }
   return out
 }

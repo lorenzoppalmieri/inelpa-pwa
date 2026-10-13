@@ -486,3 +486,75 @@ describe('auditor: solape de un mismo colaborador', () => {
     expect(solapeDe(ts)).toHaveLength(0)
   })
 })
+
+// ============================================================
+// v2.37 — ENCADENADO ESTRICTO EN SOLDADURA CUBA Y TAPA DISTRIBUCIÓN.
+// Reclamo 13/10/2026: tareas apiladas en unos soldadores y empujadas a fines de
+// octubre en otros. Causa: el BOX compartido frenaba a un soldador detrás de la
+// cola de otro, y la fecha planificada a futuro clavaba la tarea.
+// ============================================================
+describe('encadenado estricto en Soldadura Dist.', () => {
+  const sold = (over: Partial<Tarea> & { id: string }) =>
+    tarea({ sectorId: 'soldadura_dist' as Tarea['sectorId'], maquinaId: 'box_1', ...over })
+
+  it('EL CASO REPORTADO: un box compartido NO frena a otro soldador', () => {
+    const ts = [
+      sold({ id: 'A1', operarioId: 'op1', creada: local(8), tiempoEstandarMin: 480 }),
+      sold({ id: 'B1', operarioId: 'op2', creada: local(8, 5), tiempoEstandarMin: 60 }),
+    ]
+    const plan = programar(ts, local(9))
+    // op2 está libre: arranca ya, aunque op1 tenga el mismo box ocupado todo el día.
+    expect(ms(plan.get('B1')!.startISO)).toBe(ms(local(9)))
+  })
+
+  it('aislamiento: en Bobinado el mismo caso sigue esperando a la máquina, como antes', () => {
+    const ts = [
+      tarea({ id: 'A1', operarioId: 'op1', creada: local(8), tiempoEstandarMin: 120 }),
+      tarea({ id: 'B1', operarioId: 'op2', creada: local(8, 5), tiempoEstandarMin: 60 }),
+    ]
+    const plan = programar(ts, local(9))
+    expect(ms(plan.get('B1')!.startISO)).toBe(ms(plan.get('A1')!.endISO))
+  })
+
+  it('las pendientes de un soldador se pegan una detrás de la otra, en orden de carga', () => {
+    const ts = [
+      sold({ id: 'EP', estado: 'en_proceso', inicioReal: local(8), tiempoEstandarMin: 120 }),
+      sold({ id: 'N2', creada: local(9, 5), tiempoEstandarMin: 60 }),
+      sold({ id: 'N1', creada: local(9), tiempoEstandarMin: 60 }),
+    ]
+    const plan = programar(ts, local(9, 10))
+    expect(ms(plan.get('N1')!.startISO)).toBe(ms(plan.get('EP')!.endISO))
+    expect(ms(plan.get('N2')!.startISO)).toBe(ms(plan.get('N1')!.endISO))
+    expect(solapes(ts, plan, (t) => t.operarioId)).toBe(0)
+  })
+
+  it('una fecha planificada a futuro NO deja días en blanco', () => {
+    const t = sold({ id: 'F', inicioPlanificado: '2026-09-28T07:00:00.000-03:00', creada: local(8), tiempoEstandarMin: 60 })
+    const plan = programar([t], local(9))
+    expect(ms(plan.get('F')!.startISO)).toBe(ms(local(9)))
+  })
+
+  it('si la en proceso se pasa del estimado, empuja a las pendientes (dominó)', () => {
+    const ts = [
+      sold({ id: 'EP', estado: 'en_proceso', inicioReal: local(7), tiempoEstandarMin: 60 }),
+      sold({ id: 'N1', creada: local(7, 30), tiempoEstandarMin: 60 }),
+    ]
+    const plan = programar(ts, local(10))
+    // La en proceso debía terminar 08:00 pero sigue abierta a las 10:00.
+    expect(ms(plan.get('EP')!.endISO)).toBe(ms(local(10)))
+    expect(ms(plan.get('N1')!.startISO)).toBe(ms(local(10)))
+  })
+
+  it('cinco soldadores en el mismo box: ninguno se pisa consigo mismo y todos arrancan ya', () => {
+    const ts = ['op1', 'op2', 'op3', 'op4', 'op5'].flatMap((op, i) => [
+      sold({ id: `${op}-a`, operarioId: op, creada: local(8, i), tiempoEstandarMin: 90 }),
+      sold({ id: `${op}-b`, operarioId: op, creada: local(8, 10 + i), tiempoEstandarMin: 90 }),
+    ])
+    const plan = programar(ts, local(9))
+    expect(solapes(ts, plan, (t) => t.operarioId)).toBe(0)
+    for (const op of ['op1', 'op2', 'op3', 'op4', 'op5']) {
+      expect(ms(plan.get(`${op}-a`)!.startISO)).toBe(ms(local(9)))
+      expect(ms(plan.get(`${op}-b`)!.startISO)).toBe(ms(plan.get(`${op}-a`)!.endISO))
+    }
+  })
+})
