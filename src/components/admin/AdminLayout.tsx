@@ -5,6 +5,7 @@ import LogisticaView from '../dashboard/LogisticaView'
 import LaboratorioView from '../laboratorio/LaboratorioView'
 import SGOView from '../sgo/SGOView'
 import MantenimientoView from '../../mantenimiento/MantenimientoView'
+import PlanosAdmin from '../planos/PlanosAdmin'
 
 // ============================================================
 // LAYOUT DE ERP (v1.43) — solo Planificación/Gerencia (super admin).
@@ -73,6 +74,7 @@ export default function AdminLayout() {
           : modulo === 'logistica' ? <LogisticaView />
           : modulo === 'laboratorio' ? <LaboratorioView />
           : modulo === 'mantenimiento' ? <MantenimientoView />
+          : modulo === 'planos' ? <PlanosAdmin />
           : <SGOView />}
       </section>
     </div>

@@ -11,6 +11,7 @@ import LogisticaReportes from './LogisticaReportes'
 import DespachoView, { TABS_DESPACHO, esEncargadoDespacho, type VistaDespacho } from './DespachoView'
 import { esSuperAdmin } from '../../auth/roles'
 import CubicajeCarga from '../logistica/CubicajeCarga'
+import EppView from '../logistica/EppView'
 
 // ============================================================
 // Vista LOGISTICA (v1.47) — UN SOLO módulo, "Logística", a cargo de Giuliano.
@@ -27,7 +28,7 @@ import CubicajeCarga from '../logistica/CubicajeCarga'
 // tenga que habilitar permisos. Lo único que cambia según quién entra es en qué
 // pestaña arranca parado.
 // ============================================================
-type PestaniaLog = 'gantt' | 'tareas' | 'reportes' | 'cubicaje' | 'despacho'
+type PestaniaLog = 'gantt' | 'tareas' | 'reportes' | 'cubicaje' | 'epp' | 'despacho'
 
 export default function LogisticaView() {
   const { usuario } = useAuth()
@@ -74,6 +75,8 @@ export default function LogisticaView() {
         {/* v1.47: llegó desde el módulo SGO. Es una herramienta operativa de
             carga, no una auditoría. */}
         <button className={'tab' + (pestania === 'cubicaje' ? ' active' : '')} onClick={() => setPestania('cubicaje')}>📐 Cubicaje y carga</button>
+        {/* v1.83: reemplaza la planilla de papel R.I.T 7.1.2 06. */}
+        <button className={'tab' + (pestania === 'epp' ? ' active' : '')} onClick={() => setPestania('epp')}>🦺 EPP</button>
       </div>
 
       {/* Frente 2: la salida del producto terminado */}
@@ -95,7 +98,7 @@ export default function LogisticaView() {
       <div style={{ marginTop: 16 }}>
         {/* La cola de pedidos de material es del frente del pañol: no tiene por
             qué aparecer arriba de todo cuando se está mirando Despacho. */}
-        {!enDespacho && pestania !== 'cubicaje' && (
+        {!enDespacho && pestania !== 'cubicaje' && pestania !== 'epp' && (
           <>
             <div className="section-title" style={{ marginTop: 0 }}>Cola de pedidos de material</div>
             <ColaMaterial />
@@ -105,6 +108,7 @@ export default function LogisticaView() {
         {pestania === 'gantt' ? <LogisticaGantt />
           : pestania === 'tareas' ? <LogisticaTareas />
           : pestania === 'cubicaje' ? <CubicajeCarga />
+          : pestania === 'epp' ? <EppView />
           : (!esEquipoLog && pestania === 'reportes') ? <LogisticaReportes />
           : (!esEquipoLog && pestania === 'despacho') ? <DespachoView vista={vistaDespacho} onVista={setVistaDespacho} />
           : <LogisticaGantt />}

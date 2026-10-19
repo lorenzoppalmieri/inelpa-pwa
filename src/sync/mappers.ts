@@ -17,6 +17,7 @@ import type {
   DespachoTrafo, EstadoDespacho, DemoraDespacho, ChecklistDespacho, FleteInterno, MovimientoDeposito,
   TareaLaboratorio, EstadoLab, EnsayoEstado, MedicionesEnsayo, ProtocoloCliente,
   PlantillaRecurrente,
+  ColaboradorEpp, EntregaEpp, SolicitudEpp,
 } from '../types'
 import type { AccionSGO, AuditoriaSGO, EventoSGO } from '../sgo/types'
 // v1.47: remapea el área retirada 'logistica_administrativa' al leer de la base.
@@ -1333,5 +1334,90 @@ export function semiToRow(s: Semielaborado): SemiRow {
     tiempo_estimado_min: s.tiempoEstimadoMin ?? null,
     sap_item_code: s.sapItemCode ?? null,
     actualizado_en: s.actualizado,
+  }
+}
+
+// ---------- EPP (v1.83) ----------
+// Tres tablas chicas y planas: no hay nada anidado ni binario, así que el mapeo
+// es 1 a 1 con la fila. El catálogo de EPP NO viaja: vive en src/epp/catalogo.ts.
+export interface ColaboradorEppRow {
+  id: string
+  nombre: string
+  puesto_id: string
+  dni: string | null
+  usuario_id: string | null
+  activo: boolean
+  creada_en: string
+  creada_por: string | null
+}
+export function colaboradorEppFromRow(r: ColaboradorEppRow): ColaboradorEpp {
+  return {
+    id: r.id, nombre: r.nombre, puestoId: r.puesto_id,
+    dni: u(r.dni), usuarioId: u(r.usuario_id), activo: r.activo,
+    creada: r.creada_en, creadaPor: u(r.creada_por),
+  }
+}
+export function colaboradorEppToRow(c: ColaboradorEpp): ColaboradorEppRow {
+  return {
+    id: c.id, nombre: c.nombre, puesto_id: c.puestoId,
+    dni: c.dni ?? null, usuario_id: c.usuarioId ?? null, activo: c.activo,
+    creada_en: c.creada, creada_por: c.creadaPor ?? null,
+  }
+}
+
+export interface EntregaEppRow {
+  id: string
+  colaborador_id: string
+  epp_key: string
+  anio: number
+  fecha: string
+  entregada_por: string | null
+  solicitud_id: string | null
+  observacion: string | null
+}
+export function entregaEppFromRow(r: EntregaEppRow): EntregaEpp {
+  return {
+    id: r.id, colaboradorId: r.colaborador_id, eppKey: r.epp_key, anio: r.anio,
+    fecha: r.fecha, entregadaPor: u(r.entregada_por),
+    solicitudId: u(r.solicitud_id), observacion: u(r.observacion),
+  }
+}
+export function entregaEppToRow(e: EntregaEpp): EntregaEppRow {
+  return {
+    id: e.id, colaborador_id: e.colaboradorId, epp_key: e.eppKey, anio: e.anio,
+    fecha: e.fecha, entregada_por: e.entregadaPor ?? null,
+    solicitud_id: e.solicitudId ?? null, observacion: e.observacion ?? null,
+  }
+}
+
+export interface SolicitudEppRow {
+  id: string
+  colaborador_id: string
+  epp_key: string
+  anio: number
+  motivo: string
+  estado: string
+  pedida_en: string
+  pedida_por: string | null
+  resuelta_en: string | null
+  resuelta_por: string | null
+  comentario_hys: string | null
+}
+export function solicitudEppFromRow(r: SolicitudEppRow): SolicitudEpp {
+  return {
+    id: r.id, colaboradorId: r.colaborador_id, eppKey: r.epp_key, anio: r.anio,
+    motivo: r.motivo, estado: r.estado as SolicitudEpp['estado'],
+    pedidaEn: r.pedida_en, pedidaPor: u(r.pedida_por),
+    resueltaEn: u(r.resuelta_en), resueltaPor: u(r.resuelta_por),
+    comentarioHys: u(r.comentario_hys),
+  }
+}
+export function solicitudEppToRow(s: SolicitudEpp): SolicitudEppRow {
+  return {
+    id: s.id, colaborador_id: s.colaboradorId, epp_key: s.eppKey, anio: s.anio,
+    motivo: s.motivo, estado: s.estado,
+    pedida_en: s.pedidaEn, pedida_por: s.pedidaPor ?? null,
+    resuelta_en: s.resueltaEn ?? null, resuelta_por: s.resueltaPor ?? null,
+    comentario_hys: s.comentarioHys ?? null,
   }
 }

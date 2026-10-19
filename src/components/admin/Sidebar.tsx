@@ -7,7 +7,7 @@ import { useMemo, useState } from 'react'
 // ============================================================
 // v1.47: se retiró 'despacho'. Despacho y embalaje dejó de ser un módulo aparte:
 // vive adentro de Logística, que es el área que lo absorbió en el organigrama.
-export type ModuloAdmin = 'planificacion' | 'logistica' | 'laboratorio' | 'sgo' | 'mantenimiento'
+export type ModuloAdmin = 'planificacion' | 'logistica' | 'laboratorio' | 'sgo' | 'mantenimiento' | 'planos'
 
 export interface ItemMenu {
   id: ModuloAdmin
@@ -23,6 +23,8 @@ export const MENU_ADMIN: ItemMenu[] = [
   { id: 'sgo', label: 'SGO INTEGRAL', icono: '🛡️', sub: 'Seis pilares, eventos y acciones' },
   // v1.62: editor de mapa de activos de mantenimiento (mismo componente que ve el jefe).
   { id: 'mantenimiento', label: 'Mantenimiento', icono: '🛠️', sub: 'Mapa de activos y editor de plano' },
+  // v2.38: PDF de cada semielaborado que el operario ve dentro de su tarea.
+  { id: 'planos', label: 'Planos', icono: '📐', sub: 'Planos PDF de semielaborados y revisiones' },
 ]
 
 export default function Sidebar({ activo, onSelect, colapsado, onToggle }: {

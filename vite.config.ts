@@ -84,4 +84,10 @@ export default defineConfig({
     }),
   ],
   server: { host: true, port: 5173 },
+  // v2.38 — pdf.js (visor de planos) usa "top-level await", que el destino por
+  // defecto de Vite (Chrome 87 / Safari 14) no acepta y corta el build. Se sube
+  // el piso apenas a la primera versión que lo soporta: Chrome/Edge/Firefox 89 y
+  // Safari 15 (todos de 2021). Las tablets de planta están muy por encima.
+  build: { target: ['chrome89', 'edge89', 'firefox89', 'safari15'] },
+  optimizeDeps: { esbuildOptions: { target: 'es2022' } },
 })

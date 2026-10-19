@@ -2399,3 +2399,32 @@ body.admin-mode .content { max-width: none; padding: 12px 18px; }
 .mant-comp-txt{ padding:8px 10px; display:flex; flex-direction:column; gap:2px; }
 .mant-comp-txt strong{ font-size:.9rem; line-height:1.25; }
 @media (max-width:768px){ .mant-comp-grid{ grid-template-columns:repeat(auto-fill, minmax(120px,1fr)); } }
+
+/* ============================================================
+   v2.38 — VISOR DE PLANO incrustado en la tarjeta de la tarea
+   Las páginas son <canvas> dibujados por pdf.js. La zona de páginas tiene
+   scroll horizontal propio para cuando se hace zoom.
+   ============================================================ */
+.visor-plano { margin-top: 12px; border-top: 1px solid var(--borde); padding-top: 10px; }
+.visor-plano-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.visor-plano-titulo { font-weight: 800; font-size: .92rem; }
+.visor-plano-ctrl { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.visor-plano-ctrl .btn { min-height: 40px; padding: 6px 12px; }
+.visor-plano-aviso { padding: 10px 12px; border: 1px dashed var(--borde); border-radius: 10px; color: var(--texto-tenue); font-size: .84rem; }
+.visor-plano-aviso.error { border-color: var(--rojo); color: var(--rojo); }
+.visor-plano-paginas {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 10px;
+  overflow: auto; max-height: 75vh; padding: 8px;
+  background: #0a1120; border-radius: 10px;
+  -webkit-overflow-scrolling: touch;
+}
+.visor-plano-paginas[hidden] { display: none; }
+.visor-plano-pagina { display: block; flex: none; background: #fff; border-radius: 4px; box-shadow: 0 1px 6px rgba(0,0,0,.4); }
+
+/* Pantalla completa: sigue adentro de la app (no abre otra pestaña). */
+.visor-plano.pantalla-completa {
+  position: fixed; inset: 0; z-index: 2000; margin: 0;
+  padding: 10px 12px; border: none;
+  background: var(--panel); display: flex; flex-direction: column;
+}
+.visor-plano.pantalla-completa .visor-plano-paginas { flex: 1; max-height: none; }

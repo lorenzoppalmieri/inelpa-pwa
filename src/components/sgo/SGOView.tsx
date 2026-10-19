@@ -5,6 +5,7 @@ import { useAuth } from '../../auth/AuthContext'
 import { eliminarEventoSGO, guardarAccionSGO, guardarEventoSGO, guardarIndicadorSGO } from '../../sync/syncEngine'
 import { fechaLocalISO, sumarDiasLocalISO } from '../../lib/time'
 import MatrizSGO from './MatrizSGO'
+import AprobacionesEpp from './AprobacionesEpp'
 import IndicadoresSGO from './IndicadoresSGO'
 import FichaCeldaSGO from './FichaCeldaSGO'
 import AuditoriaLogisticaView from './AuditoriaLogisticaView'
@@ -185,6 +186,11 @@ export default function SGOView() {
           <div className="n">{vencidas}</div><div className="l">Acciones vencidas</div>
         </div>
       </div>
+
+      {/* v1.83: autorizaciones de EPP fuera de cupo. Va ARRIBA de la matriz:
+          mientras no se resuelvan, pañol no puede entregar y el operario se
+          queda sin el elemento. */}
+      <AprobacionesEpp />
 
       <MatrizSGO eventos={eventosGestionables} acciones={acciones} indicadores={indicadoresResueltos} controles={controles} onSelect={(area, pilar) => setCeldaSeleccionada({ area, pilar })} />
 

@@ -1368,7 +1368,7 @@ export function mensajeEsPara(m: Mensaje, u: { id: string; rol: Rol; sectores: S
 // Cola de sincronizacion: cada cambio offline se encola y se empuja al backend.
 export interface SyncOp {
   id: string
-  entidad: 'tarea' | 'parada' | 'orden' | 'semielaborado' | 'objetivo' | 'tarea_logistica' | 'solicitud_logistica' | 'feriado' | 'ausencia' | 'corte_luz' | 'mensaje' | 'mensaje_lectura' | 'estandar' | 'despacho' | 'flete' | 'laboratorio' | 'plantilla_recurrente' | 'evento_sgo' | 'accion_sgo' | 'indicador_sgo' | 'medicion_indicador_sgo' | 'control_programado_sgo' | 'ejecucion_control_sgo' | 'agenda_iso' | 'tarea_sgo' | 'comentario_tarea_sgo'
+  entidad: 'tarea' | 'parada' | 'orden' | 'semielaborado' | 'objetivo' | 'tarea_logistica' | 'solicitud_logistica' | 'feriado' | 'ausencia' | 'corte_luz' | 'mensaje' | 'mensaje_lectura' | 'estandar' | 'despacho' | 'flete' | 'laboratorio' | 'plantilla_recurrente' | 'evento_sgo' | 'accion_sgo' | 'indicador_sgo' | 'medicion_indicador_sgo' | 'control_programado_sgo' | 'ejecucion_control_sgo' | 'agenda_iso' | 'tarea_sgo' | 'comentario_tarea_sgo' | 'colaborador_epp' | 'entrega_epp' | 'solicitud_epp'
   entidadId: string
   tipo: 'upsert' | 'delete'
   payload: unknown
@@ -1822,4 +1822,48 @@ export function requiereDatosBobinado(id: SectorId): ReqBobinado | null {
   if (esBobinadoBT(id)) return { interno: true, externo: true, codigo: true }
   if (esBobinadoAT(id)) return { interno: false, externo: true, codigo: true }
   return null
+}
+
+// ============================================================
+// EPP (v1.83) — registro de entrega de elementos de protección personal.
+// Reemplaza la planilla R.I.T 7.1.2 06. Ver src/epp/catalogo.ts.
+// ============================================================
+
+/** Una persona que recibe EPP. Puede venir de la nómina o cargarse a mano. */
+export interface ColaboradorEpp {
+  id: string
+  nombre: string
+  puestoId: string            // id de PUESTOS_EPP (soldadura, laser, pintura…)
+  dni?: string                // DNI o legajo (la planilla lo pide)
+  usuarioId?: string          // si salió de la nómina, el id del usuario
+  activo: boolean             // de baja = no aparece para entregar, pero su historial queda
+  creada: string
+  creadaPor?: string
+}
+
+/** Una unidad entregada. Un registro = un casillero tildado en la planilla. */
+export interface EntregaEpp {
+  id: string
+  colaboradorId: string
+  eppKey: string              // key dentro del catálogo del puesto
+  anio: number                // la ficha es anual y se reinicia el 1 de enero
+  fecha: string               // ISO
+  entregadaPor?: string       // usuario de pañol que la registró
+  solicitudId?: string        // si salió por reposición extraordinaria aprobada
+  observacion?: string
+}
+
+/** Pedido de reposición fuera de cupo. Lo autoriza HyS (rol 'sgo'). */
+export interface SolicitudEpp {
+  id: string
+  colaboradorId: string
+  eppKey: string
+  anio: number
+  motivo: string              // por qué necesita más de lo que le corresponde
+  estado: 'pendiente' | 'aprobada' | 'rechazada' | 'usada'
+  pedidaEn: string
+  pedidaPor?: string
+  resueltaEn?: string
+  resueltaPor?: string        // quién de HyS firmó
+  comentarioHys?: string
 }

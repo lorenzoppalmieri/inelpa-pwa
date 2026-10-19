@@ -4,6 +4,7 @@ import type {
   ModeloTransformador, ComponenteSemielaborado, Objetivo, TareaLogistica, SolicitudLogistica, Feriado, Ausencia, CorteLuz,
   Mensaje, MensajeLectura, TiempoEstandar, DespachoTrafo, FleteInterno, TareaLaboratorio,
   PlantillaRecurrente,
+  ColaboradorEpp, EntregaEpp, SolicitudEpp,
 } from '../types'
 import type { EventoSGO, AccionSGO, AuditoriaSGO } from '../sgo/types'
 import type { IndicadorSGO, MedicionIndicadorSGO } from '../sgo/indicadores'
@@ -22,6 +23,9 @@ export class InelpaDB extends Dexie {
   ordenes!: Table<OrdenProduccion, string>
   tareas!: Table<Tarea, string>
   syncQueue!: Table<SyncOp, string>
+  colaboradoresEpp!: Table<ColaboradorEpp, string>
+  entregasEpp!: Table<EntregaEpp, string>
+  solicitudesEpp!: Table<SolicitudEpp, string>
   semielaborados!: Table<Semielaborado, string>
   maquinas!: Table<Maquina, string>
   modelos!: Table<ModeloTransformador, string>
@@ -205,6 +209,13 @@ export class InelpaDB extends Dexie {
     // v2.12: cortes de luz cargados por planificacion.
     this.version(30).stores({
       cortesLuz: 'id, desde, hasta',
+    })
+    // v1.83 — EPP. `.where()` de Dexie exige indice: por eso van indexados
+    // colaboradorId / anio / estado, que es por donde se consulta la ficha.
+    this.version(31).stores({
+      colaboradoresEpp: 'id, nombre, puestoId, activo',
+      entregasEpp: 'id, colaboradorId, eppKey, anio, fecha',
+      solicitudesEpp: 'id, colaboradorId, eppKey, anio, estado',
     })
   }
 }

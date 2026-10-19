@@ -12,6 +12,7 @@ import { calcularTiempoNetoProductivo, calcularTiempoProductivo } from '../../li
 import { componentePorCodigo } from '../../data/catalogo'
 import { tiempoNetoMin } from '../../lib/kpi'
 import ModalParada from './ModalParada'
+import VisorPlano from '../planos/VisorPlano'
 import { generarAvisoDesdeParada, esCausaMantenimiento } from '../../mantenimiento/avisos'
 import { noConformidadDesdeDefectoTarea, noConformidadDesdeParada, paradasCalidad } from '../../sgo/integraciones'
 
@@ -427,6 +428,18 @@ export default function TareaCard({ tarea, onIniciar }: { tarea: Tarea; onInicia
           </div>
         )}
       </div>
+
+      {/* v2.38: plano del semielaborado, incrustado al pie de la tarjeta. En la
+          tarea que se está trabajando se abre solo; en las pendientes y
+          finalizadas queda detrás de un botón para no bajar todos los planos
+          de la cola a la vez. Sin semielaborado (reparación, prototipo) no se
+          muestra nada. */}
+      {!tarea.esPrototipo && (
+        <VisorPlano
+          componenteCodigo={tarea.componenteCodigo}
+          autoCargar={tarea.estado === 'en_proceso' || tarea.estado === 'pausada'}
+        />
+      )}
 
       {modal && <ModalParada sectorId={tarea.sectorId} onConfirm={confirmarParada} onCancel={() => setModal(false)} />}
     </div>
