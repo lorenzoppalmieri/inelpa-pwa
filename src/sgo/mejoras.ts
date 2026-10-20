@@ -139,24 +139,36 @@ export function seguimientoVencido(evento: EventoSGO, hoy: string): boolean {
     mejora?.seguimientoResultado !== 'sostenida' && mejora?.seguimientoResultado !== 'reincidencia' && mejora.fechaSeguimiento! < hoy
 }
 
-export function validarCierreMejora(evento: EventoSGO, acciones: AccionSGO[]): string[] {
+// v1.84 — CERRAR UNA MEJORA YA NO SE TRABA.
+//
+// Antes esto exigía, para cerrar: decisión de viabilidad, responsable, resultado
+// documentado, al menos una acción registrada, todas verificadas y eficaces, y
+// una fecha de seguimiento. Seis requisitos para anotar "se colocaron cintas de
+// seguridad", y encima el campo de la decisión NI SIQUIERA se podía editar desde
+// el expediente: la ficha pedía algo que no dejaba cargar, así que el caso
+// quedaba trabado sin salida.
+//
+// Una mejora NO es una no conformidad: es una oportunidad que alguien detectó y
+// resolvió. El costo de pedir el expediente completo no es la burocracia en sí,
+// es que la gente deja de registrar mejoras. Los campos siguen estando para
+// quien los quiera usar; lo que se saca es el bloqueo.
+//
+// Lo que SÍ se sigue exigiendo está en validarCierreEvento (acciones pendientes
+// de verificar, eficacia, evidencia si la severidad es alta o crítica) y aplica
+// a todos los tipos por igual. Las no conformidades e incidentes no se tocaron.
+export function validarCierreMejora(_evento: EventoSGO, _acciones: AccionSGO[]): string[] {
+  return []
+}
+
+/**
+ * Al cerrar, una mejora que quedó con la decisión en 'pendiente' se da por
+ * APROBADA: si se está cerrando es porque se hizo. Evita que el tablero la
+ * muestre eternamente "en evaluación" después de cerrada.
+ */
+export function normalizarMejoraAlCerrar(evento: EventoSGO): EventoSGO {
   const mejora = evento.mejora
-  if (!mejora || evento.estado !== 'cerrado') return []
-  if (mejora.decision === 'pendiente') return ['Definir la decisión de viabilidad.']
-  if (mejora.decision === 'a_futuro') return ['Una mejora a futuro debe permanecer abierta y tener fecha de revisión.']
-  if (mejora.decision === 'no_viable') {
-    return mejora.justificacionDecision?.trim() ? [] : ['Justificar por qué la mejora no es viable.']
-  }
-  const errores: string[] = []
-  const activas = acciones.filter((accion) => accion.estado !== 'cancelada')
-  if (!evento.responsable?.trim()) errores.push('Asignar un responsable de la mejora.')
-  if (!mejora.resultado?.trim()) errores.push('Documentar el resultado obtenido.')
-  if (!activas.length) errores.push('Registrar al menos una acción de mejora.')
-  if (activas.some((accion) => accion.estado !== 'verificada' || accion.eficaz !== true)) {
-    errores.push('Todas las acciones deben estar verificadas como eficaces.')
-  }
-  if (!mejora.fechaSeguimiento) errores.push('Programar una fecha para comprobar que la mejora se sostenga.')
-  return errores
+  if (!mejora || evento.estado !== 'cerrado' || mejora.decision !== 'pendiente') return evento
+  return { ...evento, mejora: { ...mejora, decision: 'aprobada' } }
 }
 
 export function fechaHoyISO(): string {

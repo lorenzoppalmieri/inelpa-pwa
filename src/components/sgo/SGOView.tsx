@@ -19,7 +19,7 @@ import { defectoSGOLabel, defectosParaArea } from '../../sgo/defectos'
 import { resolverKPIAutomaticos } from '../../sgo/kpiAutomaticos'
 import { aplicarMedicionesIndicadores, type IndicadorSGO } from '../../sgo/indicadores'
 import { validarCierreEvento } from '../../sgo/cierre'
-import { datosMejoraDesdeEvento } from '../../sgo/mejoras'
+import { datosMejoraDesdeEvento, normalizarMejoraAlCerrar } from '../../sgo/mejoras'
 import { usuarioEsLorenzo } from '../../sgo/permisos'
 import { construirAutorizacionesSGO, type AutorizacionSGO } from '../../sgo/autorizaciones'
 import { resolverTrazabilidadProductiva, type TrazabilidadProductivaSGO } from '../../sgo/trazabilidad'
@@ -512,7 +512,10 @@ function DetalleEvento({ evento, acciones, auditoria, usuario, trazabilidad, onC
       estado: estadoGuardado, actualizadoEn: now,
       cerradoEn: estadoGuardado === 'cerrado' ? (evento.cerradoEn ?? now) : undefined,
       cerradoPor: estadoGuardado === 'cerrado' ? (evento.cerradoPor ?? usuario) : undefined }
-    const errores = validarCierreEvento(actualizado, acciones)
+    // v1.84: si se cierra una mejora que quedó sin decisión, se da por aprobada.
+    // Cerrarla ES la decisión; no tiene sentido pedirla aparte en otra pantalla.
+    const normalizado = normalizarMejoraAlCerrar(actualizado)
+    const errores = validarCierreEvento(normalizado, acciones)
     if (errores.length) {
       setMensajeGuardado({ tipo: 'error', texto: `No se puede cerrar todavía: ${errores.join(' · ')}` })
       return
@@ -520,7 +523,7 @@ function DetalleEvento({ evento, acciones, auditoria, usuario, trazabilidad, onC
     setGuardando(true)
     setMensajeGuardado(undefined)
     try {
-      await guardarEventoSGO(actualizado)
+      await guardarEventoSGO(normalizado)
       huellaGuardada.current = huellaFormulario
       if (destino === 'gestion') onGestionar()
       else if (estadoGuardado === 'cerrado' || volver) onClose()

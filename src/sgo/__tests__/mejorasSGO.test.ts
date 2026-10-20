@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { estadoGestionMejora, crearDatosMejora, validarCierreMejora } from '../mejoras'
+import { estadoGestionMejora, crearDatosMejora, validarCierreMejora, normalizarMejoraAlCerrar } from '../mejoras'
 import type { AccionSGO, EventoSGO } from '../types'
 
 const eventoBase: EventoSGO = {
@@ -29,14 +29,24 @@ describe('gestión de mejora continua', () => {
     expect(estadoGestionMejora(aprobada, [{ ...accion, estado: 'verificada', eficaz: true }])).toBe('lista_para_cerrar')
   })
 
-  it('exige resultado, responsable, acción eficaz y seguimiento para cerrar', () => {
+  it('v1.84: cerrar una mejora ya no exige expediente completo', () => {
+    // Antes esto devolvia 4 errores (responsable, resultado, accion, seguimiento)
+    // y dejaba el caso trabado. Una mejora no es una no conformidad.
     const candidata: EventoSGO = { ...eventoBase, estado: 'cerrado', mejora: { ...eventoBase.mejora!, decision: 'aprobada' } }
-    expect(validarCierreMejora(candidata, [])).toEqual(expect.arrayContaining([
-      'Asignar un responsable de la mejora.', 'Documentar el resultado obtenido.',
-      'Registrar al menos una acción de mejora.', 'Programar una fecha para comprobar que la mejora se sostenga.',
-    ]))
-    const completa: EventoSGO = { ...candidata, responsable: 'Lara', mejora: { ...candidata.mejora!, resultado: 'Espera reducida', fechaSeguimiento: '2026-10-01' } }
-    expect(validarCierreMejora(completa, [{ ...accion, estado: 'verificada', eficaz: true }])).toEqual([])
+    expect(validarCierreMejora(candidata, [])).toEqual([])
+  })
+
+  it('v1.84: la decision pendiente no traba el cierre y se da por aprobada', () => {
+    const sinDecidir: EventoSGO = { ...eventoBase, estado: 'cerrado', mejora: { ...eventoBase.mejora!, decision: 'pendiente' } }
+    expect(validarCierreMejora(sinDecidir, [])).toEqual([])
+    expect(normalizarMejoraAlCerrar(sinDecidir).mejora?.decision).toBe('aprobada')
+  })
+
+  it('v1.84: no toca una mejora abierta ni una decision ya tomada', () => {
+    const abierta: EventoSGO = { ...eventoBase, estado: 'abierto', mejora: { ...eventoBase.mejora!, decision: 'pendiente' } }
+    expect(normalizarMejoraAlCerrar(abierta).mejora?.decision).toBe('pendiente')
+    const noViable: EventoSGO = { ...eventoBase, estado: 'cerrado', mejora: { ...eventoBase.mejora!, decision: 'no_viable' } }
+    expect(normalizarMejoraAlCerrar(noViable).mejora?.decision).toBe('no_viable')
   })
 
   it('ignora los campos históricos retirados al determinar el avance', () => {
