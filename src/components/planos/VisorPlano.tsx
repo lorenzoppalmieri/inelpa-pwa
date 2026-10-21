@@ -105,7 +105,9 @@ export default function VisorPlano({ componenteCodigo, autoCargar = true }: {
     const ro = new ResizeObserver((ents) => {
       const w = Math.floor(ents[0]?.contentRect.width ?? 0)
       clearTimeout(t)
-      t = setTimeout(() => setAncho(w), 150)
+      // v2.40: cambios de pocos píxeles (aparece/desaparece una barra de
+      // scroll) no justifican redibujar el plano entero.
+      t = setTimeout(() => setAncho((prev) => (Math.abs(w - prev) < 24 ? prev : w)), 150)
     })
     ro.observe(el)
     setAncho(el.clientWidth)
@@ -139,8 +141,17 @@ export default function VisorPlano({ componenteCodigo, autoCargar = true }: {
         canvas.className = 'visor-plano-pagina'
         canvas.width = Math.floor(vp.width)
         canvas.height = Math.floor(vp.height)
-        canvas.style.width = `${Math.floor(base.width * escalaCss)}px`
-        canvas.style.height = `${Math.floor(base.height * escalaCss)}px`
+        // v2.40 — BUG "el zoom no se detiene": antes el ancho iba en PÍXELES
+        // fijos (= ancho medido). Adentro de una tabla (panel Planos) o de una
+        // grilla, ese ancho fijo + la barra de scroll empujaba la celda unos
+        // píxeles; el observador medía la caja más ancha, redibujaba más grande,
+        // la celda volvía a crecer... y así sin fin.
+        // Ahora el ancho es un PORCENTAJE del contenedor: el canvas nunca empuja
+        // el layout (un canvas con ancho en % no aporta ancho mínimo), así que
+        // la medición no puede realimentarse. El ancho medido solo define la
+        // NITIDEZ (píxeles internos del canvas), no el tamaño en pantalla.
+        canvas.style.width = `${Math.round(zoom * 100)}%`
+        canvas.style.height = 'auto'
         cont.appendChild(canvas)
         const ctx = canvas.getContext('2d')
         if (!ctx) continue

@@ -2405,7 +2405,9 @@ body.admin-mode .content { max-width: none; padding: 12px 18px; }
    Las páginas son <canvas> dibujados por pdf.js. La zona de páginas tiene
    scroll horizontal propio para cuando se hace zoom.
    ============================================================ */
-.visor-plano { margin-top: 12px; border-top: 1px solid var(--borde); padding-top: 10px; }
+/* v2.40: min-width 0 + max-width 100%: dentro de una grilla, flex o tabla el
+   visor nunca se estira por su contenido (ver el bug del zoom en VisorPlano). */
+.visor-plano { margin-top: 12px; border-top: 1px solid var(--borde); padding-top: 10px; min-width: 0; max-width: 100%; }
 .visor-plano-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
 .visor-plano-titulo { font-weight: 800; font-size: .92rem; }
 .visor-plano-ctrl { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
@@ -2419,7 +2421,7 @@ body.admin-mode .content { max-width: none; padding: 12px 18px; }
   -webkit-overflow-scrolling: touch;
 }
 .visor-plano-paginas[hidden] { display: none; }
-.visor-plano-pagina { display: block; flex: none; background: #fff; border-radius: 4px; box-shadow: 0 1px 6px rgba(0,0,0,.4); }
+.visor-plano-pagina { display: block; flex: none; max-width: none; background: #fff; border-radius: 4px; box-shadow: 0 1px 6px rgba(0,0,0,.4); }
 
 /* Pantalla completa: sigue adentro de la app (no abre otra pestaña). */
 .visor-plano.pantalla-completa {
