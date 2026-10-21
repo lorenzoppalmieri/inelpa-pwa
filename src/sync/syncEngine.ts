@@ -1146,12 +1146,28 @@ export async function eliminarLaboratorio(t: TareaLaboratorio): Promise<void> {
   await encolar({ entidad: 'laboratorio', entidadId: t.id, tipo: 'delete', payload: t })
 }
 
+// ============================================================
+// v2.39 — SGO EN SOLO LECTURA (rol Diseño).
+// Diseño ve todo SGO pero no crea ni modifica nada. La base ya lo impide (solo
+// tiene políticas de SELECT), pero sin este freno la app escribiría primero en
+// Dexie y la operación quedaría trabada en la cola con error de permisos: el
+// usuario vería un cambio que nunca llega al servidor. Por eso se corta ANTES
+// de tocar nada local. App.tsx lo enciende según el rol al iniciar sesión.
+// ============================================================
+let soloLecturaSGO = false
+export function setSoloLecturaSGO(v: boolean): void { soloLecturaSGO = v }
+function exigirEscrituraSGO(): void {
+  if (soloLecturaSGO) throw new Error('Tu usuario tiene SGO en modo solo lectura: podés consultar, pero no crear ni modificar.')
+}
+
 export async function guardarEventoSGO(e: EventoSGO): Promise<void> {
+  exigirEscrituraSGO()
   await db.eventosSGO.put(e)
   await encolar({ entidad: 'evento_sgo', entidadId: e.id, tipo: 'upsert', payload: e })
 }
 
 export async function eliminarEventoSGO(e: EventoSGO, usuario: string): Promise<void> {
+  exigirEscrituraSGO()
   exigirPermisoBorradoSGO(usuario)
   await db.transaction('rw', db.eventosSGO, db.accionesSGO, db.ejecucionesControlesSGO, async () => {
     await db.accionesSGO.where('eventoId').equals(e.id).delete()
@@ -1162,29 +1178,35 @@ export async function eliminarEventoSGO(e: EventoSGO, usuario: string): Promise<
 }
 
 export async function guardarAccionSGO(a: AccionSGO): Promise<void> {
+  exigirEscrituraSGO()
   await db.accionesSGO.put(a)
   await encolar({ entidad: 'accion_sgo', entidadId: a.id, tipo: 'upsert', payload: a })
 }
 
 export async function guardarIndicadorSGO(i: IndicadorSGO): Promise<void> {
+  exigirEscrituraSGO()
   await db.indicadoresSGO.put(i)
   await encolar({ entidad: 'indicador_sgo', entidadId: i.id, tipo: 'upsert', payload: i })
 }
 export async function eliminarIndicadorSGO(i: IndicadorSGO, usuario: string): Promise<void> {
+  exigirEscrituraSGO()
   exigirPermisoBorradoSGO(usuario)
   await db.medicionesIndicadoresSGO.where('indicadorId').equals(i.id).delete()
   await db.indicadoresSGO.delete(i.id)
   await encolar({ entidad: 'indicador_sgo', entidadId: i.id, tipo: 'delete', payload: { id: i.id } })
 }
 export async function guardarMedicionIndicadorSGO(m: MedicionIndicadorSGO): Promise<void> {
+  exigirEscrituraSGO()
   await db.medicionesIndicadoresSGO.put(m)
   await encolar({ entidad: 'medicion_indicador_sgo', entidadId: m.id, tipo: 'upsert', payload: m })
 }
 export async function guardarControlProgramadoSGO(c: ControlProgramadoSGO): Promise<void> {
+  exigirEscrituraSGO()
   await db.controlesProgramadosSGO.put(c)
   await encolar({ entidad: 'control_programado_sgo', entidadId: c.id, tipo: 'upsert', payload: c })
 }
 export async function eliminarControlProgramadoSGO(c: ControlProgramadoSGO, usuario: string): Promise<void> {
+  exigirEscrituraSGO()
   exigirPermisoBorradoSGO(usuario)
   const ejecuciones = await db.ejecucionesControlesSGO.where('controlId').equals(c.id).count()
   if (ejecuciones > 0) {
@@ -1197,6 +1219,7 @@ export async function eliminarControlProgramadoSGO(c: ControlProgramadoSGO, usua
   await encolar({ entidad: 'control_programado_sgo', entidadId: c.id, tipo: 'delete', payload: { id: c.id } })
 }
 export async function retirarControlProgramadoSGO(c: ControlProgramadoSGO, usuario: string): Promise<void> {
+  exigirEscrituraSGO()
   exigirPermisoBorradoSGO(usuario)
   // Control y outbox se escriben juntos. Usar el registro vigente, no una copia del editor.
   await db.transaction('rw', db.controlesProgramadosSGO, db.syncQueue, async () => {
@@ -1212,29 +1235,34 @@ export async function retirarControlProgramadoSGO(c: ControlProgramadoSGO, usuar
   void procesarCola()
 }
 export async function guardarEjecucionControlSGO(e: EjecucionControlSGO): Promise<void> {
+  exigirEscrituraSGO()
   await db.ejecucionesControlesSGO.put(e)
   await encolar({ entidad: 'ejecucion_control_sgo', entidadId: e.id, tipo: 'upsert', payload: e })
 }
 
 export async function guardarActividadAgendaISO(a: ActividadAgendaISO, usuario: string): Promise<void> {
+  exigirEscrituraSGO()
   exigirPermisoGestionAgendaISO(usuario)
   await db.agendaISO.put(a)
   await encolar({ entidad: 'agenda_iso', entidadId: a.id, tipo: 'upsert', payload: a })
 }
 
 export async function eliminarActividadAgendaISO(a: ActividadAgendaISO, usuario: string): Promise<void> {
+  exigirEscrituraSGO()
   exigirPermisoBorradoSGO(usuario)
   await db.agendaISO.delete(a.id)
   await encolar({ entidad: 'agenda_iso', entidadId: a.id, tipo: 'delete', payload: { id: a.id } })
 }
 
 export async function guardarTareaSGO(t: TareaSGO, usuario: string): Promise<void> {
+  exigirEscrituraSGO()
   const existente = await db.tareasSGO.get(t.id)
   exigirPermisoGuardarTareaSGO(usuario, existente?.asignadoA ?? t.asignadoA, !!existente)
   await db.tareasSGO.put(t)
   await encolar({ entidad: 'tarea_sgo', entidadId: t.id, tipo: 'upsert', payload: t })
 }
 export async function guardarComentarioTareaSGO(c: ComentarioTareaSGO, usuario: string): Promise<void> {
+  exigirEscrituraSGO()
   const tarea = await db.tareasSGO.get(c.tareaId)
   if (!tarea) throw new Error('La tarea ya no existe.')
   exigirPermisoGuardarTareaSGO(usuario, tarea.asignadoA, true)
@@ -1243,6 +1271,7 @@ export async function guardarComentarioTareaSGO(c: ComentarioTareaSGO, usuario: 
 }
 
 export async function eliminarTareaSGO(t: TareaSGO, usuario: string): Promise<void> {
+  exigirEscrituraSGO()
   exigirPermisoBorradoSGO(usuario)
   await db.transaction('rw', db.tareasSGO, db.comentariosTareasSGO, async () => {
     await db.comentariosTareasSGO.where('tareaId').equals(t.id).delete()

@@ -73,6 +73,23 @@ export const PERMISOS: Record<Rol, Permisos> = {
     configurarEstandares: false, verTodosSectores: false,
     gestionProduccion: false, crearReparacion: false,
   },
+  // v2.39: Diseño = Producción en SOLO LECTURA (igual que Logística: ve Gantt,
+  // KPIs y órdenes de toda la planta, no asigna ni mueve nada). Su permiso de
+  // escritura es solo sobre los planos (ver puedeCargarPlanos).
+  diseno: {
+    verTareasPropias: false, cambiarEstadoTarea: false, verDashboard: true,
+    validarDatos: false, reasignarPrioridad: false, cargarProgramacion: false,
+    configurarEstandares: false, verTodosSectores: true,
+    gestionProduccion: false, crearReparacion: false,
+  },
+}
+
+/**
+ * v2.39 — quién sube y reemplaza planos: Super Admin + rol Diseño.
+ * La base lo vuelve a controlar con app_puede_cargar_planos() (mismo criterio).
+ */
+export function puedeCargarPlanos(u?: { usuario?: string; rol?: Rol } | null): boolean {
+  return esSuperAdmin(u) || u?.rol === 'diseno'
 }
 
 // ============================================================
@@ -138,4 +155,5 @@ export const ROL_LABEL: Record<Rol, string> = {
   sgo: 'SGO Integral',
   mantenimiento: 'Mantenimiento',
   mant_tecnico: 'Técnico Mant.',
+  diseno: 'Diseño',
 }

@@ -9,6 +9,8 @@ import LaboratorioView from './components/laboratorio/LaboratorioView'
 import AdminLayout from './components/admin/AdminLayout'
 import SGOView from './components/sgo/SGOView'
 import MantenimientoView from './mantenimiento/MantenimientoView'
+import DisenoView from './components/diseno/DisenoView'
+import { setSoloLecturaSGO } from './sync/syncEngine'
 
 // Ruteo por rol: operario ve su panel de planta; logistica ve la vista de solo
 // lectura (Gantt + alertas de material); encargado y planificador ven el dashboard.
@@ -16,6 +18,9 @@ import MantenimientoView from './mantenimiento/MantenimientoView'
 // para navegar entre los módulos de las demás áreas. El resto NO lo ve.
 export default function App() {
   const { usuario, cargando } = useAuth()
+  // v2.39: Diseño consulta SGO pero no escribe. Se fija en cada render según
+  // quién está logueado (si se cambia de usuario, se vuelve a calcular).
+  setSoloLecturaSGO(usuario?.rol === 'diseno')
 
   if (cargando) return <div className="login-wrap"><div className="meta">Cargando...</div></div>
   if (!usuario) return <Login />
@@ -32,6 +37,7 @@ export default function App() {
         : usuario.rol === 'laboratorio' ? <LaboratorioView />
         : usuario.rol === 'sgo' ? <SGOView />
         : usuario.rol === 'mantenimiento' || usuario.rol === 'mant_tecnico' ? <MantenimientoView />
+        : usuario.rol === 'diseno' ? <DisenoView />
         : <DashboardView />}
     </Layout>
   )

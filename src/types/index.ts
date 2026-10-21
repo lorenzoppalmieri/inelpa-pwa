@@ -5,7 +5,9 @@
 // ============================================================
 
 // v1.62: roles del modulo de mantenimiento (jefe/planificador y tecnicos).
-export type Rol = 'operario' | 'encargado' | 'planificador' | 'logistica' | 'laboratorio' | 'sgo' | 'mantenimiento' | 'mant_tecnico'
+// v2.39: 'diseno' = oficina de Diseño (Martín Brusa). Ve Producción y SGO en
+// solo lectura y administra los planos de los semielaborados.
+export type Rol = 'operario' | 'encargado' | 'planificador' | 'logistica' | 'laboratorio' | 'sgo' | 'mantenimiento' | 'mant_tecnico' | 'diseno'
 
 export type LineaProduccion = 'distribucion' | 'rural' | 'general'
 

@@ -2,13 +2,13 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { COMPONENTES_CATALOGO } from '../../data/catalogo'
 import { SECTORES, sectorById, type SectorId } from '../../types'
 import { useAuth } from '../../auth/AuthContext'
-import { esSuperAdmin } from '../../auth/roles'
+import { puedeCargarPlanos } from '../../auth/roles'
 import { fechaCorta } from '../../lib/time'
 import { listarPlanos, publicarPlano, extraerRevision, validarPlano, type Plano } from '../../lib/planos'
 import VisorPlano from './VisorPlano'
 
 // ============================================================
-// PANEL "PLANOS" (v2.38) — Super Admin.
+// PANEL "PLANOS" (v2.38) — Super Admin. v2.39: también el rol Diseño.
 //
 // Mantenimiento del día a día: buscar un semielaborado, ver su plano vigente,
 // subir una revisión nueva (la anterior queda en el historial) y ver qué
@@ -65,7 +65,7 @@ export default function PlanosAdmin() {
       && (!txt || `${c.codigo} ${c.descripcion}`.toLowerCase().includes(txt)))
   }, [q, sector, soloSin, vigentePorCodigo])
 
-  if (!esSuperAdmin(usuario)) return <div className="empty">Solo Super Admin puede administrar los planos.</div>
+  if (!puedeCargarPlanos(usuario)) return <div className="empty">Solo Diseño y Super Admin pueden administrar los planos.</div>
 
   function elegirArchivo(codigo: string, file: File | undefined) {
     if (!file) return
