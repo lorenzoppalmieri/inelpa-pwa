@@ -4,7 +4,7 @@ import { sectorById, causaLabel, esParadaNoProductiva, nombreSemielaborado, minu
 import { componentePorCodigo } from '../../data/catalogo'
 import { hhmm, fmtDur, isoWeek, fechaCorta } from '../../lib/time'
 import { proximoInstanteLaborable, tramosLaborables, calcularTiempoNetoProductivo, calcularTiempoProductivo, estaAusente, type GrupoAlmuerzo } from '../../lib/calendario'
-import { programar, capacidadRecurso, type Plan } from '../../lib/programacion'
+import { programar, capacidadRecurso, encadenaPorPersona, type Plan } from '../../lib/programacion'
 import { desglosePausas, demoraSinJustificarHasta, type TramoPausa } from '../../lib/kpi'
 import { guardarTarea } from '../../sync/syncEngine'
 
@@ -259,7 +259,8 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
   // (packing por intervalos) para que no se pisen visualmente. Esto es clave en
   // Montaje Parte Activa / Post Horno, donde varias tareas corren en paralelo.
   const { segsPorLane, filasPorLane, choquesPorTarea } = useMemo(() => {
-    const plan = programar(tareas, ahoraISO, almuerzo)
+    // v2.42: el nombre deja distinguir PERSONAS de cuentas de EQUIPO en Montaje PA.
+    const plan = programar(tareas, ahoraISO, almuerzo, { nombreOperario })
     const map = new Map<string, Segmento[]>()
     const filas = new Map<string, number>()
     // v2.18: tareaId -> con qué otra tarea se pisa (solo en carriles que ya
@@ -352,8 +353,15 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
       // Se la manda a la fila 0 igual. (El solapamiento que originó todo esto era
       // justamente una pendiente; se corrigió en programacion.ts v2.25.)
       // ============================================================
+      // v2.42: agrupado por COLABORADOR, una persona de Montaje PA NO es equipo:
+      // va en una sola fila, como cualquier individuo. Agrupado por sector o por
+      // estación el carril es la LÍNEA, y ahí sí se abren sub-filas (trabajan
+      // varias personas en paralelo), igual que antes.
+      const personaDeMontajePA = agrupar === 'operario'
+        && conPlan.some((x) => encadenaPorPersona(x.t, nombreOperario))
       const esEquipo = conPlan.length > 0
         && conPlan.every((x) => !Number.isFinite(capacidadRecurso(x.t.sectorId)))
+        && !personaDeMontajePA
 
       const rowDe = new Map<string, number>()
       const choque = new Map<string, string>()   // tareaId -> con quien choca
@@ -427,7 +435,7 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
     }
     return { segsPorLane: map, filasPorLane: filas, choquesPorTarea: choques }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tareas, agrupar, ahoraISO, dias, N, almuerzo])
+  }, [tareas, agrupar, ahoraISO, dias, N, almuerzo, nombreOperario])
 
   // ============================================================
   // Drag & Drop 2D: X = inicioPlanificado (hora/fecha), Y = carril (maquina u

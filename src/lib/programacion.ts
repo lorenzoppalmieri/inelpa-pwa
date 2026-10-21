@@ -70,6 +70,46 @@ export function capacidadRecurso(sectorId: SectorId): number {
 // ============================================================
 const SECTORES_ENCADENADO_ESTRICTO: ReadonlySet<SectorId> = new Set<SectorId>(['soldadura_dist'])
 
+// ============================================================
+// v2.42 — MONTAJE PA: las PERSONAS se encadenan; los EQUIPOS no.
+//
+// Reclamo (21/10/2026): en Montaje PA Rural y PA Distribución, a colaboradores
+// individuales (ej. Patricio Tamagna, Facundo Duarte) se les apilaban las
+// pendientes una abajo de la otra, todas arrancando a la misma hora.
+//
+// CAUSA: desde v2.19 montaje tiene capacidad INFINITA, pensada para las
+// cuentas de EQUIPO ("Equipo Montaje PA Distribucion" = 5 personas sobre la
+// misma línea, trabajo paralelo real). Pero esa capacidad se aplicaba por
+// SECTOR, así que también le tocaba a una persona asignada con nombre y
+// apellido: nada la encolaba y el Gantt la dibujaba como equipo.
+//
+// REGLA: en Montaje PA (las dos líneas), si el responsable es una PERSONA, sus
+// pendientes van una detrás de la otra (la línea sigue sin límite: no frena a
+// nadie). Si es una cuenta de EQUIPO, sigue todo como antes: en paralelo.
+// Montaje PO y el resto de la planta no cambian.
+//
+// Cómo se reconoce un equipo: por el nombre ("Equipo Montaje ..."), que es
+// como están dadas de alta las cuatro cuentas de línea. Sin el nombre (quien
+// llame a programar() sin pasarlo) no se encadena: queda el comportamiento
+// anterior, nunca se encola un equipo por error.
+// ============================================================
+const SECTORES_PA: ReadonlySet<SectorId> = new Set<SectorId>(['montaje_pa_dist', 'montaje_pa_rural'])
+
+/** ¿El nombre es de una cuenta de EQUIPO de línea ("Equipo Montaje PA ...")? */
+export function esNombreEquipo(nombre?: string): boolean {
+  return !!nombre && /^\s*equipo\b/i.test(nombre)
+}
+
+export interface OpcionesProgramar {
+  /** Nombre del colaborador por id. Sin esto, Montaje PA se comporta como antes. */
+  nombreOperario?: (id: string) => string
+}
+
+/** ¿Esta tarea de Montaje PA es de una PERSONA (se encadena) y no de un equipo? */
+export function encadenaPorPersona(t: Pick<Tarea, 'sectorId' | 'operarioId'>, nombreOperario?: (id: string) => string): boolean {
+  return SECTORES_PA.has(t.sectorId) && !!t.operarioId && !!nombreOperario && !esNombreEquipo(nombreOperario(t.operarioId))
+}
+
 export function esEncadenadoEstricto(t: Pick<Tarea, 'sectorId' | 'operarioId'>): boolean {
   // Sin colaborador no hay a quién encadenar: se usa la lógica general.
   return SECTORES_ENCADENADO_ESTRICTO.has(t.sectorId) && !!t.operarioId
@@ -164,7 +204,10 @@ class Huecos {
   }
 }
 
-export function programar(tareas: Tarea[], ahoraISO: string, grupo: GrupoAlmuerzo = GRUPO_ALMUERZO_DEFAULT): Map<string, Plan> {
+export function programar(
+  tareas: Tarea[], ahoraISO: string, grupo: GrupoAlmuerzo = GRUPO_ALMUERZO_DEFAULT,
+  opts: OpcionesProgramar = {},
+): Map<string, Plan> {
   const out = new Map<string, Plan>()
   // Cursor = instante en que se libera cada recurso. v2.18: con N huecos, para
   // que Montaje PA Rural pueda llevar dos partes activas en paralelo.
@@ -319,7 +362,14 @@ export function programar(tareas: Tarea[], ahoraISO: string, grupo: GrupoAlmuerz
     let startISO = esPosterior(planificado, ahoraISO) ? planificado : ahoraISO
     let startMs = ms(startISO)
     if (mk) startMs = Math.max(startMs, huecosDe(finMaquina, mk, t.sectorId).libreDesde())
-    if (ok) startMs = Math.max(startMs, huecosDe(finOperario, ok, t.sectorId).libreDesde())
+    if (ok) {
+      // v2.42: una PERSONA de Montaje PA espera a terminar todo lo suyo (de
+      // cualquier sector). El resto, con los huecos de siempre.
+      const libre = encadenaPorPersona(t, opts.nombreOperario)
+        ? (ocupadoHasta.get(ok) ?? -Infinity)
+        : huecosDe(finOperario, ok, t.sectorId).libreDesde()
+      startMs = Math.max(startMs, libre)
+    }
     if (Number.isFinite(startMs)) startISO = new Date(startMs).toISOString()
 
     // Si no entra en lo que queda del dia, sumarMinutosLaborables la parte y la

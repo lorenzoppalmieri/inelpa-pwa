@@ -180,6 +180,57 @@ describe('capacidad del recurso', () => {
     expect(ms(plan.get('C')!.startISO)).toBe(ms(plan.get('A')!.startISO))
   })
 
+  // v2.42 — Montaje PA: una PERSONA se encadena; un EQUIPO sigue en paralelo.
+  const nombres: Record<string, string> = {
+    tamagna: 'Tamagna Patricio', equipo_pa_dist: 'Equipo Montaje PA Distribucion',
+    equipo_pa_rural: 'Equipo Montaje PA Rural', duarte: 'Duarte Facundo',
+  }
+  const nombreOp = (id: string) => nombres[id] ?? id
+
+  it('EL CASO REPORTADO: una persona de Montaje PA Distribución hace una por vez', () => {
+    const ts = ['A', 'B', 'C'].map((id, i) => tarea({
+      id, sectorId: 'montaje_pa_dist' as Tarea['sectorId'],
+      maquinaId: 'm_montaje_pa_dist_01', operarioId: 'tamagna',
+      creada: local(8, i), tiempoEstandarMin: 120,
+    }))
+    const plan = programar(ts, local(9), undefined, { nombreOperario: nombreOp })
+    expect(ms(plan.get('A')!.startISO)).toBe(ms(local(9)))
+    expect(ms(plan.get('B')!.startISO)).toBe(ms(plan.get('A')!.endISO))
+    expect(ms(plan.get('C')!.startISO)).toBe(ms(plan.get('B')!.endISO))
+  })
+
+  it('lo mismo en Montaje PA Rural, y la en proceso empuja a las pendientes', () => {
+    const ts = [
+      tarea({ id: 'EP', sectorId: 'montaje_pa_rural' as Tarea['sectorId'], maquinaId: 'm_montaje_pa_rural_01',
+        operarioId: 'duarte', estado: 'en_proceso', inicioReal: local(8), tiempoEstandarMin: 60 }),
+      tarea({ id: 'N1', sectorId: 'montaje_pa_rural' as Tarea['sectorId'], maquinaId: 'm_montaje_pa_rural_01',
+        operarioId: 'duarte', creada: local(8, 30), tiempoEstandarMin: 60 }),
+    ]
+    // La en proceso debía terminar 09:00 y sigue abierta a las 10:00.
+    const plan = programar(ts, local(10), undefined, { nombreOperario: nombreOp })
+    expect(ms(plan.get('N1')!.startISO)).toBe(ms(local(10)))
+  })
+
+  it('la cuenta de EQUIPO de PA sigue en paralelo aunque se pase el nombre', () => {
+    const ts = ['A', 'B', 'C'].map((id) => tarea({
+      id, sectorId: 'montaje_pa_dist' as Tarea['sectorId'],
+      maquinaId: 'm_montaje_pa_dist_01', operarioId: 'equipo_pa_dist',
+      inicioPlanificado: local(8), tiempoEstandarMin: 120,
+    }))
+    const plan = programar(ts, local(7), undefined, { nombreOperario: nombreOp })
+    expect(new Set(ts.map((t) => ms(plan.get(t.id)!.startISO))).size).toBe(1)
+  })
+
+  it('aislamiento: una persona en Montaje PO no cambia (sigue sin encolarse)', () => {
+    const ts = ['A', 'B'].map((id) => tarea({
+      id, sectorId: 'montaje_po_dist' as Tarea['sectorId'],
+      maquinaId: 'm_montaje_po_dist_01', operarioId: 'tamagna',
+      inicioPlanificado: local(8), tiempoEstandarMin: 120,
+    }))
+    const plan = programar(ts, local(7), undefined, { nombreOperario: nombreOp })
+    expect(ms(plan.get('B')!.startISO)).toBe(ms(plan.get('A')!.startISO))
+  })
+
   it('bobinado SÍ se encola aunque montaje no', () => {
     const ts = [
       tarea({ id: 'A', inicioPlanificado: local(8), tiempoEstandarMin: 120 }),

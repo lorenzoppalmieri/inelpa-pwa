@@ -179,7 +179,8 @@ export function exportarProgramacionCSV(
   const activas = tareas.filter((t) => t.estado !== 'finalizada')
   if (activas.length === 0) return false
 
-  const plan = programar(tareas, ahoraISO)
+  // v2.42: con el nombre, para que el Excel encadene igual que el Gantt.
+  const plan = programar(tareas, ahoraISO, undefined, { nombreOperario })
   const rows = activas
     .map((t) => ({ t, p: plan.get(t.id) }))
     .filter((x): x is { t: Tarea; p: { startISO: string; endISO: string; estimada: boolean } } => !!x.p)
