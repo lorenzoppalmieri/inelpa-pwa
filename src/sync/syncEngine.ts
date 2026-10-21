@@ -619,7 +619,23 @@ export async function detenerSync(): Promise<void> {
 // ============================================================
 // ESCRITURA: outbox offline-first (Dexie -> Supabase)
 // ============================================================
+// ============================================================
+// v2.41 — USUARIO DE SOLO LECTURA (rol Diseño): red de seguridad.
+// Las pantallas ya esconden los botones de edición, pero si algún camino se
+// escapa, acá se corta: nada de producción llega a la cola de subida. Sin
+// esto la operación quedaría trabada con error de permisos (la base tampoco
+// lo deja escribir) y el aviso rojo de sync le aparecería a Diseño.
+// Única excepción: marcar un mensaje como leído (es suyo, no es producción).
+// App.tsx lo enciende según el rol al iniciar sesión.
+// ============================================================
+let modoSoloLectura = false
+export function setModoSoloLectura(v: boolean): void { modoSoloLectura = v }
+const PERMITIDAS_SOLO_LECTURA: ReadonlySet<SyncOp['entidad']> = new Set<SyncOp['entidad']>(['mensaje_lectura'])
+
 export async function encolar(op: Omit<SyncOp, 'id' | 'ts' | 'sincronizado'>) {
+  if (modoSoloLectura && !PERMITIDAS_SOLO_LECTURA.has(op.entidad)) {
+    throw new Error('Tu usuario es de solo lectura: podés consultar, pero no modificar datos.')
+  }
   const full: SyncOp = { ...op, id: crypto.randomUUID(), ts: new Date().toISOString(), sincronizado: false }
   await db.syncQueue.add(full)
   await refreshPendientes()
@@ -1157,7 +1173,7 @@ export async function eliminarLaboratorio(t: TareaLaboratorio): Promise<void> {
 let soloLecturaSGO = false
 export function setSoloLecturaSGO(v: boolean): void { soloLecturaSGO = v }
 function exigirEscrituraSGO(): void {
-  if (soloLecturaSGO) throw new Error('Tu usuario tiene SGO en modo solo lectura: podés consultar, pero no crear ni modificar.')
+  if (soloLecturaSGO || modoSoloLectura) throw new Error('Tu usuario tiene SGO en modo solo lectura: podés consultar, pero no crear ni modificar.')
 }
 
 export async function guardarEventoSGO(e: EventoSGO): Promise<void> {

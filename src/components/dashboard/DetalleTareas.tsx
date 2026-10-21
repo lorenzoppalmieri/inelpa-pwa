@@ -20,7 +20,7 @@ import FiltrosMovil from '../ui/FiltrosMovil'
 //   | Demora justificada (=suma de paradas registradas) | Demora sin justificar
 //   (=Demorado - Demora justificada = tiempo perdido sin motivo reportado).
 // ============================================================
-export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina, huecos, ventana }: {
+export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina, huecos, ventana, soloLectura = false }: {
   tareas: Tarea[]
   nombreOperario: (id: string) => string
   nombreMaquina: (id: string) => string
@@ -38,6 +38,8 @@ export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina, h
    * la mitad del tiempo.
    */
   ventana?: VentanaKPI
+  /** v2.41 — Diseño: ve las paradas de calidad pero no crea ni descarta NC. */
+  soloLectura?: boolean
 }) {
   const { usuario } = useAuth()
   const eventosSGO = useLiveQuery(() => db.eventosSGO.toArray(), []) ?? []
@@ -331,9 +333,9 @@ export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina, h
                             {d.descartada ? (
                               <span className="nc-acciones">
                                 <em className="nc-descarte">Sin NC: {d.motivo || 'sin motivo'}{d.descartadaPor ? ` · ${d.descartadaPor}` : ''}</em>
-                                <button className="nc-link" onClick={() => void reactivarNC(r.t, d.id)}>↺ reactivar</button>
+                                {!soloLectura && <button className="nc-link" onClick={() => void reactivarNC(r.t, d.id)}>↺ reactivar</button>}
                               </span>
-                            ) : !d.ya && (
+                            ) : !d.ya && !soloLectura && (
                               <span className="nc-acciones">
                                 <button className="nc-link" onClick={() => { setMotivoDescarte(''); setDescartando({ t: r.t, paradaId: d.id, label: d.label }) }}>
                                   ✕ no amerita NC
@@ -343,7 +345,7 @@ export default function DetalleTareas({ tareas, nombreOperario, nombreMaquina, h
                           </div>
                         ))}
                       </div>
-                      {pendientes === 0
+                      {pendientes === 0 || soloLectura
                         ? <span className="estado-chip">{vinculadas > 0 ? `NC creada${resueltas > vinculadas ? ` (${vinculadas} de ${resueltas})` : ''}` : 'Sin NC'}</span>
                         : <button className="btn btn-rojo" disabled={creandoNC === r.id} onClick={() => void crearNoConformidades(r.t)}>{creandoNC === r.id ? 'Creando…' : `+ NC (${pendientes})`}</button>}
                     </>

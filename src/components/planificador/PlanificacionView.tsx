@@ -72,8 +72,30 @@ function resumenCarga(tareas: Tarea[], pred: (t: Tarea) => boolean): { total: nu
 
 type SubVista = 'ordenes' | 'asignar' | 'semi' | 'feriados' | 'ausentismo' | 'corte_luz'
 
-export default function PlanificacionView({ focoTareaId, onFocoConsumido }: { focoTareaId?: string | null; onFocoConsumido?: () => void } = {}) {
+export default function PlanificacionView({ focoTareaId, onFocoConsumido, soloLectura = false }: {
+  focoTareaId?: string | null
+  onFocoConsumido?: () => void
+  /**
+   * v2.41 — MODO CONSULTA (rol Diseño). Solo el listado de tareas, completo:
+   * todos los estados, filtros, datos de bobinado, OF, semielaborado. Sin
+   * formulario de asignación, sin editar/reabrir/eliminar/generar PO y sin las
+   * otras pestañas (órdenes, semielaborados, feriados...), que son de carga.
+   */
+  soloLectura?: boolean
+} = {}) {
   const { permisos, usuario } = useAuth()
+  if (soloLectura) {
+    return <PanelAsignar soloLectura focoTareaId={focoTareaId ?? null} onFocoConsumido={onFocoConsumido} />
+  }
+  return <PlanificacionEditable focoTareaId={focoTareaId} onFocoConsumido={onFocoConsumido} permisos={permisos} usuario={usuario} />
+}
+
+function PlanificacionEditable({ focoTareaId, onFocoConsumido, permisos, usuario }: {
+  focoTareaId?: string | null
+  onFocoConsumido?: () => void
+  permisos: ReturnType<typeof useAuth>['permisos']
+  usuario: ReturnType<typeof useAuth>['usuario']
+}) {
   // v2.04: marcar una ausencia borra ese día de los KPIs de esa persona. Lista
   // corta y explícita por usuario, no por rol. Ver auth/roles.ts.
   const puedeAusencias = puedeCargarAusencias(usuario)
@@ -558,7 +580,7 @@ const ESTADOS_TAREA: { id: 'todos' | EstadoTarea; label: string }[] = [
 // ------------------------------------------------------------
 // 2) Asignar tareas (operacion x sector) a colaboradores
 // ------------------------------------------------------------
-function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsumido }: { soloReparacion?: boolean; focoTareaId?: string | null; onFocoConsumido?: () => void }) {
+function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsumido, soloLectura = false }: { soloReparacion?: boolean; focoTareaId?: string | null; onFocoConsumido?: () => void; soloLectura?: boolean }) {
   const ordenes = useLiveQuery(() => db.ordenes.toArray(), [])
   // v2.33: N° de OF por id de orden, para destacarla en cada tarjeta sin buscar
   // la orden tarea por tarea. La tarea guarda `ordenId`, no el número, así que
@@ -1097,7 +1119,8 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
           </span>
         </div>
       </div>
-      {(!soloReparacion || t.tipo === 'reparacion') && (
+      {/* v2.41: en modo consulta (Diseño) la tarjeta es solo de lectura. */}
+      {!soloLectura && (!soloReparacion || t.tipo === 'reparacion') && (
         <div className="row-actions">
           {t.estado !== 'finalizada' && (
             <button className="btn" style={{ flex: 1 }} onClick={() => toggleRecup(t)}>
@@ -1140,6 +1163,12 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
 
   return (
     <>
+      {soloLectura && (
+        <div className="meta" style={{ marginBottom: 10 }}>
+          👁 Planificación en modo consulta: ves todas las tareas con sus datos (OF, semielaborado, códigos y diámetros de bobina, tiempos), sin poder asignar ni modificar.
+        </div>
+      )}
+      {!soloLectura && (
       <div className="card">
         <div className="section-title">Asignar {tipo === 'reparacion' ? 'reparación' : 'tarea'}</div>
 
@@ -1321,6 +1350,7 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
           </div>
         )}
       </div>
+      )}
 
       <div className="section-title">
         {vistaTipo === 'reparacion' ? '🔧 Reparaciones' : 'Tareas'} · {labelPeriodo(periodoLista)} ({visibles.length}{visibles.length !== tareasOrdenadas.length ? ` de ${tareasOrdenadas.length}` : ''})
@@ -1425,7 +1455,7 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
             )
           })}
 
-      {editar && (
+      {editar && !soloLectura && (
         <EditarTarea
           tarea={editar}
           maquinas={maquinas ?? []}

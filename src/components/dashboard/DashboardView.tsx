@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
 import { useAuth } from '../../auth/AuthContext'
+import { esSoloLectura } from '../../auth/roles'
 import { SECTORES, materialLabel, esSectorBobinado, BOBINADO_SECTORES, type LineaProduccion, type SectorId, type Tarea, type Maquina } from '../../types'
 import { isoWeek } from '../../lib/time'
 import { tareasEnVentana, type VentanaKPI } from '../../lib/kpi'
@@ -32,6 +33,9 @@ export type { Periodo }
 
 export default function DashboardView() {
   const { usuario, permisos } = useAuth()
+  // v2.41: Diseño (Martín Brusa) ve Planificación e Indicadores SIN editar.
+  const soloLectura = esSoloLectura(usuario)
+  const verPlanificacion = !!(permisos?.cargarProgramacion || permisos?.crearReparacion) || soloLectura
   // v1.97: 'cuellos' — OEE por estación y cuellos de botella. La MISMA pantalla
   // se monta también en SGO (un solo componente, no dos copias).
   const [vista, setVista] = useState<'gantt' | 'kpis' | 'planificacion' | 'andon' | 'mensajes' | 'cuellos'>('gantt')
@@ -182,8 +186,13 @@ export default function DashboardView() {
         )}
         <button className={'tab' + (vista === 'kpis' ? ' active' : '')} onClick={() => setVista('kpis')}><span className="nav-ico" aria-hidden="true">📊</span><span className="nav-txt-largo">Eficiencia / KPIs</span><span className="nav-txt-corto">KPIs</span></button>
         <button className={'tab' + (vista === 'cuellos' ? ' active' : '')} onClick={() => setVista('cuellos')}><span className="nav-ico" aria-hidden="true">🔎</span><span className="nav-txt-largo">Cuellos / OEE</span><span className="nav-txt-corto">Cuellos</span></button>
-        {(permisos?.cargarProgramacion || permisos?.crearReparacion) && (
+        {verPlanificacion && !soloLectura && (
           <button className={'tab' + (vista === 'planificacion' ? ' active' : '')} onClick={() => setVista('planificacion')}><span className="nav-ico" aria-hidden="true">🗂</span><span className="nav-txt-largo">Planificacion{nRetrabajos > 0 ? ` (${nRetrabajos})` : ''}</span><span className="nav-txt-corto">Planificar{nRetrabajos > 0 ? ` (${nRetrabajos})` : ''}</span></button>
+        )}
+        {/* v2.41: misma pantalla, en modo consulta (sin el contador de retrabajos,
+            que es una bandeja de trabajo del planificador). */}
+        {soloLectura && (
+          <button className={'tab' + (vista === 'planificacion' ? ' active' : '')} onClick={() => setVista('planificacion')}><span className="nav-ico" aria-hidden="true">🗂</span><span className="nav-txt-largo">Planificación (consulta)</span><span className="nav-txt-corto">Planificación</span></button>
         )}
         {/* v1.98: se retiró la pestaña "📊 Dirección". No aportaba información
             accionable y su lugar lo ocupa "Cuellos / OEE", que sí responde
@@ -202,8 +211,8 @@ export default function DashboardView() {
         ? <CuellosView />
         : vista === 'andon'
         ? <AndonView />
-        : vista === 'planificacion' && (permisos?.cargarProgramacion || permisos?.crearReparacion)
-        ? <PlanificacionView focoTareaId={focoTareaId} onFocoConsumido={() => setFocoTareaId(null)} />
+        : vista === 'planificacion' && verPlanificacion
+        ? <PlanificacionView focoTareaId={focoTareaId} onFocoConsumido={() => setFocoTareaId(null)} soloLectura={soloLectura} />
         : <DashboardCuerpo
             vista={vista === 'gantt' || vista === 'kpis' ? vista : 'gantt'}
             linea={linea} setLinea={setLinea}
@@ -222,7 +231,8 @@ export default function DashboardView() {
             materialTarea={materialTarea}
             huecos={huecos}
             puedeMoverProduccion={!!permisos?.gestionProduccion}
-            onTareaClick={permisos?.cargarProgramacion ? irATarea : undefined}
+            soloLectura={soloLectura}
+            onTareaClick={permisos?.cargarProgramacion || soloLectura ? irATarea : undefined}
           />}
     </div>
   )
@@ -261,9 +271,11 @@ function DashboardCuerpo(props: {
   /** v2.03 — tiempo muerto por tarea, calculado arriba sobre TODAS las tareas. */
   huecos: Map<string, number>
   puedeMoverProduccion: boolean
+  /** v2.41 — Diseño: sin arrastrar barras, sin ajustar estándares, sin crear NC. */
+  soloLectura?: boolean
   onTareaClick?: (t: Tarea) => void
 }) {
-  const { vista, linea, setLinea, sectorFiltro, setSectorFiltro, agrupar, setAgrupar, periodo, setPeriodo, kpiMaquina, setKpiMaquina, kpiOperario, setKpiOperario, kpiFecha, setKpiFecha, kpiDesde, setKpiDesde, kpiHasta, setKpiHasta, sectoresVisibles, filtradas, kpiFiltradas, kpiVentana, maquinasVisibles, operariosVisibles, nombreOperario, nombreMaquina, materialTarea, huecos, puedeMoverProduccion, onTareaClick } = props
+  const { vista, linea, setLinea, sectorFiltro, setSectorFiltro, agrupar, setAgrupar, periodo, setPeriodo, kpiMaquina, setKpiMaquina, kpiOperario, setKpiOperario, kpiFecha, setKpiFecha, kpiDesde, setKpiDesde, kpiHasta, setKpiHasta, sectoresVisibles, filtradas, kpiFiltradas, kpiVentana, maquinasVisibles, operariosVisibles, nombreOperario, nombreMaquina, materialTarea, huecos, puedeMoverProduccion, soloLectura = false, onTareaClick } = props
 
   const periodoLabel = periodo === 'rango'
     ? `Rango ${kpiDesde} a ${kpiHasta}`
@@ -328,12 +340,14 @@ function DashboardCuerpo(props: {
               title={puedeKpi ? 'Imprimir / guardar como PDF (vista A4)' : 'No hay datos para imprimir'}
               onClick={() => window.print()}
             >🖨 Imprimir reporte</button>
-            <button
-              className="btn"
-              disabled={!puedeKpi}
-              title={puedeKpi ? 'Comparar tiempos reales vs estándar y sugerir ajustes' : 'No hay tareas finalizadas en el periodo'}
-              onClick={() => setMostrarSugerencias(true)}
-            >🎯 Sugerir Ajuste de Estándares</button>
+            {!soloLectura && (
+              <button
+                className="btn"
+                disabled={!puedeKpi}
+                title={puedeKpi ? 'Comparar tiempos reales vs estándar y sugerir ajustes' : 'No hay tareas finalizadas en el periodo'}
+                onClick={() => setMostrarSugerencias(true)}
+              >🎯 Sugerir Ajuste de Estándares</button>
+            )}
           </>
         ) : (
           <button
@@ -349,13 +363,13 @@ function DashboardCuerpo(props: {
       </div>
 
       {vista === 'gantt'
-        ? <GanttOperativo tareas={filtradas} agrupar={agrupar} maquinas={maquinasVisibles} operarios={operariosVisibles} nombreOperario={nombreOperario} nombreMaquina={nombreMaquina} puedeMoverProduccion={puedeMoverProduccion} onTareaClick={onTareaClick} />
-        : <KpiPanel tareas={kpiFiltradas} nombreOperario={nombreOperario} nombreMaquina={nombreMaquina} huecos={huecos} ventana={kpiVentana} />}
+        ? <GanttOperativo tareas={filtradas} agrupar={agrupar} maquinas={maquinasVisibles} operarios={operariosVisibles} nombreOperario={nombreOperario} nombreMaquina={nombreMaquina} puedeMoverProduccion={puedeMoverProduccion} soloLectura={soloLectura} onTareaClick={onTareaClick} />
+        : <KpiPanel tareas={kpiFiltradas} nombreOperario={nombreOperario} nombreMaquina={nombreMaquina} huecos={huecos} ventana={kpiVentana} soloLectura={soloLectura} />}
 
       {/* v2.20: ya no recibe `tareas`. El modal lee TODO el historial de
           finalizadas desde Dexie: un estándar se afina con todo lo producido,
           no con el período que el usuario tenga filtrado en pantalla. */}
-      {mostrarSugerencias && (
+      {mostrarSugerencias && !soloLectura && (
         <SugerenciasEstandar nombreMaquina={nombreMaquina} onClose={() => setMostrarSugerencias(false)} />
       )}
     </>

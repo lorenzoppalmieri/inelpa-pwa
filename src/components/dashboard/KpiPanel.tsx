@@ -23,7 +23,7 @@ function KpiBar({ label, value }: { label: string; value: number }) {
   )
 }
 
-export default function KpiPanel({ tareas, nombreOperario, nombreMaquina, huecos, ventana }: {
+export default function KpiPanel({ tareas, nombreOperario, nombreMaquina, huecos, ventana, soloLectura = false }: {
   tareas: Tarea[]
   nombreOperario: (id: string) => string
   nombreMaquina: (id: string) => string
@@ -39,6 +39,8 @@ export default function KpiPanel({ tareas, nombreOperario, nombreMaquina, huecos
    * y el estándar de las tareas que cruzan se prorratea. Ver `metricasTareaEnVentana`.
    */
   ventana?: VentanaKPI
+  /** v2.41 — Diseño: el detalle se ve completo pero sin crear ni descartar NC. */
+  soloLectura?: boolean
 }) {
   const oee = calcularOEE(tareas, ventana)
   const desvios = desviosPorModelo(tareas, huecos, ventana)
@@ -113,7 +115,7 @@ export default function KpiPanel({ tareas, nombreOperario, nombreMaquina, huecos
           que la app tiene guardadas y cómo se arma la demora sin justificar. */}
       <DiagnosticoTiempos tareas={tareas} nombreOperario={nombreOperario} />
 
-      <DetalleTareas tareas={tareas} nombreOperario={nombreOperario} nombreMaquina={nombreMaquina} huecos={huecos} ventana={ventana} />
+      <DetalleTareas tareas={tareas} nombreOperario={nombreOperario} nombreMaquina={nombreMaquina} huecos={huecos} ventana={ventana} soloLectura={soloLectura} />
 
       {/* Pareto de demoras */}
       <div className="section-title">Pareto de demoras</div>

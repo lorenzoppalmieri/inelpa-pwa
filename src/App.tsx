@@ -1,5 +1,5 @@
 import { useAuth } from './auth/AuthContext'
-import { esSuperAdmin } from './auth/roles'
+import { esSuperAdmin, esSoloLectura } from './auth/roles'
 import Login from './components/Login'
 import Layout from './components/Layout'
 import OperarioView from './components/operario/OperarioView'
@@ -10,7 +10,7 @@ import AdminLayout from './components/admin/AdminLayout'
 import SGOView from './components/sgo/SGOView'
 import MantenimientoView from './mantenimiento/MantenimientoView'
 import DisenoView from './components/diseno/DisenoView'
-import { setSoloLecturaSGO } from './sync/syncEngine'
+import { setSoloLecturaSGO, setModoSoloLectura } from './sync/syncEngine'
 
 // Ruteo por rol: operario ve su panel de planta; logistica ve la vista de solo
 // lectura (Gantt + alertas de material); encargado y planificador ven el dashboard.
@@ -21,6 +21,8 @@ export default function App() {
   // v2.39: Diseño consulta SGO pero no escribe. Se fija en cada render según
   // quién está logueado (si se cambia de usuario, se vuelve a calcular).
   setSoloLecturaSGO(usuario?.rol === 'diseno')
+  // v2.41: y en todo lo demás también (red de seguridad en la cola de sync).
+  setModoSoloLectura(esSoloLectura(usuario))
 
   if (cargando) return <div className="login-wrap"><div className="meta">Cargando...</div></div>
   if (!usuario) return <Login />

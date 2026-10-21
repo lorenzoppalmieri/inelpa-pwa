@@ -88,6 +88,12 @@ export const PERMISOS: Record<Rol, Permisos> = {
  * v2.39 — quién sube y reemplaza planos: Super Admin + rol Diseño.
  * La base lo vuelve a controlar con app_puede_cargar_planos() (mismo criterio).
  */
+export function esSoloLectura(u?: { rol?: Rol } | null): boolean {
+  // v2.41: Diseño ve Planificación, KPIs, Gantt y SGO sin poder editar nada
+  // (salvo planos, que no pasan por la cola de sync). Ver syncEngine.encolar.
+  return u?.rol === 'diseno'
+}
+
 export function puedeCargarPlanos(u?: { usuario?: string; rol?: Rol } | null): boolean {
   return esSuperAdmin(u) || u?.rol === 'diseno'
 }
