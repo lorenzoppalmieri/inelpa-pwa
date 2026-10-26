@@ -2,6 +2,8 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { registerSW } from 'virtual:pwa-register'
 import App from './App'
+import AvisoEntorno from './components/AvisoEntorno'
+import { ES_ENTORNO_PRUEBA } from './lib/entorno'
 import { AuthProvider } from './auth/AuthContext'
 import { purgarDemo, ensureCatalogo } from './db/seed'
 import { recargarFeriadosCalendario, recargarAusenciasCalendario, recargarCortesLuz } from './sync/syncEngine'
@@ -24,9 +26,13 @@ registerSW({ immediate: true })
 const arranque = purgarDemo().then(ensureCatalogo)
   .then(recargarFeriadosCalendario).then(recargarAusenciasCalendario).then(recargarCortesLuz)
 
+// v2.42: en el entorno de prueba, la pestaña del navegador también lo dice.
+if (ES_ENTORNO_PRUEBA) document.title = `[PRUEBA] ${document.title}`
+
 arranque.then(() => {
   ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
+      <AvisoEntorno />
       <AuthProvider>
         <App />
       </AuthProvider>

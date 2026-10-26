@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import { esEntornoDePrueba } from './src/lib/entornoRegla'
 
 // ============================================================
 // PWA Offline-First para tablets industriales (nave de 7.000 m2 con zonas
@@ -14,6 +15,13 @@ import { VitePWA } from 'vite-plugin-pwa'
 //  - Supabase = NetworkOnly: los datos dinamicos los maneja SOLO Dexie + el
 //    syncEngine; el SW NUNCA cachea la API (evita datos viejos y bucles).
 // ============================================================
+// v2.42: entorno de prueba. Vercel "staging" define VITE_ENTORNO=test en el
+// build; produccion no la define y el manifest queda EXACTAMENTE como antes.
+// Si alguien instala la PWA de prueba en una tablet, el icono dice "PRUEBA".
+// (Se lee via globalThis porque el proyecto no tiene @types/node.)
+const ENV_BUILD = (globalThis as unknown as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {}
+const PRUEBA = esEntornoDePrueba(ENV_BUILD.VITE_ENTORNO)
+
 export default defineConfig({
   plugins: [
     react(),
@@ -22,10 +30,10 @@ export default defineConfig({
       injectRegister: false, // registramos a mano en src/main.tsx (control explicito)
       includeAssets: ['favicon.svg', 'icons/icon-192.png', 'icons/icon-512.png'],
       manifest: {
-        name: 'INELPA - Control de Produccion',
-        short_name: 'INELPA Prod',
+        name: PRUEBA ? 'INELPA PRUEBA - Control de Produccion' : 'INELPA - Control de Produccion',
+        short_name: PRUEBA ? 'INELPA PRUEBA' : 'INELPA Prod',
         description: 'Programacion, planificacion y control de eficiencia de planta',
-        theme_color: '#0b3d6b',
+        theme_color: PRUEBA ? '#b45309' : '#0b3d6b',
         background_color: '#0f172a',
         display: 'standalone',
         orientation: 'any',
