@@ -1,10 +1,19 @@
 # Integración SAP B1 ↔ PWA INELPA
 ## Fase 1 — Entrada de datos (SAP → PWA): contrato de API
 
-**Rev. 2 · 26/10/2026**
+**Rev. 2.1 · 26/10/2026**
 **Autor:** INELPA (equipo PWA)
 **Para:** ALAMO
 **Estado:** contrato implementado y probado internamente. Listo para la prueba conjunta con Postman en cuanto esté el entorno de test.
+
+---
+
+## Cambios de la rev. 2.1 (después de la minuta del 21-22/10)
+
+- **Líneas de receta:** se adopta lo que dice la minuta. Las líneas que salen de la receta **se marcan inactivas, no se borran** (§3.3). Para ALAMO no cambia nada: siguen mandando la receta vigente completa.
+- **Histórico de la PWA:** **se conserva.** No se depura nada antes de la carga inicial (§7).
+- **Recibos de fabricación:** se agregan las condiciones de diseño que pedimos para la próxima etapa (§8).
+- **Postman:** request nuevo 1.4, que muestra la baja de una línea de receta (§9).
 
 ---
 
@@ -22,7 +31,7 @@ Esta revisión incorpora todo lo que respondieron en la reunión del 22/10. Grac
 | Label para el operario | `comments` / `itemName` en la OF | **Lo compone la PWA** desde el maestro de artículos. Se quitan `itemName` y `comments` del payload de la OF. |
 | Receta vs. artículo | ¿uno o dos endpoints? | **Un endpoint, un payload.** |
 | Profundidad del árbol | a definir | **Un nivel por llamada.** |
-| Líneas de receta | desactivar, nunca borrar | **Reemplazo completo** (SAP no guarda historial de una línea quitada). Los artículos siguen sin borrarse nunca. |
+| Líneas de receta | desactivar, nunca borrar | **Se marcan inactivas, no se borran** (rev. 2.1, según la minuta). SAP manda la receta vigente completa y la PWA detecta sola lo que salió. Los artículos tampoco se borran nunca. |
 | Códigos HTTP | 422 por ítem | **200 por lote** con el resultado de cada ítem adentro. Ver §5. |
 | Allowlist de IP | propuesta | **Desactivada durante las pruebas**, como pidieron. Se evalúa para producción. |
 
@@ -129,22 +138,24 @@ Máximo **500 artículos por envío** y **500 líneas por receta**.
 
 **Los artículos nunca se borran.** Las tareas de producción guardan el código del semielaborado; borrar un artículo dejaría tareas históricas huérfanas. Un artículo discontinuado llega con `"active": false` y queda inactivo.
 
-**La receta se rige por la presencia de `bom`:**
+**Las líneas de receta tampoco se borran** (rev. 2.1, según la minuta). `bom` siempre es **la receta vigente completa**: la PWA la compara contra lo que tenía y resuelve sola qué cambió. ALAMO no tiene que avisar bajas.
 
 | El envío trae… | Efecto sobre la receta |
 | --- | --- |
 | sin la clave `bom` (o `null`) | **No se toca.** Sirve para actualizar datos del artículo sin reenviar la fórmula. |
-| `"bom": [ … ]` | **Reemplazo completo.** Las líneas que no vengan se borran. |
-| `"bom": []` | **Se vacía.** |
+| `"bom": [ … ]` | Las líneas nuevas se agregan, las que cambian de cantidad o posición se actualizan, **las que ya no vienen quedan inactivas con fecha de baja** y las que vuelven se reactivan. |
+| `"bom": []` | **Todas las líneas quedan inactivas.** Nada se borra. |
 
-Esto cubre lo que propusieron: el producto puede llegar primero sin fórmula y después el mismo producto con fórmula. **Ojo con mandar `bom: []` cuando la intención es "no tengo la fórmula todavía"**: eso la borra. En ese caso, omitir la clave.
+Esto cubre lo que propusieron: el producto puede llegar primero sin fórmula y después el mismo producto con fórmula. **Ojo con mandar `bom: []` cuando la intención es "no tengo la fórmula todavía"**: eso da de baja la receta entera. En ese caso, omitir la clave.
+
+Si un mismo componente aparece dos veces en la receta, se guardan las dos líneas: no hace falta agruparlas.
 
 **Un nivel por llamada.** Si un componente de la receta todavía no se dio de alta, se acepta igual (no hay clave foránea) y se informa en `componentesSinAlta`. El árbol se completa con envíos sucesivos, en cualquier orden.
 
 ### 3.4 Respuesta por artículo
 
 ```jsonc
-{ "itemCode": "TTD13V0000001", "resultado": "creado", "lineasReceta": 10, "componentesSinAlta": 10 }
+{ "itemCode": "TTD13V0000001", "resultado": "creado", "lineasReceta": 10, "lineasDadasDeBaja": 0, "componentesSinAlta": 10 }
 ```
 
 | `resultado` | Significado |
@@ -154,7 +165,11 @@ Esto cubre lo que propusieron: el producto puede llegar primero sin fórmula y d
 | `sin_cambios` | Llegó igual a lo que ya estaba. Un reintento da esto. |
 | `rechazado` | No se grabó. Trae `motivo` y `reintentable`. |
 
-`lineasReceta` y `componentesSinAlta` vienen en `null` cuando el envío no traía `bom`.
+- `lineasReceta`: líneas de la receta que llegó (las vigentes después del envío).
+- `lineasDadasDeBaja`: líneas que estaban vigentes y no vinieron en este envío; quedaron inactivas.
+- `componentesSinAlta`: componentes de la receta que todavía no se dieron de alta como artículo.
+
+Los tres vienen en `null` cuando el envío no traía `bom`.
 
 ---
 
@@ -315,7 +330,7 @@ Además verificamos los códigos en dos niveles:
 - **Catálogo contra el export de SAP del 15/9:** los 1.692 códigos del export existen en la PWA, y los nombres coinciden exactamente (309 de 309 modelos, 1.383 de 1.383 semielaborados).
 - **Histórico de producción contra SAP:** todas las órdenes y todas las tareas con semielaborado que tiene hoy la PWA se vinculan con códigos que existen en SAP. **No hay registros huérfanos.**
 
-La decisión de conservar o depurar el histórico queda del lado de INELPA y no afecta el contrato.
+**Decisión de INELPA (rev. 2.1): se conserva el histórico.** No se depura nada antes de la carga inicial. Corrige lo que quedó en la minuta del 21-22/10 ("sobre una base depurada de registros previos"), que reflejaba lo conversado antes de tener esta verificación.
 
 Una consulta menor: la PWA tiene 342 códigos que no aparecen en ese export — **`PRESUP` (173), `PREINF` (152) y `VARANG` (17)**, prensayugos y varillas. Siguen el formato de SAP y ninguna tarea histórica los usa, así que no afectan el histórico. ¿Existen en el maestro completo? Lo necesitamos saber para las recetas que vengan de SAP.
 
@@ -327,13 +342,18 @@ Una consulta menor: la PWA tiene 342 códigos que no aparecen en ese export — 
 
 - **Vínculo padre-hija.** Juan planteó que en SAP la OF del semielaborado no queda relacionada con la del producto final. Para la PWA es importante: es lo que permite ver un transformador como una unidad y saber cuándo están todas sus partes. Si no está nativo, una alternativa es un campo de usuario en la OF que se complete cuando el MRP la genera. El campo `parentDocEntry` ya está previsto y es opcional, así que el resto del contrato no se frena.
 - **Cancelación de una OF desde la PWA.** Endpoint del Service Layer para pasar la OF a cerrada/cancelada. Cuando lo tengan, lo sumamos del lado nuestro.
-- **Documento de recibos y emisiones** en limpio, como quedaron en mandar. Anticipamos una sola condición de diseño: la PWA **no va a bloquear al operario** si SAP rechaza un recibo (por ejemplo, por falta de stock en el depósito por defecto). El recibo queda en una cola visible para planificación y se reintenta con la misma clave.
+- **Documento de recibos y emisiones** en limpio, como quedaron en mandar. Para que lo armen sabiendo cómo lo va a usar la PWA, estas son nuestras condiciones de diseño:
+  1. **El envío sale del servidor, no de la tablet.** La tablet puede estar sin señal y su clave es pública. Lo dispara la base cuando se cierra la tarea.
+  2. **El operario nunca queda bloqueado.** Si SAP rechaza un recibo (por ejemplo, por falta de stock en el depósito por defecto), la tarea queda cerrada igual; el recibo pasa a una bandeja visible para planificación y se reintenta.
+  3. **Idempotencia del recibo.** Cada recibo viaja con una clave propia de la PWA (derivada de la tarea), para que un reintento nunca genere dos recibos. Necesitamos saber en qué campo del Service Layer la guardamos (por ejemplo, un campo de usuario o la referencia del documento) y que SAP rechace o ignore un segundo envío con la misma clave.
+  4. **Fecha del movimiento.** Las tablets cierran tareas sin conexión y el envío puede salir horas después. El recibo tiene que poder llevar la fecha real de fin, aunque sea anterior al momento del envío.
+  5. **URL accesible.** La URL que nos den tiene que ser alcanzable desde internet (desde Supabase). Tenemos registrado que SAP está detrás de VPN: ¿el destino es el Service Layer directo o un componente intermedio de ustedes?
 - Confirmar si existen `PRESUP`, `PREINF` y `VARANG` en el maestro (§7).
 
 ### Del lado de INELPA
 
 - **Entorno de test** (proyecto Supabase separado), como pidieron. URL y token se entregan con la convocatoria a la prueba.
-- Revisión interna de depósitos (almacén fijo por artículo en la receta).
+- **Estrategia de depósitos.** Si el depósito queda fijo por artículo en la receta, la PWA solo reenvía en el recibo el depósito que trae la orden (ya lo guardamos, campo `warehouse`) y no hace falta gestión de depósitos en la app. Si hay que elegirlo en cada cierre, es desarrollo nuevo. Esta definición depende del documento de almacenes y emisiones que quedaron en mandar.
 - Fase siguiente: que la planificación lea el maestro de SAP y trabaje con las órdenes de semielaborados.
 
 ---
@@ -343,19 +363,19 @@ Una consulta menor: la PWA tiene 342 códigos que no aparecen en ese export — 
 Material en `docs/postman/`:
 
 ```
-INELPA_PWA_API.postman_collection.json     14 requests con tests automáticos
+INELPA_PWA_API.postman_collection.json     15 requests con tests automáticos
 INELPA_PWA_API.postman_environment.json    {{base_url}}, {{service_token}}
 ```
 
 | Carpeta | Qué prueba |
 | --- | --- |
-| 1. Artículos | Alta de un transformador con receta, lote de 10 semielaborados, reenvío idéntico, cambio de descripción sin tocar la receta, lote con un artículo inválido, discontinuar. |
+| 1. Artículos | Alta de un transformador con receta, lote de 10 semielaborados, reenvío idéntico, sacar una línea de la receta (queda inactiva), cambio de descripción sin tocar la receta, lote con un artículo inválido, discontinuar. |
 | 2. Órdenes | Lote de 7 (las hijas antes que el padre), reenvío del mismo lote, reenvío con una cantidad distinta, semielaborado suelto, artículo no sincronizado, orden no liberada. |
 | 3. Seguridad | Sin token, método GET. |
 
 **Cómo correrla:** importar los dos archivos, completar el environment y usar *Run collection*. Cada request tiene sus asserts. La colección es idempotente: se puede correr varias veces y los tests aceptan tanto la primera corrida como las siguientes. Rango de prueba: `docEntry` 9001–9999.
 
-**Qué ya probamos de nuestro lado:** la colección completa, dos corridas seguidas, contra el código real de los endpoints y las funciones SQL sobre Postgres: 68 de 68 asserts en verde.
+**Qué ya probamos de nuestro lado:** la colección completa, dos corridas seguidas, contra el código real de los endpoints y las funciones SQL sobre Postgres: 78 de 78 asserts en verde.
 
 **Secuencia propuesta para la sesión:**
 

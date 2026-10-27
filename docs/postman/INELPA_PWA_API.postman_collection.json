@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "9ead5a40-b5a4-59a5-aadd-482219c6f2dc",
     "name": "INELPA PWA · Integración SAP B1 (Fase 1)",
-    "description": "Endpoints de entrada SAP B1 → PWA INELPA, Fase 1. Contrato completo en docs/ALAMO_plan_endpoints_fase1.md (rev. 2).\n\n**Antes de empezar:** importar también el environment `INELPA_PWA_API.postman_environment.json` y completar `base_url` y `service_token`.\n\n**Orden:** carpeta 1 (artículos) antes que la 2 (órdenes). Una orden de un artículo que no existe vuelve rechazada con reintentable=true.\n\n**Semántica de respuesta:** 200 = lote procesado; el resultado de cada ítem va en `resultados`, en el orden de llegada. 401/400/405/413 = no se procesó nada. 500 = falló la base; reintentar el envío completo es seguro.\n\nToda la colección es idempotente: se puede correr completa varias veces (Run collection) y los tests aceptan tanto la primera corrida como las siguientes.",
+    "description": "Endpoints de entrada SAP B1 → PWA INELPA, Fase 1. Contrato completo en docs/ALAMO_plan_endpoints_fase1.md (rev. 2.1).\n\n**Antes de empezar:** importar también el environment `INELPA_PWA_API.postman_environment.json` y completar `base_url` y `service_token`.\n\n**Orden:** carpeta 1 (artículos) antes que la 2 (órdenes). Una orden de un artículo que no existe vuelve rechazada con reintentable=true.\n\n**Semántica de respuesta:** 200 = lote procesado; el resultado de cada ítem va en `resultados`, en el orden de llegada. 401/400/405/413 = no se procesó nada. 500 = falló la base; reintentar el envío completo es seguro.\n\nToda la colección es idempotente: se puede correr completa varias veces (Run collection) y los tests aceptan tanto la primera corrida como las siguientes.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -40,7 +40,7 @@
                 "sap-articulos"
               ]
             },
-            "description": "Producto terminado con su receta de UN nivel (bobinas, parte activa, cuba, tanque, tapa).\n\nDatos reales del catálogo: TTD13V0000001 = TTD 16/13 Tanque Expansión Plataforma Cu.\n\nPrimera vez: `creado`, con `componentesSinAlta: 10` (los semielaborados todavía no llegaron; es normal, un nivel por llamada). En corridas siguientes: `actualizado` (porque 1.4 le cambió la descripción en la corrida anterior y esto la restaura) o `sin_cambios`.",
+            "description": "Producto terminado con su receta de UN nivel (bobinas, parte activa, cuba, tanque, tapa).\n\nDatos reales del catálogo: TTD13V0000001 = TTD 16/13 Tanque Expansión Plataforma Cu.\n\nPrimera vez: `creado`, con `componentesSinAlta: 10` (los semielaborados todavía no llegaron; es normal, un nivel por llamada). En corridas siguientes: `actualizado` (porque 1.4 y 1.5 le cambiaron la receta y la descripción en la corrida anterior, y esto las restaura) o `sin_cambios`.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"articulos\": [\n    {\n      \"itemCode\": \"TTD13V0000001\",\n      \"itemName\": \"TTD 16/13 - Tanque Expansion - Plataforma - Cobre\",\n      \"itemType\": \"PT\",\n      \"uom\": \"UN\",\n      \"active\": true,\n      \"defaultWarehouse\": \"03\",\n      \"hasBatch\": false,\n      \"bom\": [\n        {\n          \"itemCode\": \"BOBBAJ0000109\",\n          \"quantity\": 1,\n          \"uom\": \"UN\"\n        },\n        {\n          \"itemCode\": \"BOBBAJ0000110\",\n          \"quantity\": 1,\n          \"uom\": \"UN\"\n        },\n        {\n          \"itemCode\": \"BOBBAJ0000111\",\n          \"quantity\": 1,\n          \"uom\": \"UN\"\n        },\n        {\n          \"itemCode\": \"BOBALT0000109\",\n          \"quantity\": 1,\n          \"uom\": \"UN\"\n        },\n        {\n          \"itemCode\": \"BOBALT0000110\",\n          \"quantity\": 1,\n          \"uom\": \"UN\"\n        },\n        {\n          \"itemCode\": \"BOBALT0000111\",\n          \"quantity\": 1,\n          \"uom\": \"UN\"\n        },\n        {\n          \"itemCode\": \"PARDIS0000001\",\n          \"quantity\": 1,\n          \"uom\": \"UN\"\n        },\n        {\n          \"itemCode\": \"CUBDIS0000037\",\n          \"quantity\": 1,\n          \"uom\": \"UN\"\n        },\n        {\n          \"itemCode\": \"TANDIS0000001\",\n          \"quantity\": 1,\n          \"uom\": \"UN\"\n        },\n        {\n          \"itemCode\": \"TAPDIS0000001\",\n          \"quantity\": 1,\n          \"uom\": \"UN\"\n        }\n      ]\n    }\n  ]\n}",
@@ -160,7 +160,55 @@
           ]
         },
         {
-          "name": "1.4 Cambio de descripción SIN tocar la receta",
+          "name": "1.4 Sacar una línea de la receta (queda inactiva, no se borra)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/functions/v1/sap-articulos",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "functions",
+                "v1",
+                "sap-articulos"
+              ]
+            },
+            "description": "SAP manda la receta vigente sin la cuba `CUBDIS0000037` (en el catálogo figura en desuso).\n\nLa PWA **no borra** esa línea: la marca inactiva con fecha de baja y la informa en `lineasDadasDeBaja`. ALAMO no tiene que avisar bajas: alcanza con mandar siempre la receta vigente completa.\n\nSi después vuelve a venir la receta con la cuba (1.1 en la corrida siguiente), la línea se reactiva.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"articulos\": [\n    {\n      \"itemCode\": \"TTD13V0000001\",\n      \"itemName\": \"TTD 16/13 - Tanque Expansion - Plataforma - Cobre\",\n      \"itemType\": \"PT\",\n      \"uom\": \"UN\",\n      \"active\": true,\n      \"defaultWarehouse\": \"03\",\n      \"hasBatch\": false,\n      \"bom\": [\n        {\n          \"itemCode\": \"BOBBAJ0000109\",\n          \"quantity\": 1,\n          \"uom\": \"UN\"\n        },\n        {\n          \"itemCode\": \"BOBBAJ0000110\",\n          \"quantity\": 1,\n          \"uom\": \"UN\"\n        },\n        {\n          \"itemCode\": \"BOBBAJ0000111\",\n          \"quantity\": 1,\n          \"uom\": \"UN\"\n        },\n        {\n          \"itemCode\": \"BOBALT0000109\",\n          \"quantity\": 1,\n          \"uom\": \"UN\"\n        },\n        {\n          \"itemCode\": \"BOBALT0000110\",\n          \"quantity\": 1,\n          \"uom\": \"UN\"\n        },\n        {\n          \"itemCode\": \"BOBALT0000111\",\n          \"quantity\": 1,\n          \"uom\": \"UN\"\n        },\n        {\n          \"itemCode\": \"PARDIS0000001\",\n          \"quantity\": 1,\n          \"uom\": \"UN\"\n        },\n        {\n          \"itemCode\": \"TANDIS0000001\",\n          \"quantity\": 1,\n          \"uom\": \"UN\"\n        },\n        {\n          \"itemCode\": \"TAPDIS0000001\",\n          \"quantity\": 1,\n          \"uom\": \"UN\"\n        }\n      ]\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('actualizado', () => pm.expect(b.resultados[0].resultado).to.eql('actualizado'));",
+                  "pm.test('quedan 9 líneas vigentes', () => pm.expect(b.resultados[0].lineasReceta).to.eql(9));",
+                  "pm.test('1 línea dada de baja (inactiva, no borrada)', () => pm.expect(b.resultados[0].lineasDadasDeBaja).to.eql(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "1.5 Cambio de descripción SIN tocar la receta",
           "request": {
             "method": "POST",
             "header": [
@@ -200,14 +248,15 @@
                   "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
                   "const b = pm.response.json();",
                   "pm.test('actualizado o sin_cambios', () => pm.expect(['actualizado','sin_cambios']).to.include(b.resultados[0].resultado));",
-                  "pm.test('no informa receta (no se tocó)', () => pm.expect(b.resultados[0].lineasReceta).to.eql(null));"
+                  "pm.test('no informa receta (no se tocó)', () => pm.expect(b.resultados[0].lineasReceta).to.eql(null));",
+                  "pm.test('tampoco informa bajas', () => pm.expect(b.resultados[0].lineasDadasDeBaja).to.eql(null));"
                 ]
               }
             }
           ]
         },
         {
-          "name": "1.5 Lote con un artículo inválido",
+          "name": "1.6 Lote con un artículo inválido",
           "request": {
             "method": "POST",
             "header": [
@@ -227,7 +276,7 @@
                 "sap-articulos"
               ]
             },
-            "description": "Un artículo rechazado no frena al resto del lote. El inválido vuelve `rechazado`, con el motivo y `reintentable: false` (hay que corregir el mapeo, no reintentar).\n\nEn corridas siguientes el bueno vuelve `actualizado`: 1.6 lo dejó inactivo y este envío lo reactiva.",
+            "description": "Un artículo rechazado no frena al resto del lote. El inválido vuelve `rechazado`, con el motivo y `reintentable: false` (hay que corregir el mapeo, no reintentar).\n\nEn corridas siguientes el bueno vuelve `actualizado`: 1.7 lo dejó inactivo y este envío lo reactiva.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"articulos\": [\n    {\n      \"itemCode\": \"TTD13V0000002\",\n      \"itemName\": \"TTD 25/13 - Tanque Expansion - Plataforma - Cobre\",\n      \"itemType\": \"PT\",\n      \"uom\": \"UN\",\n      \"active\": true,\n      \"hasBatch\": false\n    },\n    {\n      \"itemCode\": \"MAL0000001\",\n      \"itemName\": \"Tipo inexistente\",\n      \"itemType\": \"XX\",\n      \"active\": true,\n      \"hasBatch\": false\n    }\n  ]\n}",
@@ -255,7 +304,7 @@
           ]
         },
         {
-          "name": "1.6 Discontinuar un artículo (nunca se borra)",
+          "name": "1.7 Discontinuar un artículo (nunca se borra)",
           "request": {
             "method": "POST",
             "header": [

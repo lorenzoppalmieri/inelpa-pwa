@@ -45,9 +45,13 @@
 --     externo durante una prueba arriesga la planificacion. Pasar el front a
 --     leer el catalogo desde la base es la fase siguiente.
 --   * Articulos: nunca se borran (las tareas guardan el codigo).
---     Lineas de receta: reemplazo completo cuando el envio trae "bom"
---     (SAP no guarda historial de una linea quitada, no puede avisar "se
---     desactivo"). Si el envio NO trae "bom", la receta no se toca.
+--   * Lineas de receta: tampoco se borran (minuta ALAMO del 21-22/10: "los
+--     articulos y lineas discontinuados se marcan como inactivos"). SAP manda
+--     la receta VIGENTE completa; la PWA compara contra lo que tenia: agrega
+--     lo nuevo, actualiza lo que cambio, marca inactiva (con fecha de baja) la
+--     linea que ya no vino y reactiva la que vuelve. Para ALAMO no cambia nada:
+--     no tienen que avisar bajas (SAP no guarda historial de lineas quitadas).
+--     Si el envio NO trae "bom", la receta no se toca.
 --   * Las funciones solo las puede ejecutar service_role. Sin el REVOKE,
 --     cualquiera con la anon key (que es publica) podria llamarlas por
 --     /rest/v1/rpc y saltearse el token del endpoint.
@@ -118,17 +122,29 @@ create table if not exists sap_articulos (
 );
 
 -- Un nivel de receta por articulo. El arbol se arma con envios sucesivos.
+-- La clave es (padre, componente, ocurrencia) y NO la posicion: si se saca una
+-- linea del medio, las demas no cambian de identidad y no se "dan de baja"
+-- por error. `ocurrencia` distingue el raro caso de un mismo componente que
+-- aparece dos veces en la receta (1 = primera vez, 2 = segunda...).
 create table if not exists sap_articulo_bom (
-  parent_code text    not null references sap_articulos (item_code),  -- sin cascade: los articulos no se borran
-  linea       int     not null,                                       -- posicion en la receta (0..n)
-  child_code  text    not null,                                       -- sin FK: el componente puede llegar despues
-  cantidad    numeric not null,
-  uom         text,
-  primary key (parent_code, linea),
+  parent_code    text        not null references sap_articulos (item_code),  -- sin cascade: los articulos no se borran
+  child_code     text        not null,                                       -- sin FK: el componente puede llegar despues
+  ocurrencia     int         not null default 1,
+  linea          int         not null,                                       -- posicion en la receta vigente (0..n)
+  cantidad       numeric     not null,
+  uom            text,
+  activo         boolean     not null default true,                          -- false = salio de la receta. Nunca se borra.
+  alta_en        timestamptz not null default now(),                         -- primera vez que aparecio
+  baja_en        timestamptz,                                                -- cuando salio (null si esta vigente)
+  actualizado_en timestamptz not null default now(),
+  primary key (parent_code, child_code, ocurrencia),
   constraint sap_bom_cantidad_chk     check (cantidad > 0),
-  constraint sap_bom_no_autorref_chk  check (child_code <> parent_code)
+  constraint sap_bom_ocurrencia_chk   check (ocurrencia >= 1),
+  constraint sap_bom_no_autorref_chk  check (child_code <> parent_code),
+  constraint sap_bom_baja_chk         check (activo = (baja_en is null))
 );
 create index if not exists idx_sap_bom_child on sap_articulo_bom (child_code);
+comment on table sap_articulo_bom is 'Receta de un nivel por articulo, espejo de SAP. La receta vigente es WHERE activo. Las lineas que salen quedan con activo=false y baja_en.';
 
 
 -- ------------------------------------------------------------
@@ -163,7 +179,10 @@ declare
   v_antes        timestamptz;
   v_despues      timestamptz;
   v_bom_cambio   boolean;
+  v_bom_antes    jsonb;
+  v_nuevas       jsonb;
   v_lineas       int;
+  v_bajas        int;
   v_sin_alta     int;
 begin
   for a in select value from jsonb_array_elements(p_articulos) loop
@@ -197,20 +216,59 @@ begin
       -- Ausente o null = no tocar (ej. se actualiza solo la descripcion).
       v_bom_cambio := false;
       v_lineas     := null;
+      v_bajas      := null;
       v_sin_alta   := null;
       if jsonb_typeof(a->'bom') = 'array' then
-        if (select coalesce(jsonb_agg(jsonb_build_array(child_code, cantidad, uom) order by linea), '[]'::jsonb)
-              from sap_articulo_bom where parent_code = v_code)
-           is distinct from
-           (select coalesce(jsonb_agg(jsonb_build_array(l->>'itemCode', (l->>'quantity')::numeric, l->>'uom') order by ord), '[]'::jsonb)
-              from jsonb_array_elements(a->'bom') with ordinality as x(l, ord))
-        then
-          delete from sap_articulo_bom where parent_code = v_code;
-          insert into sap_articulo_bom (parent_code, linea, child_code, cantidad, uom)
-          select v_code, (ord - 1)::int, l->>'itemCode', (l->>'quantity')::numeric, l->>'uom'
-          from jsonb_array_elements(a->'bom') with ordinality as x(l, ord);
-          v_bom_cambio := true;
-        end if;
+        -- Foto de la receta vigente ANTES, para saber si algo cambio.
+        select coalesce(jsonb_agg(jsonb_build_array(child_code, ocurrencia, linea, cantidad, uom)
+                                  order by child_code, ocurrencia), '[]'::jsonb)
+        into v_bom_antes
+        from sap_articulo_bom where parent_code = v_code and activo;
+
+        -- Receta que llego, normalizada: posicion y ocurrencia de cada componente.
+        select coalesce(jsonb_agg(jsonb_build_object(
+                 'child', s.child, 'ocurrencia', s.ocurrencia, 'linea', s.linea,
+                 'cantidad', s.cantidad, 'uom', s.uom)), '[]'::jsonb)
+        into v_nuevas
+        from (
+          select l->>'itemCode'                                              as child,
+                 row_number() over (partition by l->>'itemCode' order by ord) as ocurrencia,
+                 ord - 1                                                     as linea,
+                 (l->>'quantity')::numeric                                   as cantidad,
+                 l->>'uom'                                                   as uom
+          from jsonb_array_elements(a->'bom') with ordinality as x(l, ord)
+        ) s;
+
+        -- Alta / actualizacion / reactivacion de lo que vino.
+        insert into sap_articulo_bom as b
+          (parent_code, child_code, ocurrencia, linea, cantidad, uom, activo, alta_en, baja_en, actualizado_en)
+        select v_code, n.child, n.ocurrencia, n.linea, n.cantidad, n.uom, true,
+               clock_timestamp(), null, clock_timestamp()
+        from jsonb_to_recordset(v_nuevas) as n(child text, ocurrencia int, linea int, cantidad numeric, uom text)
+        on conflict (parent_code, child_code, ocurrencia) do update set
+          linea          = excluded.linea,
+          cantidad       = excluded.cantidad,
+          uom            = excluded.uom,
+          activo         = true,
+          baja_en        = null,
+          actualizado_en = case
+            when (b.linea, b.cantidad, b.uom, b.activo) is distinct from (excluded.linea, excluded.cantidad, excluded.uom, true)
+            then clock_timestamp() else b.actualizado_en end;
+
+        -- Baja logica de lo que estaba vigente y ya no vino. Nunca DELETE.
+        update sap_articulo_bom b
+        set activo = false, baja_en = clock_timestamp(), actualizado_en = clock_timestamp()
+        where b.parent_code = v_code
+          and b.activo
+          and not exists (
+            select 1 from jsonb_to_recordset(v_nuevas) as n(child text, ocurrencia int)
+            where n.child = b.child_code and n.ocurrencia = b.ocurrencia);
+        get diagnostics v_bajas = row_count;
+
+        v_bom_cambio := v_bom_antes is distinct from (
+          select coalesce(jsonb_agg(jsonb_build_array(child_code, ocurrencia, linea, cantidad, uom)
+                                    order by child_code, ocurrencia), '[]'::jsonb)
+          from sap_articulo_bom where parent_code = v_code and activo);
         v_lineas := jsonb_array_length(a->'bom');
         -- Informativo: componentes de la receta que todavia no se dieron de alta.
         -- Es normal (un nivel por llamada, sin orden garantizado).
@@ -225,6 +283,7 @@ begin
                                    when v_bom_cambio or v_despues <> v_antes   then 'actualizado'
                                    else 'sin_cambios' end,
         'lineasReceta',       v_lineas,
+        'lineasDadasDeBaja',  v_bajas,
         'componentesSinAlta', v_sin_alta);
 
     exception when others then
