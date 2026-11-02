@@ -33,3 +33,8 @@ pnpm-debug.log*
 
 # Temporales que deja Vite al bundlear el config (si el build se interrumpe)
 vite.config.ts.timestamp-*.mjs
+
+# Temporales de la CLI de Supabase (`npx supabase ...`): guardan a qué proyecto
+# está vinculada ESTA compu. No van al repo: en otra compu podría quedar
+# apuntando a test o a producción sin que nadie lo note.
+supabase/.temp/
