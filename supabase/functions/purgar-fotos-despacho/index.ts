@@ -32,10 +32,24 @@ function pathDesdeUrl(url: string): string | undefined {
   return path ? decodeURIComponent(path) : undefined
 }
 
+// v2.44 — CLAVE NUEVA. Supabase retira las claves viejas (`service_role`, un
+// JWT largo que empieza con eyJ) a fin de 2026, y la de producción hay que
+// rotarla. La función ahora usa la clave secreta nueva (`sb_secret_...`) que el
+// runtime inyecta en SUPABASE_SECRET_KEYS (JSON por nombre; se usa 'default').
+// Si todavía no existe ninguna, cae a la vieja: así se puede desplegar ANTES de
+// apagar las claves viejas sin cortar la purga ni una noche.
+function claveServidor(): string {
+  try {
+    const nuevas = JSON.parse(Deno.env.get('SUPABASE_SECRET_KEYS') ?? '{}') as Record<string, string>
+    if (nuevas.default) return nuevas.default
+  } catch { /* sin claves nuevas: se usa la vieja */ }
+  return Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+}
+
 Deno.serve(async () => {
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL')!,
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+    claveServidor(),
   )
 
   const corte = new Date(Date.now() - DIAS_RETENCION * 86400000).toISOString()
