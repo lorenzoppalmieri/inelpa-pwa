@@ -3,7 +3,7 @@ import type { Tarea, EstadoTarea, Maquina } from '../../types'
 import { sectorById, causaLabel, esParadaNoProductiva, nombreSemielaborado, minutosRecupTarea } from '../../types'
 import { componentePorCodigo } from '../../data/catalogo'
 import { hhmm, fmtDur, isoWeek, fechaCorta } from '../../lib/time'
-import { proximoInstanteLaborable, tramosLaborables, calcularTiempoNetoProductivo, calcularTiempoProductivo, estaAusente, type GrupoAlmuerzo } from '../../lib/calendario'
+import { proximoInstanteLaborable, tramosLaborables, calcularTiempoNetoProductivo, calcularTiempoProductivo, estaAusente, esSabadoDevolucion, type GrupoAlmuerzo } from '../../lib/calendario'
 import { programar, capacidadRecurso, encadenaPorPersona, type Plan } from '../../lib/programacion'
 import { desglosePausas, demoraSinJustificarHasta, type TramoPausa } from '../../lib/kpi'
 import { guardarTarea } from '../../sync/syncEngine'
@@ -11,9 +11,18 @@ import { guardarTarea } from '../../sync/syncEngine'
 // Ventana horaria visible de cada dia (turno de planta: 07:00 - 17:00 reloj
 // visible). La franja 16:00-17:00 es recuperacion de horas y cuenta como
 // produccion estandar (definida en lib/calendario.ts).
-const H_INI = 7
+// v2.43: H_INI deja de ser fija. Las semanas que muestran el ÚLTIMO SÁBADO del
+// mes (devolución de horas, abre 06:00) arrancan la grilla a las 06:00 para que
+// esa primera hora se vea; el resto de las semanas siguen en 07:00 y no cambian.
+// Se recalcula al principio de cada render (ver `ajustarVentanaHoraria`); es un
+// valor de módulo porque lo leen los helpers de abajo y el render por igual.
+let H_INI = 7
 const H_FIN = 17
-const DAY_MIN = (H_FIN - H_INI) * 60 // 600
+let DAY_MIN = (H_FIN - H_INI) * 60 // 600
+function ajustarVentanaHoraria(dias: Date[]): void {
+  H_INI = dias.some((d) => esSabadoDevolucion(d)) ? 6 : 7
+  DAY_MIN = (H_FIN - H_INI) * 60
+}
 const PX_HORA: Record<number, number> = { 1: 150, 2: 92, 4: 58 }
 const SIN_ASIGNAR = '__sin__'
 
@@ -69,7 +78,8 @@ function sumarDias(d: Date, n: number): Date { const r = new Date(d); r.setDate(
 
 // Bandas NO productivas de un dia (complemento de tramos laborables en [7,17]).
 function bandasMuertasDia(day: Date, grupo: GrupoAlmuerzo): { ini: number; fin: number }[] {
-  const tramos = tramosLaborables(day, grupo)
+  // v2.43: el último sábado del mes se dibuja abierto (06:00-15:00).
+  const tramos = tramosLaborables(day, grupo, 60, false, undefined, true)
   const bands: { ini: number; fin: number }[] = []
   let cursor = H_INI * 60
   for (const t of tramos) {
@@ -185,11 +195,15 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
 
   const diasSemana = useMemo(() => {
     const lun = sumarDias(lunesDeSemana(new Date()), offsetSemana * 7)
-    return Array.from({ length: 5 }, (_, i) => sumarDias(lun, i))
+    const semana = Array.from({ length: 5 }, (_, i) => sumarDias(lun, i))
+    // v2.43: la semana del último sábado del mes muestra también el sábado.
+    const sab = sumarDias(lun, 5)
+    return esSabadoDevolucion(sab) ? [...semana, sab] : semana
   }, [offsetSemana])
   const diaUnico = useMemo(() => new Date(`${fechaSel}T00:00:00`), [fechaSel])
   const dias = escala === 'semana' ? diasSemana : [diaUnico]
   const N = dias.length
+  ajustarVentanaHoraria(dias)
 
   // ¿Lo que se está mirando ya pasó? Se compara el ÚLTIMO día visible contra el
   // comienzo de hoy: una semana en curso no cuenta como pasada.

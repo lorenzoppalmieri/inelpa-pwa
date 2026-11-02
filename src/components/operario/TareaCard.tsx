@@ -8,7 +8,7 @@ import { guardarTarea, guardarLaboratorio } from '../../sync/syncEngine'
 import type { TareaLaboratorio } from '../../types'
 import { useAuth } from '../../auth/AuthContext'
 import { hhmm, cronometro, fmtDur, fechaCorta } from '../../lib/time'
-import { calcularTiempoNetoProductivo, calcularTiempoProductivo } from '../../lib/calendario'
+import { calcularTiempoNetoProductivo, calcularTiempoProductivo, recuperacionDiariaVigente } from '../../lib/calendario'
 import { componentePorCodigo } from '../../data/catalogo'
 import { tiempoNetoMin } from '../../lib/kpi'
 import ModalParada from './ModalParada'
@@ -363,7 +363,10 @@ export default function TareaCard({ tarea, onIniciar }: { tarea: Tarea; onInicia
       {/* v1.40: recuperacion POR TAREA y FRACCIONAL (30/60 min). El boton abre un
           modal tactil; una vez elegido, muestra feedback (borde verde) y un ✕ para
           cancelar. Solo mientras la tarea esta abierta. */}
-      {(tarea.estado === 'en_proceso' || tarea.estado === 'pausada') && (() => {
+      {/* v2.43: desde el 1/11/2026 no existe más la recuperación diaria
+          (comunicado de RRHH). El botón desaparece; lo ya cargado antes de esa
+          fecha se sigue respetando en los cálculos de esos días. */}
+      {recuperacionDiariaVigente() && (tarea.estado === 'en_proceso' || tarea.estado === 'pausada') && (() => {
         const recup = minutosRecupTarea(tarea)
         const txtRecup = recup === 60 ? 'Recuperando 1h' : recup === 30 ? 'Recuperando 30m' : recup > 0 ? `Recuperando ${recup}m` : ''
         return (
@@ -389,7 +392,7 @@ export default function TareaCard({ tarea, onIniciar }: { tarea: Tarea; onInicia
       })()}
 
       {/* Modal: cuánto tiempo se queda a recuperar (táctil) */}
-      {modalRecup && (
+      {modalRecup && recuperacionDiariaVigente() && (
         <div className="modal-overlay" onClick={() => setModalRecup(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="section-title" style={{ marginTop: 0 }}>¿Cuánto tiempo te quedás a recuperar?</div>

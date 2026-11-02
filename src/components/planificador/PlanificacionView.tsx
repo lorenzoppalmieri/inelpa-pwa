@@ -22,6 +22,7 @@ import { tiempoNetoMin } from '../../lib/kpi'
 import { puedeGenerarPO, construirTareaPO, tieneEstandarAprendido } from '../../lib/puenteMontaje'
 import { tareaEnPeriodo, labelPeriodo, hoyLocalISO, primerDiaDelMesISO, type Periodo } from '../../lib/periodos'
 import { potenciaKVA } from '../../lib/potencia'
+import { recuperacionDiariaVigente } from '../../lib/calendario'
 
 // v2.24: sectores donde el transformador queda ENCUBADO. El promedio de potencia
 // solo se calcula acá; en el resto de las barras no se dibuja nada.
@@ -1122,7 +1123,7 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
       {/* v2.41: en modo consulta (Diseño) la tarjeta es solo de lectura. */}
       {!soloLectura && (!soloReparacion || t.tipo === 'reparacion') && (
         <div className="row-actions">
-          {t.estado !== 'finalizada' && (
+          {t.estado !== 'finalizada' && recuperacionDiariaVigente() && (
             <button className="btn" style={{ flex: 1 }} onClick={() => toggleRecup(t)}>
               {t.activaHoraRecuperacion ? '⏱ Quitar hora recup.' : '⏱ Habilitar hora recup.'}
             </button>
@@ -1313,13 +1314,16 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
             <input className="input" type="time" value={horaPlan} disabled={!fechaPlan}
               onChange={(e) => setHoraPlan(e.target.value)} placeholder="07:00" />
           </div>
-          <div className="field">
-            <label>Hora de recuperación (16–17 / 15–16)</label>
-            <label className="check-inline">
-              <input type="checkbox" checked={horaRecup} onChange={(e) => setHoraRecup(e.target.checked)} />
-              <span>Computar la franja extra como tiempo productivo de esta tarea</span>
-            </label>
-          </div>
+          {/* v2.43: sin recuperación diaria desde el 1/11/2026 (RRHH). */}
+          {recuperacionDiariaVigente() && (
+            <div className="field">
+              <label>Hora de recuperación (16–17 / 15–16)</label>
+              <label className="check-inline">
+                <input type="checkbox" checked={horaRecup} onChange={(e) => setHoraRecup(e.target.checked)} />
+                <span>Computar la franja extra como tiempo productivo de esta tarea</span>
+              </label>
+            </div>
+          )}
         </div>
         <button className="btn btn-primary btn-bloque" onClick={asignar} disabled={faltanCampos}>＋ Asignar {tipo === 'reparacion' ? 'reparación' : 'tarea'}</button>
         {faltanCampos && <div className="meta" style={{ marginTop: 8 }}>Completá todos los campos obligatorios para poder asignar{sectorTieneSemi && !componenteCodigo ? ' (falta el semielaborado)' : ''}.</div>}

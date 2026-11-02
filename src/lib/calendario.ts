@@ -26,6 +26,56 @@ const APERTURA_MIN = 7 * 60       // 07:00
 const LIMPIEZA_MIN = 15           // ultimos 15 min sin produccion
 
 // ============================================================
+// v2.43 — HORARIO UNIFICADO DE NOVIEMBRE 2026 (comunicado de RRHH)
+//
+// Desde el 1/11/2026:
+//   1) Toda la empresa: Lun-Jue 07:00-16:00, Vie 07:00-15:00. La planta ya
+//      tenía ese horario; el que cambia es el PAÑOL (antes 08:00-17:00).
+//   2) SE TERMINA LA RECUPERACIÓN DIARIA: la franja 16-17 (vie 15-16) deja de
+//      existir. Las tareas viejas la conservan para sus días anteriores al 1/11
+//      (los KPIs de octubre y de antes no se mueven): el corte es POR DÍA, no
+//      por tarea. Una tarea que cruza el 31/10 cuenta su recuperación hasta el
+//      31 y desde el 1/11 ya no.
+//   3) ÚLTIMO SÁBADO DEL MES, 06:00-15:00: devolución de horas. Generalmente
+//      trabajos de mantenimiento (se cargan como tareas no productivas), aunque
+//      puede haber producción. Mismas reglas que un día de semana: 30' de
+//      almuerzo del grupo y 15' de limpieza antes del cierre (14:45-15:00).
+//
+// EL SÁBADO NO ES UN DÍA COMO LOS DEMÁS (decisión de Lorenzo): va solo quien
+// devuelve horas, así que:
+//   - La COLA del Gantt no se corre sola al sábado. Solo caen ahí las tareas
+//     planificadas o iniciadas ese sábado (ver `permitirSabado`).
+//   - Al MEDIR el tiempo de algo, el sábado cuenta solo si el intervalo empieza
+//     o termina ese sábado (alguien estuvo trabajando ahí). Una tarea que quedó
+//     abierta del viernes al lunes NO suma el sábado: si se sumara, cada tarea
+//     abierta el último fin de semana del mes ganaría 8 h de "Tiempo Real".
+//     Límite conocido: si alguien retoma el sábado una tarea del viernes y la
+//     termina el lunes, el sábado no se le cuenta.
+// ============================================================
+export const VIGENCIA_HORARIO_UNIFICADO = '2026-11-01'
+const SAB_APERTURA_MIN = 6 * 60   // 06:00
+const SAB_CIERRE_MIN = 15 * 60    // 15:00
+
+/** ¿El día ya está bajo el horario de noviembre 2026? */
+function enHorarioUnificado(d: Date): boolean {
+  return fechaLocalISO(d) >= VIGENCIA_HORARIO_UNIFICADO
+}
+
+/** ¿Todavía se puede ACTIVAR la recuperación diaria? (para las pantallas) */
+export function recuperacionDiariaVigente(d: Date = new Date()): boolean {
+  return !enHorarioUnificado(d)
+}
+
+/** ¿Es el último sábado del mes (desde noviembre 2026) y no es feriado? */
+export function esSabadoDevolucion(d: Date): boolean {
+  if (d.getDay() !== 6 || !enHorarioUnificado(d) || esFeriado(d)) return false
+  const diasDelMes = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()
+  return d.getDate() + 7 > diasDelMes
+}
+
+const mismoDia = (a: Date, b: Date): boolean => fechaLocalISO(a) === fechaLocalISO(b)
+
+// ============================================================
 // FERIADOS / dias no laborables (v1.17). Set de fechas 'YYYY-MM-DD' que el
 // planificador carga; el calendario las trata como dia cerrado (planta sin
 // produccion, igual que un domingo). Se carga al iniciar y se actualiza cuando
@@ -106,7 +156,9 @@ export function diasLaborablesDelRango(desde: string, hasta: string): string[] {
 
 export function aperturaDelDia(iso: string): string {
   const d = new Date(iso)
-  d.setHours(Math.floor(APERTURA_MIN / 60), APERTURA_MIN % 60, 0, 0)
+  // v2.43: el sábado de devolución abre a las 06:00.
+  const ap = esSabadoDevolucion(d) ? SAB_APERTURA_MIN : APERTURA_MIN
+  d.setHours(Math.floor(ap / 60), ap % 60, 0, 0)
   return d.toISOString()
 }
 
@@ -198,25 +250,36 @@ export function tramosLaborables(
   recupMin = 60,
   sinAlmuerzo = false,
   operarioId?: string,
+  /**
+   * v2.43: ¿se abre el último sábado del mes? Por defecto NO (la planta y la
+   * cola no cuentan con él). Lo prenden la medición cuando el intervalo toca
+   * ese sábado y la cascada para tareas planificadas/iniciadas ese día.
+   */
+  sabado = false,
 ): Tramo[] {
   if (esFeriado(fecha)) return [] // v1.17: feriado -> planta cerrada todo el dia
   if (estaAusente(operarioId, fecha)) return [] // v2.04: falto -> el dia no existe para el
-  const normal = cierreNormalMin(fecha.getDay())
-  const recup = cierreRecupMin(fecha.getDay())
+  const esSab = sabado && esSabadoDevolucion(fecha)
+  const apertura = esSab ? SAB_APERTURA_MIN : APERTURA_MIN
+  const normal = esSab ? SAB_CIERRE_MIN : cierreNormalMin(fecha.getDay())
+  // v2.43: el sábado no tiene recuperación; desde el 1/11 ningún día la tiene.
+  const recup = esSab ? SAB_CIERRE_MIN : cierreRecupMin(fecha.getDay())
   if (normal == null || recup == null) return []
+  const recupEfectiva = enHorarioUnificado(fecha) ? 0 : recupMin
   const iniLimpieza = normal - LIMPIEZA_MIN
   const tramos: Tramo[] = []
   if (sinAlmuerzo) {
-    if (APERTURA_MIN < iniLimpieza) tramos.push({ iniMin: APERTURA_MIN, finMin: iniLimpieza })
+    if (apertura < iniLimpieza) tramos.push({ iniMin: apertura, finMin: iniLimpieza })
   } else {
     const alm = tramoAlmuerzo(grupo)
-    if (APERTURA_MIN < alm.iniMin) tramos.push({ iniMin: APERTURA_MIN, finMin: alm.iniMin })
+    if (apertura < alm.iniMin) tramos.push({ iniMin: apertura, finMin: alm.iniMin })
     if (alm.finMin < iniLimpieza) tramos.push({ iniMin: alm.finMin, finMin: iniLimpieza })
   }
   // Franja de recuperacion fraccional: desde el cierre normal, tantos minutos como
   // marco el operario, con tope en el cierre con recuperacion (la hora completa).
-  if (recupMin > 0 && normal < recup) {
-    tramos.push({ iniMin: normal, finMin: Math.min(recup, normal + recupMin) })
+  // v2.43: solo para días anteriores al 1/11/2026.
+  if (recupEfectiva > 0 && normal < recup) {
+    tramos.push({ iniMin: normal, finMin: Math.min(recup, normal + recupEfectiva) })
   }
   return tramos.filter((t) => t.finMin > t.iniMin)
 }
@@ -270,12 +333,15 @@ export function minutosProductivosDia(fecha: Date, grupo: GrupoAlmuerzo = GRUPO_
 // ============================================================
 
 // Primer instante productivo del proximo dia laborable posterior a `d`.
-function siguienteApertura(d: Date, grupo: GrupoAlmuerzo, recupMin = 60, operarioId?: string): Date {
+// v2.43: `sabadoOk(dia)` decide si el último sábado del mes se abre ese día, y
+// se arranca en el PRIMER tramo real del día (el sábado abre a las 06:00).
+function siguienteApertura(d: Date, grupo: GrupoAlmuerzo, recupMin = 60, operarioId?: string, sabadoOk?: (dia: Date) => boolean): Date {
   const n = new Date(d)
   n.setDate(n.getDate() + 1)
   n.setHours(0, 0, 0, 0)
   for (let i = 0; i < 14; i++) {
-    if (tramosLaborables(n, grupo, recupMin, false, operarioId).length > 0) return conMinutos(n, APERTURA_MIN)
+    const tr = tramosLaborables(n, grupo, recupMin, false, operarioId, !!sabadoOk?.(n))
+    if (tr.length > 0) return conMinutos(n, tr[0].iniMin)
     n.setDate(n.getDate() + 1)
   }
   // Ausencia de más de dos semanas (licencia larga): se devuelve el día 15 y el
@@ -292,17 +358,20 @@ function siguienteApertura(d: Date, grupo: GrupoAlmuerzo, recupMin = 60, operari
 // para no cambiar el resto de los llamadores de un saque, pero `programar()`
 // pasa el valor real de cada tarea (`minutosRecupTarea`, que es 0 si no la
 // marco). Ver el comentario de minutosProductivosDia.
-export function proximoInstanteLaborable(iso: string, grupo: GrupoAlmuerzo = GRUPO_ALMUERZO_DEFAULT, recupMin = 60, operarioId?: string): string {
+// v2.43: `permitirSabado` (default false) abre el último sábado del mes. Solo lo
+// pasa la cascada para tareas planificadas o iniciadas ese sábado.
+export function proximoInstanteLaborable(iso: string, grupo: GrupoAlmuerzo = GRUPO_ALMUERZO_DEFAULT, recupMin = 60, operarioId?: string, permitirSabado = false): string {
   let cursor = new Date(iso)
   let guard = 0
+  const sabadoOk = () => permitirSabado
   while (guard++ < 4000) {
     const curMin = minDelDia(cursor)
-    const tr = tramosLaborables(cursor, grupo, recupMin, false, operarioId).find((t) => curMin < t.finMin)
+    const tr = tramosLaborables(cursor, grupo, recupMin, false, operarioId, permitirSabado).find((t) => curMin < t.finMin)
     if (tr) {
       if (curMin < tr.iniMin) return conMinutos(cursor, tr.iniMin).toISOString()
       return cursor.toISOString()
     }
-    cursor = siguienteApertura(cursor, grupo, recupMin, operarioId)
+    cursor = siguienteApertura(cursor, grupo, recupMin, operarioId, sabadoOk)
   }
   return cursor.toISOString()
 }
@@ -312,15 +381,16 @@ export function proximoInstanteLaborable(iso: string, grupo: GrupoAlmuerzo = GRU
 //
 // Es lo que hace que una tarea que no entra en lo que queda del dia siga al
 // siguiente, y que la cola del viernes a la tarde caiga el lunes a las 07:00.
-export function sumarMinutosLaborables(inicioISO: string, minutos: number, grupo: GrupoAlmuerzo = GRUPO_ALMUERZO_DEFAULT, recupMin = 60, operarioId?: string): string {
-  let cursor = new Date(proximoInstanteLaborable(inicioISO, grupo, recupMin, operarioId))
+export function sumarMinutosLaborables(inicioISO: string, minutos: number, grupo: GrupoAlmuerzo = GRUPO_ALMUERZO_DEFAULT, recupMin = 60, operarioId?: string, permitirSabado = false): string {
+  let cursor = new Date(proximoInstanteLaborable(inicioISO, grupo, recupMin, operarioId, permitirSabado))
   let restante = Math.max(0, minutos)
   let guard = 0
+  const sabadoOk = () => permitirSabado
   while (restante > 0 && guard++ < 4000) {
     const curMin = minDelDia(cursor)
-    const tramos = tramosLaborables(cursor, grupo, recupMin, false, operarioId)
+    const tramos = tramosLaborables(cursor, grupo, recupMin, false, operarioId, permitirSabado)
     const tr = tramos.find((t) => curMin < t.finMin)
-    if (!tr) { cursor = siguienteApertura(cursor, grupo, recupMin, operarioId); continue }
+    if (!tr) { cursor = siguienteApertura(cursor, grupo, recupMin, operarioId, sabadoOk); continue }
     if (curMin < tr.iniMin) cursor = conMinutos(cursor, tr.iniMin)
     const ini = minDelDia(cursor)
     const disponible = tr.finMin - ini
@@ -330,7 +400,7 @@ export function sumarMinutosLaborables(inicioISO: string, minutos: number, grupo
     } else {
       restante -= disponible
       const sig = tramos.find((t) => t.iniMin >= tr.finMin)
-      cursor = sig ? conMinutos(cursor, sig.iniMin) : siguienteApertura(cursor, grupo, recupMin, operarioId)
+      cursor = sig ? conMinutos(cursor, sig.iniMin) : siguienteApertura(cursor, grupo, recupMin, operarioId, sabadoOk)
     }
   }
   return cursor.toISOString()
@@ -354,20 +424,23 @@ export function minutosLaborablesEntre(
   const a = new Date(aIso)
   const b = new Date(bIso)
   if (b <= a) return 0
+  // v2.43: el último sábado del mes cuenta solo si el intervalo EMPIEZA o
+  // TERMINA ese sábado (hubo alguien trabajando). Ver la nota de VIGENCIA.
+  const sabadoOk = (dia: Date) => mismoDia(dia, a) || mismoDia(dia, b)
   let cursor = new Date(a)
   let total = 0
   let guard = 0
   while (cursor < b && guard++ < 8000) {
     const curMin = minDelDia(cursor)
-    const tramos = tramosLaborables(cursor, grupo, recupMin, sinAlmuerzo, operarioId)
+    const tramos = tramosLaborables(cursor, grupo, recupMin, sinAlmuerzo, operarioId, sabadoOk(cursor))
     const tr = tramos.find((t) => curMin < t.finMin)
-    if (!tr) { cursor = siguienteApertura(cursor, grupo, recupMin); continue }
+    if (!tr) { cursor = siguienteApertura(cursor, grupo, recupMin, undefined, sabadoOk); continue }
     const inicioTramo = curMin < tr.iniMin ? conMinutos(cursor, tr.iniMin) : new Date(cursor)
     const finTramo = conMinutos(cursor, tr.finMin)
     const hasta = finTramo < b ? finTramo : b
     if (hasta > inicioTramo) total += (hasta.getTime() - inicioTramo.getTime()) / 60000
     const sig = tramos.find((t) => t.iniMin >= tr.finMin)
-    cursor = sig ? conMinutos(cursor, sig.iniMin) : siguienteApertura(cursor, grupo, recupMin)
+    cursor = sig ? conMinutos(cursor, sig.iniMin) : siguienteApertura(cursor, grupo, recupMin, undefined, sabadoOk)
   }
   return Math.round(total)
 }
@@ -394,9 +467,17 @@ export interface ConfigTiempoNeto {
 // (sin almuerzo partido). Mide tiempos de respuesta solo dentro de la jornada;
 // lo de afuera (p.ej. arrancar 07:00, o el finde) NO penaliza los KPIs.
 // ============================================================
-const LOG_INI = 8 * 60
-// Cierre segun el dia de la semana (getDay(): 5 = viernes).
-export function cierrePanol(dow: number): number { return dow === 5 ? 16 * 60 : 17 * 60 }
+// v2.43: desde el 1/11/2026 el pañol pasa al horario unificado de la empresa
+// (Lun-Jue 07:00-16:00, Vie 07:00-15:00). Antes de esa fecha se mide con el
+// horario viejo, para que los KPIs de logística de octubre no se muevan.
+// El sábado de devolución NO abre el pañol (el comunicado no lo incluye).
+function aperturaPanol(d: Date): number { return enHorarioUnificado(d) ? 7 * 60 : 8 * 60 }
+// Cierre segun el dia (getDay(): 5 = viernes).
+export function cierrePanol(d: Date): number {
+  const viernes = d.getDay() === 5
+  if (enHorarioUnificado(d)) return viernes ? 15 * 60 : 16 * 60
+  return viernes ? 16 * 60 : 17 * 60
+}
 
 export function minutosLaboralesLogistica(aIso?: string, bIso?: string): number {
   if (!aIso || !bIso) return 0
@@ -410,12 +491,13 @@ export function minutosLaboralesLogistica(aIso?: string, bIso?: string): number 
     if (dow === 0 || dow === 6) { // fin de semana -> saltar al lunes 08:00
       cursor.setDate(cursor.getDate() + 1); cursor.setHours(0, 0, 0, 0); continue
     }
-    const logFin = cierrePanol(dow)
+    const logFin = cierrePanol(cursor)
+    const logIni = aperturaPanol(cursor)
     const cur = minDelDia(cursor)
     if (cur >= logFin) { // despues del cierre -> dia siguiente
       cursor.setDate(cursor.getDate() + 1); cursor.setHours(0, 0, 0, 0); continue
     }
-    const ini = cur < LOG_INI ? conMinutos(cursor, LOG_INI) : new Date(cursor)
+    const ini = cur < logIni ? conMinutos(cursor, logIni) : new Date(cursor)
     const fin = conMinutos(cursor, logFin)
     const hasta = fin < b ? fin : b
     if (hasta > ini) total += (hasta.getTime() - ini.getTime()) / 60000
