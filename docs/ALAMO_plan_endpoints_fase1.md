@@ -369,7 +369,7 @@ INELPA_PWA_API.postman_environment.json    {{base_url}}, {{service_token}}
 
 | Carpeta | Qué prueba |
 | --- | --- |
-| 1. Artículos | Alta de un transformador con receta, lote de 10 semielaborados, reenvío idéntico, sacar una línea de la receta (queda inactiva), cambio de descripción sin tocar la receta, lote con un artículo inválido, discontinuar. |
+| 1. Artículos | Alta de un transformador con receta, lote de 10 semielaborados, reenvío idéntico, sacar una línea de la receta (queda inactiva), cambio de datos del artículo sin tocar la receta, lote con un artículo inválido, discontinuar. |
 | 2. Órdenes | Lote de 7 (las hijas antes que el padre), reenvío del mismo lote, reenvío con una cantidad distinta, semielaborado suelto, artículo no sincronizado, orden no liberada. |
 | 3. Seguridad | Sin token, método GET. |
 

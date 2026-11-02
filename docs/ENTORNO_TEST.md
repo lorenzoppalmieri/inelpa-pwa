@@ -6,6 +6,26 @@ La PWA organiza la producción todos los días. La integración con SAP va a lle
 
 ---
 
+## Estado (27/10/2026)
+
+| Pieza | Dónde |
+| --- | --- |
+| Base de test | Supabase **INELPA-TEST** (`chdzcymppxpkrivgzyrc`), clon de producción del 26/10 06:15 |
+| App de prueba | **https://inelpa-pwa-staging.vercel.app** (entorno `staging` de Vercel, rama `staging`) |
+| Verificado | El bundle de staging apunta solo a INELPA-TEST; producción sigue apuntando a su base, sin franja y con su manifest original |
+| Hecho en test | Cron apagado · registro libre apagado · v2.41 · buckets y políticas · v2.40 |
+| Probado | Login en staging con usuario real; la orden `PRUEBA-TEST-01` creada en staging quedó en INELPA-TEST (origen `pwa`) y **no** en producción |
+| Producción | Registro libre apagado también en producción (27/10), después de probarlo en test |
+| Integración SAP | Token cargado; `sap-articulos` y `sap-ordenes` desplegadas. Colección de Postman corrida con Newman contra INELPA-TEST: **15 requests, 39 asserts, 0 fallas** (27/10) |
+| Pendiente | Variables de **Preview** todavía apuntan a producción (paso 6.4) |
+
+### Dos cosas que aprendimos armándolo
+
+- **Vercel no construye una rama si su commit ya se desplegó en otra.** La primera vez que se sube `staging` con el mismo commit que `main`, no pasa nada. Solución: un commit vacío en `staging` (`git commit --allow-empty -m "staging: ..."` y `git push`).
+- **No usar "Create Deployment" del panel de Vercel para staging:** lo despliega como *Preview*, y mientras Preview apunte a producción, sale una app sin franja conectada a la base de planta.
+
+---
+
 ## Regla de oro
 
 > **Todo lo nuevo pasa primero por test.** SQL, Edge Functions, cambios riesgosos de la app y cualquier prueba de ALAMO. Producción solo recibe lo que ya funcionó en test.
@@ -94,7 +114,18 @@ Los archivos viejos (fotos de despacho, protocolos, planos) **no** se copian: en
    npx supabase functions deploy sap-ordenes   --no-verify-jwt --project-ref <REF_DE_INELPA_TEST>
    ```
 
-   El `REF` es lo que va entre `https://` y `.supabase.co` en la URL del proyecto. **Siempre `--project-ref` de test**: sin ese parámetro la CLI usa el proyecto que tengas vinculado, que puede ser producción.
+   El `REF` es lo que va entre `https://` y `.supabase.co` en la URL del proyecto. **Siempre `--project-ref` de test**: sin ese parámetro la CLI usa el proyecto que tengas vinculado, que puede ser producción. El REF de INELPA-TEST es `chdzcymppxpkrivgzyrc`; el de producción es `rpvwlgbwcwjllqejwzwm` (ese **no** va acá).
+
+4. Correr la colección de Postman completa desde la terminal, sin abrir Postman (usa Newman):
+
+   ```powershell
+   $env:SAP_TOKEN = "<el token>"
+   npx newman run docs/postman/INELPA_PWA_API.postman_collection.json `
+     --env-var "base_url=https://chdzcymppxpkrivgzyrc.supabase.co" `
+     --env-var "service_token=$env:SAP_TOKEN"
+   ```
+
+   Al final muestra una tabla con los asserts: tienen que estar todos en verde.
 
 ### Paso 6 · Vercel — entorno "staging"
 

@@ -40,7 +40,7 @@
                 "sap-articulos"
               ]
             },
-            "description": "Producto terminado con su receta de UN nivel (bobinas, parte activa, cuba, tanque, tapa).\n\nDatos reales del catálogo: TTD13V0000001 = TTD 16/13 Tanque Expansión Plataforma Cu.\n\nPrimera vez: `creado`, con `componentesSinAlta: 10` (los semielaborados todavía no llegaron; es normal, un nivel por llamada). En corridas siguientes: `actualizado` (porque 1.4 y 1.5 le cambiaron la receta y la descripción en la corrida anterior, y esto las restaura) o `sin_cambios`.",
+            "description": "Producto terminado con su receta de UN nivel (bobinas, parte activa, cuba, tanque, tapa).\n\nDatos reales del catálogo: TTD13V0000001 = TTD 16/13 Tanque Expansión Plataforma Cu.\n\nPrimera vez: `creado`, con `componentesSinAlta: 10` (los semielaborados todavía no llegaron; es normal, un nivel por llamada). En corridas siguientes: `actualizado` (porque 1.4 y 1.5 le cambiaron la receta y el depósito en la corrida anterior, y esto los restaura) o `sin_cambios`.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"articulos\": [\n    {\n      \"itemCode\": \"TTD13V0000001\",\n      \"itemName\": \"TTD 16/13 - Tanque Expansion - Plataforma - Cobre\",\n      \"itemType\": \"PT\",\n      \"uom\": \"UN\",\n      \"active\": true,\n      \"defaultWarehouse\": \"03\",\n      \"hasBatch\": false,\n      \"bom\": [\n        {\n          \"itemCode\": \"BOBBAJ0000109\",\n          \"quantity\": 1,\n          \"uom\": \"UN\"\n        },\n        {\n          \"itemCode\": \"BOBBAJ0000110\",\n          \"quantity\": 1,\n          \"uom\": \"UN\"\n        },\n        {\n          \"itemCode\": \"BOBBAJ0000111\",\n          \"quantity\": 1,\n          \"uom\": \"UN\"\n        },\n        {\n          \"itemCode\": \"BOBALT0000109\",\n          \"quantity\": 1,\n          \"uom\": \"UN\"\n        },\n        {\n          \"itemCode\": \"BOBALT0000110\",\n          \"quantity\": 1,\n          \"uom\": \"UN\"\n        },\n        {\n          \"itemCode\": \"BOBALT0000111\",\n          \"quantity\": 1,\n          \"uom\": \"UN\"\n        },\n        {\n          \"itemCode\": \"PARDIS0000001\",\n          \"quantity\": 1,\n          \"uom\": \"UN\"\n        },\n        {\n          \"itemCode\": \"CUBDIS0000037\",\n          \"quantity\": 1,\n          \"uom\": \"UN\"\n        },\n        {\n          \"itemCode\": \"TANDIS0000001\",\n          \"quantity\": 1,\n          \"uom\": \"UN\"\n        },\n        {\n          \"itemCode\": \"TAPDIS0000001\",\n          \"quantity\": 1,\n          \"uom\": \"UN\"\n        }\n      ]\n    }\n  ]\n}",
@@ -208,7 +208,7 @@
           ]
         },
         {
-          "name": "1.5 Cambio de descripción SIN tocar la receta",
+          "name": "1.5 Cambio de datos del artículo SIN tocar la receta",
           "request": {
             "method": "POST",
             "header": [
@@ -228,10 +228,10 @@
                 "sap-articulos"
               ]
             },
-            "description": "Sin la clave `bom`, la receta queda como estaba. Esto permite actualizar datos del artículo sin reenviar la fórmula.\n\n**Si se manda `bom: []`, la receta se VACÍA.** Mandar `bom` solo cuando se quiere fijar la receta completa.\n\nCorrer 1.1 después para volver la descripción original.",
+            "description": "Se cambia el depósito por defecto del transformador (03 → 04) sin mandar la clave `bom`: la receta queda como estaba. Sirve para actualizar datos del artículo sin reenviar la fórmula.\n\n**Si se manda `bom: []`, la receta entera queda dada de baja.** Mandar `bom` solo cuando se quiere fijar la receta vigente completa.\n\nLa corrida siguiente de 1.1 vuelve el depósito a 03.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"articulos\": [\n    {\n      \"itemCode\": \"TTD13V0000001\",\n      \"itemName\": \"TTD 16/13 - Tanque Expansion - Plataforma - Cobre (rev)\",\n      \"itemType\": \"PT\",\n      \"uom\": \"UN\",\n      \"active\": true,\n      \"defaultWarehouse\": \"03\",\n      \"hasBatch\": false\n    }\n  ]\n}",
+              "raw": "{\n  \"articulos\": [\n    {\n      \"itemCode\": \"TTD13V0000001\",\n      \"itemName\": \"TTD 16/13 - Tanque Expansion - Plataforma - Cobre\",\n      \"itemType\": \"PT\",\n      \"uom\": \"UN\",\n      \"active\": true,\n      \"defaultWarehouse\": \"04\",\n      \"hasBatch\": false\n    }\n  ]\n}",
               "options": {
                 "raw": {
                   "language": "json"

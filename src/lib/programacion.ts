@@ -1,6 +1,6 @@
 import type { Tarea, SectorId } from '../types'
 import { minutosRecupTarea } from '../types'
-import { sumarMinutosLaborables, proximoInstanteLaborable, type GrupoAlmuerzo, GRUPO_ALMUERZO_DEFAULT } from './calendario'
+import { sumarMinutosLaborables, proximoInstanteLaborable, esSabadoDevolucion, type GrupoAlmuerzo, GRUPO_ALMUERZO_DEFAULT } from './calendario'
 
 // ============================================================
 // CUANTAS TAREAS PUEDE TENER UN COLABORADOR A LA VEZ  (v2.18)
@@ -286,8 +286,17 @@ export function programar(
   //      hasta el lunes, que es justo el hueco que se quería eliminar.
   // ============================================================
   const ahoraMs = ms(ahoraISO)
+  // ============================================================
+  // v2.43 — ÚLTIMO SÁBADO DEL MES (devolución de horas, 06:00-15:00).
+  // La cola NO se corre sola al sábado (decisión de Lorenzo): solo se abre para
+  // una tarea INICIADA ese sábado o PLANIFICADA para ese sábado. Todas las demás
+  // siguen saltando del viernes al lunes, como siempre.
+  // ============================================================
+  const enSabado = (iso?: string) => !!iso && esSabadoDevolucion(new Date(iso))
+  const planSabado = (t: Tarea) => !t.inicioReal && enSabado(t.inicioPlanificado)
   // v2.37: en los sectores de encadenado estricto no hay reservas: todo es cola.
-  const reservada = (t: Tarea) => !esEncadenadoEstricto(t) && ms(t.inicioPlanificado) > ahoraMs
+  // v2.43: salvo una tarea planificada para el sábado de devolución.
+  const reservada = (t: Tarea) => (!esEncadenadoEstricto(t) || planSabado(t)) && ms(t.inicioPlanificado) > ahoraMs
   // Instante de asignación. Las tareas viejas sin `creada` caen al planificado,
   // igual que la clave FIFO de la tablet (claveFifoTarea en types).
   const asignada = (t: Tarea): number => {
@@ -315,11 +324,13 @@ export function programar(
     // o sea que el Gantt le planificaba trabajo en la franja de recuperacion a
     // TODOS, la hubieran devuelto o no.
     const recup = minutosRecupTarea(t)
+    // v2.43: ¿esta tarea puede usar el sábado de devolución?
+    const sab = t.inicioReal ? enSabado(t.inicioReal) : planSabado(t)
     // v2.32: se pasa el COLABORADOR para que sus días de ausencia se salteen
     // como un fin de semana. Antes la cascada solo conocía los feriados y le
     // dibujaba tareas el día que la persona tenía cargado que faltaba.
     const sumar = (desde: string, min: number) =>
-      sumarMinutosLaborables(desde, min, grupo, recup, t.operarioId)
+      sumarMinutosLaborables(desde, min, grupo, recup, t.operarioId, sab)
 
     if (t.inicioReal) {
       // Ya arranco: se dibuja donde realmente paso. Si sigue abierta y ya paso su
@@ -337,10 +348,10 @@ export function programar(
 
     // v2.37: encadenado estricto (Soldadura Dist.). Arranca donde se libera el
     // COLABORADOR, o ahora; ni el box ni la fecha planificada lo corren.
-    if (esEncadenadoEstricto(t)) {
+    if (esEncadenadoEstricto(t) && !planSabado(t)) {
       let iniMs = Math.max(ahoraMs, ocupadoHasta.get(ok!) ?? -Infinity)
       if (!Number.isFinite(iniMs)) iniMs = ahoraMs
-      const iniISO = proximoInstanteLaborable(new Date(iniMs).toISOString(), grupo, recup, t.operarioId)
+      const iniISO = proximoInstanteLaborable(new Date(iniMs).toISOString(), grupo, recup, t.operarioId, sab)
       const finISO = sumar(iniISO, t.tiempoEstandarMin)
       out.set(t.id, { startISO: iniISO, endISO: finISO, estimada: true })
       if (mk) huecosDe(finMaquina, mk, t.sectorId).ocupar(ms(finISO))
@@ -375,7 +386,7 @@ export function programar(
     // Si no entra en lo que queda del dia, sumarMinutosLaborables la parte y la
     // sigue al dia siguiente; pasado el viernes cae el lunes a las 07:00. El
     // desborde a la semana que viene sale de aca, no hace falta nada extra.
-    startISO = proximoInstanteLaborable(startISO, grupo, recup, t.operarioId)
+    startISO = proximoInstanteLaborable(startISO, grupo, recup, t.operarioId, sab)
     const endISO = sumar(startISO, t.tiempoEstandarMin)
     out.set(t.id, { startISO, endISO, estimada: true })
     if (mk) huecosDe(finMaquina, mk, t.sectorId).ocupar(ms(endISO))

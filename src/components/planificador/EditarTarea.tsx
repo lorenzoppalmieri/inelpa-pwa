@@ -7,6 +7,7 @@ import type { Maquina, Usuario } from '../../types'
 import { modeloPorNombre, componentesDeModelo } from '../../data/catalogo'
 import { guardarTarea } from '../../sync/syncEngine'
 import { isoWeek } from '../../lib/time'
+import { recuperacionDiariaVigente } from '../../lib/calendario'
 
 // ============================================================
 // EDITAR TAREA (v1.16) — el planificador ajusta una tarea ya creada, antes de
@@ -158,10 +159,13 @@ export default function EditarTarea({ tarea, maquinas, usuarios, onClose }: {
           </div>
         </div>
 
-        <label className="meta" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-          <input type="checkbox" checked={horaRecup} onChange={(e) => setHoraRecup(e.target.checked)} />
-          Habilitar hora de recuperación (+1h)
-        </label>
+        {/* v2.43: sin recuperación diaria desde el 1/11/2026 (RRHH). */}
+        {recuperacionDiariaVigente() && (
+          <label className="meta" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+            <input type="checkbox" checked={horaRecup} onChange={(e) => setHoraRecup(e.target.checked)} />
+            Habilitar hora de recuperación (+1h)
+          </label>
+        )}
 
         {error && <div className="empty" style={{ color: 'var(--rojo,#dc2626)', marginBottom: 10 }}>{error}</div>}
 
