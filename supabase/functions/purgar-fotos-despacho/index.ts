@@ -41,7 +41,11 @@ function pathDesdeUrl(url: string): string | undefined {
 function claveServidor(): string {
   try {
     const nuevas = JSON.parse(Deno.env.get('SUPABASE_SECRET_KEYS') ?? '{}') as Record<string, string>
-    if (nuevas.default) return nuevas.default
+    // 'default' si existe; si no, cualquier clave secreta vigente. Así, rotar
+    // una clave (crear una nueva con otro nombre y borrar la vieja) no rompe
+    // la purga.
+    const clave = nuevas.default ?? Object.values(nuevas)[0]
+    if (clave) return clave
   } catch { /* sin claves nuevas: se usa la vieja */ }
   return Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 }
