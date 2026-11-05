@@ -6,6 +6,8 @@ import { eliminarEventoSGO, guardarAccionSGO, guardarEventoSGO, guardarIndicador
 import { fechaLocalISO, sumarDiasLocalISO } from '../../lib/time'
 import MatrizSGO from './MatrizSGO'
 import AprobacionesEpp from './AprobacionesEpp'
+import ConfiguracionEpp from './ConfiguracionEpp'
+import EppView from '../logistica/EppView'
 import IndicadoresSGO from './IndicadoresSGO'
 import FichaCeldaSGO from './FichaCeldaSGO'
 import AuditoriaLogisticaView from './AuditoriaLogisticaView'
@@ -86,13 +88,14 @@ export default function SGOView() {
   const [filtroPilar, setFiltroPilar] = useState('')
   // v1.97: 'cuellos' — la MISMA pantalla que se ve en Producción. Se monta el
   // mismo componente en los dos lados: si fueran dos copias, se desincronizarían.
-  const [pestana, setPestana] = useState<'tablero' | 'autorizaciones' | 'mejoras' | 'controles' | 'agenda_iso' | 'tareas_sgo' | 'logistica' | 'cuellos'>('tablero')
+  const [pestana, setPestana] = useState<'tablero' | 'autorizaciones' | 'mejoras' | 'controles' | 'agenda_iso' | 'tareas_sgo' | 'logistica' | 'cuellos' | 'epp'>('tablero')
   const seleccionado = eventos.find((e) => e.id === seleccionadoId)
   const eventosGestionables = useMemo(() => eventos.filter((evento) => !esParadaCalidadDescartada(evento)), [eventos])
   const lorenzo = usuarioEsLorenzo(usuario?.usuario ?? '')
   const autorizaciones = useMemo(() => construirAutorizacionesSGO({
     tareas: tareasSGO, agenda: agendaISO, ejecuciones: ejecucionesControles, eventos: eventosGestionables, acciones,
   }), [tareasSGO, agendaISO, ejecucionesControles, eventosGestionables, acciones])
+  const eppPendientes = useLiveQuery(() => db.solicitudesEpp.filter((s) => s.estado === 'pendiente').count(), []) ?? 0
   const revisiones5SPendientes = autorizaciones.filter((item) => item.clase === 'revision_5s' && item.estado === 'pendiente').length
 
   const abiertos = eventosGestionables.filter((e) => e.estado !== 'cerrado')
@@ -140,6 +143,9 @@ export default function SGOView() {
         <button className={`tab ${pestana === 'logistica' ? 'active' : ''}`} onClick={() => setPestana('logistica')}>Auditoría logística</button>
         <button className={`tab ${pestana === 'agenda_iso' ? 'active' : ''}`} onClick={() => setPestana('agenda_iso')}>Agenda ISO</button>
         <button className={`tab ${pestana === 'tareas_sgo' ? 'active' : ''}`} onClick={() => setPestana('tareas_sgo')}>Tareas SGO</button>
+        {/* v2.45: HyS no entra a Logística; desde acá ajusta el catálogo, autoriza
+            reposiciones y corrige entregas (las mismas fichas que ve pañol). */}
+        <button className={`tab ${pestana === 'epp' ? 'active' : ''}`} onClick={() => setPestana('epp')}>🦺 EPP{eppPendientes ? ` (${eppPendientes})` : ''}</button>
       </div>
       {celdaSeleccionada && <div style={{ display: seleccionado || pestana !== 'tablero' ? 'none' : undefined }}><FichaCeldaSGO
         areaId={celdaSeleccionada.area} pilarId={celdaSeleccionada.pilar}
@@ -154,6 +160,7 @@ export default function SGOView() {
       /></div>}
       {celdaSeleccionada && ['controles', 'mejoras'].includes(pestana) && !seleccionado && <button className="btn" onClick={() => setPestana('tablero')}>Volver a la ficha de gestión</button>}
       {pestana === 'cuellos' ? <CuellosView />
+        : pestana === 'epp' ? <><AprobacionesEpp /><ConfiguracionEpp /><EppView /></>
         : pestana === 'autorizaciones' && lorenzo ? <AutorizacionesSGOView items={autorizaciones} onAbrir={abrirAutorizacion} />
         : pestana === 'mejoras' ? <div style={{ display: seleccionado ? 'none' : undefined }}><MejorasSGOView usuario={usuario?.usuario ?? 'sin_usuario'} registroInicialId={mejoraInicial?.id} vistaInicial={mejoraInicial?.vista} onRegistroInicialConsumido={() => setMejoraInicial(undefined)} onOpenEvento={setSeleccionadoId} /></div>
         : pestana === 'agenda_iso' ? <AgendaISOView usuario={usuario?.usuario ?? 'sin_usuario'} actividadInicialId={actividadInicialId} onActividadInicialConsumida={() => setActividadInicialId(undefined)} />

@@ -528,7 +528,7 @@ export default function TareaCard({ tarea, onIniciar }: { tarea: Tarea; onInicia
           onSi={() => { setConfirmar(null); void finalizar() }}
           onNo={() => setConfirmar(null)}
         />
-      )}}
+      )}
     </div>
   )
 }

@@ -3,15 +3,17 @@
 // ============================================================
 import type { EntregaEpp, SolicitudEpp } from '../types'
 import type { EppDefinicion } from './catalogo'
-import { esSuperAdmin } from '../auth/roles'
+import { usuarioEsLorenzo } from '../sgo/permisos'
 
 /**
  * v2.45 — ¿Puede ajustar el catálogo y corregir (anular) entregas?
- * Gerencia (super admin) y HyS (rol 'sgo'). El pañol NO: si pudiera anular,
+ * Lorenzo (gerencia) y HyS (rol 'sgo'). El pañol NO: si pudiera anular,
  * anulando entregas reales liberaría cupo y saltearía el control de HyS.
+ * 'direccion' tampoco, igual que en SGO: es una cuenta compartida y la
+ * auditoría no podría decir quién corrigió.
  */
 export function puedeGestionarEpp(u?: { usuario?: string; rol?: string } | null): boolean {
-  return esSuperAdmin(u) || u?.rol === 'sgo'
+  return usuarioEsLorenzo(u?.usuario ?? '') || u?.rol === 'sgo'
 }
 
 export type EstadoSolicitudEpp = 'pendiente' | 'aprobada' | 'rechazada' | 'usada'

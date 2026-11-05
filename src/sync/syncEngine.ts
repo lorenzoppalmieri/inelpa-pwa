@@ -379,6 +379,10 @@ export async function fetchInicial(rol?: Rol): Promise<void> {
 // LECTURA: Realtime (nube -> Dexie). Respeta RLS por la sesion del usuario.
 // ============================================================
 let canal: RealtimeChannel | null = null
+// v2.45 — EPP va en un canal APARTE: si a una base le falta alguna tabla epp_*
+// (SQL sin correr), el error de suscripción queda acá y no corta el tiempo
+// real de producción, logística y SGO.
+let canalEpp: RealtimeChannel | null = null
 
 type Payload = RealtimePostgresChangesPayload<Record<string, unknown>>
 
@@ -565,7 +569,40 @@ async function onComentarioTareaSGOChange(payload: Payload) {
   await db.comentariosTareasSGO.put(comentarioTareaSGOFromRow(payload.new as unknown as ComentarioTareaSGORow))
 }
 
+async function onColaboradorEppChange(payload: Payload) {
+  if (payload.eventType === 'DELETE') { await db.colaboradoresEpp.delete((payload.old as { id: string }).id); return }
+  await db.colaboradoresEpp.put(colaboradorEppFromRow(payload.new as unknown as ColaboradorEppRow))
+}
+async function onEntregaEppChange(payload: Payload) {
+  if (payload.eventType === 'DELETE') { await db.entregasEpp.delete((payload.old as { id: string }).id); return }
+  await db.entregasEpp.put(entregaEppFromRow(payload.new as unknown as EntregaEppRow))
+}
+async function onSolicitudEppChange(payload: Payload) {
+  if (payload.eventType === 'DELETE') { await db.solicitudesEpp.delete((payload.old as { id: string }).id); return }
+  await db.solicitudesEpp.put(solicitudEppFromRow(payload.new as unknown as SolicitudEppRow))
+}
+async function onReglaEppChange(payload: Payload) {
+  if (payload.eventType === 'DELETE') { await db.reglasEpp.delete((payload.old as { id: string }).id); return }
+  await db.reglasEpp.put(reglaEppFromRow(payload.new as unknown as ReglaEppRow))
+}
+
+// v2.45 — hasta ahora las tablas de EPP no tenían tiempo real: una autorización
+// de HyS o una anulación no llegaba a la tablet del pañol hasta volver a entrar.
+function suscribirRealtimeEpp() {
+  if (!supabase || canalEpp) return
+  canalEpp = supabase
+    .channel('inelpa-epp')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'epp_colaboradores' }, onColaboradorEppChange)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'epp_entregas' }, onEntregaEppChange)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'epp_solicitudes' }, onSolicitudEppChange)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'epp_reglas' }, onReglaEppChange)
+    .subscribe((estado) => {
+      if (estado === 'CHANNEL_ERROR') console.warn('[sync] tiempo real de EPP no disponible (¿falta correr el SQL de EPP?)')
+    })
+}
+
 function suscribirRealtime() {
+  suscribirRealtimeEpp()
   if (!supabase || canal) return
   canal = supabase
     .channel('inelpa-sync')
@@ -615,6 +652,8 @@ export async function iniciarSync(rol?: Rol): Promise<void> {
 export async function detenerSync(): Promise<void> {
   if (canal && supabase) { await supabase.removeChannel(canal) }
   canal = null
+  if (canalEpp && supabase) { await supabase.removeChannel(canalEpp) }
+  canalEpp = null
   syncActiva = false
 }
 
