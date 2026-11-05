@@ -2,7 +2,8 @@
 -- v2.45 — EPP: ajustes de HyS al catálogo + anulación de entregas
 --
 -- REQUIERE docs/supabase_epp_v1.83.sql corrido antes (tablas epp_*).
--- CORRER ESTE SQL ANTES DEL PUSH.
+-- ORDEN: 1) INELPA-TEST (chdzcymppxpkrivgzyrc) + probar en staging
+--        2) producción (rpvwlgbwcwjllqejwzwm) ANTES del merge a main.
 -- Idempotente: se puede correr más de una vez.
 --
 -- 1) epp_reglas: HyS ajusta lo que le toca a cada uno sin tocar el código.
