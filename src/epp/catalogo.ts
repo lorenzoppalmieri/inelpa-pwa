@@ -13,6 +13,7 @@
 // El catálogo vive en código, no en una tabla: lo define Higiene y Seguridad,
 // cambia una o dos veces por año y así no depende de una migración.
 // ============================================================
+import type { ReglaEpp } from '../types'
 
 /** Un EPP dentro del catálogo de un puesto. */
 export interface EppDefinicion {
@@ -207,4 +208,113 @@ export function eppDeDefinicion(puestoId: string | undefined, key: string): EppD
 /** Etiqueta "3 de 4" o "3 (sin tope)" para mostrar el consumo del año. */
 export function etiquetaConsumo(entregadas: number, limite: number | null): string {
   return limite === null ? `${entregadas} (sin tope)` : `${entregadas} de ${limite}`
+}
+
+// ============================================================
+// v2.45 — CATÁLOGO EFECTIVO (catálogo base + ajustes de HyS)
+//
+// Lo que le corresponde a una persona se arma en tres capas, en este orden:
+//   1. el catálogo base del puesto (la planilla, en este archivo)
+//   2. los ajustes de HyS para ese PUESTO   (afectan a todos los del puesto)
+//   3. las excepciones de HyS para la PERSONA (solo a ella)
+// Cada capa puede cambiar el cupo o la frecuencia de un EPP, agregar uno que no
+// estaba, o quitarlo. La capa de abajo gana.
+//
+// Es la ÚNICA función que decide qué le corresponde a alguien: la usan la ficha
+// de Logística, el editor de HyS y las autorizaciones. Si cada pantalla armara
+// su propia lista, tarde o temprano mostrarían cupos distintos.
+// ============================================================
+
+export type OrigenEpp = 'catalogo' | 'puesto' | 'persona'
+
+export interface EppEfectivo extends EppDefinicion {
+  /** De qué capa sale el valor vigente. */
+  origen: OrigenEpp
+}
+
+/** Id determinístico de una regla: editar dos veces la misma no la duplica. */
+export function idReglaEpp(ambito: ReglaEpp['ambito'], ambitoId: string, eppKey: string): string {
+  return `${ambito}:${ambitoId}:${eppKey}`
+}
+
+/** Key estable para un EPP nuevo a partir de su nombre ("Faja lumbar" -> "faja_lumbar"). */
+export function keyDesdeNombre(nombre: string): string {
+  return nombre.normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '').toLowerCase()
+}
+
+function aplicarCapa(
+  mapa: Map<string, EppEfectivo>,
+  conocidos: Map<string, EppDefinicion>,
+  reglas: ReglaEpp[],
+  origen: OrigenEpp,
+): void {
+  for (const r of reglas) {
+    if (r.quitado) { mapa.delete(r.eppKey); continue }
+    // Si la capa anterior lo había quitado, se recupera su definición original.
+    const prev = mapa.get(r.eppKey) ?? conocidos.get(r.eppKey)
+    const nombre = r.nombre?.trim() || prev?.nombre
+    if (!nombre) continue   // regla de un EPP nuevo sin nombre: no se puede mostrar
+    const limite = r.sinTope ? null : (r.limite ?? prev?.limite ?? null)
+    const def: EppEfectivo = { key: r.eppKey, nombre, frecuencia: r.frecuencia?.trim() || prev?.frecuencia || '', limite, origen }
+    mapa.set(r.eppKey, def)
+    conocidos.set(r.eppKey, def)
+  }
+}
+
+/**
+ * Lo que le corresponde a una persona (o a un puesto, si no se pasa persona).
+ * @param reglas todas las reglas cargadas; se filtran acá.
+ */
+export function catalogoEfectivo(
+  puestoId: string | undefined,
+  colaboradorId: string | undefined,
+  reglas: ReglaEpp[],
+): EppEfectivo[] {
+  const base = puestoEppPorId(puestoId)?.epps ?? []
+  const mapa = new Map<string, EppEfectivo>(base.map((e) => [e.key, { ...e, origen: 'catalogo' as const }]))
+  const conocidos = new Map<string, EppDefinicion>(base.map((e) => [e.key, e]))
+  if (puestoId) {
+    aplicarCapa(mapa, conocidos, reglas.filter((r) => r.ambito === 'puesto' && r.ambitoId === puestoId), 'puesto')
+  }
+  if (colaboradorId) {
+    aplicarCapa(mapa, conocidos, reglas.filter((r) => r.ambito === 'colaborador' && r.ambitoId === colaboradorId), 'persona')
+  }
+  return [...mapa.values()]
+}
+
+export const ORIGEN_EPP_LABEL: Record<OrigenEpp, string> = {
+  catalogo: 'planilla',
+  puesto: 'ajuste HyS del puesto',
+  persona: 'excepción HyS de la persona',
+}
+
+/** El EPP vigente de una persona para una key (con los ajustes de HyS). */
+export function eppEfectivo(
+  puestoId: string | undefined,
+  colaboradorId: string | undefined,
+  eppKey: string,
+  reglas: ReglaEpp[],
+): EppEfectivo | undefined {
+  return catalogoEfectivo(puestoId, colaboradorId, reglas).find((e) => e.key === eppKey)
+}
+
+/**
+ * Nombre legible de un EPP aunque ya no esté asignado a esa persona (p. ej. HyS
+ * lo quitó del puesto pero hay entregas viejas que mostrar). Busca en la
+ * planilla de todos los puestos y en las reglas; si no aparece, la key.
+ */
+export function nombreEppConocido(eppKey: string, reglas: ReglaEpp[]): string {
+  for (const p of PUESTOS_EPP) {
+    const e = p.epps.find((x) => x.key === eppKey)
+    if (e) return e.nombre
+  }
+  return reglas.find((r) => r.eppKey === eppKey && r.nombre?.trim())?.nombre?.trim() ?? eppKey
+}
+
+/** Todos los EPP que existen en la planilla (para elegir al agregar uno a un puesto o persona). */
+export function eppsDePlanilla(): EppDefinicion[] {
+  const vistos = new Map<string, EppDefinicion>()
+  for (const p of PUESTOS_EPP) for (const e of p.epps) if (!vistos.has(e.key)) vistos.set(e.key, e)
+  return [...vistos.values()].sort((a, b) => a.nombre.localeCompare(b.nombre))
 }

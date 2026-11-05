@@ -144,8 +144,10 @@ export default function OperarioView() {
   async function reanudarEstacion() {
     const causa = pausaGlobal
     if (!causa) return
-    const ahoraISO = new Date().toISOString()
     const afectadas = (tareas ?? []).filter((t) => t.paradas.some((p) => !p.fin && p.causa === causa))
+    // v2.45: igual que en la tarjeta, reanudar pide confirmación (toques sin querer).
+    if (!window.confirm(`Fin del almuerzo: se reanudan ${afectadas.length} tarea(s) de la estación.\n\n¿Seguro?`)) return
+    const ahoraISO = new Date().toISOString()
     for (const t of afectadas) {
       const paradas = t.paradas.map((p) => (!p.fin && p.causa === causa ? { ...p, fin: ahoraISO } : p))
       const siguenAbiertas = paradas.some((p) => !p.fin)

@@ -12,6 +12,7 @@ import { calcularTiempoNetoProductivo, calcularTiempoProductivo, recuperacionDia
 import { componentePorCodigo } from '../../data/catalogo'
 import { tiempoNetoMin } from '../../lib/kpi'
 import ModalParada from './ModalParada'
+import ConfirmarAccion from '../ui/ConfirmarAccion'
 import VisorPlano from '../planos/VisorPlano'
 import { generarAvisoDesdeParada, esCausaMantenimiento } from '../../mantenimiento/avisos'
 import { noConformidadDesdeDefectoTarea, noConformidadDesdeParada, paradasCalidad } from '../../sgo/integraciones'
@@ -78,6 +79,26 @@ export default function TareaCard({ tarea, onIniciar }: { tarea: Tarea; onInicia
     setAsignando(true)
     await guardarTarea({ ...tarea, operarioId: operarioId || undefined })
     setAsignando(false)
+  }
+
+  // ============================================================
+  // v2.45 — CONFIRMACIÓN ANTES DE CADA ACCIÓN.
+  // En planta se tocaba la tablet sin querer y se arrancaba una tarea que no
+  // era, se iniciaba una parada o se finalizaba. Ahora Iniciar, Iniciar parada,
+  // Reanudar y Finalizar piden un "¿Estás seguro?" con los datos de la pieza.
+  // Las funciones de abajo no cambian: solo se las llama después del "Sí".
+  // ============================================================
+  const [confirmar, setConfirmar] = useState<null | 'iniciar' | 'finalizar' | 'reanudar'>(null)
+  const [paradaPendiente, setParadaPendiente] = useState<{ causa: CausaParada; obs: string } | null>(null)
+
+  function pedirIniciar() {
+    // Misma guarda que `iniciar`, pero ANTES de preguntar: no tiene sentido
+    // confirmar algo que después igual se rechaza.
+    if (tabletCompartida && !tarea.operarioId && esCuentaEquipo(usuario)) {
+      window.alert('Antes de arrancar, elegí quién va a hacer esta tarea en la lista de arriba a la derecha.')
+      return
+    }
+    setConfirmar('iniciar')
   }
 
   async function iniciar() {
@@ -254,6 +275,18 @@ export default function TareaCard({ tarea, onIniciar }: { tarea: Tarea; onInicia
   const comp = componentePorCodigo(tarea.componenteCodigo)
   const titulo = nombreSemielaborado(tarea, comp?.descripcion)
 
+  // v2.45: lo que el operario ve en la confirmación para verificar que es la
+  // pieza correcta antes de tocar "Sí".
+  const responsable = tarea.operarioId ? usuarios.find((u) => u.id === tarea.operarioId)?.nombre : undefined
+  const detallePieza = (
+    <>
+      {orden?.nroOrden && <div>OF <strong>{orden.nroOrden}</strong></div>}
+      <div><strong>{titulo}</strong>{tarea.fase ? ` · ${tarea.fase}` : ''}</div>
+      {tarea.nroTransformador && <div>N° transformador: <strong>{tarea.nroTransformador}</strong></div>}
+      <div className="meta">{sector.nombre}{responsable ? ` · ${responsable}` : ''}</div>
+    </>
+  )
+
   return (
     <div className="card">
       <div className="card-header">
@@ -311,7 +344,7 @@ export default function TareaCard({ tarea, onIniciar }: { tarea: Tarea; onInicia
                   : <div className="badge-mat pedido">📦 Pedido de material registrado</div>
             )}
           </div>
-          <button className="btn btn-verde" onClick={reanudar}>Reanudar</button>
+          <button className="btn btn-verde" onClick={() => setConfirmar('reanudar')}>Reanudar</button>
         </div>
       )}
 
@@ -411,16 +444,16 @@ export default function TareaCard({ tarea, onIniciar }: { tarea: Tarea; onInicia
       {/* Acciones segun estado */}
       <div className="row-actions">
         {tarea.estado === 'pendiente' && (
-          <button className="btn btn-primary btn-bloque" onClick={iniciar}>▶ Iniciar tarea</button>
+          <button className="btn btn-primary btn-bloque" onClick={pedirIniciar}>▶ Iniciar tarea</button>
         )}
         {tarea.estado === 'en_proceso' && (
           <>
             <button className="btn btn-naranja" style={{ flex: 1 }} onClick={() => setModal(true)}>⏸ Registrar parada</button>
-            <button className="btn btn-verde" style={{ flex: 1 }} onClick={finalizar}>✓ Finalizar</button>
+            <button className="btn btn-verde" style={{ flex: 1 }} onClick={() => setConfirmar('finalizar')}>✓ Finalizar</button>
           </>
         )}
         {tarea.estado === 'pausada' && (
-          <button className="btn btn-verde btn-bloque" onClick={reanudar}>▶ Reanudar para continuar</button>
+          <button className="btn btn-verde btn-bloque" onClick={() => setConfirmar('reanudar')}>▶ Reanudar para continuar</button>
         )}
         {tarea.estado === 'finalizada' && (
           <div className="meta">
@@ -444,7 +477,58 @@ export default function TareaCard({ tarea, onIniciar }: { tarea: Tarea; onInicia
         />
       )}
 
-      {modal && <ModalParada sectorId={tarea.sectorId} onConfirm={confirmarParada} onCancel={() => setModal(false)} />}
+      {/* v2.45: elegir la causa ya no pausa la tarea: primero se confirma. */}
+      {modal && (
+        <ModalParada
+          sectorId={tarea.sectorId}
+          onConfirm={(causa, obs) => { setModal(false); setParadaPendiente({ causa, obs }) }}
+          onCancel={() => setModal(false)}
+        />
+      )}
+
+      {paradaPendiente && (
+        <ConfirmarAccion
+          titulo="¿Iniciar la parada?"
+          detalle={<>{detallePieza}<div style={{ marginTop: 8 }}>Motivo: <strong>{causaLabel(paradaPendiente.causa)}</strong></div></>}
+          textoSi="Sí, pausar" tono="naranja"
+          onSi={() => { const p = paradaPendiente; setParadaPendiente(null); void confirmarParada(p.causa, p.obs) }}
+          onNo={() => setParadaPendiente(null)}
+        />
+      )}
+
+      {confirmar === 'iniciar' && (
+        <ConfirmarAccion
+          titulo="¿Iniciar esta tarea?"
+          detalle={detallePieza}
+          textoSi="Sí, iniciar" tono="primary"
+          onSi={() => { setConfirmar(null); void iniciar() }}
+          onNo={() => setConfirmar(null)}
+        />
+      )}
+
+      {confirmar === 'reanudar' && (
+        <ConfirmarAccion
+          titulo="¿Reanudar la tarea?"
+          detalle={<>{detallePieza}{paradaAbierta && (
+            <div style={{ marginTop: 8 }}>
+              Se cierra la parada: <strong>{causaLabel(paradaAbierta.causa)}</strong> (desde las {hhmm(paradaAbierta.inicio)})
+            </div>
+          )}</>}
+          textoSi="Sí, reanudar" tono="verde"
+          onSi={() => { setConfirmar(null); void reanudar() }}
+          onNo={() => setConfirmar(null)}
+        />
+      )}
+
+      {confirmar === 'finalizar' && (
+        <ConfirmarAccion
+          titulo="¿Finalizar esta tarea?"
+          detalle={<>{detallePieza}<div className="meta" style={{ marginTop: 8 }}>Después se pregunta el control de calidad.</div></>}
+          textoSi="Sí, finalizar" tono="verde"
+          onSi={() => { setConfirmar(null); void finalizar() }}
+          onNo={() => setConfirmar(null)}
+        />
+      )}}
     </div>
   )
 }

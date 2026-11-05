@@ -1370,7 +1370,7 @@ export function mensajeEsPara(m: Mensaje, u: { id: string; rol: Rol; sectores: S
 // Cola de sincronizacion: cada cambio offline se encola y se empuja al backend.
 export interface SyncOp {
   id: string
-  entidad: 'tarea' | 'parada' | 'orden' | 'semielaborado' | 'objetivo' | 'tarea_logistica' | 'solicitud_logistica' | 'feriado' | 'ausencia' | 'corte_luz' | 'mensaje' | 'mensaje_lectura' | 'estandar' | 'despacho' | 'flete' | 'laboratorio' | 'plantilla_recurrente' | 'evento_sgo' | 'accion_sgo' | 'indicador_sgo' | 'medicion_indicador_sgo' | 'control_programado_sgo' | 'ejecucion_control_sgo' | 'agenda_iso' | 'tarea_sgo' | 'comentario_tarea_sgo' | 'colaborador_epp' | 'entrega_epp' | 'solicitud_epp'
+  entidad: 'tarea' | 'parada' | 'orden' | 'semielaborado' | 'objetivo' | 'tarea_logistica' | 'solicitud_logistica' | 'feriado' | 'ausencia' | 'corte_luz' | 'mensaje' | 'mensaje_lectura' | 'estandar' | 'despacho' | 'flete' | 'laboratorio' | 'plantilla_recurrente' | 'evento_sgo' | 'accion_sgo' | 'indicador_sgo' | 'medicion_indicador_sgo' | 'control_programado_sgo' | 'ejecucion_control_sgo' | 'agenda_iso' | 'tarea_sgo' | 'comentario_tarea_sgo' | 'colaborador_epp' | 'entrega_epp' | 'solicitud_epp' | 'regla_epp'
   entidadId: string
   tipo: 'upsert' | 'delete'
   payload: unknown
@@ -1853,6 +1853,40 @@ export interface EntregaEpp {
   entregadaPor?: string       // usuario de pañol que la registró
   solicitudId?: string        // si salió por reposición extraordinaria aprobada
   observacion?: string
+  // v2.45 — CORRECCIÓN. Una entrega mal registrada (ej. doble toque en "Entregar")
+  // no se borra: se ANULA, con quién, cuándo y por qué. Una anulada no cuenta
+  // para el cupo ni se dibuja como casillero, pero queda en el historial. Si se
+  // borrara, cualquiera podría liberar cupo sin dejar rastro.
+  anulada?: boolean
+  anuladaEn?: string
+  anuladaPor?: string
+  motivoAnulacion?: string
+}
+
+/**
+ * v2.45 — AJUSTE DE HyS sobre el catálogo de EPP.
+ *
+ * El catálogo base vive en código (src/epp/catalogo.ts, sale de la planilla).
+ * HyS lo ajusta sin tocar código con estas reglas, en dos niveles:
+ *   · ambito 'puesto'      → afecta a todos los de ese puesto.
+ *   · ambito 'colaborador' → excepción para una persona puntual.
+ * Se aplican en ese orden: catálogo → puesto → persona.
+ *
+ * Una regla por (ámbito, destino, EPP): el id es determinístico
+ * `${ambito}:${ambitoId}:${eppKey}`, así editar dos veces no duplica.
+ */
+export interface ReglaEpp {
+  id: string
+  ambito: 'puesto' | 'colaborador'
+  ambitoId: string            // puestoId o colaboradorId
+  eppKey: string
+  nombre?: string             // obligatorio si el EPP es nuevo (no está en el catálogo)
+  frecuencia?: string
+  limite?: number             // tope anual. undefined = hereda (salvo sinTope)
+  sinTope?: boolean           // true = sin tope anual ("según uso")
+  quitado?: boolean           // true = este EPP NO le corresponde
+  actualizadoEn: string
+  actualizadoPor?: string
 }
 
 /** Pedido de reposición fuera de cupo. Lo autoriza HyS (rol 'sgo'). */

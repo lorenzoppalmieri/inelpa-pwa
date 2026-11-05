@@ -17,7 +17,7 @@ import type {
   DespachoTrafo, EstadoDespacho, DemoraDespacho, ChecklistDespacho, FleteInterno, MovimientoDeposito,
   TareaLaboratorio, EstadoLab, EnsayoEstado, MedicionesEnsayo, ProtocoloCliente,
   PlantillaRecurrente,
-  ColaboradorEpp, EntregaEpp, SolicitudEpp,
+  ColaboradorEpp, EntregaEpp, SolicitudEpp, ReglaEpp,
 } from '../types'
 import type { AccionSGO, AuditoriaSGO, EventoSGO } from '../sgo/types'
 // v1.47: remapea el área retirada 'logistica_administrativa' al leer de la base.
@@ -1374,20 +1374,38 @@ export interface EntregaEppRow {
   entregada_por: string | null
   solicitud_id: string | null
   observacion: string | null
+  // v2.45 — anulación (corrección de una entrega mal registrada)
+  anulada?: boolean | null
+  anulada_en?: string | null
+  anulada_por?: string | null
+  motivo_anulacion?: string | null
 }
 export function entregaEppFromRow(r: EntregaEppRow): EntregaEpp {
   return {
     id: r.id, colaboradorId: r.colaborador_id, eppKey: r.epp_key, anio: r.anio,
     fecha: r.fecha, entregadaPor: u(r.entregada_por),
     solicitudId: u(r.solicitud_id), observacion: u(r.observacion),
+    anulada: r.anulada ?? undefined, anuladaEn: u(r.anulada_en ?? null),
+    anuladaPor: u(r.anulada_por ?? null), motivoAnulacion: u(r.motivo_anulacion ?? null),
   }
 }
 export function entregaEppToRow(e: EntregaEpp): EntregaEppRow {
-  return {
+  const row: EntregaEppRow = {
     id: e.id, colaborador_id: e.colaboradorId, epp_key: e.eppKey, anio: e.anio,
     fecha: e.fecha, entregada_por: e.entregadaPor ?? null,
     solicitud_id: e.solicitudId ?? null, observacion: e.observacion ?? null,
   }
+  // v2.45: las columnas de anulación SOLO viajan cuando la entrega está anulada.
+  // Si viajaran siempre y el SQL v2.45 no corrió, PostgREST rechazaría TODAS las
+  // entregas (columna inexistente → error 'fatal' → la cola las descarta en
+  // silencio). Así, las entregas normales siguen subiendo igual.
+  if (e.anulada) {
+    row.anulada = true
+    row.anulada_en = e.anuladaEn ?? null
+    row.anulada_por = e.anuladaPor ?? null
+    row.motivo_anulacion = e.motivoAnulacion ?? null
+  }
+  return row
 }
 
 export interface SolicitudEppRow {
@@ -1419,5 +1437,36 @@ export function solicitudEppToRow(s: SolicitudEpp): SolicitudEppRow {
     pedida_en: s.pedidaEn, pedida_por: s.pedidaPor ?? null,
     resuelta_en: s.resueltaEn ?? null, resuelta_por: s.resueltaPor ?? null,
     comentario_hys: s.comentarioHys ?? null,
+  }
+}
+
+// v2.45 — Ajustes de HyS al catálogo de EPP (por puesto o por persona).
+export interface ReglaEppRow {
+  id: string
+  ambito: string
+  ambito_id: string
+  epp_key: string
+  nombre: string | null
+  frecuencia: string | null
+  limite: number | null
+  sin_tope: boolean | null
+  quitado: boolean | null
+  actualizado_en: string
+  actualizado_por: string | null
+}
+export function reglaEppFromRow(r: ReglaEppRow): ReglaEpp {
+  return {
+    id: r.id, ambito: r.ambito as ReglaEpp['ambito'], ambitoId: r.ambito_id, eppKey: r.epp_key,
+    nombre: u(r.nombre), frecuencia: u(r.frecuencia), limite: u(r.limite),
+    sinTope: r.sin_tope ?? undefined, quitado: r.quitado ?? undefined,
+    actualizadoEn: r.actualizado_en, actualizadoPor: u(r.actualizado_por),
+  }
+}
+export function reglaEppToRow(g: ReglaEpp): ReglaEppRow {
+  return {
+    id: g.id, ambito: g.ambito, ambito_id: g.ambitoId, epp_key: g.eppKey,
+    nombre: g.nombre ?? null, frecuencia: g.frecuencia ?? null, limite: g.limite ?? null,
+    sin_tope: g.sinTope ?? false, quitado: g.quitado ?? false,
+    actualizado_en: g.actualizadoEn, actualizado_por: g.actualizadoPor ?? null,
   }
 }

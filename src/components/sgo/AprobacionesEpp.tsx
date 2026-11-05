@@ -5,7 +5,7 @@ import { useAuth } from '../../auth/AuthContext'
 import type { SolicitudEpp } from '../../types'
 import { guardarSolicitudEpp } from '../../sync/syncEngine'
 import { fechaCorta, hhmm } from '../../lib/time'
-import { puestoEppPorId } from '../../epp/catalogo'
+import { puestoEppPorId, eppEfectivo, nombreEppConocido } from '../../epp/catalogo'
 import { entregadasEn } from '../../epp/types'
 
 // ============================================================
@@ -25,6 +25,7 @@ export default function AprobacionesEpp() {
   const solicitudes = useLiveQuery(() => db.solicitudesEpp.toArray(), []) ?? []
   const colaboradores = useLiveQuery(() => db.colaboradoresEpp.toArray(), []) ?? []
   const entregas = useLiveQuery(() => db.entregasEpp.toArray(), []) ?? []
+  const reglas = useLiveQuery(() => db.reglasEpp.toArray(), []) ?? []
 
   const [resolviendo, setResolviendo] = useState<{ s: SolicitudEpp; aprobar: boolean } | null>(null)
   const [comentario, setComentario] = useState('')
@@ -44,7 +45,9 @@ export default function AprobacionesEpp() {
   function detalle(s: SolicitudEpp) {
     const col = colaboradores.find((c) => c.id === s.colaboradorId)
     const puesto = puestoEppPorId(col?.puestoId)
-    const def = puesto?.epps.find((e) => e.key === s.eppKey)
+    // v2.45: cupo VIGENTE (con los ajustes de HyS), el mismo que ve pañol.
+    const def = eppEfectivo(col?.puestoId, col?.id, s.eppKey, reglas)
+      ?? { key: s.eppKey, nombre: nombreEppConocido(s.eppKey, reglas), frecuencia: 'ya no asignado', limite: null }
     const consumidas = entregadasEn(entregas, s.colaboradorId, s.eppKey, s.anio)
     return { col, puesto, def, consumidas }
   }
@@ -79,7 +82,7 @@ export default function AprobacionesEpp() {
               <div style={{ flex: 1 }}>
                 <strong>{col?.nombre ?? 'colaborador borrado'} · {def?.nombre ?? s.eppKey}</strong>
                 <div className="meta">
-                  {puesto?.nombre ?? '—'} · cupo {s.anio}: <strong>{consumidas} de {def?.limite ?? '—'}</strong> ({def?.frecuencia})
+                  {puesto?.nombre ?? '—'} · cupo {s.anio}: <strong>{consumidas} de {def.limite ?? 'sin tope'}</strong> ({def?.frecuencia})
                   {' · '}pedido {fechaCorta(s.pedidaEn)} {hhmm(s.pedidaEn)}{s.pedidaPor ? ` por ${s.pedidaPor}` : ''}
                 </div>
                 <div className="meta texto-libre" style={{ fontStyle: 'italic' }}>📝 {s.motivo}</div>
@@ -124,7 +127,7 @@ export default function AprobacionesEpp() {
               const { col, def, consumidas } = detalle(resolviendo.s)
               return (
                 <div className="meta" style={{ marginBottom: 12 }}>
-                  <strong>{col?.nombre}</strong> · {def?.nombre} · lleva {consumidas} de {def?.limite ?? '—'} en {resolviendo.s.anio}.
+                  <strong>{col?.nombre}</strong> · {def?.nombre} · lleva {consumidas} de {def.limite ?? 'sin tope'} en {resolviendo.s.anio}.
                   <div className="texto-libre" style={{ fontStyle: 'italic', marginTop: 4 }}>📝 {resolviendo.s.motivo}</div>
                 </div>
               )

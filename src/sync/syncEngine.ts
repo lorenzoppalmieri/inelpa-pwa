@@ -2,7 +2,7 @@ import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/
 import { db } from '../db/dexie'
 import { supabase, SUPABASE_HABILITADO } from '../lib/supabaseClient'
 import { traerTabla, traerTodoDe, type ConsultaPaginable } from '../lib/supabaseFetch'
-import type { Rol, SyncOp, Tarea, Parada, OrdenProduccion, Semielaborado, SectorId, Objetivo, TareaLogistica, SolicitudLogistica, Feriado, Ausencia, CorteLuz, Mensaje, MensajeLectura, TiempoEstandar, DespachoTrafo, FleteInterno, TareaLaboratorio, PlantillaRecurrente, ColaboradorEpp, EntregaEpp, SolicitudEpp } from '../types'
+import type { Rol, SyncOp, Tarea, Parada, OrdenProduccion, Semielaborado, SectorId, Objetivo, TareaLogistica, SolicitudLogistica, Feriado, Ausencia, CorteLuz, Mensaje, MensajeLectura, TiempoEstandar, DespachoTrafo, FleteInterno, TareaLaboratorio, PlantillaRecurrente, ColaboradorEpp, EntregaEpp, SolicitudEpp, ReglaEpp } from '../types'
 import type { EventoSGO, AccionSGO, AuditoriaSGO } from '../sgo/types'
 import type { IndicadorSGO, MedicionIndicadorSGO } from '../sgo/indicadores'
 import type { ControlProgramadoSGO, EjecucionControlSGO } from '../sgo/controles'
@@ -15,10 +15,10 @@ import { exigirPermisoBorradoSGO, exigirPermisoGestionAgendaISO, exigirPermisoGu
 import { retirarControlDeAgenda } from '../sgo/controles'
 import {
   tareaFromRow, paradaFromRow, ordenFromRow, semiFromRow, maquinaFromRow, usuarioFromRow, objetivoFromRow, tareaLogFromRow, solicitudLogFromRow, feriadoFromRow, ausenciaFromRow, corteLuzFromRow, mensajeFromRow, lecturaFromRow, estandarFromRow, despachoFromRow, fleteFromRow, laboratorioFromRow, plantillaFromRow, eventoSGOFromRow, accionSGOFromRow, indicadorSGOFromRow, medicionIndicadorSGOFromRow, auditoriaSGOFromRow, controlProgramadoSGOFromRow, ejecucionControlSGOFromRow, actividadAgendaISOFromRow, tareaSGOFromRow, comentarioTareaSGOFromRow,
-  colaboradorEppFromRow, entregaEppFromRow, solicitudEppFromRow,
-  type ColaboradorEppRow, type EntregaEppRow, type SolicitudEppRow,
+  colaboradorEppFromRow, entregaEppFromRow, solicitudEppFromRow, reglaEppFromRow,
+  type ColaboradorEppRow, type EntregaEppRow, type SolicitudEppRow, type ReglaEppRow,
   tareaToRow, paradaToRow, ordenToRow, semiToRow, objetivoToRow, tareaLogToRow, solicitudLogToRow, feriadoToRow, ausenciaToRow, corteLuzToRow, mensajeToRow, lecturaToRow, estandarToRow, despachoToRow, fleteToRow, laboratorioToRow, plantillaToRow, eventoSGOToRow, accionSGOToRow, indicadorSGOToRow, medicionIndicadorSGOToRow, controlProgramadoSGOToRow, ejecucionControlSGOToRow, actividadAgendaISOToRow, tareaSGOToRow, comentarioTareaSGOToRow,
-  colaboradorEppToRow, entregaEppToRow, solicitudEppToRow,
+  colaboradorEppToRow, entregaEppToRow, solicitudEppToRow, reglaEppToRow,
   type TareaRow, type ParadaRow, type OrdenRow, type SemiRow, type MaquinaRow, type UsuarioRow, type ObjetivoRow, type TareaLogisticaRow, type SolicitudLogisticaRow, type FeriadoRow, type AusenciaRow, type CorteLuzRow, type MensajeRow, type MensajeLecturaRow, type TiempoEstandarRow, type DespachoRow, type FleteRow, type LaboratorioRow, type PlantillaRecurrenteRow, type EventoSGORow, type AccionSGORow, type IndicadorSGORow, type MedicionIndicadorSGORow, type AuditoriaSGORow, type ControlProgramadoSGORow, type EjecucionControlSGORow, type ActividadAgendaISORow, type TareaSGORow, type ComentarioTareaSGORow,
 } from './mappers'
 
@@ -201,7 +201,7 @@ export async function fetchInicial(rol?: Rol): Promise<void> {
       db.tareasLogistica.clear(), db.solicitudesLogistica.clear(), db.feriados.clear(), db.ausencias.clear(), db.cortesLuz.clear(),
       db.mensajes.clear(), db.mensajesLectura.clear(), db.estandares.clear(), db.despachos.clear(), db.fletes.clear(), db.laboratorio.clear(),
       db.plantillasRecurrentes.clear(), db.datosTecnicos.clear(),
-      db.colaboradoresEpp.clear(), db.entregasEpp.clear(), db.solicitudesEpp.clear(),
+      db.colaboradoresEpp.clear(), db.entregasEpp.clear(), db.solicitudesEpp.clear(), db.reglasEpp.clear(),
     ])
 
     // ---- TAREAS + PARADAS (las únicas que se acotan por ventana) ----
@@ -225,7 +225,7 @@ export async function fetchInicial(rol?: Rol): Promise<void> {
       ? await traerTabla<ParadaRow>('paradas')
       : await traerParadasDe(tareasRows.map((t) => t.id))
 
-    const [maqs, usrs, uss, ords, semis, objs, tlog, slog, fers, auss, cortes, msgs, lects, ests, desp, flts, labs, plts, eventosSgo, accionesSgo, indicadoresSgo, medicionesSgo, auditoriaSgo, controlesSgo, ejecucionesSgo, agendaIso, tareasSgo, comentariosTareasSgo, dtec, eppCol, eppEnt, eppSol] = await Promise.all([
+    const [maqs, usrs, uss, ords, semis, objs, tlog, slog, fers, auss, cortes, msgs, lects, ests, desp, flts, labs, plts, eventosSgo, accionesSgo, indicadoresSgo, medicionesSgo, auditoriaSgo, controlesSgo, ejecucionesSgo, agendaIso, tareasSgo, comentariosTareasSgo, dtec, eppCol, eppEnt, eppSol, eppReg] = await Promise.all([
       traerTodo('maquinas'),
       supabase.from('usuarios').select('id, nombre, usuario, rol, grupo_nomina, activo'),
       supabase.from('usuario_sectores').select('usuario_id, sector_id'),
@@ -258,6 +258,7 @@ export async function fetchInicial(rol?: Rol): Promise<void> {
       traerTodo('epp_colaboradores'),
       traerTodo('epp_entregas'),
       traerTodo('epp_solicitudes'),
+      traerTodo('epp_reglas'),
     ])
 
     // Maquinas
@@ -307,6 +308,7 @@ export async function fetchInicial(rol?: Rol): Promise<void> {
     if (eppCol.data) await db.colaboradoresEpp.bulkPut((eppCol.data as ColaboradorEppRow[]).map(colaboradorEppFromRow))
     if (eppEnt.data) await db.entregasEpp.bulkPut((eppEnt.data as EntregaEppRow[]).map(entregaEppFromRow))
     if (eppSol.data) await db.solicitudesEpp.bulkPut((eppSol.data as SolicitudEppRow[]).map(solicitudEppFromRow))
+    if (eppReg.data) await db.reglasEpp.bulkPut((eppReg.data as ReglaEppRow[]).map(reglaEppFromRow))
 
     if (dtec.data) {
       const filas = (dtec.data as Record<string, unknown>[]).map((f, i) => ({
@@ -784,6 +786,7 @@ async function empujar(op: SyncOp): Promise<EmpujeResultado> {
         : op.entidad === 'colaborador_epp' ? 'epp_colaboradores'
         : op.entidad === 'entrega_epp' ? 'epp_entregas'
         : op.entidad === 'solicitud_epp' ? 'epp_solicitudes'
+        : op.entidad === 'regla_epp' ? 'epp_reglas'
         : 'paradas'
       const { error } = await supabase.from(tabla).delete().eq('id', op.entidadId)
       if (error) return fallo(`delete ${op.entidad}`, error.message)
@@ -851,6 +854,11 @@ async function empujar(op: SyncOp): Promise<EmpujeResultado> {
       case 'entrega_epp': {
         const { error } = await supabase.from('epp_entregas').upsert(entregaEppToRow(op.payload as EntregaEpp), { onConflict: 'id' })
         if (error) return fallo('upsert entrega_epp', error.message)
+        return OK_EMPUJE
+      }
+      case 'regla_epp': {
+        const { error } = await supabase.from('epp_reglas').upsert(reglaEppToRow(op.payload as ReglaEpp), { onConflict: 'id' })
+        if (error) return fallo('upsert regla_epp', error.message)
         return OK_EMPUJE
       }
       case 'solicitud_epp': {
@@ -1458,4 +1466,15 @@ export async function eliminarEntregaEpp(e: EntregaEpp): Promise<void> {
 export async function guardarSolicitudEpp(s: SolicitudEpp): Promise<void> {
   await db.solicitudesEpp.put(s)
   await encolar({ entidad: 'solicitud_epp', entidadId: s.id, tipo: 'upsert', payload: s })
+}
+
+// v2.45 — ajustes de HyS al catálogo de EPP.
+export async function guardarReglaEpp(g: ReglaEpp): Promise<void> {
+  await db.reglasEpp.put(g)
+  await encolar({ entidad: 'regla_epp', entidadId: g.id, tipo: 'upsert', payload: g })
+}
+/** Quitar el ajuste = volver a lo que dice el catálogo (o el puesto). */
+export async function eliminarReglaEpp(g: ReglaEpp): Promise<void> {
+  await db.reglasEpp.delete(g.id)
+  await encolar({ entidad: 'regla_epp', entidadId: g.id, tipo: 'delete', payload: { id: g.id } })
 }

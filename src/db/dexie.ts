@@ -4,7 +4,7 @@ import type {
   ModeloTransformador, ComponenteSemielaborado, Objetivo, TareaLogistica, SolicitudLogistica, Feriado, Ausencia, CorteLuz,
   Mensaje, MensajeLectura, TiempoEstandar, DespachoTrafo, FleteInterno, TareaLaboratorio,
   PlantillaRecurrente,
-  ColaboradorEpp, EntregaEpp, SolicitudEpp,
+  ColaboradorEpp, EntregaEpp, SolicitudEpp, ReglaEpp,
 } from '../types'
 import type { EventoSGO, AccionSGO, AuditoriaSGO } from '../sgo/types'
 import type { IndicadorSGO, MedicionIndicadorSGO } from '../sgo/indicadores'
@@ -26,6 +26,7 @@ export class InelpaDB extends Dexie {
   colaboradoresEpp!: Table<ColaboradorEpp, string>
   entregasEpp!: Table<EntregaEpp, string>
   solicitudesEpp!: Table<SolicitudEpp, string>
+  reglasEpp!: Table<ReglaEpp, string>
   semielaborados!: Table<Semielaborado, string>
   maquinas!: Table<Maquina, string>
   modelos!: Table<ModeloTransformador, string>
@@ -216,6 +217,10 @@ export class InelpaDB extends Dexie {
       colaboradoresEpp: 'id, nombre, puestoId, activo',
       entregasEpp: 'id, colaboradorId, eppKey, anio, fecha',
       solicitudesEpp: 'id, colaboradorId, eppKey, anio, estado',
+    })
+    // v2.45 — ajustes de HyS al catálogo de EPP (por puesto o por persona).
+    this.version(32).stores({
+      reglasEpp: 'id, ambito, ambitoId, eppKey',
     })
   }
 }
