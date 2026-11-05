@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Maquina, Tarea, TiempoEstandar } from '../../types'
 import { claveEstandar } from '../../types'
 import {
-  construirTareaPO, poDe, puedeGenerarPO, sectorPODe, tieneEstandarAprendido,
+  construirTareaPO, poDe, puedeGenerarPO, sectorPODe, sectoresPODisponibles, tieneEstandarAprendido,
 } from '../puenteMontaje'
 
 // ============================================================
@@ -137,6 +137,43 @@ describe('la tarea PO generada', () => {
   it('la PO generada se encuentra por su origen', () => {
     expect(poDe('pa1', [t])?.id).toBe(t.id)
     expect(poDe('otra', [t])).toBeUndefined()
+  })
+})
+
+// ============================================================
+// v2.46 — Cruce de línea: la planificadora elige el sector PO de destino.
+// ============================================================
+describe('cruce de línea PA → PO', () => {
+  it('una PA Rural se puede mandar a PO Distribución', () => {
+    const t = construirTareaPO(pa(), { maquinas: MAQUINAS, estandares: [], estandarPorDefecto: 240, sectorPO: 'montaje_po_dist' as Tarea['sectorId'] })
+    expect(t.sectorId).toBe('montaje_po_dist')
+    expect(t.maquinaId).toBe('m_po_dist')
+    expect(t.origenTareaId).toBe('pa1')
+  })
+
+  it('sin elegir, sigue yendo a la misma línea', () => {
+    const t = construirTareaPO(pa(), { maquinas: MAQUINAS, estandares: [] })
+    expect(t.sectorId).toBe('montaje_po_rural')
+  })
+
+  it('no acepta un destino que no sea Montaje PO', () => {
+    expect(() => construirTareaPO(pa(), { maquinas: MAQUINAS, estandares: [], sectorPO: 'montaje_pa_dist' as Tarea['sectorId'] })).toThrow()
+  })
+
+  it('se puede generar aunque la línea PO "propia" no tenga estación, si la otra sí', () => {
+    const soloDist = [MAQUINAS[0], MAQUINAS[2]]
+    expect(puedeGenerarPO(pa(), [], soloDist).puede).toBe(true)
+    expect(sectoresPODisponibles(soloDist)).toEqual(['montaje_po_dist'])
+  })
+
+  it('el estándar se busca en el sector de DESTINO', () => {
+    const est: TiempoEstandar[] = [
+      { id: claveEstandar('montaje_po_dist' as Tarea['sectorId'], 'TMR 16/7'), minutos: 150 } as TiempoEstandar,
+    ]
+    const t = construirTareaPO(pa(), { maquinas: MAQUINAS, estandares: est, estandarPorDefecto: 240, sectorPO: 'montaje_po_dist' as Tarea['sectorId'] })
+    expect(t.tiempoEstandarMin).toBe(150)
+    expect(tieneEstandarAprendido(pa(), est, 'montaje_po_dist' as Tarea['sectorId'])).toBe(true)
+    expect(tieneEstandarAprendido(pa(), est)).toBe(false) // la propia (rural) no tiene
   })
 })
 

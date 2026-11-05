@@ -32,15 +32,28 @@ import { isoWeek } from './time'
 // botón además se bloquea mientras guarda.
 // ============================================================
 
-/** PA → PO dentro de la misma línea. Rural con rural, distribución con dist. */
+/**
+ * PA → PO dentro de la misma línea. Rural con rural, distribución con dist.
+ * v2.46: es solo la SUGERENCIA por defecto. Hay cruces de línea por balanceo de
+ * carga (una PA armada en Rural se termina en PO Distribución, o al revés), así
+ * que el sector PO lo elige la planificadora al generar. Ver `SECTORES_PO`.
+ */
 const PA_A_PO: Partial<Record<SectorId, SectorId>> = {
   montaje_pa_dist: 'montaje_po_dist',
   montaje_pa_rural: 'montaje_po_rural',
 }
 
-/** El sector PO que le corresponde a una PA, o undefined si no es una PA. */
+/** v2.46: los dos destinos posibles de una parte activa, en el orden del modal. */
+export const SECTORES_PO: readonly SectorId[] = ['montaje_po_rural', 'montaje_po_dist']
+
+/** El sector PO que le corresponde a una PA (sugerido), o undefined si no es una PA. */
 export function sectorPODe(sectorId: SectorId): SectorId | undefined {
   return PA_A_PO[sectorId]
+}
+
+/** v2.46: sectores PO que hoy tienen una línea activa donde mandar la tarea. */
+export function sectoresPODisponibles(maquinas: Maquina[]): SectorId[] {
+  return SECTORES_PO.filter((s) => maquinas.some((m) => estacionUsable(m, s)))
 }
 
 export function esMontajePA(sectorId: SectorId): boolean {
@@ -89,7 +102,9 @@ export function puedeGenerarPO(pa: Tarea, todas: Tarea[], maquinas: Maquina[]): 
   const existente = poDe(pa.id, todas)
   if (existente) return { puede: false, motivo: 'ya_generada', existente }
 
-  if (!maquinas.some((m) => estacionUsable(m, sectorPO))) {
+  // v2.46: alcanza con que CUALQUIERA de las dos líneas PO esté disponible: la
+  // planificadora elige a cuál va. Antes solo se miraba la de la misma línea.
+  if (sectoresPODisponibles(maquinas).length === 0) {
     return { puede: false, motivo: 'sin_estacion' }
   }
   return { puede: true }
@@ -101,6 +116,11 @@ export interface OpcionesPO {
   /** Estándar de respaldo si todavía no hay uno aprendido para ese modelo. */
   estandarPorDefecto?: number
   ahoraISO?: string
+  /**
+   * v2.46: sector PO elegido por la planificadora en el modal (puede cruzar de
+   * línea). Si no se pasa, se usa el de la misma línea que la PA.
+   */
+  sectorPO?: SectorId
 }
 
 /**
@@ -121,8 +141,10 @@ export interface OpcionesPO {
  *  - tiempos reales, paradas y estado: la PO nace pendiente y vacía.
  */
 export function construirTareaPO(pa: Tarea, op: OpcionesPO): Tarea {
-  const sectorPO = sectorPODe(pa.sectorId)
-  if (!sectorPO) throw new Error(`${pa.sectorId} no es un sector de Montaje PA`)
+  if (!sectorPODe(pa.sectorId)) throw new Error(`${pa.sectorId} no es un sector de Montaje PA`)
+  // v2.46: el destino lo decide la planificadora; ya NO se hereda de la PA.
+  const sectorPO = op.sectorPO ?? sectorPODe(pa.sectorId)!
+  if (!SECTORES_PO.includes(sectorPO)) throw new Error(`${sectorPO} no es un sector de Montaje PO`)
 
   const ahora = op.ahoraISO ?? new Date().toISOString()
   // Arranca cuando terminó la parte activa. Si la PA no tiene fin (no debería
@@ -170,8 +192,9 @@ export function construirTareaPO(pa: Tarea, op: OpcionesPO): Tarea {
 }
 
 /** true = el estándar salió del histórico; false = se usó el de respaldo. */
-export function tieneEstandarAprendido(pa: Tarea, estandares: TiempoEstandar[]): boolean {
-  const sectorPO = sectorPODe(pa.sectorId)
-  if (!sectorPO) return false
+export function tieneEstandarAprendido(pa: Tarea, estandares: TiempoEstandar[], destino?: SectorId): boolean {
+  if (!sectorPODe(pa.sectorId)) return false
+  // v2.46: el estándar es del sector PO de DESTINO (cada línea tiene el suyo).
+  const sectorPO = destino ?? sectorPODe(pa.sectorId)!
   return estandares.some((e) => e.id === claveEstandar(sectorPO, pa.modelo))
 }

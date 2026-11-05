@@ -19,7 +19,7 @@ import PanelAusentismo from './PanelAusentismo'
 import PanelCorteLuz from './PanelCorteLuz'
 import { isoWeek, fechaCorta, hhmm } from '../../lib/time'
 import { tiempoNetoMin } from '../../lib/kpi'
-import { puedeGenerarPO, construirTareaPO, tieneEstandarAprendido } from '../../lib/puenteMontaje'
+import { puedeGenerarPO, construirTareaPO, tieneEstandarAprendido, sectoresPODisponibles, sectorPODe, SECTORES_PO } from '../../lib/puenteMontaje'
 import { tareaEnPeriodo, labelPeriodo, hoyLocalISO, primerDiaDelMesISO, type Periodo } from '../../lib/periodos'
 import { potenciaKVA } from '../../lib/potencia'
 import { recuperacionDiariaVigente } from '../../lib/calendario'
@@ -880,10 +880,33 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
   //
   // El id es determinista (`po_<id de la PA>`), así que dos clics generan la
   // MISMA tarea. La lógica vive en `lib/puenteMontaje.ts` para poder testearla.
-  async function generarPO(t: Tarea) {
+  // ============================================================
+  // v2.46 — "Generar Montaje PO" YA NO ELIGE EL SECTOR SOLO.
+  // Antes PA Rural iba fijo a PO Rural y PA Distribución a PO Distribución. En
+  // planta hay cruces de línea por balanceo de carga, así que el botón abre un
+  // modal y la planificadora elige el destino. La creación recibe ese sector.
+  // ============================================================
+  const [rutaPO, setRutaPO] = useState<Tarea | null>(null)
+
+  /** Clic en el botón: valida y abre el modal de destino. No crea nada todavía. */
+  function generarPO(t: Tarea) {
+    if (generandoPO) return
+    const g = puedeGenerarPO(t, todasTareas, maquinas ?? [])
+    if (!g.puede) {
+      setMsg(g.motivo === 'ya_generada'
+        ? 'La tarea de Montaje PO de este transformador ya estaba generada.'
+        : 'No se puede generar la Montaje PO de esta tarea.')
+      return
+    }
+    setRutaPO(t)
+  }
+
+  /** Crea la PO en el sector elegido en el modal. */
+  async function crearPO(t: Tarea, sectorPO: SectorId) {
+    setRutaPO(null)
     // v2.13: la idempotencia ya no la da el id (es un UUID normal) sino la
-    // búsqueda por `origenTareaId`. Entre el clic y el refresco de la lista hay
-    // una ventana chica, así que se bloquea el botón mientras guarda.
+    // búsqueda por `origenTareaId`. Se vuelve a chequear acá: entre que se abrió
+    // el modal y el clic, otra persona pudo haberla generado.
     if (generandoPO) return
     const g = puedeGenerarPO(t, todasTareas, maquinas ?? [])
     if (!g.puede) {
@@ -893,15 +916,7 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
       return
     }
     const ref = `${t.modelo}${t.nroTransformador ? ` · N° ${t.nroTransformador}` : ''}`
-    const conEstandar = tieneEstandarAprendido(t, estandaresGuardados)
-    if (!window.confirm(
-      `Generar la tarea de Montaje PO de ${ref}?\n\n`
-      + `Hereda orden, modelo, N° de transformador y cliente.\n`
-      + `Queda SIN colaborador asignado: la toma quien la inicie en la línea PO.\n\n`
-      + (conEstandar
-        ? 'El tiempo estándar sale del histórico de ese modelo.'
-        : '⚠ Todavía no hay tiempo estándar aprendido para este modelo en PO: se carga uno provisorio y conviene corregirlo editando la tarea.'),
-    )) return
+    const conEstandar = tieneEstandarAprendido(t, estandaresGuardados, sectorPO)
 
     const nueva = construirTareaPO(t, {
       maquinas: maquinas ?? [],
@@ -910,11 +925,12 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
       // el de la parte activa solo como orden de magnitud, NUNCA como estándar
       // definitivo (PA y PO no tardan lo mismo).
       estandarPorDefecto: t.tiempoEstandarMin,
+      sectorPO,
     })
     setGenerandoPO(t.id)
     try {
       await guardarTarea(nueva)
-      setMsg(`Montaje PO generada para ${ref}${conEstandar ? '' : ' — revisá el tiempo estándar'}.`)
+      setMsg(`Montaje PO generada en ${sectorById(sectorPO).nombre} para ${ref}${conEstandar ? '' : ' — revisá el tiempo estándar'}.`)
     } finally {
       setGenerandoPO(null)
     }
@@ -1458,6 +1474,42 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
               </div>
             )
           })}
+
+      {/* v2.46: destino de la Montaje PO, lo elige la planificadora. */}
+      {rutaPO && (() => {
+        const disponibles = sectoresPODisponibles(maquinas ?? [])
+        const sugerido = sectorPODe(rutaPO.sectorId)
+        return (
+          <div className="modal-overlay" onClick={() => setRutaPO(null)}>
+            <div className="modal confirmar-accion" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+              <h2 className="confirmar-titulo">¿A qué sector de Montaje PO querés enviar esta Parte Activa?</h2>
+              <div className="confirmar-detalle">
+                {rutaPO.ordenId && nroOrdenDe.get(rutaPO.ordenId) && <div>OF <strong>{nroOrdenDe.get(rutaPO.ordenId)}</strong></div>}
+                <div><strong>{rutaPO.modelo}</strong>{rutaPO.nroTransformador ? ` · N° ${rutaPO.nroTransformador}` : ''}</div>
+                <div className="meta">Armada en {sectorById(rutaPO.sectorId).nombre}. Hereda orden, modelo, N° de transformador y cliente; queda sin colaborador asignado.</div>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12 }}>
+                {SECTORES_PO.map((s) => {
+                  const hayLinea = disponibles.includes(s)
+                  const conEstandar = tieneEstandarAprendido(rutaPO, estandaresGuardados, s)
+                  return (
+                    <button key={s} className="btn btn-primary confirmar-btn" disabled={!hayLinea || generandoPO !== null}
+                      onClick={() => void crearPO(rutaPO, s)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
+                      <span>{sectorById(s).nombre}{s === sugerido ? ' (misma línea)' : ''}</span>
+                      <span style={{ fontSize: '.78rem', fontWeight: 600, opacity: .9 }}>
+                        {!hayLinea ? 'Sin línea activa cargada'
+                          : conEstandar ? 'Tiempo estándar del histórico'
+                          : '⚠ Sin estándar aprendido: se carga uno provisorio'}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+              <button className="btn confirmar-btn" style={{ width: '100%' }} onClick={() => setRutaPO(null)}>Cancelar</button>
+            </div>
+          </div>
+        )
+      })()}
 
       {editar && !soloLectura && (
         <EditarTarea
