@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { estadoGestionMejora, crearDatosMejora, validarCierreMejora, normalizarMejoraAlCerrar } from '../mejoras'
+import { estadoGestionMejora, crearDatosMejora, mejoraEnMarcha, validarCierreMejora, normalizarMejoraAlCerrar } from '../mejoras'
 import type { AccionSGO, EventoSGO } from '../types'
 
 const eventoBase: EventoSGO = {
@@ -47,6 +47,24 @@ describe('gestión de mejora continua', () => {
     expect(normalizarMejoraAlCerrar(abierta).mejora?.decision).toBe('pendiente')
     const noViable: EventoSGO = { ...eventoBase, estado: 'cerrado', mejora: { ...eventoBase.mejora!, decision: 'no_viable' } }
     expect(normalizarMejoraAlCerrar(noViable).mejora?.decision).toBe('no_viable')
+  })
+
+  // v2.48 — Decisión "En proceso" para el seguimiento.
+  it('v2.48: "En proceso" figura en ejecución aunque todavía no tenga acciones', () => {
+    const enProceso: EventoSGO = { ...eventoBase, mejora: { ...eventoBase.mejora!, decision: 'en_proceso' } }
+    expect(estadoGestionMejora(enProceso, [])).toBe('en_ejecucion')
+    expect(estadoGestionMejora(enProceso, [{ ...accion, estado: 'completada' }])).toBe('pendiente_verificacion')
+    expect(estadoGestionMejora(enProceso, [{ ...accion, estado: 'verificada', eficaz: true }])).toBe('lista_para_cerrar')
+    expect(mejoraEnMarcha('en_proceso')).toBe(true)
+    expect(mejoraEnMarcha('aprobada')).toBe(true)
+    expect(mejoraEnMarcha('a_futuro')).toBe(false)
+  })
+
+  it('v2.48: al cerrar, "En proceso" queda como aprobada', () => {
+    const cerrada: EventoSGO = { ...eventoBase, estado: 'cerrado', mejora: { ...eventoBase.mejora!, decision: 'en_proceso' } }
+    expect(normalizarMejoraAlCerrar(cerrada).mejora?.decision).toBe('aprobada')
+    const abierta: EventoSGO = { ...eventoBase, mejora: { ...eventoBase.mejora!, decision: 'en_proceso' } }
+    expect(normalizarMejoraAlCerrar(abierta).mejora?.decision).toBe('en_proceso')
   })
 
   it('ignora los campos históricos retirados al determinar el avance', () => {

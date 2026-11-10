@@ -7,7 +7,7 @@ import { validarCierreEvento } from '../../sgo/cierre'
 import {
   CLASES_MEJORA, DECISIONES_MEJORA, ESTADOS_GESTION_MEJORA, FUENTES_MEJORA, PRIORIDADES_MEJORA,
   accionMejoraVencida, crearDatosMejora, estadoGestionMejora, fechaHoyISO,
-  seguimientoVencido, type EstadoGestionMejora,
+  mejoraEnMarcha, normalizarMejoraAlCerrar, seguimientoVencido, type EstadoGestionMejora,
 } from '../../sgo/mejoras'
 import { usuarioEsLorenzo } from '../../sgo/permisos'
 import {
@@ -249,7 +249,7 @@ function EditorMejora({ registro, acciones, usuario, onClose: cerrarEditor, onOp
     if (!evento.descripcion.trim()) errores.push('Describir la detección.')
     if (!evento.areaId) errores.push('Seleccionar el área.')
     if (!mejora.pilaresBeneficiados.length) errores.push('Seleccionar al menos un pilar beneficiado.')
-    if (decision === 'aprobada') {
+    if (mejoraEnMarcha(decision)) {
       if (!evento.responsable?.trim()) errores.push('Asignar un responsable.')
       if (!mejora.fechaObjetivo) errores.push('Definir la fecha objetivo.')
       if (!mejora.beneficioEsperado?.trim()) errores.push('Documentar el beneficio esperado.')
@@ -281,7 +281,7 @@ function EditorMejora({ registro, acciones, usuario, onClose: cerrarEditor, onOp
       ...evento, codigo: evento.codigo || codigoEventoSGO(new Date(), evento.id), tipo, pilar,
       titulo: evento.titulo.trim(), descripcion: evento.descripcion.trim(), responsable: evento.responsable?.trim() || undefined,
       areaOrigenId: tipo === 'no_conformidad' ? evento.areaId : evento.areaOrigenId, mejora: mejoraEvaluada(),
-      estado: estado ?? (evento.estado === 'cerrado' ? 'cerrado' : mejora.decision === 'a_futuro' ? 'en_analisis' : mejora.decision === 'aprobada' ? (acciones.length ? 'con_acciones' : 'en_analisis') : evento.estado),
+      estado: estado ?? (evento.estado === 'cerrado' ? 'cerrado' : mejora.decision === 'a_futuro' ? 'en_analisis' : mejoraEnMarcha(mejora.decision) ? (acciones.length ? 'con_acciones' : 'en_analisis') : evento.estado),
       actualizadoEn: ahoraIso,
     }
   }
@@ -307,7 +307,8 @@ function EditorMejora({ registro, acciones, usuario, onClose: cerrarEditor, onOp
       return
     }
     const ahoraCierre = new Date().toISOString()
-    const preparado = eventoPreparado('cerrado')
+    // v2.48: "En proceso" (o "Pendiente") pasa a "Aprobada" al cerrar.
+    const preparado = normalizarMejoraAlCerrar(eventoPreparado('cerrado'))
     const candidato = {
       ...preparado,
       mejora: { ...preparado.mejora!, verificacionSGOEn: ahoraCierre, verificacionSGOPor: usuario },
@@ -390,7 +391,7 @@ function EditorMejora({ registro, acciones, usuario, onClose: cerrarEditor, onOp
 
     </fieldset>
     <fieldset className="sgo-mejora-campos" disabled={!editableGestion}>
-    {(registro && (mejora.decision === 'aprobada' || evento.estado === 'cerrado')) && <>
+    {(registro && (mejoraEnMarcha(mejora.decision) || evento.estado === 'cerrado')) && <>
       <div className="section-title">3. Resultado, cierre y sostenimiento</div>
       <Campo label="Resultado obtenido"><textarea className="input" rows={3} value={mejora.resultado ?? ''} onChange={(e) => setMejoraCampo('resultado', e.target.value || undefined)} /></Campo>
       <Campo label="Beneficio real"><textarea className="input" rows={2} value={mejora.beneficioReal ?? ''} onChange={(e) => setMejoraCampo('beneficioReal', e.target.value || undefined)} placeholder="Ahorro, reducción de riesgo, tiempo, calidad, orden o aprendizaje conseguido" /></Campo>

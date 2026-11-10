@@ -36,7 +36,8 @@ export type FuenteMejoraSGO =
   | 'evento_sgo'
   | 'manual'
   | 'otro'
-export type DecisionMejoraSGO = 'pendiente' | 'aprobada' | 'a_futuro' | 'no_viable'
+/** v2.48: 'en_proceso' = aprobada y ya en marcha (para el seguimiento). Al cerrar pasa a 'aprobada'. */
+export type DecisionMejoraSGO = 'pendiente' | 'aprobada' | 'en_proceso' | 'a_futuro' | 'no_viable'
 export type PrioridadMejoraSGO = 'baja' | 'media' | 'alta' | 'critica'
 export type SeguimientoMejoraSGO = 'pendiente' | 'sostenida' | 'reincidencia'
 export type GestorMejoraSGO = 'lorenzo' | 'lara' | 'nicolas.sgo' | 'azul'

@@ -47,9 +47,19 @@ export const FUENTES_MEJORA: { id: FuenteMejoraSGO; label: string }[] = [
 export const DECISIONES_MEJORA: { id: DecisionMejoraSGO; label: string }[] = [
   { id: 'pendiente', label: 'Pendiente de evaluación' },
   { id: 'aprobada', label: 'Aprobada' },
+  { id: 'en_proceso', label: 'En proceso' },
   { id: 'a_futuro', label: 'A futuro' },
   { id: 'no_viable', label: 'No viable' },
 ]
+
+/**
+ * v2.48: decisiones con las que la mejora se EJECUTA. "En proceso" funciona
+ * igual que "Aprobada" (pide responsable, fecha y beneficio; muestra la sección
+ * de resultado; se puede cerrar), pero indica que el trabajo ya arrancó.
+ */
+export function mejoraEnMarcha(decision: DecisionMejoraSGO | undefined): boolean {
+  return decision === 'aprobada' || decision === 'en_proceso'
+}
 
 export const PRIORIDADES_MEJORA: { id: PrioridadMejoraSGO; label: string }[] = [
   { id: 'baja', label: 'Baja' },
@@ -127,7 +137,8 @@ export function estadoGestionMejora(evento: EventoSGO, acciones: AccionSGO[]): E
       ? 'en_evaluacion' : 'detectada'
   }
   const activas = acciones.filter((accion) => accion.estado !== 'cancelada')
-  if (!activas.length) return 'aprobada'
+  // v2.48: "En proceso" sin acciones cargadas ya está en ejecución.
+  if (!activas.length) return mejora.decision === 'en_proceso' ? 'en_ejecucion' : 'aprobada'
   if (activas.every((accion) => accion.estado === 'verificada' && accion.eficaz === true)) return 'lista_para_cerrar'
   if (activas.some((accion) => accion.estado === 'completada')) return 'pendiente_verificacion'
   return 'en_ejecucion'
@@ -164,10 +175,12 @@ export function validarCierreMejora(_evento: EventoSGO, _acciones: AccionSGO[]):
  * Al cerrar, una mejora que quedó con la decisión en 'pendiente' se da por
  * APROBADA: si se está cerrando es porque se hizo. Evita que el tablero la
  * muestre eternamente "en evaluación" después de cerrada.
+ * v2.48: lo mismo con 'en_proceso': terminada, queda como aprobada (y así entra
+ * en la comprobación de sostenimiento posterior al cierre).
  */
 export function normalizarMejoraAlCerrar(evento: EventoSGO): EventoSGO {
   const mejora = evento.mejora
-  if (!mejora || evento.estado !== 'cerrado' || mejora.decision !== 'pendiente') return evento
+  if (!mejora || evento.estado !== 'cerrado' || !['pendiente', 'en_proceso'].includes(mejora.decision)) return evento
   return { ...evento, mejora: { ...mejora, decision: 'aprobada' } }
 }
 
