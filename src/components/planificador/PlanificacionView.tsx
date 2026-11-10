@@ -23,6 +23,7 @@ import { puedeGenerarPO, construirTareaPO, tieneEstandarAprendido, sectoresPODis
 import { tareaEnPeriodo, labelPeriodo, hoyLocalISO, primerDiaDelMesISO, type Periodo } from '../../lib/periodos'
 import { potenciaKVA } from '../../lib/potencia'
 import { recuperacionDiariaVigente } from '../../lib/calendario'
+import { ordenesAsignables } from '../../lib/ordenesAsignables'
 
 // v2.24: sectores donde el transformador queda ENCUBADO. El promedio de potencia
 // solo se calcula acá; en el resto de las barras no se dibuja nada.
@@ -702,20 +703,10 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
   // v1.41: la orden elegida es una OF de PROTOTIPO -> no lleva semielaborado.
   const ordenEsProto = esOrdenPrototipo(ordenSel)
 
-  // OF "activa" = aun tiene trabajo: sin tareas creadas o con alguna NO finalizada.
-  // Las OF con TODAS sus tareas finalizadas se ocultan del desplegable (no se borran).
-  const ordenesActivas = (ordenes ?? []).filter((o) => {
-    const ts = todasTareas.filter((t) => t.ordenId === o.id)
-    return ts.length === 0 || ts.some((t) => t.estado !== 'finalizada') || o.id === ordenId
-  })
-  // Se ordenan de la MÁS RECIENTE a la más antigua (por fecha de alta). Las órdenes
-  // viejas sin fecha de alta quedan al final. Además se filtran por el buscador.
-  const ordenesFiltradas = useMemo(() => {
-    const q = buscarOrden.trim().toLowerCase()
-    return [...ordenesActivas]
-      .sort((a, b) => (b.creada ?? '').localeCompare(a.creada ?? ''))
-      .filter((o) => !q || `${o.nroOrden} ${o.modelo} ${o.nroContrato ?? ''}`.toLowerCase().includes(q))
-  }, [ordenesActivas, buscarOrden])
+  // v2.49: se muestran TODAS las OF. Antes se ocultaba una OF con todas sus tareas
+  // finalizadas, y una OF no se consume con una tarea (ver lib/ordenesAsignables).
+  // Orden: de la más reciente a la más antigua, filtradas por el buscador.
+  const ordenesFiltradas = useMemo(() => ordenesAsignables(ordenes ?? [], buscarOrden), [ordenes, buscarOrden])
   // Semielaborados del sector con CUPO segun la cantidad de la OF. Aplica a TODOS
   // los semielaborados del transformador: cada tarea ya planificada (cualquier
   // estado) de ese componente en esta orden consume 1 unidad. Se ocultan los que
