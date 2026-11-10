@@ -3,6 +3,7 @@ import {
   type NivelInvestigacionRetrabajoSGO, type OrigenRetrabajoSGO,
 } from './types'
 import { calcularTiempoNetoProductivo } from '../lib/calendario'
+import { fechaLocalISO } from '../lib/time'
 import { CAUSAS_PARADA, esCausaRetrabajo } from '../types'
 
 export const INICIO_CIRCUITO_RETRABAJOS = '2026-08-19T00:00:00.000-03:00'
@@ -200,8 +201,10 @@ export function requisitosCierreRetrabajo(evento: EventoSGO, acciones: AccionSGO
     const costeo = datos.costeo
     if (!(costeo.horasCorreccion > 0)) errores.push('Registrar el tiempo utilizado para corregir el retrabajo.')
     if (!(costeo.personasInvolucradas >= 1)) errores.push('Registrar cuántas personas participaron de la corrección.')
-    if (['cobre', 'aluminio'].includes(costeo.materialTipo) && !(costeo.materialKg && costeo.materialKg > 0)) errores.push('Ingresar los kilogramos de material perdido.')
-    if (costeo.materialTipo === 'otro' && (!costeo.materialDescripcion?.trim() || !(costeo.materialCostoManual && costeo.materialCostoManual > 0))) errores.push('Describir y valorizar el otro material perdido.')
+    // v2.47: el VALOR del material perdido (kg o importe) ya NO se exige para
+    // cerrar: si falta, queda "sin valorizar" (ver `materialSinValorizar`).
+    // Solo se pide saber QUÉ material fue, si se eligió "otro".
+    if (costeo.materialTipo === 'otro' && !costeo.materialDescripcion?.trim()) errores.push('Describir el otro material perdido.')
     if (costeo.maquinaEstado !== 'no_aplica' && !costeo.maquinaDetalle?.trim()) errores.push('Describir la rotura, reparación o repuesto de la máquina.')
     if (['estimado', 'confirmado'].includes(costeo.maquinaEstado) && !(costeo.maquinaCosto && costeo.maquinaCosto > 0)) errores.push('Ingresar el costo relevado de la máquina o repuesto.')
     if ((costeo.ensayosCosto ?? 0) > 0 && !costeo.ensayosDetalle?.trim()) errores.push('Explicar el costo adicional de ensayos.')
@@ -231,7 +234,9 @@ export function requisitosCierreRetrabajo(evento: EventoSGO, acciones: AccionSGO
     const evidencia = Boolean(evento.evidenciaUrls?.some((url) => url.trim()) || activas.some((accion) => accion.evidencia?.trim()))
     if (!evidencia) errores.push('Adjuntar al menos una evidencia o referencia.')
     if (!datos.fechaVerificacion) errores.push('Registrar la fecha real de verificación.')
-    if (datos.fechaVerificacion && datos.fechaVerificacion > new Date().toISOString().slice(0, 10)) errores.push('La fecha de verificación no puede ser futura.')
+    // v2.47: "hoy" en fecha LOCAL (Argentina). Con la de UTC, después de las 21 h
+    // ya era "mañana" y se aceptaba una fecha futura.
+    if (datos.fechaVerificacion && datos.fechaVerificacion > fechaLocalISO()) errores.push('La fecha de verificación no puede ser futura.')
     if (!datos.verificadoEn || !datos.verificadoPor?.trim()) errores.push('Registrar quién realizó la verificación y cuándo.')
   }
   return [...new Set(errores)]

@@ -121,6 +121,19 @@ export function calcularCostosRetrabajo(costeo: DatosCosteoRetrabajoSGO): CostoN
   }
 }
 
+/**
+ * v2.47: el VALOR del material perdido es opcional para cerrar el retrabajo.
+ * Pedido de Lorenzo (5/11/2026): conseguir los kg o el precio con las otras
+ * áreas demoraba los cierres. Si se eligió un material pero falta el dato, el
+ * caso cierra igual y el material queda "sin valorizar" ($0 en el total).
+ */
+export function materialSinValorizar(costeo?: DatosCosteoRetrabajoSGO): boolean {
+  if (!costeo) return false
+  if (costeo.materialTipo === 'cobre' || costeo.materialTipo === 'aluminio') return !(numero(costeo.materialKg) > 0)
+  if (costeo.materialTipo === 'otro') return !(numero(costeo.materialCostoManual) > 0)
+  return false
+}
+
 export function aplicarCosteoRetrabajo(evento: EventoSGO, costeo: DatosCosteoRetrabajoSGO): EventoSGO {
   const costoDetalle = calcularCostosRetrabajo(costeo)
   const costoEstimado = Object.values(costoDetalle).reduce((total, costo) => total + costo, 0)

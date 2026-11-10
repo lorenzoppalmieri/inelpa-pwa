@@ -7,6 +7,7 @@ import {
   semaforoSLAInvestigacion,
   validarCierreRetrabajo,
 } from '../retrabajos'
+import { aplicarCosteoRetrabajo, crearCosteoRetrabajo, materialSinValorizar, TARIFARIO_COSTOS_BASE } from '../costosRetrabajo'
 import type { AccionSGO, EventoSGO } from '../types'
 
 const detectadoEn = '2026-08-19T10:00:00.000Z'
@@ -73,6 +74,30 @@ describe('circuito simplificado de investigaciones de retrabajo', () => {
       retrabajo: { ...eventoBase.retrabajo!, nivelInvestigacion: 'simple', reincidente: true },
     }
     expect(nivelInvestigacionRetrabajo(reincidente)).toBe('critica')
+  })
+
+  // v2.47 — El valor del material perdido es OPCIONAL para cerrar.
+  it('cierra un costeo detallado aunque el material no esté valorizado', () => {
+    const costeo = { ...crearCosteoRetrabajo(TARIFARIO_COSTOS_BASE), horasCorreccion: 1, personasInvolucradas: 1 }
+    const base: EventoSGO = {
+      ...eventoBase,
+      causaRaiz: 'Ajuste incorrecto del tope', contencion: 'Se corrigió la posición', disposicion: 'retrabajo',
+      retrabajo: { ...eventoBase.retrabajo!, tomadoEn: '2026-08-19T11:00:00.000Z', tomadoPor: 'Lara', resultadoResolucion: 'Pieza corregida' },
+    }
+    const cobreSinKg = aplicarCosteoRetrabajo(base, { ...costeo, materialTipo: 'cobre' })
+    expect(materialSinValorizar(cobreSinKg.retrabajo?.costeo)).toBe(true)
+    expect(validarCierreRetrabajo({ ...cobreSinKg, estado: 'cerrado' }, [])).toEqual([])
+
+    const otroSinValor = aplicarCosteoRetrabajo(base, { ...costeo, materialTipo: 'otro', materialDescripcion: 'Papel aislante' })
+    expect(validarCierreRetrabajo({ ...otroSinValor, estado: 'cerrado' }, [])).toEqual([])
+
+    // Qué material fue sí se sigue pidiendo si se eligió "otro".
+    const otroSinDescripcion = aplicarCosteoRetrabajo(base, { ...costeo, materialTipo: 'otro' })
+    expect(validarCierreRetrabajo({ ...otroSinDescripcion, estado: 'cerrado' }, [])).toContain('Describir el otro material perdido.')
+
+    const valorizado = aplicarCosteoRetrabajo(base, { ...costeo, materialTipo: 'cobre', materialKg: 2 })
+    expect(materialSinValorizar(valorizado.retrabajo?.costeo)).toBe(false)
+    expect(materialSinValorizar({ ...costeo, materialTipo: 'ninguno' })).toBe(false)
   })
 
   it('marca vencimiento y devuelve una sola lista de requisitos pendientes', () => {

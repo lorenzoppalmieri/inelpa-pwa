@@ -45,6 +45,16 @@ const enPeriodo = (fecha: string | undefined, periodo: string, frecuencia: Frecu
   const mes = fecha.slice(0, 7)
   return mes >= inicio && mes < finExclusivo
 }
+/**
+ * v2.47: `a <= b` comparando INSTANTES (ms), nunca texto. Las fechas llegan en
+ * formatos mezclados ('…Z', '…+00:00' de Supabase, '…-03:00' locales) y la
+ * comparación de texto daba "cumple" a tareas terminadas hasta 3 h tarde.
+ */
+const noDespuesDe = (a: string | undefined, b: string | undefined): boolean => {
+  const ta = a ? Date.parse(a) : NaN
+  const tb = b ? Date.parse(b) : NaN
+  return Number.isFinite(ta) && Number.isFinite(tb) && ta <= tb
+}
 const redondear = (n: number) => Math.round(n * 10) / 10
 const sectorLabel = (id: SectorId) => SECTORES.find((s) => s.id === id)?.nombre ?? id
 
@@ -66,9 +76,9 @@ function calcular(clave: ClaveCalculoKPI, area: AreaSGOId, periodo: string, d: D
     const base = d.tareas.filter((t) => {
       const fin = finPlanificado(t)
       return SECTOR_A_AREA[t.sectorId] === area && t.tipo !== 'reparacion' &&
-        enPeriodo(t.inicioPlanificado, periodo, frecuencia) && !!fin && fin <= ahora
+        enPeriodo(t.inicioPlanificado, periodo, frecuencia) && noDespuesDe(fin, ahora)
     })
-    const enFecha = base.filter((t) => t.estado === 'finalizada' && !!t.finReal && t.finReal <= (finPlanificado(t) ?? '')).length
+    const enFecha = base.filter((t) => t.estado === 'finalizada' && noDespuesDe(t.finReal, finPlanificado(t))).length
     return base.length ? redondear(enFecha / base.length * 100) : undefined
   }
   if (clave === 'produccion_retrabajos') {
@@ -127,9 +137,9 @@ export function detalleKPIAutomatico(indicador: IndicadorSGO, d: DatosKPIAutomat
     const base = d.tareas.filter((t) => {
       const fin = finPlanificado(t)
       return SECTOR_A_AREA[t.sectorId] === area && t.tipo !== 'reparacion' &&
-        enPeriodo(t.inicioPlanificado, periodo, frecuencia) && !!fin && fin <= ahora
+        enPeriodo(t.inicioPlanificado, periodo, frecuencia) && noDespuesDe(fin, ahora)
     })
-    const cumple = (t: Tarea) => t.estado === 'finalizada' && !!t.finReal && t.finReal <= (finPlanificado(t) ?? '')
+    const cumple = (t: Tarea) => t.estado === 'finalizada' && noDespuesDe(t.finReal, finPlanificado(t))
     const cumplidas = base.filter(cumple).length
     return {
       formula: 'Tareas finalizadas antes del fin planificado ÷ tareas cuyo fin planificado ya venció × 100.', numerador: cumplidas, denominador: base.length, evolucion,
