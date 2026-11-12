@@ -517,6 +517,17 @@ export function modeloBase(desc: string): string {
     .trim()
 }
 
+// v2.50: fase de una bobina leída de la descripción del semielaborado (mismo
+// marcador que limpia `modeloBase`). Sirve para el filtro de fase del listado de
+// Planificación: 15 bobinas terminadas no son 5 juegos si se hicieron F1, F1, F2…
+// Devuelve undefined si la descripción no tiene fase (cubas, tapas, PA, etc.).
+const RE_FASE_UNICA = /\b(?:F\s?|FASE\s?)([123])\b/i
+export type FaseBobina = 'F1' | 'F2' | 'F3'
+export function faseBobina(desc?: string): FaseBobina | undefined {
+  const m = RE_FASE_UNICA.exec(desc ?? '')
+  return m ? (`F${m[1]}` as FaseBobina) : undefined
+}
+
 // Clave deterministica de agrupamiento de estandares segun la regla bifurcada.
 //   - Bobinado: BOBINA (semielaborado, SIN la fase) + MAQUINA. El tiempo depende
 //     del modelo de bobina y de si la maquina es automatica o manual.

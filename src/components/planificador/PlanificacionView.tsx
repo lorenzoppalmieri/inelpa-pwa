@@ -6,8 +6,8 @@ import {
   MATERIALES, lineaDesdeModelo, materialLabel, CATEGORIA_COMPONENTE_LABEL,
   MODELO_PROTOTIPO, esOrdenPrototipo,
   operariosParaSector, esSectorHerreria, maquinaSirveSector, claveEstandar, esReparacion,
-  componenteSirveSector, componenteEsDeOtroSector, normalizarNroOrden,
-  type MaterialBobina, type SectorId, type OrdenProduccion, type Tarea,
+  componenteSirveSector, componenteEsDeOtroSector, normalizarNroOrden, faseBobina,
+  type FaseBobina, type MaterialBobina, type SectorId, type OrdenProduccion, type Tarea,
   type Semielaborado, type EstadoSemielaborado, type TipoTarea, type Feriado, type EstadoTarea,
   type DatosBobinado,
 } from '../../types'
@@ -642,6 +642,10 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
   // v1.16: toolbar del listado de tareas (filtros + agrupacion para legibilidad).
   const [filtroSector, setFiltroSector] = useState<'todos' | SectorId>('todos')
   const [agruparPor, setAgruparPor] = useState<'sector' | 'maquina' | 'operario' | 'modelo'>('sector')
+  // v2.50: fase de bobina (F1/F2/F3). Solo aplica agrupando por modelo: con otro
+  // agrupamiento el selector no se ve y no filtra nada (ver `faseActiva`).
+  const [filtroFase, setFiltroFase] = useState<'todas' | FaseBobina>('todas')
+  const faseActiva = agruparPor === 'modelo' && filtroFase !== 'todas' ? filtroFase : null
   // v2.07: mismo filtro de período que el tablero de KPIs. `filtroFecha` (el
   // input de fecha suelto) desapareció: ahora es el período "Día específico".
   const [periodoLista, setPeriodoLista] = useState<Periodo>('mes_actual')
@@ -967,9 +971,14 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
       // de avance y las secciones se arman desde `visibles`, esto alcanza para
       // que las reparaciones dejen de sumar a la producción.
       if ((vistaTipo === 'reparacion') !== esReparacion(t)) return false
+      // v2.50: con una fase elegida quedan solo las bobinas de esa fase (la fase
+      // se lee de la descripción del semielaborado: "... 315/13 F1 Cu"). Las
+      // tareas sin fase (cubas, PA, montaje) salen. Barras y listado se arman
+      // desde `visibles`, así que los dos quedan filtrados igual.
+      if (faseActiva && faseBobina(componentePorCodigo(t.componenteCodigo)?.descripcion) !== faseActiva) return false
       return true
     })
-  }, [tareasOrdenadas, periodoLista, periodoDia, periodoDesde, periodoHasta, filtroEstado, filtroSector, vistaTipo])
+  }, [tareasOrdenadas, periodoLista, periodoDia, periodoDesde, periodoHasta, filtroEstado, filtroSector, vistaTipo, faseActiva])
 
   // v1.16: agrupacion dinamica (sector / estacion / colaborador) para legibilidad.
   // v1.44: cada grupo calcula su AVANCE = finalizadas / programadas. Es dinamico:
@@ -990,7 +999,7 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
       let key: string, label: string
       if (agruparPor === 'maquina') { key = t.maquinaId; label = nombreMaquina(t.maquinaId) }
       else if (agruparPor === 'operario') { key = t.operarioId ?? '__sin__'; label = t.operarioId ? nombreOperario(t.operarioId) : 'Sin asignar' }
-      else if (agruparPor === 'modelo') { key = t.modelo || '__sin__'; label = t.modelo || 'Sin modelo' }
+      else if (agruparPor === 'modelo') { key = t.modelo || '__sin__'; label = (t.modelo || 'Sin modelo') + (faseActiva ? ` (${faseActiva})` : '') }
       else { key = t.sectorId; label = sectorById(t.sectorId).nombre }
       const g = m.get(key) ?? { label, total: 0, fin: 0, curso: 0, kvaSuma: 0, kvaN: 0 }
       g.total++
@@ -1015,7 +1024,7 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
         kvaProm: g.kvaN > 0 ? Math.round(g.kvaSuma / g.kvaN) : null,
       }))
       .sort((a, b) => a.label.localeCompare(b.label))
-  }, [visibles, agruparPor, nombreMaquina, nombreOperario])
+  }, [visibles, agruparPor, nombreMaquina, nombreOperario, faseActiva])
 
   // ============================================================
   // v2.08 — SECCIONES POR ESTADO, PLEGABLES.
@@ -1073,7 +1082,7 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
       let key: string, label: string
       if (agruparPor === 'maquina') { key = t.maquinaId; label = nombreMaquina(t.maquinaId) }
       else if (agruparPor === 'operario') { key = t.operarioId ?? '__sin__'; label = t.operarioId ? nombreOperario(t.operarioId) : 'Sin asignar' }
-      else if (agruparPor === 'modelo') { key = t.modelo || '__sin__'; label = t.modelo || 'Sin modelo' }
+      else if (agruparPor === 'modelo') { key = t.modelo || '__sin__'; label = (t.modelo || 'Sin modelo') + (faseActiva ? ` (${faseActiva})` : '') }
       else { key = t.sectorId; label = sectorById(t.sectorId).nombre }
       const g = m.get(key) ?? { label, items: [] }
       g.items.push(t); m.set(key, g)
@@ -1407,6 +1416,16 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
           <option value="operario">Agrupar por colaborador</option>
           <option value="modelo">Agrupar por modelo</option>
         </select>
+        {/* v2.50: solo agrupando por modelo. Desglosa las bobinas por fase para
+            ver si las terminadas forman juegos completos. */}
+        {agruparPor === 'modelo' && (
+          <select className="select" value={filtroFase} onChange={(e) => setFiltroFase(e.target.value as 'todas' | FaseBobina)}>
+            <option value="todas">Todas las fases</option>
+            <option value="F1">F1</option>
+            <option value="F2">F2</option>
+            <option value="F3">F3</option>
+          </select>
+        )}
       </div>
 
       {/* v2.08: avance por grupo, una sola vez y arriba de las secciones. */}
