@@ -12,7 +12,7 @@ import { datosMejoraDesdeEvento } from '../../sgo/mejoras'
 import { usuarioEsLorenzo, usuarioPuedeCerrarRetrabajo, usuarioPuedeInvestigarRetrabajo } from '../../sgo/permisos'
 import { resolverTrazabilidadProductiva, type TrazabilidadProductivaSGO } from '../../sgo/trazabilidad'
 import {
-  CLASIFICACIONES_CAUSA_RETRABAJO, ESTADOS_INVESTIGACION_RETRABAJO, NIVELES_INVESTIGACION_RETRABAJO, costoRetrabajoTotal,
+  AREAS_ORIGEN_RETRABAJO, CLASIFICACIONES_CAUSA_RETRABAJO, ESTADOS_INVESTIGACION_RETRABAJO, NIVELES_INVESTIGACION_RETRABAJO, costoRetrabajoTotal,
   estadoInvestigacionRetrabajo, esEventoRetrabajo, nivelInvestigacionRetrabajo,
   requisitosCierreRetrabajo, resultadoDocumentadoRetrabajo, semaforoSLAInvestigacion, tiempoRetrabajoDesdePlanta,
   type EstadoInvestigacionRetrabajo,
@@ -231,6 +231,19 @@ function EditorRetrabajo({ eventoInicial, acciones, trazabilidad, usuario, onClo
     setCierrePendiente(undefined); setErroresCierre([])
     setEvento({ ...evento, [campo]: valor, actualizadoEn: new Date().toISOString() })
   }
+  /**
+   * v2.52: área donde se originó el defecto. Si el "Proceso donde se originó"
+   * estaba vacío o tenía el nombre del área anterior, se completa solo con la
+   * nueva: un dato menos para tipear.
+   */
+  const setAreaOrigen = (valor: AreaSGOId | undefined) => {
+    setCierrePendiente(undefined); setErroresCierre([])
+    const anterior = evento.areaOrigenId ? areaSGOLabel(evento.areaOrigenId) : undefined
+    const proceso = !datos.procesoOrigen?.trim() || datos.procesoOrigen === anterior
+      ? (valor ? areaSGOLabel(valor) : undefined)
+      : datos.procesoOrigen
+    setEvento({ ...evento, areaOrigenId: valor, retrabajo: { ...datos, procesoOrigen: proceso }, actualizadoEn: new Date().toISOString() })
+  }
   const setDato = <K extends keyof DatosRetrabajoSGO>(campo: K, valor: DatosRetrabajoSGO[K]) => {
     setCierrePendiente(undefined); setErroresCierre([])
     setEvento({ ...evento, retrabajo: { ...datos, [campo]: valor }, actualizadoEn: new Date().toISOString() })
@@ -362,7 +375,9 @@ function EditorRetrabajo({ eventoInicial, acciones, trazabilidad, usuario, onClo
       : <div className="meta sgo-retrabajo-tomado">Tomada por <strong>{datos.tomadoPor}</strong> el {fechaHora(datos.tomadoEn)}</div>}
 
     <fieldset disabled={!editable}>
-      <div className="section-title">1. Contención y trazabilidad</div><div className="sgo-retrabajo-form-grid"><Campo label={`Proceso donde se originó${obligatorio(nivel === 'critica')}`}><input className="input" value={datos.procesoOrigen ?? ''} onChange={(e) => setDato('procesoOrigen', e.target.value || undefined)} /></Campo><Campo label={`Proceso donde se detectó${obligatorio(nivel === 'critica')}`}><input className="input" value={datos.procesoDeteccion ?? ''} onChange={(e) => setDato('procesoDeteccion', e.target.value || undefined)} /></Campo><Campo label="Cantidad afectada"><input className="input" type="number" min="1" value={evento.cantidadAfectada ?? 1} onChange={(e) => setCampo('cantidadAfectada', Math.max(1, Number(e.target.value) || 1))} /></Campo><Campo label="Disposición *"><select className="input" value={evento.disposicion ?? 'pendiente'} onChange={(e) => setCampo('disposicion', e.target.value as EventoSGO['disposicion'])}><option value="pendiente">Pendiente</option><option value="retrabajo">Retrabajo</option><option value="rechazo">Rechazo / scrap</option><option value="concesion">Concesión</option><option value="devolucion">Devolución</option><option value="no_aplica">No aplica</option></select></Campo></div><Campo label="Contención inmediata *"><textarea className="input" rows={2} value={evento.contencion ?? ''} onChange={(e) => setCampo('contencion', e.target.value || undefined)} /></Campo>
+      <div className="section-title">1. Contención y trazabilidad</div>
+      {datos.origen === 'laboratorio' && !evento.areaOrigenId && <div className="card sgo-rt-alerta" style={{ cursor: 'default' }}>Rechazo de Laboratorio: indicá qué área <strong>generó</strong> el defecto, así cuenta en sus indicadores y no en los de Laboratorio.</div>}
+      <div className="sgo-retrabajo-form-grid"><Campo label={`Área donde se originó${obligatorio(datos.origen === 'laboratorio')}`}><select className="input" value={evento.areaOrigenId ?? ''} onChange={(e) => setAreaOrigen((e.target.value || undefined) as AreaSGOId | undefined)}><option value="">Seleccionar área</option>{AREAS_ORIGEN_RETRABAJO.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></Campo><Campo label={`Proceso donde se originó${obligatorio(nivel === 'critica')}`}><input className="input" value={datos.procesoOrigen ?? ''} onChange={(e) => setDato('procesoOrigen', e.target.value || undefined)} /></Campo><Campo label={`Proceso donde se detectó${obligatorio(nivel === 'critica')}`}><input className="input" value={datos.procesoDeteccion ?? ''} onChange={(e) => setDato('procesoDeteccion', e.target.value || undefined)} /></Campo><Campo label="Cantidad afectada"><input className="input" type="number" min="1" value={evento.cantidadAfectada ?? 1} onChange={(e) => setCampo('cantidadAfectada', Math.max(1, Number(e.target.value) || 1))} /></Campo><Campo label="Disposición *"><select className="input" value={evento.disposicion ?? 'pendiente'} onChange={(e) => setCampo('disposicion', e.target.value as EventoSGO['disposicion'])}><option value="pendiente">Pendiente</option><option value="retrabajo">Retrabajo</option><option value="rechazo">Rechazo / scrap</option><option value="concesion">Concesión</option><option value="devolucion">Devolución</option><option value="no_aplica">No aplica</option></select></Campo></div><Campo label="Contención inmediata *"><textarea className="input" rows={2} value={evento.contencion ?? ''} onChange={(e) => setCampo('contencion', e.target.value || undefined)} /></Campo>
 
       <div className="section-title">2. Investigación de causa raíz</div><div className="sgo-retrabajo-form-grid"><Campo label={`Método de análisis${obligatorio(nivel !== 'simple')}`}><select className="input" value={evento.metodoAnalisis ?? ''} onChange={(e) => setCampo('metodoAnalisis', (e.target.value || undefined) as EventoSGO['metodoAnalisis'])}><option value="">Seleccionar</option><option value="5_porques">5 porqués</option><option value="ishikawa">Ishikawa</option><option value="a3">A3</option><option value="8d">8D</option><option value="otro">Otro</option></select></Campo><Campo label={`Clasificación de causa${obligatorio(true)}`}><select className="input" value={datos.clasificacionCausa ?? ''} onChange={(e) => setDato('clasificacionCausa', (e.target.value || undefined) as DatosRetrabajoSGO['clasificacionCausa'])}><option value="">Seleccionar</option>{CAUSAS.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></Campo></div><Campo label="Causa raíz comprobada *"><textarea className="input" rows={3} value={evento.causaRaiz ?? ''} onChange={(e) => setCampo('causaRaiz', e.target.value || undefined)} placeholder="No confundir la causa con el síntoma observado." /></Campo><Campo label={`Factores contribuyentes${obligatorio(nivel === 'critica')}`}><textarea className="input" rows={2} value={datos.factoresContribuyentes ?? ''} onChange={(e) => setDato('factoresContribuyentes', e.target.value || undefined)} /></Campo><label className="check-inline"><input type="checkbox" checked={Boolean(datos.reincidente)} onChange={(e) => setDato('reincidente', e.target.checked)} /> Es un defecto o causa reincidente</label>
 

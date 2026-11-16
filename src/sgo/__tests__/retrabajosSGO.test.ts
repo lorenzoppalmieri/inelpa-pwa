@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
+  AREAS_ORIGEN_RETRABAJO,
   crearDatosRetrabajo,
   esEventoRetrabajo,
+  faltaAreaOrigen,
   estadoInvestigacionRetrabajo,
   nivelInvestigacionRetrabajo,
   semaforoSLAInvestigacion,
@@ -71,6 +73,16 @@ describe('circuito simplificado de investigaciones de retrabajo', () => {
     }
     expect(estadoInvestigacionRetrabajo(historico, [])).toBe('listo_cierre')
     expect(validarCierreRetrabajo({ ...historico, estado: 'cerrado' }, [])).toEqual([])
+  })
+
+  // v2.52 — Un rechazo de Laboratorio tiene que decir qué área generó el defecto.
+  it('el rechazo de laboratorio exige el área de origen; los demás orígenes no', () => {
+    const lab: EventoSGO = { ...eventoBase, areaId: 'laboratorio', areaOrigenId: undefined, retrabajo: crearDatosRetrabajo('laboratorio', detectadoEn) }
+    expect(faltaAreaOrigen(lab)).toBe(true)
+    expect(validarCierreRetrabajo({ ...lab, estado: 'cerrado' }, [])).toContain('Indicar el área donde se originó el defecto.')
+    expect(faltaAreaOrigen({ ...lab, areaOrigenId: 'bobinado_rural' })).toBe(false)
+    expect(faltaAreaOrigen({ ...eventoBase, areaOrigenId: undefined })).toBe(false) // parada de calidad
+    expect(AREAS_ORIGEN_RETRABAJO.some((a) => a.id === 'rrhh')).toBe(false)
   })
 
   it('eleva automáticamente a crítica una reincidencia', () => {

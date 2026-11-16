@@ -143,6 +143,12 @@ describe('Pareto, antigüedad y tendencia', () => {
     ])
   })
 
+  it('v2.52: el rechazo de laboratorio cuenta en el área que lo ORIGINÓ', () => {
+    const lab = { ...caso('l', '2026-11-02T13:00:00Z', { areaId: 'laboratorio', areaOrigenId: 'montaje_rural' }), retrabajo: crearDatosRetrabajo('laboratorio', '2026-11-02T13:00:00Z') }
+    const p = paretoRetrabajos([lab], 'area')
+    expect(p[0]).toMatchObject({ clave: 'montaje_rural', n: 1 })
+  })
+
   it('antigüedad de abiertos y abiertos fuera del período', () => {
     const ahora = new Date('2026-11-20T15:00:00Z')
     const eventos = [

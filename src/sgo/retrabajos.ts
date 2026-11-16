@@ -1,5 +1,5 @@
 import {
-  costoNoCalidadTotal, type AccionSGO, type ClasificacionCausaRetrabajoSGO, type DatosRetrabajoSGO, type EventoSGO,
+  AREAS_SGO, costoNoCalidadTotal, type AccionSGO, type ClasificacionCausaRetrabajoSGO, type DatosRetrabajoSGO, type EventoSGO,
   type NivelInvestigacionRetrabajoSGO, type OrigenRetrabajoSGO,
 } from './types'
 import { calcularTiempoNetoProductivo } from '../lib/calendario'
@@ -24,7 +24,24 @@ export const CLASIFICACIONES_CAUSA_RETRABAJO: { id: ClasificacionCausaRetrabajoS
   { id: 'diseno', label: 'Diseño / especificación' }, { id: 'otro', label: 'Otro' },
 ]
 
-export const ESTADOS_INVESTIGACION_RETRABAJO:{ id: EstadoInvestigacionRetrabajo; label: string }[] = [
+/**
+ * v2.52: áreas que pueden ORIGINAR un retrabajo. Todas las de SGO menos RRHH,
+ * que además no está habilitada en el CHECK `sgo_eventos_area_origen_check` de
+ * la base (v1.86): elegirla haría fallar el guardado.
+ */
+export const AREAS_ORIGEN_RETRABAJO = AREAS_SGO.filter((a) => a.id !== 'rrhh')
+
+/**
+ * v2.52: un rechazo de Laboratorio se DETECTA en Laboratorio, pero el defecto lo
+ * genera otra área (bobinado, montaje…). Sin indicarla, el Pareto por área y la
+ * Matriz se lo cargaban a Laboratorio. Para los demás orígenes el área ya viene
+ * de la tarea donde ocurrió.
+ */
+export function faltaAreaOrigen(evento: EventoSGO): boolean {
+  return evento.retrabajo?.origen === 'laboratorio' && !evento.areaOrigenId
+}
+
+export const ESTADOS_INVESTIGACION_RETRABAJO: { id: EstadoInvestigacionRetrabajo; label: string }[] = [
   { id: 'nuevo', label: 'Nuevo' }, { id: 'en_investigacion', label: 'En investigación' },
   { id: 'con_acciones', label: 'Con acciones' }, { id: 'pendiente_verificacion', label: 'Pendiente de verificar' },
   { id: 'listo_cierre', label: 'Listo para cerrar' }, { id: 'cerrado', label: 'Cerrado' },
@@ -207,6 +224,7 @@ export function requisitosCierreRetrabajo(evento: EventoSGO, acciones: AccionSGO
   // ella el Pareto por causa de los indicadores sale vacío (casi todos los
   // casos son simples).
   if (!datos.clasificacionCausa) errores.push('Clasificar la causa (persona, método, máquina, material…).')
+  if (faltaAreaOrigen(evento)) errores.push('Indicar el área donde se originó el defecto.')
   if (!costoDefinido(evento)) errores.push('Elegir cómo se registrará el costo del retrabajo.')
   if (datos.modalidadCosto === 'total_estimado' && !(evento.costoEstimado && evento.costoEstimado > 0)) errores.push('Ingresar el costo total estimado.')
   if (datos.modalidadCosto === 'detallado' && datos.costeo) {
@@ -260,7 +278,7 @@ export function estadoInvestigacionRetrabajo(evento: EventoSGO, acciones: Accion
   if (datos.resultadoVerificacion === 'reincidencia') return 'reincidencia'
   if (!datos.tomadoEn) return 'nuevo'
   const nivel = nivelInvestigacionRetrabajo(evento)
-  if (!evento.causaRaiz?.trim() || !evento.contencion?.trim() || !evento.disposicion || evento.disposicion === 'pendiente' || !resultadoDocumentadoRetrabajo(datos) || !costoDefinido(evento) || !datos.clasificacionCausa) return 'en_investigacion'
+  if (!evento.causaRaiz?.trim() || !evento.contencion?.trim() || !evento.disposicion || evento.disposicion === 'pendiente' || !resultadoDocumentadoRetrabajo(datos) || !costoDefinido(evento) || !datos.clasificacionCausa || faltaAreaOrigen(evento)) return 'en_investigacion'
   const activas = acciones.filter((accion) => accion.estado !== 'cancelada')
   if (nivel === 'simple') return activas.some((accion) => accion.estado !== 'verificada') ? 'con_acciones' : 'listo_cierre'
   if (!evento.metodoAnalisis || !datos.clasificacionCausa || !activas.length || activas.some((accion) => ['pendiente', 'en_curso'].includes(accion.estado))) return 'con_acciones'
