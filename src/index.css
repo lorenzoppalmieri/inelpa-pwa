@@ -2462,3 +2462,39 @@ body.admin-mode .content { max-width: none; padding: 12px 18px; }
   background: repeating-linear-gradient(-45deg, #fbbf24 0 12px, #f59e0b 12px 24px);
   box-shadow: 0 2px 6px rgba(0, 0, 0, .35);
 }
+
+/* ============================================================
+   v2.51 — SGO › Retrabajos: período e Indicadores.
+   ============================================================ */
+.sgo-periodo { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 12px; }
+.sgo-periodo-tipos { margin: 0; }
+.sgo-periodo-nav { display: flex; align-items: center; gap: 8px; }
+.sgo-periodo-nav strong { min-width: 210px; text-align: center; color: #e2e8f0; }
+.sgo-rt-indicadores { display: grid; gap: 12px; }
+.sgo-rt-kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(175px, 1fr)); gap: 9px; }
+.sgo-rt-kpi { cursor: help; }
+.sgo-rt-kpi small { font-size: .7rem; color: #cbd5e1; }
+.sgo-delta { font-style: normal; font-size: .7rem; font-weight: 700; }
+.sgo-delta.mejora { color: #4ade80; }
+.sgo-delta.empeora { color: #f87171; }
+.sgo-delta.neutro { color: var(--texto-tenue); }
+.sgo-rt-alerta { border-left: 4px solid #f59e0b; background: rgba(245, 158, 11, .08); cursor: pointer; font-size: .85rem; }
+.sgo-rt-alerta span { color: var(--texto-tenue); }
+.sgo-barra-click { cursor: pointer; border-radius: 6px; padding: 2px 4px; margin: -2px -4px; }
+.sgo-barra-click:hover, .sgo-barra-click:focus-visible { background: var(--panel-2); outline: none; }
+.sgo-mejoras-barras i span.sgo-barra-verde { background: #22c55e; }
+.sgo-mejoras-barras i span.sgo-barra-amarillo { background: #f59e0b; }
+.sgo-mejoras-barras i span.sgo-barra-rojo { background: #ef4444; }
+.sgo-tendencia { display: flex; align-items: flex-end; gap: 6px; height: 170px; padding: 8px 2px 4px; }
+.sgo-tendencia > div { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 3px; min-width: 0; }
+.sgo-tendencia i { display: block; width: 100%; max-width: 38px; min-height: 2px; border-radius: 5px 5px 0 0; background: linear-gradient(180deg, #fb923c, #c2410c); }
+.sgo-tendencia > div.actual i { background: linear-gradient(180deg, #fde047, #f59e0b); }
+.sgo-tendencia b { font-size: .75rem; }
+.sgo-tendencia span { font-size: .68rem; color: var(--texto-tenue); white-space: nowrap; }
+@media (max-width: 768px) {
+  .sgo-periodo { flex-direction: column; align-items: stretch; }
+  .sgo-periodo-nav { justify-content: space-between; }
+  .sgo-periodo-nav strong { min-width: 0; flex: 1; font-size: .85rem; }
+  .sgo-rt-kpis { grid-template-columns: repeat(2, 1fr); }
+  .sgo-tendencia { gap: 3px; }
+}

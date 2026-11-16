@@ -1,7 +1,8 @@
-import { CAUSAS_PARADA, SECTORES, type SectorId, type Tarea, type TareaLaboratorio, type TareaLogistica } from '../types'
+import { SECTORES, type SectorId, type Tarea, type TareaLaboratorio, type TareaLogistica } from '../types'
 import { sumarMinutosLaborables } from '../lib/calendario'
 import { fechaLocalISO, periodoLocalISO } from '../lib/time'
 import type { AccionSGO, AreaSGOId, EventoSGO } from './types'
+import { esEventoRetrabajo } from './retrabajos'
 import { mesesFrecuenciaKPI, normalizarPeriodoKPI, periodoKPIEtiquetaCorta, rangoPeriodoKPI, type ClaveCalculoKPI, type FrecuenciaKPI, type IndicadorSGO, type MedicionIndicadorSGO } from './indicadores'
 
 export interface DatosKPIAutomaticos {
@@ -39,11 +40,26 @@ const SECTOR_A_AREA: Partial<Record<SectorId, AreaSGOId>> = {
   laboratorio: 'laboratorio',
 }
 
+/** Área SGO de un sector productivo (undefined si no es de producción). */
+export function areaSGODeSector(sectorId: SectorId): AreaSGOId | undefined {
+  return SECTOR_A_AREA[sectorId]
+}
+
 const enPeriodo = (fecha: string | undefined, periodo: string, frecuencia: FrecuenciaKPI = 'mensual') => {
   if (!fecha) return false
   const { inicio, finExclusivo } = rangoPeriodoKPI(periodo, frecuencia)
   const mes = fecha.slice(0, 7)
   return mes >= inicio && mes < finExclusivo
+}
+
+/**
+ * v2.51 — UNA definición de retrabajo para la Matriz y para SGO › Retrabajos:
+ * los expedientes que son retrabajo (`esEventoRetrabajo`), por área de ORIGEN.
+ * Antes la Matriz contaba tareas con cualquier parada de Calidad o reparación,
+ * y daba un número distinto al de la pantalla de Retrabajos para lo mismo.
+ */
+function retrabajosDelArea(eventos: EventoSGO[], area: AreaSGOId, periodo: string, frecuencia: FrecuenciaKPI): EventoSGO[] {
+  return eventos.filter((e) => esEventoRetrabajo(e) && (e.areaOrigenId ?? e.areaId) === area && enPeriodo(e.detectadoEn, periodo, frecuencia))
 }
 /**
  * v2.47: `a <= b` comparando INSTANTES (ms), nunca texto. Las fechas llegan en
@@ -82,11 +98,7 @@ function calcular(clave: ClaveCalculoKPI, area: AreaSGOId, periodo: string, d: D
     return base.length ? redondear(enFecha / base.length * 100) : undefined
   }
   if (clave === 'produccion_retrabajos') {
-    const tareasArea = d.tareas.filter((t) => SECTOR_A_AREA[t.sectorId] === area)
-    return new Set(tareasArea.filter((t) =>
-      (t.tipo === 'reparacion' && enPeriodo(t.finReal ?? t.inicioReal ?? t.creada, periodo, frecuencia)) ||
-      t.paradas.some((p) => enPeriodo(p.inicio, periodo, frecuencia) && CAUSAS_PARADA.find((c) => c.id === p.causa)?.categoria === 'calidad'),
-    ).map((t) => t.id)).size
+    return retrabajosDelArea(d.eventos, area, periodo, frecuencia).length
   }
   if (clave === 'laboratorio_fpy') {
     const base = d.laboratorio.filter((t) => t.estado === 'finalizada' && enPeriodo(t.finalizada, periodo, frecuencia))
@@ -148,19 +160,13 @@ export function detalleKPIAutomatico(indicador: IndicadorSGO, d: DatosKPIAutomat
     }
   }
   if (clave === 'produccion_retrabajos') {
-    const tareasArea = d.tareas.filter((t) => SECTOR_A_AREA[t.sectorId] === area)
-    const registros: RegistroDetalleKPI[] = tareasArea.flatMap((t) => {
-      const esReparacion = t.tipo === 'reparacion' && enPeriodo(t.finReal ?? t.inicioReal ?? t.creada, periodo, frecuencia)
-      const paradas = t.paradas.filter((p) => enPeriodo(p.inicio, periodo, frecuencia) && CAUSAS_PARADA.find((c) => c.id === p.causa)?.categoria === 'calidad')
-      if (!esReparacion && paradas.length === 0) return []
-      return [{
-        id: t.id, fecha: paradas[0]?.inicio ?? t.finReal ?? t.inicioReal ?? t.creada,
-        referencia: t.nroTransformador || t.modelo || t.id,
-        detalle: `${esReparacion ? 'Reparación' : 'Desvío de calidad'} · ${sectorLabel(t.sectorId)}${paradas.length ? ` · ${paradas.length} parada(s)` : ''}`,
-        resultado: 'no_cumple' as const,
-      }]
-    })
-    return { formula: 'Cantidad de tareas únicas con reparación o al menos una parada de Calidad.', numerador: registros.length, registros, evolucion }
+    const registros: RegistroDetalleKPI[] = retrabajosDelArea(d.eventos, area, periodo, frecuencia).map((e) => ({
+      id: e.id, fecha: e.detectadoEn,
+      referencia: e.nroSerie || e.modelo || e.codigo,
+      detalle: `${e.codigo} · ${e.retrabajo?.causaRegistrada || e.titulo}`,
+      resultado: 'no_cumple' as const,
+    }))
+    return { formula: 'Expedientes de retrabajo originados en el área (los mismos de SGO › Retrabajos; no cuenta paradas de calidad descartadas).', numerador: registros.length, registros, evolucion }
   }
   if (clave === 'laboratorio_fpy') {
     const base = d.laboratorio.filter((t) => t.estado === 'finalizada' && enPeriodo(t.finalizada, periodo, frecuencia))
@@ -215,7 +221,7 @@ export function plantillasKPIAutomaticos(usuario: string): IndicadorSGO[] {
   const out: IndicadorSGO[] = []
   for (const area of areasProduccion) {
     out.push(plantilla(area, 'produccion_cumplimiento', 'Cumplimiento del fin planificado', 'entrega', '%', 'mayor_mejor', 90, 75, usuario))
-    out.push(plantilla(area, 'produccion_retrabajos', 'Tareas con retrabajo o desvío de calidad', 'calidad', 'cantidad', 'menor_mejor', 0, 2, usuario))
+    out.push(plantilla(area, 'produccion_retrabajos', 'Retrabajos originados en el área', 'calidad', 'cantidad', 'menor_mejor', 0, 2, usuario))
   }
   out.push(plantilla('laboratorio', 'laboratorio_fpy', 'Aprobación de ensayos a primera pasada', 'calidad', '%', 'mayor_mejor', 95, 85, usuario))
   out.push(plantilla('logistica_operativa', 'logistica_cumplimiento', 'Tareas logísticas completadas en fecha', 'entrega', '%', 'mayor_mejor', 90, 75, usuario))

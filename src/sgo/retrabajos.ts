@@ -1,5 +1,5 @@
 import {
-  costoNoCalidadTotal, type AccionSGO, type DatosRetrabajoSGO, type EventoSGO,
+  costoNoCalidadTotal, type AccionSGO, type ClasificacionCausaRetrabajoSGO, type DatosRetrabajoSGO, type EventoSGO,
   type NivelInvestigacionRetrabajoSGO, type OrigenRetrabajoSGO,
 } from './types'
 import { calcularTiempoNetoProductivo } from '../lib/calendario'
@@ -16,7 +16,15 @@ export const NIVELES_INVESTIGACION_RETRABAJO: { id: NivelInvestigacionRetrabajoS
   { id: 'critica', label: 'Crítico o recurrente', ayuda: 'Investigación formal, verificación y cierre por Lara o Lorenzo.' },
 ]
 
-export const ESTADOS_INVESTIGACION_RETRABAJO: { id: EstadoInvestigacionRetrabajo; label: string }[] = [
+/** v2.51: clasificación 6M de la causa. Antes vivía en la vista; ahora la usan también los KPIs (Pareto). */
+export const CLASIFICACIONES_CAUSA_RETRABAJO: { id: ClasificacionCausaRetrabajoSGO; label: string }[] = [
+  { id: 'persona', label: 'Personas / capacitación' }, { id: 'metodo', label: 'Método / procedimiento' },
+  { id: 'maquina', label: 'Máquina / herramienta' }, { id: 'material', label: 'Material / proveedor' },
+  { id: 'medicion', label: 'Medición / control' }, { id: 'ambiente', label: 'Ambiente / entorno' },
+  { id: 'diseno', label: 'Diseño / especificación' }, { id: 'otro', label: 'Otro' },
+]
+
+export const ESTADOS_INVESTIGACION_RETRABAJO:{ id: EstadoInvestigacionRetrabajo; label: string }[] = [
   { id: 'nuevo', label: 'Nuevo' }, { id: 'en_investigacion', label: 'En investigación' },
   { id: 'con_acciones', label: 'Con acciones' }, { id: 'pendiente_verificacion', label: 'Pendiente de verificar' },
   { id: 'listo_cierre', label: 'Listo para cerrar' }, { id: 'cerrado', label: 'Cerrado' },
@@ -195,6 +203,10 @@ export function requisitosCierreRetrabajo(evento: EventoSGO, acciones: AccionSGO
   if (!evento.causaRaiz?.trim()) errores.push(nivel === 'simple' ? 'Describir brevemente la causa o motivo.' : 'Completar la causa raíz.')
   if (!evento.disposicion || evento.disposicion === 'pendiente') errores.push('Definir la disposición del producto.')
   if (!resultadoDocumentadoRetrabajo(datos)) errores.push('Documentar el resultado obtenido.')
+  // v2.51: obligatoria en TODOS los niveles. Es un desplegable de un clic y sin
+  // ella el Pareto por causa de los indicadores sale vacío (casi todos los
+  // casos son simples).
+  if (!datos.clasificacionCausa) errores.push('Clasificar la causa (persona, método, máquina, material…).')
   if (!costoDefinido(evento)) errores.push('Elegir cómo se registrará el costo del retrabajo.')
   if (datos.modalidadCosto === 'total_estimado' && !(evento.costoEstimado && evento.costoEstimado > 0)) errores.push('Ingresar el costo total estimado.')
   if (datos.modalidadCosto === 'detallado' && datos.costeo) {
@@ -220,7 +232,6 @@ export function requisitosCierreRetrabajo(evento: EventoSGO, acciones: AccionSGO
   }
 
   if (!evento.metodoAnalisis) errores.push('Seleccionar el método de análisis.')
-  if (!datos.clasificacionCausa) errores.push('Clasificar la causa raíz.')
   if (!activas.length) errores.push('Registrar al menos una acción.')
   if (activas.some((accion) => ['pendiente', 'en_curso'].includes(accion.estado))) errores.push('Completar o cancelar las acciones pendientes.')
   if (datos.resultadoVerificacion !== 'eficaz') errores.push('Confirmar que la solución fue eficaz.')
@@ -249,7 +260,7 @@ export function estadoInvestigacionRetrabajo(evento: EventoSGO, acciones: Accion
   if (datos.resultadoVerificacion === 'reincidencia') return 'reincidencia'
   if (!datos.tomadoEn) return 'nuevo'
   const nivel = nivelInvestigacionRetrabajo(evento)
-  if (!evento.causaRaiz?.trim() || !evento.contencion?.trim() || !evento.disposicion || evento.disposicion === 'pendiente' || !resultadoDocumentadoRetrabajo(datos) || !costoDefinido(evento)) return 'en_investigacion'
+  if (!evento.causaRaiz?.trim() || !evento.contencion?.trim() || !evento.disposicion || evento.disposicion === 'pendiente' || !resultadoDocumentadoRetrabajo(datos) || !costoDefinido(evento) || !datos.clasificacionCausa) return 'en_investigacion'
   const activas = acciones.filter((accion) => accion.estado !== 'cancelada')
   if (nivel === 'simple') return activas.some((accion) => accion.estado !== 'verificada') ? 'con_acciones' : 'listo_cierre'
   if (!evento.metodoAnalisis || !datos.clasificacionCausa || !activas.length || activas.some((accion) => ['pendiente', 'en_curso'].includes(accion.estado))) return 'con_acciones'

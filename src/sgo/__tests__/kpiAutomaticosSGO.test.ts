@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import type { Tarea } from '../../types'
 import type { IndicadorSGO } from '../indicadores'
 import { resolverKPIAutomaticos } from '../kpiAutomaticos'
+import { crearDatosRetrabajo } from '../retrabajos'
+import type { EventoSGO } from '../types'
 
 // ============================================================
 // v2.47 — KPI "cumplimiento de producción" del SGO: comparar INSTANTES (ms),
@@ -23,6 +25,26 @@ function tarea(id: string, finReal: string): Tarea {
     finReal, paradas: [],
   } as unknown as Tarea
 }
+
+// v2.51 — La Matriz cuenta los MISMOS retrabajos que SGO › Retrabajos.
+describe('KPI retrabajos del área (Matriz) = expedientes de retrabajo', () => {
+  it('cuenta expedientes por área de origen y no las paradas descartadas', () => {
+    const ind = { ...indicador, id: 'kpi2', claveCalculo: 'produccion_retrabajos', periodo: '2026-11' } as unknown as IndicadorSGO
+    const ev = (id: string, origen: 'parada_calidad' | 'defecto_final', extra: Record<string, unknown> = {}) => ({
+      id, codigo: id, tipo: 'no_conformidad', pilar: 'calidad', titulo: 't', descripcion: '', severidad: 'media', estado: 'abierto',
+      areaId: 'bobinado_rural', areaOrigenId: 'bobinado_rural', detectadoEn: '2026-11-05T13:00:00Z', detectadoPor: 'x',
+      creadoEn: '', actualizadoEn: '', retrabajo: crearDatosRetrabajo(origen, '2026-11-05T13:00:00Z', extra),
+    }) as unknown as EventoSGO
+    const eventos = [
+      ev('a', 'defecto_final'),
+      ev('b', 'parada_calidad', { decisionCalidad: 'investigar' }),
+      ev('c', 'parada_calidad', { decisionCalidad: 'descartada' }),
+      { ...ev('d', 'defecto_final'), areaOrigenId: 'montaje_rural' } as EventoSGO,
+    ]
+    const [r] = resolverKPIAutomaticos([ind], { tareas: [], laboratorio: [], tareasLogistica: [], eventos, acciones: [] })
+    expect(r.valorActual).toBe(2)
+  })
+})
 
 describe('KPI cumplimiento de producción (SGO)', () => {
   it('compara el fin real con el planificado en ms, aunque vengan en distinto formato', () => {

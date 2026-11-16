@@ -47,9 +47,14 @@ describe('circuito simplificado de investigaciones de retrabajo', () => {
       retrabajo: {
         ...eventoBase.retrabajo!, tomadoEn: '2026-08-19T11:00:00.000Z', tomadoPor: 'Lara',
         modalidadCosto: 'sin_costo', costosRevisados: true, resultadoResolucion: 'Pieza corregida y controlada',
+        clasificacionCausa: 'metodo',
       },
     }
     expect(estadoInvestigacionRetrabajo(resuelto, [])).toBe('listo_cierre')
+    // v2.51: sin clasificar la causa, el caso simple no queda listo para cerrar.
+    const sinClasificar: EventoSGO = { ...resuelto, retrabajo: { ...resuelto.retrabajo!, clasificacionCausa: undefined } }
+    expect(estadoInvestigacionRetrabajo(sinClasificar, [])).toBe('en_investigacion')
+    expect(validarCierreRetrabajo({ ...sinClasificar, estado: 'cerrado' }, [])).toContain('Clasificar la causa (persona, método, máquina, material…).')
     expect(validarCierreRetrabajo({ ...resuelto, estado: 'cerrado' }, [])).toEqual([])
     expect(estadoInvestigacionRetrabajo(resuelto, [accion])).toBe('con_acciones')
   })
@@ -61,7 +66,7 @@ describe('circuito simplificado de investigaciones de retrabajo', () => {
       retrabajo: {
         ...eventoBase.retrabajo!, tomadoEn: '2026-08-31T10:00:00.000Z', tomadoPor: 'Lara',
         modalidadCosto: 'sin_costo', costosRevisados: true, resultadoVerificacion: 'eficaz',
-        observacionVerificacion: 'Se verificó la adecuación y la unidad quedó conforme.',
+        observacionVerificacion: 'Se verificó la adecuación y la unidad quedó conforme.', clasificacionCausa: 'material',
       },
     }
     expect(estadoInvestigacionRetrabajo(historico, [])).toBe('listo_cierre')
@@ -82,7 +87,7 @@ describe('circuito simplificado de investigaciones de retrabajo', () => {
     const base: EventoSGO = {
       ...eventoBase,
       causaRaiz: 'Ajuste incorrecto del tope', contencion: 'Se corrigió la posición', disposicion: 'retrabajo',
-      retrabajo: { ...eventoBase.retrabajo!, tomadoEn: '2026-08-19T11:00:00.000Z', tomadoPor: 'Lara', resultadoResolucion: 'Pieza corregida' },
+      retrabajo: { ...eventoBase.retrabajo!, tomadoEn: '2026-08-19T11:00:00.000Z', tomadoPor: 'Lara', resultadoResolucion: 'Pieza corregida', clasificacionCausa: 'metodo' },
     }
     const cobreSinKg = aplicarCosteoRetrabajo(base, { ...costeo, materialTipo: 'cobre' })
     expect(materialSinValorizar(cobreSinKg.retrabajo?.costeo)).toBe(true)

@@ -12,11 +12,15 @@ import { datosMejoraDesdeEvento } from '../../sgo/mejoras'
 import { usuarioEsLorenzo, usuarioPuedeCerrarRetrabajo, usuarioPuedeInvestigarRetrabajo } from '../../sgo/permisos'
 import { resolverTrazabilidadProductiva, type TrazabilidadProductivaSGO } from '../../sgo/trazabilidad'
 import {
-  ESTADOS_INVESTIGACION_RETRABAJO, NIVELES_INVESTIGACION_RETRABAJO, costoRetrabajoTotal,
+  CLASIFICACIONES_CAUSA_RETRABAJO, ESTADOS_INVESTIGACION_RETRABAJO, NIVELES_INVESTIGACION_RETRABAJO, costoRetrabajoTotal,
   estadoInvestigacionRetrabajo, esEventoRetrabajo, nivelInvestigacionRetrabajo,
   requisitosCierreRetrabajo, resultadoDocumentadoRetrabajo, semaforoSLAInvestigacion, tiempoRetrabajoDesdePlanta,
   type EstadoInvestigacionRetrabajo,
 } from '../../sgo/retrabajos'
+import {
+  abiertosFueraDelPeriodo, antiguedadAbiertos, calcularKpisRetrabajos, enRango, moverPeriodo, paretoRetrabajos,
+  periodoAnterior, rangoPeriodo, tendenciaRetrabajos, type TipoPeriodoRetrabajo,
+} from '../../sgo/kpiRetrabajos'
 import {
   AREAS_SGO, areaSGOLabel, codigoEventoSGO, costoNoCalidadTotal, type AccionSGO, type AreaSGOId,
   type ClasificacionCausaRetrabajoSGO, type DatosCosteoRetrabajoSGO, type DatosRetrabajoSGO, type EventoSGO,
@@ -26,16 +30,21 @@ import {
 import { guardarAccionSGO, guardarEventoSGO } from '../../sync/syncEngine'
 import { fechaLocalISO } from '../../lib/time'
 import ParadasCalidadSGOView from './ParadasCalidadSGOView'
+import IndicadoresRetrabajos, { SelectorPeriodo } from './IndicadoresRetrabajos'
 
 const ORIGEN_LABEL: Record<DatosRetrabajoSGO['origen'], string> = {
   parada_calidad: 'Parada de calidad', defecto_final: 'Defecto al finalizar', laboratorio: 'Rechazo de laboratorio',
 }
-const CAUSAS: { id: ClasificacionCausaRetrabajoSGO; label: string }[] = [
-  { id: 'persona', label: 'Personas / capacitación' }, { id: 'metodo', label: 'Método / procedimiento' },
-  { id: 'maquina', label: 'Máquina / herramienta' }, { id: 'material', label: 'Material / proveedor' },
-  { id: 'medicion', label: 'Medición / control' }, { id: 'ambiente', label: 'Ambiente / entorno' },
-  { id: 'diseno', label: 'Diseño / especificación' }, { id: 'otro', label: 'Otro' },
-]
+const CAUSAS = CLASIFICACIONES_CAUSA_RETRABAJO
+
+// v2.51: el último tipo de período elegido se recuerda en este equipo.
+const CLAVE_PERIODO = 'sgo_retrabajos_periodo_v1'
+function leerTipoPeriodo(): TipoPeriodoRetrabajo {
+  try {
+    const v = localStorage.getItem(CLAVE_PERIODO)
+    return v === 'semana' || v === 'todo' ? v : 'mes'
+  } catch { return 'mes' }
+}
 const COLUMNAS: { titulo: string; estados: EstadoInvestigacionRetrabajo[] }[] = [
   { titulo: 'Nuevos', estados: ['nuevo'] },
   { titulo: 'En investigación', estados: ['en_investigacion', 'reincidencia'] },
@@ -67,11 +76,23 @@ export default function RetrabajosSGOView({ usuario, onOpenEvento, eventoInicial
   const [area, setArea] = useState<AreaSGOId | ''>('')
   const [estado, setEstado] = useState<EstadoInvestigacionRetrabajo | ''>('')
   const [cerrados, setCerrados] = useState(false)
-  const [seccion, setSeccion] = useState<'paradas' | 'retrabajos'>('paradas')
+  const [seccion, setSeccion] = useState<'paradas' | 'retrabajos' | 'indicadores'>('paradas')
   const [editor, setEditor] = useState<EventoSGO>()
   const puedeInvestigar = usuarioPuedeInvestigarRetrabajo(usuario)
   const ahora = new Date().toISOString()
-  const mes = ahora.slice(0, 7)
+
+  // v2.51: período (semana / mes / todo). Cada caso cuenta en el período en que
+  // OCURRIÓ, en hora local. Lo comparten el tablero y los indicadores.
+  const [tipoPeriodo, setTipoPeriodoState] = useState<TipoPeriodoRetrabajo>(leerTipoPeriodo)
+  const [refPeriodo, setRefPeriodo] = useState(() => new Date())
+  const setTipoPeriodo = (t: TipoPeriodoRetrabajo) => {
+    setTipoPeriodoState(t)
+    setRefPeriodo(new Date())
+    try { localStorage.setItem(CLAVE_PERIODO, t) } catch { /* sin storage: no se recuerda */ }
+  }
+  const rango = useMemo(() => rangoPeriodo(tipoPeriodo, refPeriodo), [tipoPeriodo, refPeriodo])
+  const selectorPeriodo = <SelectorPeriodo tipo={tipoPeriodo} rango={rango} onTipo={setTipoPeriodo}
+    onMover={(delta) => setRefPeriodo((ref) => moverPeriodo(tipoPeriodo, ref, delta))} onHoy={() => setRefPeriodo(new Date())} />
 
   useEffect(() => {
     if (!puedeInvestigar) return
@@ -94,34 +115,73 @@ export default function RetrabajosSGOView({ usuario, onOpenEvento, eventoInicial
   const activos = retrabajos.filter((evento) => evento.estado !== 'cerrado')
   const finalizados = retrabajos.filter((evento) => evento.estado === 'cerrado')
   const vencidos = activos.filter((evento) => semaforoSLAInvestigacion(evento, ahora).tono === 'rojo').length
-  const tomados = retrabajos.filter((evento) => evento.retrabajo?.tomadoEn)
-  const enTermino = tomados.length ? Math.round(tomados.filter((evento) => evento.retrabajo!.tomadoEn! <= evento.retrabajo!.fechaLimiteToma).length / tomados.length * 100) : 0
-  const costoMes = retrabajos.filter((evento) => evento.detectadoEn.slice(0, 7) === mes).reduce((total, evento) => total + costoRetrabajoTotal(evento), 0)
-  const reincidencias = retrabajos.filter((evento) => evento.retrabajo?.reincidente || evento.retrabajo?.resultadoVerificacion === 'reincidencia').length
+
+  // v2.51: KPIs del período, todos desde sgo/kpiRetrabajos (una sola fuente).
+  const datosKpi = useMemo(() => ({ eventos, acciones, tareas }), [eventos, acciones, tareas])
+  const kpis = useMemo(() => calcularKpisRetrabajos(datosKpi, rango), [datosKpi, rango])
+  const anterior = useMemo(() => { const r = periodoAnterior(rango); return r ? calcularKpisRetrabajos(datosKpi, r) : undefined }, [datosKpi, rango])
+  const casosPeriodo = useMemo(() => retrabajos.filter((e) => enRango(e.detectadoEn, rango)), [retrabajos, rango])
+  const fueraDelPeriodo = abiertosFueraDelPeriodo(eventos, rango)
+
   const base = cerrados ? finalizados : activos
   const q = buscar.trim().toLocaleLowerCase('es')
   const visibles = base.filter((evento) => {
+    if (!enRango(evento.detectadoEn, rango)) return false
     const etapa = estadoInvestigacionRetrabajo(evento, accionesDe(evento.id))
     const texto = `${evento.codigo} ${evento.titulo} ${evento.modelo ?? ''} ${evento.nroSerie ?? ''} ${evento.ordenId ?? ''} ${evento.retrabajo?.causaRegistrada ?? ''}`.toLocaleLowerCase('es')
     return (!q || texto.includes(q)) && (!area || evento.areaId === area || evento.areaOrigenId === area) && (!estado || etapa === estado)
-  }).sort((a, b) => b.detectadoEn.localeCompare(a.detectadoEn))
+  }).sort((a, b) => Date.parse(b.detectadoEn) - Date.parse(a.detectadoEn))
+
+  /** Drill-down desde los indicadores: al tablero ya filtrado, conservando el período. */
+  const verEnTablero = (cambios: { area?: AreaSGOId; modelo?: string }) => {
+    // Si todos los casos de ese filtro ya están cerrados, se abre el Historial
+    // directamente (si no, el tablero de activos aparecería vacío).
+    const coincide = (e: EventoSGO) => (!cambios.area || e.areaId === cambios.area || e.areaOrigenId === cambios.area)
+      && (!cambios.modelo || (e.modelo ?? '').trim() === cambios.modelo)
+    const abiertos = casosPeriodo.filter((e) => e.estado !== 'cerrado' && coincide(e)).length
+    const cerradosN = casosPeriodo.filter((e) => e.estado === 'cerrado' && coincide(e)).length
+    setArea(cambios.area ?? ''); setBuscar(cambios.modelo ?? ''); setEstado('')
+    setCerrados(abiertos === 0 && cerradosN > 0); setSeccion('retrabajos')
+  }
 
   return <div className="sgo-retrabajos">
     <div className="tabs sgo-calidad-tabs" role="tablist" aria-label="Calidad productiva">
       <button className={`tab ${seccion === 'paradas' ? 'active' : ''}`} onClick={() => setSeccion('paradas')}>Paradas de calidad</button>
       <button className={`tab ${seccion === 'retrabajos' ? 'active' : ''}`} onClick={() => setSeccion('retrabajos')}>Retrabajos ({activos.length})</button>
+      <button className={`tab ${seccion === 'indicadores' ? 'active' : ''}`} onClick={() => setSeccion('indicadores')}>Indicadores</button>
     </div>
-    {seccion === 'paradas' ? <ParadasCalidadSGOView usuario={usuario} onInvestigar={(evento) => { setSeccion('retrabajos'); setCerrados(false); setEditor(evento) }} /> : <>
+    {seccion === 'indicadores' && <>
+      {selectorPeriodo}
+      <IndicadoresRetrabajos
+        kpis={kpis} anterior={anterior} tipo={tipoPeriodo}
+        antiguedad={antiguedadAbiertos(eventos)}
+        paretoCausa={paretoRetrabajos(casosPeriodo, 'causa')}
+        paretoArea={paretoRetrabajos(casosPeriodo, 'area')}
+        paretoModelo={paretoRetrabajos(casosPeriodo, 'modelo')}
+        tendencia={tendenciaRetrabajos(datosKpi, tipoPeriodo, refPeriodo)}
+        onVerArea={(a) => verEnTablero({ area: a })}
+        onVerModelo={(m) => verEnTablero({ modelo: m })}
+        onVerAbiertos={() => { setTipoPeriodo('todo'); setArea(''); setBuscar(''); setEstado(''); setCerrados(false); setSeccion('retrabajos') }}
+      />
+    </>}
+    {seccion === 'paradas' && <ParadasCalidadSGOView usuario={usuario} onInvestigar={(evento) => { setSeccion('retrabajos'); setCerrados(false); setEditor(evento) }} />}
+    {seccion === 'retrabajos' && <>
     <div className="card sgo-retrabajos-cabecera"><div><div className="section-title">INVESTIGACIONES DE RETRABAJO</div><div className="meta">Cada retrabajo registrado en producción o laboratorio genera un expediente automático asignado a Lara.</div></div><div className="row-actions"><button className={`btn ${!cerrados ? 'btn-primary' : ''}`} onClick={() => setCerrados(false)}>Activos ({activos.length})</button><button className={`btn ${cerrados ? 'btn-primary' : ''}`} onClick={() => setCerrados(true)}>Historial ({finalizados.length})</button></div></div>
     {!puedeInvestigar && <div className="card sgo-retrabajo-aviso">Vista de seguimiento. La investigación puede ser modificada únicamente por Lara y Lorenzo.</div>}
     <div className="sgo-retrabajos-kpis">
       <Kpi valor={activos.filter((evento) => !evento.retrabajo?.tomadoEn).length} label="Nuevos sin tomar" tono="azul" />
       <Kpi valor={vencidos} label="Fuera de plazo" tono={vencidos ? 'rojo' : 'verde'} />
       <Kpi valor={activos.filter((evento) => estadoInvestigacionRetrabajo(evento, accionesDe(evento.id)) === 'en_investigacion').length} label="En investigación" tono="amarillo" />
-      <Kpi valor={`${enTermino}%`} label="Tomados en 24 h" tono={enTermino >= 90 ? 'verde' : enTermino >= 75 ? 'amarillo' : 'rojo'} />
-      <Kpi valor={`$${Math.round(costoMes).toLocaleString('es-AR')}`} label="Costo del mes" tono="rojo" />
-      <Kpi valor={reincidencias} label="Reincidencias" tono={reincidencias ? 'rojo' : 'verde'} />
+      {/* v2.51: estas tres son DEL PERÍODO elegido; las tres primeras, de hoy. */}
+      <Kpi valor={kpis.toma.pct === undefined ? '—' : `${Math.round(kpis.toma.pct)}%`} label="Tomados en 24 h (período)" tono={kpis.toma.pct === undefined ? 'azul' : kpis.toma.pct >= 90 ? 'verde' : kpis.toma.pct >= 75 ? 'amarillo' : 'rojo'} />
+      <Kpi valor={`$${Math.round(kpis.costo.total).toLocaleString('es-AR')}`} label="Costo del período" tono="rojo" />
+      <Kpi valor={kpis.reincidentes} label="Reincidencias (período)" tono={kpis.reincidentes ? 'rojo' : 'verde'} />
     </div>
+    {selectorPeriodo}
+    {!cerrados && fueraDelPeriodo > 0 && <div className="card sgo-rt-alerta" role="button" tabIndex={0}
+      onClick={() => setTipoPeriodo('todo')} onKeyDown={(e) => { if (e.key === 'Enter') setTipoPeriodo('todo') }}>
+      <strong>{fueraDelPeriodo} caso(s) abiertos de períodos anteriores</strong> no se muestran con este filtro. <span>Tocá para ver todos.</span>
+    </div>}
     <div className="card sgo-retrabajos-filtros"><input className="input" value={buscar} onChange={(e) => setBuscar(e.target.value)} placeholder="Buscar código, modelo, serie, orden o defecto…" /><select className="input" value={area} onChange={(e) => setArea(e.target.value as AreaSGOId | '')}><option value="">Todas las áreas</option>{AREAS_SGO.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select><select className="input" value={estado} onChange={(e) => setEstado(e.target.value as EstadoInvestigacionRetrabajo | '')}><option value="">Todos los estados</option>{ESTADOS_INVESTIGACION_RETRABAJO.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></div>
     {cerrados ? <Listado eventos={visibles} acciones={acciones} trazabilidades={trazabilidades} ahora={ahora} onOpen={setEditor} /> : <div className="sgo-retrabajos-kanban">{COLUMNAS.map((columna) => {
       const items = visibles.filter((evento) => columna.estados.includes(estadoInvestigacionRetrabajo(evento, accionesDe(evento.id))))
@@ -304,7 +364,7 @@ function EditorRetrabajo({ eventoInicial, acciones, trazabilidad, usuario, onClo
     <fieldset disabled={!editable}>
       <div className="section-title">1. Contención y trazabilidad</div><div className="sgo-retrabajo-form-grid"><Campo label={`Proceso donde se originó${obligatorio(nivel === 'critica')}`}><input className="input" value={datos.procesoOrigen ?? ''} onChange={(e) => setDato('procesoOrigen', e.target.value || undefined)} /></Campo><Campo label={`Proceso donde se detectó${obligatorio(nivel === 'critica')}`}><input className="input" value={datos.procesoDeteccion ?? ''} onChange={(e) => setDato('procesoDeteccion', e.target.value || undefined)} /></Campo><Campo label="Cantidad afectada"><input className="input" type="number" min="1" value={evento.cantidadAfectada ?? 1} onChange={(e) => setCampo('cantidadAfectada', Math.max(1, Number(e.target.value) || 1))} /></Campo><Campo label="Disposición *"><select className="input" value={evento.disposicion ?? 'pendiente'} onChange={(e) => setCampo('disposicion', e.target.value as EventoSGO['disposicion'])}><option value="pendiente">Pendiente</option><option value="retrabajo">Retrabajo</option><option value="rechazo">Rechazo / scrap</option><option value="concesion">Concesión</option><option value="devolucion">Devolución</option><option value="no_aplica">No aplica</option></select></Campo></div><Campo label="Contención inmediata *"><textarea className="input" rows={2} value={evento.contencion ?? ''} onChange={(e) => setCampo('contencion', e.target.value || undefined)} /></Campo>
 
-      <div className="section-title">2. Investigación de causa raíz</div><div className="sgo-retrabajo-form-grid"><Campo label={`Método de análisis${obligatorio(nivel !== 'simple')}`}><select className="input" value={evento.metodoAnalisis ?? ''} onChange={(e) => setCampo('metodoAnalisis', (e.target.value || undefined) as EventoSGO['metodoAnalisis'])}><option value="">Seleccionar</option><option value="5_porques">5 porqués</option><option value="ishikawa">Ishikawa</option><option value="a3">A3</option><option value="8d">8D</option><option value="otro">Otro</option></select></Campo><Campo label={`Clasificación de causa${obligatorio(nivel !== 'simple')}`}><select className="input" value={datos.clasificacionCausa ?? ''} onChange={(e) => setDato('clasificacionCausa', (e.target.value || undefined) as DatosRetrabajoSGO['clasificacionCausa'])}><option value="">Seleccionar</option>{CAUSAS.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></Campo></div><Campo label="Causa raíz comprobada *"><textarea className="input" rows={3} value={evento.causaRaiz ?? ''} onChange={(e) => setCampo('causaRaiz', e.target.value || undefined)} placeholder="No confundir la causa con el síntoma observado." /></Campo><Campo label={`Factores contribuyentes${obligatorio(nivel === 'critica')}`}><textarea className="input" rows={2} value={datos.factoresContribuyentes ?? ''} onChange={(e) => setDato('factoresContribuyentes', e.target.value || undefined)} /></Campo><label className="check-inline"><input type="checkbox" checked={Boolean(datos.reincidente)} onChange={(e) => setDato('reincidente', e.target.checked)} /> Es un defecto o causa reincidente</label>
+      <div className="section-title">2. Investigación de causa raíz</div><div className="sgo-retrabajo-form-grid"><Campo label={`Método de análisis${obligatorio(nivel !== 'simple')}`}><select className="input" value={evento.metodoAnalisis ?? ''} onChange={(e) => setCampo('metodoAnalisis', (e.target.value || undefined) as EventoSGO['metodoAnalisis'])}><option value="">Seleccionar</option><option value="5_porques">5 porqués</option><option value="ishikawa">Ishikawa</option><option value="a3">A3</option><option value="8d">8D</option><option value="otro">Otro</option></select></Campo><Campo label={`Clasificación de causa${obligatorio(true)}`}><select className="input" value={datos.clasificacionCausa ?? ''} onChange={(e) => setDato('clasificacionCausa', (e.target.value || undefined) as DatosRetrabajoSGO['clasificacionCausa'])}><option value="">Seleccionar</option>{CAUSAS.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></Campo></div><Campo label="Causa raíz comprobada *"><textarea className="input" rows={3} value={evento.causaRaiz ?? ''} onChange={(e) => setCampo('causaRaiz', e.target.value || undefined)} placeholder="No confundir la causa con el síntoma observado." /></Campo><Campo label={`Factores contribuyentes${obligatorio(nivel === 'critica')}`}><textarea className="input" rows={2} value={datos.factoresContribuyentes ?? ''} onChange={(e) => setDato('factoresContribuyentes', e.target.value || undefined)} /></Campo><label className="check-inline"><input type="checkbox" checked={Boolean(datos.reincidente)} onChange={(e) => setDato('reincidente', e.target.checked)} /> Es un defecto o causa reincidente</label>
 
       <div className="section-title">3. Costos del retrabajo</div>
       <CostosRetrabajoEditor
