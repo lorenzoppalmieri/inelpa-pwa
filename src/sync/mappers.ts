@@ -150,6 +150,14 @@ export interface OrdenRow {
   cantidad: number
   fecha_entrega: string | null
   creada_en: string | null
+  // v2.53: columnas de la integración SAP (docs/supabase_integracion_sap_v2.40.sql).
+  // Opcionales: la base de producción todavía no las tiene, y ordenToRow no las
+  // escribe nunca (son del endpoint, no del front).
+  origen?: string | null
+  sap_abs_entry?: number | null
+  sap_doc_num?: string | null
+  sap_parent_abs_entry?: number | null
+  item_code?: string | null
 }
 
 export interface SemiRow {
@@ -597,6 +605,11 @@ export function ordenFromRow(r: OrdenRow): OrdenProduccion {
     cantidad: r.cantidad,
     fechaEntrega: r.fecha_entrega ?? '',
     creada: u(r.creada_en),
+    origen: r.origen === 'sap' ? 'sap' : r.origen === 'pwa' ? 'pwa' : undefined,
+    sapDocEntry: r.sap_abs_entry ?? undefined,
+    sapDocNum: u(r.sap_doc_num),
+    sapParentDocEntry: r.sap_parent_abs_entry ?? undefined,
+    itemCode: u(r.item_code),
   }
 }
 

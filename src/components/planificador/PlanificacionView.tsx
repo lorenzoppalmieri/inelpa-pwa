@@ -11,7 +11,7 @@ import {
   type Semielaborado, type EstadoSemielaborado, type TipoTarea, type Feriado, type EstadoTarea,
   type DatosBobinado,
 } from '../../types'
-import { MODELOS_CATALOGO, modeloPorNombre, componentesDeModelo, componentePorCodigo } from '../../data/catalogo'
+import { MODELOS_CATALOGO, modeloPorNombre, modeloDeOrden, componentesDeModelo, componentePorCodigo } from '../../data/catalogo'
 import { guardarOrden, guardarTarea, guardarSemielaborado, eliminarTarea, eliminarOrden, guardarFeriado, eliminarFeriado } from '../../sync/syncEngine'
 import { useAuth } from '../../auth/AuthContext'
 import { puedeCargarAusencias } from '../../auth/roles'
@@ -23,7 +23,7 @@ import { puedeGenerarPO, construirTareaPO, tieneEstandarAprendido, sectoresPODis
 import { tareaEnPeriodo, labelPeriodo, hoyLocalISO, primerDiaDelMesISO, type Periodo } from '../../lib/periodos'
 import { potenciaKVA } from '../../lib/potencia'
 import { recuperacionDiariaVigente } from '../../lib/calendario'
-import { ordenesAsignables } from '../../lib/ordenesAsignables'
+import { etiquetaOrden, ordenesAsignables, ordenesRecientesPrimero } from '../../lib/ordenesAsignables'
 
 // v2.24: sectores donde el transformador queda ENCUBADO. El promedio de potencia
 // solo se calcula acá; en el resto de las barras no se dibuja nada.
@@ -386,13 +386,22 @@ function PanelOrdenes() {
       </div>
 
       <div className="section-title">Ordenes cargadas ({ordenes?.length ?? 0})</div>
-      {(ordenes ?? []).map((o) => {
+      {/* v2.53: más recientes primero (antes salían en orden de UUID y una OF nueva de SAP quedaba perdida en la lista). */}
+      {ordenesRecientesPrimero(ordenes ?? []).map((o) => {
         const nTareas = todasTareas.filter((t) => t.ordenId === o.id).length
         return (
           <div className="card" key={o.id}>
             <div className="card-header">
               <div>
-                <h3>{o.nroOrden} · {o.modelo}</h3>
+                <h3>
+                  {o.nroOrden} · {o.modelo}
+                  {o.origen === 'sap' && (
+                    <span className="badge-sap" style={{ marginLeft: 8 }}
+                      title={`Recibida de SAP · DocEntry ${o.sapDocEntry ?? '—'}${o.itemCode ? ` · ${o.itemCode}` : ''}`}>
+                      SAP
+                    </span>
+                  )}
+                </h3>
                 <div className="meta">
                   {o.nroContrato ? <>Contrato {o.nroContrato} · </> : null}
                   Material <strong>{materialLabel(o.material)}</strong> · Linea <strong>{o.linea}</strong> · Cantidad <strong>{o.cantidad}</strong> · Entrega <strong>{fechaCorta(o.fechaEntrega)}</strong>
@@ -703,7 +712,7 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
   // v1.5: semielaborados elegibles = componentes del modelo de la orden que se
   // fabrican EN ESTE SECTOR. Ej. Bobinado Dist A.T. -> bobinas AT del modelo.
   const ordenSel = (ordenes ?? []).find((o) => o.id === ordenId)
-  const modeloSel = modeloPorNombre(ordenSel?.modelo)
+  const modeloSel = modeloDeOrden(ordenSel)  // v2.53: OF de SAP -> por ItemCode
   // v1.41: la orden elegida es una OF de PROTOTIPO -> no lleva semielaborado.
   const ordenEsProto = esOrdenPrototipo(ordenSel)
 
@@ -1220,7 +1229,7 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
               />
               <select className="input" value={ordenId} onChange={(e) => cambiarOrden(e.target.value)}>
                 <option value="">— {esProto ? 'Sin orden' : 'Selecciona'} —</option>
-                {ordenesFiltradas.map((o) => <option key={o.id} value={o.id}>{o.nroOrden} · {o.modelo}</option>)}
+                {ordenesFiltradas.map((o) => <option key={o.id} value={o.id}>{etiquetaOrden(o)}</option>)}
               </select>
               {buscarOrden && ordenesFiltradas.length === 0 && <div className="meta" style={{ marginTop: 6 }}>Sin órdenes que coincidan con "{buscarOrden}".</div>}
             </div>
@@ -1657,7 +1666,7 @@ function PanelSemielaborados() {
                 onChange={(e) => { if (e.target.value) cambiarEstado(s, 'consumido', e.target.value) }}
               >
                 <option value="">Consumir en orden…</option>
-                {(ordenes ?? []).map((o) => <option key={o.id} value={o.id}>{o.nroOrden} · {o.modelo}</option>)}
+                {ordenesRecientesPrimero(ordenes ?? []).map((o) => <option key={o.id} value={o.id}>{etiquetaOrden(o)}</option>)}
               </select>
             )}
             {s.estado === 'consumido' && <div className="meta">Consumido en orden {s.ordenDestinoId ?? '—'}</div>}

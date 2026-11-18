@@ -366,6 +366,14 @@ export interface OrdenProduccion {
   cantidad: number
   fechaEntrega: string
   creada?: string          // ISO: alta de la OF (para ordenar de más reciente a más antigua)
+  // v2.53: datos de SAP (solo lectura). Los escribe el endpoint sap-ordenes; el
+  // front los muestra pero NUNCA los manda de vuelta (ordenToRow no los incluye).
+  // En una base sin la v2.40 corrida llegan vacíos y no pasa nada.
+  origen?: 'pwa' | 'sap'
+  sapDocEntry?: number     // clave de SAP (DocEntry)
+  sapDocNum?: string       // número visible de la OF en SAP
+  sapParentDocEntry?: number // OF del transformador, si es la de un semielaborado
+  itemCode?: string        // ItemCode SAP del artículo a fabricar
 }
 
 // Producto semielaborado (ej. bobina terminada antes del montaje).

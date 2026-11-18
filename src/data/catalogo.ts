@@ -22,6 +22,13 @@ export function modeloPorCodigo(codigo?: string): ModeloTransformador | undefine
 export function modeloPorNombre(nombre?: string): ModeloTransformador | undefined {
   return nombre ? _modeloByNombre.get(nombre) : undefined
 }
+// v2.53: modelo de una OF. Si vino de SAP trae el ItemCode y se busca por
+// código: el nombre (ItemName) puede cambiar en SAP y dejar de coincidir con el
+// catálogo, y entonces "Asignar tarea" no ofrecía ningún semielaborado. Las OF
+// cargadas a mano no tienen código y se siguen buscando por nombre.
+export function modeloDeOrden(o?: { modelo?: string; itemCode?: string }): ModeloTransformador | undefined {
+  return modeloPorCodigo(o?.itemCode) ?? modeloPorNombre(o?.modelo)
+}
 export function componentePorCodigo(codigo?: string): ComponenteSemielaborado | undefined {
   return codigo ? _compByCodigo.get(codigo) : undefined
 }

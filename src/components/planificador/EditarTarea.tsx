@@ -4,7 +4,7 @@ import { db } from '../../db/dexie'
 import type { Tarea } from '../../types'
 import { sectorById, maquinaSirveSector, operariosParaSector, componenteSirveSector } from '../../types'
 import type { Maquina, Usuario } from '../../types'
-import { modeloPorNombre, componentesDeModelo } from '../../data/catalogo'
+import { modeloDeOrden, componentesDeModelo } from '../../data/catalogo'
 import { guardarTarea } from '../../sync/syncEngine'
 import { isoWeek } from '../../lib/time'
 import { recuperacionDiariaVigente } from '../../lib/calendario'
@@ -42,7 +42,7 @@ export default function EditarTarea({ tarea, maquinas, usuarios, onClose }: {
   const ordenes = useLiveQuery(() => db.ordenes.toArray(), []) ?? []
   const todas = useLiveQuery(() => db.tareas.toArray(), []) ?? []
   const ordenSel = ordenes.find((o) => o.id === tarea.ordenId)
-  const modeloSel = modeloPorNombre(ordenSel?.modelo)
+  const modeloSel = modeloDeOrden(ordenSel)
   const cantidadOrden = ordenSel?.cantidad ?? 1
   // v1.76: mismo criterio que en PlanificacionView. Si no se comparte tambien aca,
   // al editar una tarea de bobinado rural con una bobina de distribucion la opcion

@@ -16,12 +16,31 @@ import type { OrdenProduccion } from '../types'
 // Lo que SÍ sigue limitando es el cupo por semielaborado (cantidad de la OF),
 // que se calcula aparte en PlanificacionView: eso evita planificar dos veces la
 // misma bobina o la misma cuba, sin esconder la OF entera.
+//
+// v2.53 — UN SOLO ORDEN PARA TODAS LAS LISTAS DE OF
+// La pestaña "Órdenes de fabricación" listaba las OF en el orden de Dexie (por
+// id, que es un UUID aleatorio). Una OF recién llegada de SAP quedaba en
+// cualquier lugar entre 600+ órdenes: estaba, pero nadie la encontraba
+// ("la OF de SAP es invisible"). Ahora la pestaña, el desplegable de Asignar
+// tarea y el de "Consumir en orden" usan la MISMA función de orden.
 // ============================================================
+
+/** Todas las OF, de la más reciente a la más antigua. Las viejas sin fecha de alta van al final. No muta el arreglo. */
+export function ordenesRecientesPrimero(ordenes: OrdenProduccion[]): OrdenProduccion[] {
+  return [...ordenes].sort((a, b) =>
+    (b.creada ?? '').localeCompare(a.creada ?? '')
+    || b.nroOrden.localeCompare(a.nroOrden, 'es', { numeric: true }))
+}
+
+/** Texto de la OF en los desplegables. Marca las que vienen de SAP. */
+export function etiquetaOrden(o: OrdenProduccion): string {
+  return `${o.nroOrden} · ${o.modelo}${o.origen === 'sap' ? ' [SAP]' : ''}`
+}
 
 /** OF para el desplegable: todas, de la más reciente a la más antigua, filtradas por el buscador. */
 export function ordenesAsignables(ordenes: OrdenProduccion[], buscar = ''): OrdenProduccion[] {
   const q = buscar.trim().toLowerCase()
-  return [...ordenes]
-    .sort((a, b) => (b.creada ?? '').localeCompare(a.creada ?? ''))
-    .filter((o) => !q || `${o.nroOrden} ${o.modelo} ${o.nroContrato ?? ''}`.toLowerCase().includes(q))
+  return ordenesRecientesPrimero(ordenes)
+    .filter((o) => !q || [o.nroOrden, o.modelo, o.nroContrato, o.sapDocNum, o.itemCode]
+      .filter(Boolean).join(' ').toLowerCase().includes(q))
 }
