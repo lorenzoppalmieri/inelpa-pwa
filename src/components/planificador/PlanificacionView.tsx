@@ -29,6 +29,7 @@ import {
   semielaboradosAsignables, semielaboradosDeOrden, validarCantidad,
 } from '../../lib/saldoOF'
 import { sectorSugeridoSap } from '../../lib/sectorSap'
+import MaterialesTarea from '../MaterialesTarea'
 
 // v2.24: sectores donde el transformador queda ENCUBADO. El promedio de potencia
 // solo se calcula acá; en el resto de las barras no se dibuja nada.
@@ -1212,6 +1213,8 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
           </span>
         </div>
       </div>
+      {/* v2.57: materiales de la tarea (receta de SAP × cantidad). Solo si hay receta. */}
+      <MaterialesTarea tarea={t} />
       {/* v2.41: en modo consulta (Diseño) la tarjeta es solo de lectura. */}
       {!soloLectura && (!soloReparacion || t.tipo === 'reparacion') && (
         <div className="row-actions">

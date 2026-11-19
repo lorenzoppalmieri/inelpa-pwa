@@ -363,6 +363,24 @@ export function nombreSemielaborado(t: Tarea, compDescripcion?: string): string 
   return compDescripcion ?? (t.modelo || t.componenteCodigo || '—')
 }
 
+// ============================================================
+// v2.57 — LÍNEA DE RECETA DE SAP (espejo de la vista v_receta_materiales).
+// `cantidad` es POR UNIDAD del artículo padre: los materiales de una tarea son
+// cantidad × cantidad de la tarea (lib/materiales). Solo lectura: la
+// transferencia de materiales se hace en SAP.
+// ============================================================
+export interface LineaReceta {
+  id: string               // `${parentCode}|${childCode}|${ocurrencia}`
+  parentCode: string       // ItemCode del artículo que se fabrica
+  childCode: string        // ItemCode del material
+  ocurrencia: number
+  linea: number            // posición en la receta de SAP
+  cantidad: number         // por unidad del padre
+  uom?: string             // Unidad, Kilogramos, Metros, Litros...
+  childName?: string       // vacío si SAP todavía no mandó ese artículo
+  esSemielaborado: boolean // el material tiene receta propia (sale de otra OF)
+}
+
 export interface OrdenProduccion {
   id: string               // mapea a Orden de Fabricacion SAP
   nroOrden: string

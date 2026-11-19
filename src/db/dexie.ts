@@ -5,6 +5,7 @@ import type {
   Mensaje, MensajeLectura, TiempoEstandar, DespachoTrafo, FleteInterno, TareaLaboratorio,
   PlantillaRecurrente,
   ColaboradorEpp, EntregaEpp, SolicitudEpp, ReglaEpp,
+  LineaReceta,
 } from '../types'
 import type { EventoSGO, AccionSGO, AuditoriaSGO } from '../sgo/types'
 import type { IndicadorSGO, MedicionIndicadorSGO } from '../sgo/indicadores'
@@ -60,6 +61,8 @@ export class InelpaDB extends Dexie {
   // v1.66: cola offline de avisos de mantenimiento (paradas de produccion ->
   // mant_avisos). El flush lo hace src/mantenimiento/avisos.ts.
   avisosMant!: Table<AvisoMantPendiente, string>
+  // v2.57: recetas de SAP de los artículos con OF vigente (solo lectura).
+  materialesReceta!: Table<LineaReceta, string>
 
   constructor() {
     super('inelpa_pwa')
@@ -221,6 +224,11 @@ export class InelpaDB extends Dexie {
     // v2.45 — ajustes de HyS al catálogo de EPP (por puesto o por persona).
     this.version(32).stores({
       reglasEpp: 'id, ambito, ambitoId, eppKey',
+    })
+    // v2.57 — recetas de SAP (vista v_receta_materiales). Se consulta por
+    // `parentCode` (el artículo de la tarea): por eso va indexado.
+    this.version(33).stores({
+      materialesReceta: 'id, parentCode',
     })
   }
 }

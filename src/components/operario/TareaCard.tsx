@@ -11,6 +11,7 @@ import { hhmm, cronometro, fmtDur, fechaCorta } from '../../lib/time'
 import { calcularTiempoNetoProductivo, calcularTiempoProductivo, recuperacionDiariaVigente } from '../../lib/calendario'
 import { componentePorCodigo } from '../../data/catalogo'
 import { cantidadTarea } from '../../lib/saldoOF'
+import MaterialesTarea from '../MaterialesTarea'
 import { tiempoNetoMin } from '../../lib/kpi'
 import ModalParada from './ModalParada'
 import ConfirmarAccion from '../ui/ConfirmarAccion'
@@ -328,6 +329,9 @@ export default function TareaCard({ tarea, onIniciar }: { tarea: Tarea; onInicia
         {tarea.finReal && <> · Fin <strong>{fechaCorta(tarea.finReal)} {hhmm(tarea.finReal)}</strong></>}
         {totalParada > 0 && <> · Paradas <strong>{fmtDur(totalParada)}</strong></>}
       </div>
+
+      {/* v2.57: qué materiales lleva la tarea y cuánto (receta de SAP × cantidad). */}
+      <MaterialesTarea tarea={tarea} />
 
       {/* Banner de parada en curso (v1.18: puede haber varias abiertas a la vez). */}
       {paradaAbierta && (

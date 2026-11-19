@@ -16,6 +16,7 @@ import { retirarControlDeAgenda } from '../sgo/controles'
 import {
   tareaFromRow, paradaFromRow, ordenFromRow, semiFromRow, maquinaFromRow, usuarioFromRow, objetivoFromRow, tareaLogFromRow, solicitudLogFromRow, feriadoFromRow, ausenciaFromRow, corteLuzFromRow, mensajeFromRow, lecturaFromRow, estandarFromRow, despachoFromRow, fleteFromRow, laboratorioFromRow, plantillaFromRow, eventoSGOFromRow, accionSGOFromRow, indicadorSGOFromRow, medicionIndicadorSGOFromRow, auditoriaSGOFromRow, controlProgramadoSGOFromRow, ejecucionControlSGOFromRow, actividadAgendaISOFromRow, tareaSGOFromRow, comentarioTareaSGOFromRow,
   colaboradorEppFromRow, entregaEppFromRow, solicitudEppFromRow, reglaEppFromRow,
+  lineaRecetaFromRow, type LineaRecetaRow,
   type ColaboradorEppRow, type EntregaEppRow, type SolicitudEppRow, type ReglaEppRow,
   tareaToRow, paradaToRow, ordenToRow, semiToRow, objetivoToRow, tareaLogToRow, solicitudLogToRow, feriadoToRow, ausenciaToRow, corteLuzToRow, mensajeToRow, lecturaToRow, estandarToRow, despachoToRow, fleteToRow, laboratorioToRow, plantillaToRow, eventoSGOToRow, accionSGOToRow, indicadorSGOToRow, medicionIndicadorSGOToRow, controlProgramadoSGOToRow, ejecucionControlSGOToRow, actividadAgendaISOToRow, tareaSGOToRow, comentarioTareaSGOToRow,
   colaboradorEppToRow, entregaEppToRow, solicitudEppToRow, reglaEppToRow,
@@ -202,6 +203,7 @@ export async function fetchInicial(rol?: Rol): Promise<void> {
       db.mensajes.clear(), db.mensajesLectura.clear(), db.estandares.clear(), db.despachos.clear(), db.fletes.clear(), db.laboratorio.clear(),
       db.plantillasRecurrentes.clear(), db.datosTecnicos.clear(),
       db.colaboradoresEpp.clear(), db.entregasEpp.clear(), db.solicitudesEpp.clear(), db.reglasEpp.clear(),
+      db.materialesReceta.clear(),
     ])
 
     // ---- TAREAS + PARADAS (las únicas que se acotan por ventana) ----
@@ -225,7 +227,7 @@ export async function fetchInicial(rol?: Rol): Promise<void> {
       ? await traerTabla<ParadaRow>('paradas')
       : await traerParadasDe(tareasRows.map((t) => t.id))
 
-    const [maqs, usrs, uss, ords, semis, objs, tlog, slog, fers, auss, cortes, msgs, lects, ests, desp, flts, labs, plts, eventosSgo, accionesSgo, indicadoresSgo, medicionesSgo, auditoriaSgo, controlesSgo, ejecucionesSgo, agendaIso, tareasSgo, comentariosTareasSgo, dtec, eppCol, eppEnt, eppSol, eppReg] = await Promise.all([
+    const [maqs, usrs, uss, ords, semis, objs, tlog, slog, fers, auss, cortes, msgs, lects, ests, desp, flts, labs, plts, eventosSgo, accionesSgo, indicadoresSgo, medicionesSgo, auditoriaSgo, controlesSgo, ejecucionesSgo, agendaIso, tareasSgo, comentariosTareasSgo, dtec, eppCol, eppEnt, eppSol, eppReg, recetas] = await Promise.all([
       traerTodo('maquinas'),
       supabase.from('usuarios').select('id, nombre, usuario, rol, grupo_nomina, activo'),
       supabase.from('usuario_sectores').select('usuario_id, sector_id'),
@@ -259,6 +261,10 @@ export async function fetchInicial(rol?: Rol): Promise<void> {
       traerTodo('epp_entregas'),
       traerTodo('epp_solicitudes'),
       traerTodo('epp_reglas'),
+      // v2.57: recetas de SAP solo de los artículos con OF vigente (~400 filas,
+      // no las 20.000 de la tabla). Si la vista no existe todavía (SQL v2.57
+      // sin correr), traerTabla avisa por consola y devuelve vacío: no rompe.
+      traerTodo('v_receta_materiales'),
     ])
 
     // Maquinas
@@ -279,6 +285,9 @@ export async function fetchInicial(rol?: Rol): Promise<void> {
 
     // Ordenes
     if (ords.data) await db.ordenes.bulkPut((ords.data as OrdenRow[]).map(ordenFromRow))
+
+    // v2.57: recetas de SAP (materiales de cada tarea, solo lectura)
+    if (recetas.data) await db.materialesReceta.bulkPut((recetas.data as LineaRecetaRow[]).map(lineaRecetaFromRow))
 
     // Semielaborados
     if (semis.data) await db.semielaborados.bulkPut((semis.data as SemiRow[]).map(semiFromRow))

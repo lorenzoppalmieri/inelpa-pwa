@@ -12,6 +12,7 @@ import DespachoView, { TABS_DESPACHO, esEncargadoDespacho, type VistaDespacho } 
 import { esSuperAdmin } from '../../auth/roles'
 import CubicajeCarga from '../logistica/CubicajeCarga'
 import EppView from '../logistica/EppView'
+import MaterialesPorEstacion from '../logistica/MaterialesPorEstacion'
 
 // ============================================================
 // Vista LOGISTICA (v1.47) — UN SOLO módulo, "Logística", a cargo de Giuliano.
@@ -28,7 +29,7 @@ import EppView from '../logistica/EppView'
 // tenga que habilitar permisos. Lo único que cambia según quién entra es en qué
 // pestaña arranca parado.
 // ============================================================
-type PestaniaLog = 'gantt' | 'tareas' | 'reportes' | 'cubicaje' | 'epp' | 'despacho'
+type PestaniaLog = 'gantt' | 'tareas' | 'materiales' | 'reportes' | 'cubicaje' | 'epp' | 'despacho'
 
 export default function LogisticaView() {
   const { usuario } = useAuth()
@@ -71,6 +72,8 @@ export default function LogisticaView() {
       <div className="tabs no-print">
         <button className={'tab' + (pestania === 'gantt' ? ' active' : '')} onClick={() => setPestania('gantt')}>Gantt de planta</button>
         <button className={'tab' + (pestania === 'tareas' ? ' active' : '')} onClick={() => setPestania('tareas')}>📋 Tareas logísticas</button>
+        {/* v2.57: qué preparar por estación (receta de SAP × cantidad). Solo lectura. */}
+        <button className={'tab' + (pestania === 'materiales' ? ' active' : '')} onClick={() => setPestania('materiales')}>📦 Materiales por estación</button>
         {!esEquipoLog && <button className={'tab' + (pestania === 'reportes' ? ' active' : '')} onClick={() => setPestania('reportes')}>📊 Reportes</button>}
         {/* v1.47: llegó desde el módulo SGO. Es una herramienta operativa de
             carga, no una auditoría. */}
@@ -107,6 +110,7 @@ export default function LogisticaView() {
 
         {pestania === 'gantt' ? <LogisticaGantt />
           : pestania === 'tareas' ? <LogisticaTareas />
+          : pestania === 'materiales' ? <MaterialesPorEstacion />
           : pestania === 'cubicaje' ? <CubicajeCarga />
           : pestania === 'epp' ? <EppView />
           : (!esEquipoLog && pestania === 'reportes') ? <LogisticaReportes />

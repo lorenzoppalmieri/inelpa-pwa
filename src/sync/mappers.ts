@@ -7,6 +7,7 @@
 //   - al ESCRIBIR: se separa la tarea (sin paradas) y cada parada por su lado.
 // ============================================================
 import type {
+  LineaReceta,
   Tarea, Parada, OrdenProduccion, Semielaborado, Maquina, Usuario,
   SectorId, Rol, EstadoTarea, MaterialBobina, LineaProduccion,
   EstadoSemielaborado, TipoEstacion, GrupoNomina, DatosBobinado, TipoTarea,
@@ -160,6 +161,33 @@ export interface OrdenRow {
   sap_doc_num?: string | null
   sap_parent_abs_entry?: number | null
   item_code?: string | null
+}
+
+// v2.57: fila de la vista v_receta_materiales (docs/supabase_materiales_receta_v2.57.sql).
+export interface LineaRecetaRow {
+  id: string
+  parent_code: string
+  child_code: string
+  ocurrencia: number
+  linea: number
+  cantidad: number | string     // numeric: PostgREST puede mandarlo como texto
+  uom: string | null
+  child_name: string | null
+  child_con_receta: boolean | null
+}
+
+export function lineaRecetaFromRow(r: LineaRecetaRow): LineaReceta {
+  return {
+    id: r.id,
+    parentCode: r.parent_code,
+    childCode: r.child_code,
+    ocurrencia: r.ocurrencia,
+    linea: r.linea,
+    cantidad: Number(r.cantidad),
+    uom: u(r.uom),
+    childName: u(r.child_name),
+    esSemielaborado: !!r.child_con_receta,
+  }
 }
 
 export interface SemiRow {
