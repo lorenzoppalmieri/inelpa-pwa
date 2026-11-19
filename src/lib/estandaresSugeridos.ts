@@ -1,6 +1,6 @@
 import type { Tarea, TiempoEstandar, AreaDemora, SectorId } from '../types'
 import { areaDemora, claveEstandar, esReparacion, modeloBase, sectorById } from '../types'
-import { componentePorCodigo } from '../data/catalogo'
+import { descripcionSemiTarea } from '../data/catalogo'
 import { tiempoNetoMin, tiempoEstimadoMin } from './kpi'
 import { cantidadTarea } from './saldoOF'
 
@@ -81,7 +81,9 @@ export function sugerenciasEstandar(
     const usaMaquina = area === 'bobinado'
     // v2.20: la descripcion del semielaborado entra en la clave para que las
     // tres fases del mismo modelo caigan en un solo grupo (ver modeloBase).
-    const desc = componentePorCodigo(t.componenteCodigo)?.descripcion
+    // v2.56: también para artículos de SAP fuera del catálogo viejo (si no, la
+    // clave caería al código y F1/F2/F3 volverían a separarse).
+    const desc = descripcionSemiTarea(t)
     const id = claveEstandar(t.sectorId, t.modelo, t.maquinaId, t.componenteCodigo, desc)
     // En bobinado el "modelo" a mostrar es la BOBINA (semielaborado) SIN la fase;
     // en el resto, el modelo. La etiqueta tiene que coincidir con el agrupamiento

@@ -11,7 +11,7 @@ import {
   type Semielaborado, type EstadoSemielaborado, type TipoTarea, type Feriado, type EstadoTarea,
   type DatosBobinado,
 } from '../../types'
-import { MODELOS_CATALOGO, modeloPorNombre, modeloDeOrden, componentesDeModelo, componentePorCodigo } from '../../data/catalogo'
+import { MODELOS_CATALOGO, modeloPorNombre, modeloDeOrden, componentesDeModelo, componentePorCodigo, descripcionSemiTarea } from '../../data/catalogo'
 import { guardarOrden, guardarTarea, guardarSemielaborado, eliminarTarea, eliminarOrden, guardarFeriado, eliminarFeriado } from '../../sync/syncEngine'
 import { useAuth } from '../../auth/AuthContext'
 import { puedeCargarAusencias } from '../../auth/roles'
@@ -25,9 +25,10 @@ import { potenciaKVA } from '../../lib/potencia'
 import { recuperacionDiariaVigente } from '../../lib/calendario'
 import { etiquetaOrden, ordenesAsignables, ordenesRecientesPrimero } from '../../lib/ordenesAsignables'
 import {
-  admiteCantidad, cantidadTarea, estandarTotalMin, sectorTieneSemielaborado, semielaboradosAsignables,
-  semielaboradosDeOrden, validarCantidad,
+  admiteCantidad, cantidadTarea, esOfSap, estandarTotalMin, saldoOfSap, sectorTieneSemielaborado,
+  semielaboradosAsignables, semielaboradosDeOrden, validarCantidad,
 } from '../../lib/saldoOF'
+import { sectorSugeridoSap } from '../../lib/sectorSap'
 
 // v2.24: sectores donde el transformador queda ENCUBADO. El promedio de potencia
 // solo se calcula acá; en el resto de las barras no se dibuja nada.
@@ -52,7 +53,7 @@ function datosBobinadoTxt(d?: DatosBobinado): string {
 // de un colaborador o maquina, agrupado por modelo + fase (F1/F2/F3 del
 // semielaborado). Ayuda al planificador a ver el "juego de fases" ya cargado.
 function faseDeTarea(t: Tarea): string {
-  const d = componentePorCodigo(t.componenteCodigo)?.descripcion ?? ''
+  const d = descripcionSemiTarea(t) ?? ''
   const m = d.match(/\bF\d\b/)
   return m ? m[0] : ''
 }
@@ -753,13 +754,31 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
     [ordenSel, ordenes, sectorId, todasTareas],
   )
   const semiElegido = componentesDelSector.find((x) => x.c.codigo === componenteCodigo)
-  // Montaje PA/PO: una tarea = un transformador (ver admiteCantidad).
-  const conCantidad = !!semiElegido && admiteCantidad(sectorId)
+
+  // ============================================================
+  // v2.56 — OF DE SAP: LA OF YA ES EL SEMIELABORADO.
+  // SAP manda una OF por artículo (100 partes activas, 6 bobinas F2...). No hay
+  // nada que elegir: la tarea toma el ItemCode de la OF y el saldo es la
+  // cantidad que planificó SAP, contada por etapa (lib/saldoOF). El casillero
+  // "Semielaborado" queda solo para las OF cargadas a mano, mientras existan.
+  // ============================================================
+  const ofSap = esOfSap(ordenSel) ? ordenSel : undefined
+  const saldoSap = useMemo(
+    () => (ofSap ? saldoOfSap(ofSap, sectorId, todasTareas) : undefined),
+    [ofSap, sectorId, todasTareas],
+  )
+  const sectorSugerido = ofSap ? sectorSugeridoSap(ofSap.itemCode, ofSap.linea) : undefined
+  // Lo que se asigna: el artículo de la OF de SAP, o el semielaborado elegido.
+  const saldoActual = ofSap ? saldoSap : semiElegido?.saldo
+  const codigoSemi = ofSap ? ofSap.itemCode : componenteCodigo
+  // Montaje PO: una tarea = un transformador (ver admiteCantidad).
+  const conCantidad = !!saldoActual && admiteCantidad(sectorId)
   const cantidadNum = conCantidad ? Number(cantidad.replace(',', '.')) || 0 : 1
 
   // v1.16: ¿la OF tiene semielaborados para este sector? Si los tiene, elegir uno
   // es OBLIGATORIO (no se puede planificar fabricacion "suelta").
-  const sectorTieneSemi = sectorTieneSemielaborado(ordenSel, ordenes ?? [], sectorId)
+  // v2.56: en una OF de SAP no se elige (ya viene en la OF).
+  const sectorTieneSemi = !ofSap && sectorTieneSemielaborado(ordenSel, ordenes ?? [], sectorId)
 
   // v1.24: tiempo estandar SUGERIDO por el asistente (mediana de tiempos reales).
   // Se busca en la tabla de estandares con la MISMA clave que el motor:
@@ -773,10 +792,12 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
     // que la clave sea la del modelo base (sin F1/F2/F3). Tiene que ser el mismo
     // llamado que hace `sugerenciasEstandar`: si acá se buscara por codigo y allá
     // se agrupara por modelo base, el estandar aprobado no se aplicaria nunca.
-    const desc = componentePorCodigo(componenteCodigo || undefined)?.descripcion
-    const key = claveEstandar(sectorId, ordenSel.modelo, maquinaId, componenteCodigo || undefined, desc)
+    // v2.56: misma descripción que usa el motor (descripcionSemiTarea): la del
+    // catálogo o, para artículos de SAP fuera de él, el ItemName de la OF.
+    const desc = descripcionSemiTarea({ componenteCodigo: codigoSemi || undefined, modelo: ordenSel.modelo })
+    const key = claveEstandar(sectorId, ordenSel.modelo, maquinaId, codigoSemi || undefined, desc)
     return estandaresGuardados.find((e) => e.id === key)?.minutos
-  }, [estandaresGuardados, sectorId, ordenSel?.modelo, maquinaId, componenteCodigo, esProto, soloReparacion, tipo])
+  }, [estandaresGuardados, sectorId, ordenSel?.modelo, maquinaId, codigoSemi, esProto, soloReparacion, tipo])
   // Al cambiar la combinacion, si hay un estandar aprendido, precarga el valor.
   useEffect(() => {
     if (estandarSugerido != null) setEstandar(String(estandarSugerido))
@@ -797,7 +818,14 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
 
   // Al cambiar de sector se reinician estacion, colaborador y semielaborado.
   function cambiarSector(s: SectorId) { setSectorId(s); setMaquinaId(''); setOperarioId(''); setComponenteCodigo(''); setCantidad('1') }
-  function cambiarOrden(id: string) { setOrdenId(id); setComponenteCodigo(''); setCantidad('1') }
+  function cambiarOrden(id: string) {
+    setOrdenId(id); setComponenteCodigo(''); setCantidad('1')
+    // v2.56: OF de SAP -> se precarga el sector que fabrica ese artículo
+    // (lib/sectorSap). Se puede cambiar a mano (balanceo entre líneas).
+    const o = (ordenes ?? []).find((x) => x.id === id)
+    const sug = esOfSap(o) ? sectorSugeridoSap(o.itemCode, o.linea) : undefined
+    if (sug && sug !== sectorId) { setSectorId(sug); setMaquinaId(''); setOperarioId('') }
+  }
 
   async function asignar() {
     const esRep = soloReparacion || tipo === 'reparacion' // v1.9: encargado siempre reparacion
@@ -823,13 +851,13 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
     if (operariosDelSector.length > 0 && !operarioId) { setMsg('Selecciona un colaborador.'); return }
     // v2.55: la cantidad no puede superar lo que falta asignar de la OF (lo que planificó SAP).
     let cant = 1
-    if (!esRep && !esProtoTarea && semiElegido) {
+    if (!esRep && !esProtoTarea && saldoActual) {
       if (conCantidad) {
-        const v = validarCantidad(cantidad, semiElegido.saldo.restante)
+        const v = validarCantidad(cantidad, saldoActual.restante)
         if (!v.ok) { setMsg(v.error); return }
         cant = v.cantidad
-      } else if (semiElegido.saldo.restante < 1) {
-        setMsg('Este semielaborado ya está asignado completo en la OF.'); return
+      } else if (saldoActual.restante < 1) {
+        setMsg(ofSap ? 'Esta OF ya está asignada completa en esta etapa.' : 'Este semielaborado ya está asignado completo en la OF.'); return
       }
     }
     // v2.28: sin fecha -> A LA COLA. `inicioPlanificado` = ahora: para la cascada
@@ -850,7 +878,8 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
       // v1.3: el planificador asigna colaborador + estacion simultaneamente.
       operarioId: operarioId || undefined,
       modelo: esRep ? descripcion.trim() : (orden?.modelo ?? 'Prototipo'),
-      componenteCodigo: (esRep || esProtoTarea) ? undefined : (componenteCodigo || undefined),
+      // v2.56: en una OF de SAP es el ItemCode de la OF (no se elige).
+      componenteCodigo: (esRep || esProtoTarea) ? undefined : (codigoSemi || undefined),
       nroTransformador: nroTransformador.trim() || undefined,
       cliente: cliente.trim() || undefined,
       semana: isoWeek(new Date(inicioPlanificado)),
@@ -1019,7 +1048,7 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
       // se lee de la descripción del semielaborado: "... 315/13 F1 Cu"). Las
       // tareas sin fase (cubas, PA, montaje) salen. Barras y listado se arman
       // desde `visibles`, así que los dos quedan filtrados igual.
-      if (faseActiva && faseBobina(componentePorCodigo(t.componenteCodigo)?.descripcion) !== faseActiva) return false
+      if (faseActiva && faseBobina(descripcionSemiTarea(t)) !== faseActiva) return false
       return true
     })
   }, [tareasOrdenadas, periodoLista, periodoDia, periodoDesde, periodoHasta, filtroEstado, filtroSector, vistaTipo, faseActiva])
@@ -1164,7 +1193,7 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
                 fecha de fin que ya no existe. */}
             {t.finReal ? <> · Fin <strong>{fechaCorta(t.finReal)} {hhmm(t.finReal)}</strong></> : null}
             {t.esPrototipo ? <> · <strong style={{ color: 'var(--naranja)' }}>🧪 PROTOTIPO{t.notas ? ` · ${t.notas}` : ''}</strong></>
-              : t.componenteCodigo ? <> · Semielaborado <strong>{componentePorCodigo(t.componenteCodigo)?.descripcion ?? t.componenteCodigo}</strong></> : null}
+              : t.componenteCodigo ? <> · Semielaborado <strong>{descripcionSemiTarea(t) ?? t.componenteCodigo}</strong></> : null}
             {cantidadTarea(t) > 1 ? <> · Cantidad <strong>{cantidadTarea(t)}</strong></> : null}
             {t.activaHoraRecuperacion ? <> · <strong style={{ color: 'var(--naranja)' }}>Hora recup. ON</strong></> : null}
             {t.estado === 'finalizada' ? <> · Neto <strong>{tiempoNetoMin(t)}m</strong></> : null}
@@ -1270,6 +1299,16 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
                 {ordenesFiltradas.map((o) => <option key={o.id} value={o.id}>{etiquetaOrden(o)}</option>)}
               </select>
               {buscarOrden && ordenesFiltradas.length === 0 && <div className="meta" style={{ marginTop: 6 }}>Sin órdenes que coincidan con "{buscarOrden}".</div>}
+              {/* v2.56: la OF de SAP ya dice qué fabricar y cuántas. */}
+              {ofSap && saldoSap && (
+                <div className="meta" style={{ marginTop: 6 }}>
+                  Artículo SAP <strong>{ofSap.itemCode}</strong> · {ofSap.modelo}<br />
+                  {saldoSap.restante > 0
+                    ? <>Pendientes de asignar: <strong>{saldoSap.restante} de {saldoSap.total}</strong></>
+                    : <strong>OF asignada completa en esta etapa ({saldoSap.total} de {saldoSap.total})</strong>}
+                  {saldoSap.terminado > 0 && <> · terminadas {saldoSap.terminado}</>}
+                </div>
+              )}
             </div>
           ) : (
             <div className="field">
@@ -1282,6 +1321,15 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
             <select className="input" value={sectorId} onChange={(e) => cambiarSector(e.target.value as SectorId)}>
               {SECTORES.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
             </select>
+            {ofSap && !sectorSugerido && (
+              <div className="meta" style={{ marginTop: 6 }}>SAP no indica qué sector fabrica este artículo: elegilo.</div>
+            )}
+            {ofSap && sectorSugerido && sectorSugerido !== sectorId && (
+              <div className="meta" style={{ marginTop: 6 }}>
+                Sugerido para este artículo: {sectorById(sectorSugerido).nombre}.{' '}
+                <button type="button" className="btn-link" onClick={() => cambiarSector(sectorSugerido)}>Usar</button>
+              </div>
+            )}
           </div>
           {tipo === 'fabricacion' && !esProto && ordenEsProto && (
             <div className="field">
@@ -1292,7 +1340,8 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
               <div className="meta" style={{ marginTop: 6 }}>La tarea se crea bajo el nombre “PROTOTIPO”.</div>
             </div>
           )}
-          {tipo === 'fabricacion' && !esProto && !ordenEsProto && (
+          {/* v2.56: con una OF de SAP no hay casillero: el semielaborado ES la OF. */}
+          {tipo === 'fabricacion' && !esProto && !ordenEsProto && !ofSap && (
             <div className="field">
               <label>Semielaborado (segun sector){sectorTieneSemi ? ' *' : ''}</label>
               <select className="input" value={componenteCodigo} onChange={(e) => { setComponenteCodigo(e.target.value); setCantidad('1') }} disabled={!ordenSel || componentesDelSector.length === 0}>
@@ -1363,16 +1412,16 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
             <input className="input" type="number" min={1} value={prioridad} onChange={(e) => setPrioridad(e.target.value)} />
           </div>
           {/* v2.55: cuántas unidades del semielaborado lleva esta tarea. Tope = saldo de la OF. */}
-          {conCantidad && semiElegido && (
+          {conCantidad && saldoActual && saldoActual.restante > 0 && (
             <div className="field">
               <label>Cantidad a asignar *</label>
-              <input className="input" type="number" min={1} step={1} max={semiElegido.saldo.restante}
+              <input className="input" type="number" min={1} step={1} max={saldoActual.restante}
                 value={cantidad} onChange={(e) => setCantidad(e.target.value)} />
               <div className="meta" style={{ marginTop: 2 }}>
-                {cantidadNum > semiElegido.saldo.restante
-                  ? <span style={{ color: 'var(--estado-parada, #dc2626)' }}>Supera lo pendiente ({semiElegido.saldo.restante}).</span>
-                  : <>Quedarían {Math.max(0, semiElegido.saldo.restante - cantidadNum)} por asignar.</>}
-                {' '}<button type="button" className="btn-link" onClick={() => setCantidad(String(semiElegido.saldo.restante))}>Asignar todo ({semiElegido.saldo.restante})</button>
+                {cantidadNum > saldoActual.restante
+                  ? <span style={{ color: 'var(--estado-parada, #dc2626)' }}>Supera lo pendiente ({saldoActual.restante}).</span>
+                  : <>Quedarían {Math.max(0, saldoActual.restante - cantidadNum)} por asignar.</>}
+                {' '}<button type="button" className="btn-link" onClick={() => setCantidad(String(saldoActual.restante))}>Asignar todo ({saldoActual.restante})</button>
               </div>
             </div>
           )}

@@ -357,7 +357,10 @@ export function minutosRecupTarea(t: { minutosRecuperacion?: number; activaHoraR
 // componente (compDescripcion, resuelta por el que llama) o el modelo como fallback.
 export function nombreSemielaborado(t: Tarea, compDescripcion?: string): string {
   if (t.esPrototipo) return `🧪 PROTOTIPO${t.notas ? ` · ${t.notas}` : ''}`
-  return compDescripcion ?? (t.componenteCodigo || t.modelo || '—')
+  // v2.56: el modelo antes que el código. En una tarea de OF de SAP cuyo
+  // artículo no está en el catálogo viejo, `modelo` es el ItemName (legible);
+  // el código suelto (PARDIS0000122) no le dice nada al operario.
+  return compDescripcion ?? (t.modelo || t.componenteCodigo || '—')
 }
 
 export interface OrdenProduccion {

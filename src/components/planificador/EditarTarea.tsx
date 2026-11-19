@@ -5,8 +5,8 @@ import type { Tarea } from '../../types'
 import { sectorById, maquinaSirveSector, operariosParaSector } from '../../types'
 import type { Maquina, Usuario } from '../../types'
 import {
-  admiteCantidad, cantidadTarea, estandarPorUnidadMin, estandarTotalMin, sectorTieneSemielaborado,
-  semielaboradosAsignables, validarCantidad,
+  admiteCantidad, cantidadTarea, esOfSap, estandarPorUnidadMin, estandarTotalMin, saldoOfSap,
+  sectorTieneSemielaborado, semielaboradosAsignables, validarCantidad,
 } from '../../lib/saldoOF'
 import { guardarTarea } from '../../sync/syncEngine'
 import { isoWeek } from '../../lib/time'
@@ -55,9 +55,14 @@ export default function EditarTarea({ tarea, maquinas, usuarios, onClose }: {
     () => semielaboradosAsignables(ordenSel, ordenes, tarea.sectorId, todas, { excluirTareaId: tarea.id, mantenerCodigo: tarea.componenteCodigo }),
     [ordenSel, ordenes, tarea, todas],
   )
-  const sectorTieneSemi = esFabricacion && !tarea.esPrototipo && sectorTieneSemielaborado(ordenSel, ordenes, tarea.sectorId)
+  // v2.56: OF de SAP -> el semielaborado es el artículo de la OF; no se elige.
+  const ofSap = esOfSap(ordenSel) ? ordenSel : undefined
+  const sectorTieneSemi = esFabricacion && !tarea.esPrototipo && !ofSap && sectorTieneSemielaborado(ordenSel, ordenes, tarea.sectorId)
   const semiSel = opcionesSemi.find((x) => x.c.codigo === componenteCodigo)
-  const conCantidad = esFabricacion && !tarea.esPrototipo && !!semiSel && admiteCantidad(tarea.sectorId)
+  const saldoSel = ofSap
+    ? saldoOfSap(ofSap, tarea.sectorId, todas, tarea.id)
+    : semiSel?.saldo
+  const conCantidad = esFabricacion && !tarea.esPrototipo && !!saldoSel && admiteCantidad(tarea.sectorId)
   const cantidadNum = conCantidad ? Number(cantidad.replace(',', '.')) || 0 : cantidadTarea(tarea)
 
   const maquinasOpc = useMemo(
@@ -80,10 +85,10 @@ export default function EditarTarea({ tarea, maquinas, usuarios, onClose }: {
     // Solo si cambió algo: una tarea vieja de una OF sobre-planificada se tiene
     // que poder seguir editando (estación, fecha) sin que la frene el saldo.
     let cant = cantidadTarea(tarea)
-    if (conCantidad && semiSel) {
+    if (conCantidad && saldoSel) {
       const cambio = componenteCodigo !== (tarea.componenteCodigo ?? '') || cantidad.trim() !== String(cantidadTarea(tarea))
       if (cambio) {
-        const v = validarCantidad(cantidad, semiSel.saldo.restante)
+        const v = validarCantidad(cantidad, saldoSel.restante)
         if (!v.ok) { setError(v.error); return }
         cant = v.cantidad
       }
@@ -142,21 +147,30 @@ export default function EditarTarea({ tarea, maquinas, usuarios, onClose }: {
 
         {esFabricacion && (
           <>
-            <label className="meta">Semielaborado{sectorTieneSemi ? ' *' : ''}</label>
-            <select className="select" value={componenteCodigo} onChange={(e) => setComponenteCodigo(e.target.value)} disabled={!sectorTieneSemi} style={{ width: '100%', marginBottom: 10 }}>
-              <option value="">— {sectorTieneSemi ? 'Selecciona' : 'Sin semielaborado para este sector'} —</option>
-              {opcionesSemi.map(({ c, saldo }) => (
-                <option key={c.codigo} value={c.codigo}>{c.descripcion}{saldo.total > 1 ? ` (faltan ${saldo.restante} de ${saldo.total})` : ''}</option>
-              ))}
-            </select>
+            {ofSap ? (
+              // v2.56: OF de SAP. El semielaborado no se elige: es el artículo de la OF.
+              <div className="meta" style={{ marginBottom: 10 }}>
+                OF de SAP · <strong>{ofSap.itemCode}</strong> · {ofSap.modelo}
+              </div>
+            ) : (
+              <>
+                <label className="meta">Semielaborado{sectorTieneSemi ? ' *' : ''}</label>
+                <select className="select" value={componenteCodigo} onChange={(e) => setComponenteCodigo(e.target.value)} disabled={!sectorTieneSemi} style={{ width: '100%', marginBottom: 10 }}>
+                  <option value="">— {sectorTieneSemi ? 'Selecciona' : 'Sin semielaborado para este sector'} —</option>
+                  {opcionesSemi.map(({ c, saldo }) => (
+                    <option key={c.codigo} value={c.codigo}>{c.descripcion}{saldo.total > 1 ? ` (faltan ${saldo.restante} de ${saldo.total})` : ''}</option>
+                  ))}
+                </select>
+              </>
+            )}
             {/* v2.55: cantidad de esta tarea. El tope es el saldo de la OF sin contar esta tarea. */}
-            {conCantidad && semiSel && (
+            {conCantidad && saldoSel && (
               <>
                 <label className="meta">Cantidad</label>
-                <input className="input" type="number" min={1} step={1} max={semiSel.saldo.restante}
+                <input className="input" type="number" min={1} step={1} max={saldoSel.restante}
                   value={cantidad} onChange={(e) => setCantidad(e.target.value)} style={{ width: '100%', marginBottom: 2 }} />
                 <div className="meta" style={{ marginBottom: 10 }}>
-                  Disponible para esta tarea: hasta <strong>{semiSel.saldo.restante}</strong> de {semiSel.saldo.total} (lo demás ya está en otras tareas).
+                  Disponible para esta tarea: hasta <strong>{saldoSel.restante}</strong> de {saldoSel.total} (lo demás ya está en otras tareas).
                 </div>
               </>
             )}

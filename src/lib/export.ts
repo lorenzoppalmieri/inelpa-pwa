@@ -2,7 +2,7 @@ import type { Tarea, EstadoTarea } from '../types'
 import { sectorById, esReparacion, nombreSemielaborado } from '../types'
 import { calcularOEE, metricasTarea, metricasTareaEnVentana, type VentanaKPI } from './kpi'
 import { programar } from './programacion'
-import { componentePorCodigo } from '../data/catalogo'
+import { descripcionSemiTarea } from '../data/catalogo'
 import { fmtDur } from './time'
 import type { RegistroLab } from './registroLab'
 
@@ -138,14 +138,13 @@ export function exportarDetalleTareasCSV(
     'Estimado (min)', 'Real (min)', 'Tiempo muerto (min)', 'Demorado (min)',
     'Demora justificada (min)', 'Demora sin justificar (min)', 'Parcial'])
   for (const t of fin) {
-    const comp = componentePorCodigo(t.componenteCodigo)
     // v2.03: UNA sola llamada a metricasTarea. Antes esta función recalculaba el
     // demorado por su cuenta y llamaba a tres helpers distintos, así que era otra
     // versión de la misma cuenta conviviendo con la de la tabla.
     const mv = ventana ? metricasTareaEnVentana(t, ventana, undefined, huecos?.get(t.id) ?? 0) : null
     const m = mv ?? metricasTarea(t, undefined, huecos?.get(t.id) ?? 0)
     filas.push([
-      nombreSemielaborado(t, comp?.descripcion),
+      nombreSemielaborado(t, descripcionSemiTarea(t)), // v2.56: incluye artículos de SAP fuera del catálogo viejo
       t.modelo,
       t.nroTransformador ?? '',
       t.operarioId ? nombreOperario(t.operarioId) : '-',
@@ -199,7 +198,7 @@ export function exportarProgramacionCSV(
   for (const { t, p } of rows) {
     // Descripcion del semielaborado (OITM/OITT) resuelta desde el catalogo,
     // igual que en la barra del Gantt. '-' si la tarea no tiene (ej. reparacion).
-    const semielaborado = componentePorCodigo(t.componenteCodigo)?.descripcion ?? '-'
+    const semielaborado = descripcionSemiTarea(t) ?? '-'
     filas.push([
       t.id,
       nombreMaquina(t.maquinaId),

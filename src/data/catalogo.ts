@@ -33,6 +33,15 @@ export function componentePorCodigo(codigo?: string): ComponenteSemielaborado | 
   return codigo ? _compByCodigo.get(codigo) : undefined
 }
 
+// v2.56: descripción del semielaborado de una tarea. Primero el catálogo; si
+// el código no está (artículos nuevos de SAP: PARDIS0000122, NUCSTE...), la
+// tarea de una OF de SAP guarda en `modelo` el ItemName del artículo, que es
+// justamente su descripción. Sin código, no hay semielaborado: undefined.
+export function descripcionSemiTarea(t: { componenteCodigo?: string; modelo?: string }): string | undefined {
+  if (!t.componenteCodigo) return undefined
+  return _compByCodigo.get(t.componenteCodigo)?.descripcion ?? (t.modelo || undefined)
+}
+
 // Componentes (semielaborados) asociados a un modelo, en orden de su BOM.
 export function componentesDeModelo(modelo?: ModeloTransformador): ComponenteSemielaborado[] {
   if (!modelo) return []

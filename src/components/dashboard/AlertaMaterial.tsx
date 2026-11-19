@@ -3,7 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
 import type { Tarea, Parada } from '../../types'
 import { sectorById, causaLabel, esCausaLogistica } from '../../types'
-import { componentePorCodigo } from '../../data/catalogo'
+import { descripcionSemiTarea } from '../../data/catalogo'
 import { fmtDur } from '../../lib/time'
 import { calcularTiempoProductivo } from '../../lib/calendario'
 
@@ -42,8 +42,8 @@ export default function AlertaMaterial({ compacto = false }: { compacto?: boolea
       <div className="logi-alert-head">⚠ {alertas.length} sector(es) esperando material — avisar a logística</div>
       <div className="logi-alert-list">
         {alertas.map(({ t, p }) => {
-          const comp = componentePorCodigo(t.componenteCodigo)
-          const queMaterial = comp ? comp.descripcion : (t.componenteCodigo || null)
+          // v2.56: incluye artículos de SAP que no están en el catálogo viejo.
+          const queMaterial = descripcionSemiTarea(t) ?? null
           const transf = t.nroTransformador ? `TR ${t.nroTransformador}` : t.modelo
           return (
             <div className="logi-alert-item" key={t.id}>

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { OrdenProduccion, Tarea } from '../../types'
 import {
-  admiteCantidad, cantidadTarea, estandarPorUnidadMin, estandarTotalMin, saldoSemielaborado,
+  admiteCantidad, cantidadTarea, esOfSap, saldoOfSap, estandarPorUnidadMin, estandarTotalMin, saldoSemielaborado,
   sectorTieneSemielaborado, semielaboradosAsignables, semielaboradosDeOrden, validarCantidad,
 } from '../saldoOF'
 import { tareaFromRow, tareaToRow } from '../../sync/mappers'
@@ -37,11 +37,12 @@ describe('cantidad de una tarea', () => {
     expect(cantidadTarea({ cantidad: 0 })).toBe(1)
   })
 
-  it('Montaje PA y PO van de a 1 transformador; el resto admite cantidad', () => {
+  it('solo Montaje PO va de a 1 transformador; Montaje PA admite cantidad (v2.56)', () => {
     expect(admiteCantidad('bob_dist_bt')).toBe(true)
     expect(admiteCantidad('soldadura_dist')).toBe(true)
-    expect(admiteCantidad('montaje_pa_dist')).toBe(false)
+    expect(admiteCantidad('montaje_pa_dist')).toBe(true)
     expect(admiteCantidad('montaje_po_rural')).toBe(false)
+    expect(admiteCantidad('montaje_po_dist')).toBe(false)
   })
 })
 
@@ -144,6 +145,41 @@ describe('sincronización de la cantidad', () => {
     expect(fila).toHaveProperty('cantidad', 30)
     expect(tareaFromRow({ ...fila, cantidad: '30.000' }, []).cantidad).toBe(30)
     expect(tareaFromRow({ ...fila, cantidad: undefined }, []).cantidad).toBeUndefined()
+  })
+})
+
+// ============================================================
+// v2.56 — Con SAP la OF YA ES el semielaborado: no se elige, y el saldo es la
+// cantidad de SAP, contado por etapa (soldar 10 cubas no consume pintarlas).
+// ============================================================
+describe('OF de SAP: 1 OF = 1 artículo = 1 saldo por etapa', () => {
+  const ofPA: OrdenProduccion = {
+    id: 'of-pa', nroOrden: '286', modelo: 'Parte Activa Distribucion Trifasica 100/13 Al',
+    material: 'aluminio', linea: 'distribucion', cantidad: 100, fechaEntrega: '',
+    origen: 'sap', sapDocEntry: 493, itemCode: 'PARDIS0000122',
+  }
+  const ofCuba: OrdenProduccion = { ...ofPA, id: 'of-cuba', nroOrden: '47', modelo: 'Cuba', cantidad: 10, itemCode: 'CUBDIS0000004' }
+  const t = (ordenId: string, codigo: string, sectorId: Tarea['sectorId'], cantidad?: number): Tarea =>
+    ({ ...tarea(ordenId, codigo, cantidad), sectorId })
+
+  it('reconoce la OF de SAP (con artículo) y no las cargadas a mano', () => {
+    expect(esOfSap(ofPA)).toBe(true)
+    expect(esOfSap({ ...ofPA, origen: undefined })).toBe(false)
+    expect(esOfSap({ ...ofPA, itemCode: undefined })).toBe(false)
+    expect(esOfSap(undefined)).toBe(false)
+  })
+
+  it('100 partes activas repartidas en Montaje PA: 40 + 35 -> quedan 25', () => {
+    const ts = [t('of-pa', 'PARDIS0000122', 'montaje_pa_dist', 40), t('of-pa', 'PARDIS0000122', 'montaje_pa_dist', 35)]
+    expect(saldoOfSap(ofPA as OrdenProduccion & { itemCode: string }, 'montaje_pa_dist', ts)).toMatchObject({ total: 100, asignado: 75, restante: 25 })
+  })
+
+  it('soldar las 10 cubas no consume el saldo de pintarlas', () => {
+    const cuba = ofCuba as OrdenProduccion & { itemCode: string }
+    const ts = [t('of-cuba', 'CUBDIS0000004', 'soldadura_dist', 10)]
+    expect(saldoOfSap(cuba, 'soldadura_dist', ts).restante).toBe(0)
+    expect(saldoOfSap(cuba, 'soldadura_rural', ts).restante).toBe(0)   // misma etapa (herrería), otra línea
+    expect(saldoOfSap(cuba, 'lavado_pintura', ts).restante).toBe(10)   // otra etapa
   })
 })
 

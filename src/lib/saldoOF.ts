@@ -1,5 +1,5 @@
-import type { ComponenteSemielaborado, OrdenProduccion, SectorId, Tarea } from '../types'
-import { componenteEsDeOtroSector, componenteSirveSector } from '../types'
+import type { AreaDemora, ComponenteSemielaborado, OrdenProduccion, SectorId, Tarea } from '../types'
+import { areaDemora, componenteEsDeOtroSector, componenteSirveSector } from '../types'
 import { componentePorCodigo, componentesDeModelo, modeloDeOrden } from '../data/catalogo'
 
 // ============================================================
@@ -28,13 +28,24 @@ export function cantidadTarea(t: Pick<Tarea, 'cantidad'>): number {
 
 /**
  * ¿El sector admite más de una unidad por tarea?
- * Montaje PA y PO: NO. Cada tarea es UN transformador: el pase PA → PO copia la
- * tarea y la PO genera UN ensayo de laboratorio con su N° de serie. Con 3
- * unidades en una PO, el laboratorio ensayaría 1 y se perderían 2. El saldo de
- * la OF se respeta igual: 20 transformadores = 20 tareas de a 1.
+ * Montaje PO: NO. Cada tarea es UN transformador: genera UN ensayo de
+ * laboratorio con su N° de serie. Con 3 unidades en una PO, el laboratorio
+ * ensayaría 1 y se perderían 2. El saldo de la OF se respeta igual: 20
+ * transformadores = 20 tareas de a 1.
+ * v2.56: Montaje PA SÍ admite cantidad. Con SAP la parte activa es un
+ * semielaborado más (OF de 100 partes activas repartidas entre estaciones).
  */
 export function admiteCantidad(sectorId: SectorId): boolean {
-  return !sectorId.startsWith('montaje_')
+  return sectorId !== 'montaje_po_dist' && sectorId !== 'montaje_po_rural'
+}
+
+/**
+ * v2.56: ¿la OF vino de SAP con su artículo? Entonces la OF YA ES el
+ * semielaborado (o el transformador): no se elige semielaborado, la tarea toma
+ * el ItemCode de la OF y el saldo es la cantidad que planificó SAP.
+ */
+export function esOfSap(o: OrdenProduccion | undefined): o is OrdenProduccion & { itemCode: string } {
+  return !!o && o.origen === 'sap' && !!o.itemCode
 }
 
 /** Evita basura de coma flotante al sumar decimales (0.1 + 0.2). */
@@ -77,12 +88,20 @@ export interface SaldoSemi {
   restante: number
 }
 
-/** Saldo de un semielaborado dentro de una OF. `excluirTareaId`: la tarea que se está editando no se descuenta a sí misma. */
+/**
+ * Saldo de un semielaborado dentro de una OF.
+ * @param excluirTareaId la tarea que se está editando no se descuenta a sí misma.
+ * @param area v2.56, solo OF de SAP: el saldo se cuenta POR ETAPA. Una OF de 10
+ *   cubas se suelda 10 veces (herrería) y se pinta 10 veces (pintura): pintar
+ *   no puede comerse el saldo de soldar. Las OF cargadas a mano no lo usan
+ *   (cada componente de su receta ya es de un solo sector).
+ */
 export function saldoSemielaborado(
   orden: OrdenProduccion | undefined,
   componenteCodigo: string,
   tareas: Tarea[],
   excluirTareaId?: string,
+  area?: AreaDemora,
 ): SaldoSemi {
   const total = orden?.cantidad ?? 1
   let asignado = 0
@@ -90,6 +109,7 @@ export function saldoSemielaborado(
   if (orden) {
     for (const t of tareas) {
       if (t.ordenId !== orden.id || t.componenteCodigo !== componenteCodigo || t.id === excluirTareaId) continue
+      if (area && areaDemora(t.sectorId) !== area) continue
       const n = cantidadTarea(t)
       asignado += n
       if (t.estado === 'finalizada') terminado += n
@@ -98,6 +118,16 @@ export function saldoSemielaborado(
   asignado = redondear(asignado)
   terminado = redondear(terminado)
   return { total, asignado, terminado, restante: Math.max(0, redondear(total - asignado)) }
+}
+
+/** v2.56: saldo de una OF de SAP en la etapa del sector elegido. */
+export function saldoOfSap(
+  orden: OrdenProduccion & { itemCode: string },
+  sectorId: SectorId,
+  tareas: Tarea[],
+  excluirTareaId?: string,
+): SaldoSemi {
+  return saldoSemielaborado(orden, orden.itemCode, tareas, excluirTareaId, areaDemora(sectorId))
 }
 
 export interface SemiAsignable { c: ComponenteSemielaborado; saldo: SaldoSemi; deOtroSector: boolean }

@@ -1,6 +1,6 @@
 import type { AreaDemora, SectorId, Tarea } from '../types'
 import { areaDemora, esReparacion, sectorById } from '../types'
-import { componentePorCodigo } from '../data/catalogo'
+import { descripcionSemiTarea } from '../data/catalogo'
 import { metricasTarea } from './kpi'
 import { mediana } from './estandaresSugeridos'
 import { cantidadTarea } from './saldoOF'
@@ -83,8 +83,8 @@ export function tiemposPorSemielaborado(tareas: Tarea[], areas?: AreaDemora[]): 
     // Neto 0 = tarea sin tiempo útil (mal cerrada). El auditor ya la marca.
     if (m.real - m.justificada <= 0) continue
 
-    const comp = t.componenteCodigo ? componentePorCodigo(t.componenteCodigo) : undefined
-    const etiqueta = comp?.descripcion ?? t.componenteCodigo ?? t.modelo
+    // v2.56: descripción del catálogo o, para artículos nuevos de SAP, su ItemName.
+    const etiqueta = descripcionSemiTarea(t) ?? t.modelo
     const id = `${t.componenteCodigo ?? t.modelo}||${t.sectorId}`
 
     const g = grupos.get(id) ?? {
