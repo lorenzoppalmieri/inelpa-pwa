@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Tarea } from '../../types'
 import { programar } from '../programacion'
-import { setAusencias, setFeriados } from '../calendario'
+import { setAusencias, setFeriados, sumarMinutosLaborables } from '../calendario'
 import { auditarTiempos, type Totales } from '../auditoriaTiempos'
 
 // ============================================================
@@ -607,5 +607,81 @@ describe('encadenado estricto en Soldadura Dist.', () => {
       expect(ms(plan.get(`${op}-a`)!.startISO)).toBe(ms(local(9)))
       expect(ms(plan.get(`${op}-b`)!.startISO)).toBe(ms(plan.get(`${op}-a`)!.endISO))
     }
+  })
+})
+
+// ============================================================
+// v2.54 — FIN PROYECTADO DE LAS TAREAS ABIERTAS (pedido de Producción, 19/11).
+// La barra de una tarea pausada no crecía hasta finalizarla: parecía terminar
+// antes de lo real y las pendientes se planificaban demasiado temprano.
+// fin = arranque + estimado + pausas acumuladas (en horas de planta).
+// ============================================================
+describe('fin proyectado de las tareas abiertas (suma las pausas)', () => {
+  const pausa = (id: string, inicio: string, fin?: string) =>
+    ({ id, tareaId: 'A', causa: 'espera_consumibles', inicio, fin }) as Tarea['paradas'][number]
+
+  it('EL CASO REPORTADO: una pausa abierta estira la barra y empuja a la pendiente', () => {
+    // A: arrancó 08:00, 4 h estimadas, en pausa desde las 09:00. Son las 11:00.
+    // Trabajó 1 h, le faltan 3 h -> termina 11:00 + 3 h de planta.
+    // Antes la barra terminaba a las 12:30 como si la pausa no existiera.
+    const ts = [
+      tarea({ id: 'A', estado: 'pausada', inicioReal: local(8), tiempoEstandarMin: 240, paradas: [pausa('p1', local(9))] }),
+      tarea({ id: 'B', creada: local(7), tiempoEstandarMin: 60 }),
+    ]
+    const plan = programar(ts, local(11))
+    expect(plan.get('A')!.trabajadoMin).toBe(60)
+    expect(plan.get('A')!.restanteMin).toBe(180)
+    expect(ms(plan.get('A')!.endISO)).toBe(ms(sumarMinutosLaborables(local(11), 180, 'A', 0, 'op1')))
+    expect(ms(plan.get('A')!.endISO)).toBeGreaterThan(ms(sumarMinutosLaborables(local(8), 240, 'A', 0, 'op1')))
+    // El trencito: la pendiente arranca donde termina la proyección.
+    expect(ms(plan.get('B')!.startISO)).toBeGreaterThanOrEqual(ms(plan.get('A')!.endISO))
+    expect(solapes(ts, plan, (t) => t.operarioId)).toBe(0)
+  })
+
+  it('mientras dura la pausa, la barra crece minuto a minuto', () => {
+    const ts = [tarea({ id: 'A', estado: 'pausada', inicioReal: local(8), tiempoEstandarMin: 240, paradas: [pausa('p1', local(9))] })]
+    const a10 = ms(programar(ts, local(10)).get('A')!.endISO)
+    const a11 = ms(programar(ts, local(11)).get('A')!.endISO)
+    expect(a11 - a10).toBe(60 * 60000)
+  })
+
+  it('en curso al ritmo del estándar (sin pausas) el fin queda quieto', () => {
+    const ts = [tarea({ id: 'A', estado: 'en_proceso', inicioReal: local(8), tiempoEstandarMin: 150 })]
+    const fin830 = programar(ts, local(8, 30)).get('A')!.endISO
+    const fin930 = programar(ts, local(9, 30)).get('A')!.endISO
+    expect(ms(fin830)).toBe(ms(fin930))
+    expect(ms(fin830)).toBe(ms(local(10, 30)))
+  })
+
+  it('una pausa ya cerrada también corre el fin', () => {
+    const ts = [tarea({ id: 'A', estado: 'en_proceso', inicioReal: local(8), tiempoEstandarMin: 150, paradas: [pausa('p1', local(8, 30), local(9))] })]
+    expect(ms(programar(ts, local(9, 30)).get('A')!.endISO)).toBe(ms(local(11)))
+  })
+
+  it('si la proyección pasa el cierre, lo que falta sigue al día siguiente', () => {
+    // Arrancó 13:00, 4 h, pausada desde 14:00. A las 15:00 le faltan 3 h y solo
+    // queda 1 h de planta: termina el martes, nunca fuera de horario.
+    const ts = [
+      tarea({ id: 'A', estado: 'pausada', inicioReal: local(13), tiempoEstandarMin: 240, paradas: [pausa('p1', local(14))] }),
+      tarea({ id: 'B', creada: local(7), tiempoEstandarMin: 60 }),
+    ]
+    const plan = programar(ts, local(15))
+    expect(diaAr(plan.get('A')!.endISO)).toBe('martes')
+    expect(diaAr(plan.get('B')!.startISO)).toBe('martes')
+    expect(ms(plan.get('B')!.startISO)).toBeGreaterThanOrEqual(ms(plan.get('A')!.endISO))
+  })
+
+  it('pasado el estimado sigue llegando hasta ahora (como antes)', () => {
+    const ts = [tarea({ id: 'A', estado: 'en_proceso', inicioReal: local(8), tiempoEstandarMin: 60 })]
+    const plan = programar(ts, local(11))
+    expect(plan.get('A')!.restanteMin).toBe(0)
+    expect(ms(plan.get('A')!.endISO)).toBe(ms(local(11)))
+  })
+
+  it('las finalizadas no cambian: terminan en su fin real', () => {
+    const ts = [tarea({ id: 'A', estado: 'finalizada', inicioReal: local(8), finReal: local(9, 15), tiempoEstandarMin: 240, paradas: [pausa('p1', local(8, 30), local(9))] })]
+    const p = programar(ts, local(11)).get('A')!
+    expect(ms(p.endISO)).toBe(ms(local(9, 15)))
+    expect(p.restanteMin).toBeUndefined()
   })
 })

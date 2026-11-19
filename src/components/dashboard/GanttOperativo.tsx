@@ -710,7 +710,10 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
                           /* v2.29: la planificadora usa "N° transformador" también para
                              dejar observaciones. Si está vacío no se muestra la línea. */
                           b.tarea.nroTransformador?.trim() ? `\nN° Trafo / Obs: ${b.tarea.nroTransformador.trim()}` : ''
-                        }\n${b.tarea.estado} · ${nombreMaquina(b.tarea.maquinaId)} · ${b.tarea.operarioId ? nombreOperario(b.tarea.operarioId) : 'sin colaborador'} · ${rangoFechaHora(b.plan.startISO, b.plan.endISO)} · ${fmtDur(b.tarea.tiempoEstandarMin)}${reparacion ? ' · no productivo (excluido del OEE)' : ''}${recup ? ` · recuperación +${recupMin}m` : ''}${arrastrable ? ' · arrastrá para reprogramar' : ''}${resumenParadas(b.tarea)}`}
+                        }\n${b.tarea.estado} · ${nombreMaquina(b.tarea.maquinaId)} · ${b.tarea.operarioId ? nombreOperario(b.tarea.operarioId) : 'sin colaborador'} · ${rangoFechaHora(b.plan.startISO, b.plan.endISO)} · ${fmtDur(b.tarea.tiempoEstandarMin)}${
+                          /* v2.54: tarea abierta → el fin es PROYECTADO e incluye las pausas. */
+                          b.plan.restanteMin !== undefined ? `\nTrabajado: ${fmtDur(b.plan.trabajadoMin ?? 0)} · falta ${fmtDur(b.plan.restanteMin)} · fin proyectado (suma las pausas)` : ''
+                        }${reparacion ? ' · no productivo (excluido del OEE)' : ''}${recup ? ` · recuperación +${recupMin}m` : ''}${arrastrable ? ' · arrastrá para reprogramar' : ''}${resumenParadas(b.tarea)}`}
                       >
                         {reparacion && b.esInicio && <span className="gantt-rep-tag">🔧</span>}
                         {recup && b.esInicio && <span className="gantt-recup-tag">⏱+{recupMin === 60 ? '1h' : `${recupMin}m`}</span>}

@@ -1,6 +1,7 @@
 import type { Tarea, SectorId } from '../types'
 import { minutosRecupTarea } from '../types'
 import { sumarMinutosLaborables, proximoInstanteLaborable, esSabadoDevolucion, type GrupoAlmuerzo, GRUPO_ALMUERZO_DEFAULT } from './calendario'
+import { metricasTarea, tiempoEstimadoMin } from './kpi'
 
 // ============================================================
 // CUANTAS TAREAS PUEDE TENER UN COLABORADOR A LA VEZ  (v2.18)
@@ -155,7 +156,58 @@ export function esEncadenadoEstricto(t: Pick<Tarea, 'sectorId' | 'operarioId'>):
 // huecos.ts y en fusionarIntervalos, v2.12). La regla es: comparar por instante
 // con ms(), nunca por string. Ver [[reference_medicion_tiempos]].
 // ============================================================
-export interface Plan { startISO: string; endISO: string; estimada: boolean }
+export interface Plan {
+  startISO: string
+  endISO: string
+  estimada: boolean
+  /**
+   * v2.54 — solo tareas ABIERTAS (en curso o pausadas): minutos de trabajo
+   * efectivo hechos hasta ahora y los que faltan para el estimado. El fin de la
+   * barra sale de acá (ver `finProyectado`).
+   */
+  trabajadoMin?: number
+  restanteMin?: number
+}
+
+/**
+ * v2.54 — FIN PROYECTADO DE UNA TAREA ABIERTA (en curso o pausada).
+ *
+ * Pedido de Producción (19/11/2026): la barra de una tarea pausada no crecía
+ * hasta que se finalizaba, así que parecía terminar antes de lo real y la
+ * planificadora acomodaba las pendientes demasiado temprano.
+ *
+ * Antes:  fin = MAX(arranque + estimado, ahora). Las pausas NO sumaban: con 2 h
+ *         de pausa en una tarea de 4 h, la barra seguía terminando a las 4 h.
+ * Ahora:  fin = arranque + estimado + pausas acumuladas, que se calcula como
+ *           trabajado = Neto hasta ahora (Real − pausas, el MISMO número del tablero)
+ *           restante  = estimado − trabajado
+ *           fin       = ahora + restante, en horas de planta
+ *         Es la misma fórmula, escrita de forma que no cuente dos veces el
+ *         almuerzo (que el operario marca como pausa y el calendario también saca).
+ *
+ * Efectos:
+ *  - Tarea PAUSADA: lo trabajado no cambia, `ahora` avanza → la barra crece minuto
+ *    a minuto mientras dure la pausa (el Gantt refresca cada 60 s).
+ *  - Tarea EN CURSO al ritmo del estándar: lo trabajado sube al mismo ritmo que
+ *    `ahora` → el fin queda quieto.
+ *  - Ya superó el estimado: restante = 0 → la barra llega hasta ahora (como antes).
+ *  - Pasada la hora de cierre, lo que falta se corre al próximo turno (sábados,
+ *    feriados y ausencias del colaborador incluidos), porque se suma con el
+ *    mismo motor de horas de planta que el resto de la cascada.
+ */
+export function finProyectado(
+  t: Tarea, ahoraISO: string, sumar: (desde: string, min: number) => string,
+): { endISO: string; trabajadoMin: number; restanteMin: number } {
+  const inicio = t.inicioReal!
+  // Si `ahora` quedó antes del arranque (reloj de la tablet adelantado), no hay
+  // trabajo hecho todavía: se proyecta desde el arranque.
+  const desde = esPosterior(ahoraISO, inicio) ? ahoraISO : inicio
+  const m = metricasTarea(t, desde)
+  const trabajadoMin = Math.max(0, m.real - m.justificada)
+  const restanteMin = Math.max(0, tiempoEstimadoMin(t) - trabajadoMin)
+  const endISO = restanteMin > 0 ? sumar(desde, restanteMin) : desde
+  return { endISO, trabajadoMin, restanteMin }
+}
 
 /** Instante de un ISO, en ms. NaN si la fecha es vacia o invalida. */
 const ms = (iso: string | null | undefined): number =>
@@ -166,10 +218,6 @@ const esPosterior = (a: string | null | undefined, b: string | null | undefined)
   const x = ms(a), y = ms(b)
   return Number.isFinite(x) && Number.isFinite(y) && x > y
 }
-
-/** El mas tardio de dos instantes. Si uno no es valido, devuelve el otro. */
-const elMasTardio = (a: string, b: string | undefined): string =>
-  esPosterior(b, a) ? (b as string) : a
 
 // Clave de orden: por donde arranca realmente cada tarea; a igualdad, por prioridad.
 function claveOrden(t: Tarea): string {
@@ -333,12 +381,14 @@ export function programar(
       sumarMinutosLaborables(desde, min, grupo, recup, t.operarioId, sab)
 
     if (t.inicioReal) {
-      // Ya arranco: se dibuja donde realmente paso. Si sigue abierta y ya paso su
-      // estimado, se estira hasta ahora (el recurso sigue ocupado de verdad).
-      const estEnd = sumar(t.inicioReal, t.tiempoEstandarMin)
-      let endISO = t.finReal ?? estEnd
-      if (!t.finReal && t.estado !== 'finalizada') endISO = elMasTardio(estEnd, ahoraISO)
-      out.set(t.id, { startISO: t.inicioReal, endISO, estimada: false })
+      // Ya arranco: se dibuja donde realmente paso. Cerrada: hasta su fin real.
+      // v2.54: ABIERTA (en curso o pausada): hasta su fin PROYECTADO, que suma
+      // las pausas acumuladas (ver `finProyectado`). Ese fin es el que ocupa la
+      // estación y al colaborador, así que empuja a sus pendientes.
+      const abierta = !t.finReal && t.estado !== 'finalizada'
+      const proy = abierta ? finProyectado(t, ahoraISO, sumar) : undefined
+      const endISO = proy?.endISO ?? t.finReal ?? sumar(t.inicioReal, t.tiempoEstandarMin)
+      out.set(t.id, { startISO: t.inicioReal, endISO, estimada: false, trabajadoMin: proy?.trabajadoMin, restanteMin: proy?.restanteMin })
       // El recurso queda ocupado hasta el fin (real si cerro, proyectado si sigue).
       if (mk) huecosDe(finMaquina, mk, t.sectorId).ocupar(ms(endISO))
       if (ok) huecosDe(finOperario, ok, t.sectorId).ocupar(ms(endISO))
