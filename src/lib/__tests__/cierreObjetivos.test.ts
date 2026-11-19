@@ -175,3 +175,25 @@ describe('varios colaboradores', () => {
     expect(r.colaboradores[1].operarioId).toBe('ana')
   })
 })
+
+// ============================================================
+// v2.55 — El objetivo cuenta UNIDADES: una tarea de 30 bobinas son 30.
+// ============================================================
+describe('cumplimiento en unidades', () => {
+  it('30 bobinas pedidas en una tarea y 10 terminadas en otra: 10 / 40', () => {
+    const r = bob(SEM38, [
+      tarea({ id: 'grande', cantidad: 30 }),
+      hecha38('chica', { cantidad: 10 }),
+    ])
+    expect(r.planificadas).toBe(40)
+    expect(r.terminadas).toBe(10)
+    expect(r.colaboradores[0]).toMatchObject({ planificadas: 40, terminadas: 10, pendientes: 30 })
+  })
+
+  it('las tareas sin cantidad siguen valiendo 1 (historial intacto)', () => {
+    const r = bob(SEM38, [tarea({ id: 'a' }), hecha38('b')])
+    expect(r.planificadas).toBe(2)
+    expect(r.terminadas).toBe(1)
+  })
+})
+

@@ -124,6 +124,8 @@ export interface TareaRow {
   es_prototipo: boolean | null
   /** v2.13: tarea que originó a esta (hoy: la PA que generó esta PO). */
   origen_tarea_id: string | null
+  /** v2.55: unidades que cubre la tarea (docs/supabase_tareas_cantidad_v2.55.sql). */
+  cantidad?: number | string | null
 }
 
 export interface ParadaRow {
@@ -591,6 +593,8 @@ export function tareaFromRow(r: TareaRow, paradas: Parada[] = []): Tarea {
     notas: u(r.notas),
     esPrototipo: r.es_prototipo ?? false,
     origenTareaId: u(r.origen_tarea_id),
+    // v2.55: numeric puede llegar como texto desde PostgREST; sin columna = undefined (vale 1).
+    cantidad: r.cantidad == null ? undefined : Number(r.cantidad),
   }
 }
 
@@ -1301,6 +1305,11 @@ export function tareaToRow(t: Tarea): TareaRow {
     notas: t.notas ?? null,
     es_prototipo: t.esPrototipo ?? false,
     origen_tarea_id: t.origenTareaId ?? null,
+    // v2.55: solo se manda si la tarea la tiene. Las tareas de 1 unidad (todas
+    // las de siempre) no la mandan y la base pone el default 1. Red de
+    // seguridad: si el SQL v2.55 todavía no se corrió en una base, el trabajo
+    // normal sigue subiendo (una columna inexistente es error FATAL en la cola).
+    ...(t.cantidad !== undefined ? { cantidad: t.cantidad } : {}),
   }
 }
 

@@ -1,6 +1,7 @@
 import type { SectorId, Tarea } from '../types'
 import { esReparacion, sectorById } from '../types'
 import { isoWeek } from './time'
+import { cantidadTarea } from './saldoOF'
 
 // ============================================================
 // CIERRE DE OBJETIVOS — "7 / 10 bobinas"   (v2.23)
@@ -178,17 +179,20 @@ export function cumplimientoDeSector(
     if (!esObjetivo && !esTerminada) continue
     if (!id) continue
 
+    // v2.55: se cuentan UNIDADES, no tareas. Una tarea de 30 bobinas son 30
+    // bobinas del objetivo. Las tareas sin cantidad valen 1 (igual que antes).
+    const n = cantidadTarea(t)
     const a = dame(id)
     if (esObjetivo) {
-      a.planificadas++
+      a.planificadas += n
       // Del objetivo de esta ventana, lo que quedó sin cerrar. Es lo que la
       // planificadora ve llegar ocupándole tiempo en el Gantt del período nuevo.
-      if (t.estado !== 'finalizada') a.pendientes++
+      if (t.estado !== 'finalizada') a.pendientes += n
     }
     if (esTerminada) {
-      a.terminadas++
+      a.terminadas += n
       // Se entregó ahora pero se había pedido antes: explica un ratio > 100%.
-      if (!esObjetivo) a.arrastre++
+      if (!esObjetivo) a.arrastre += n
     }
   }
 
@@ -206,8 +210,9 @@ export function cumplimientoDeSector(
 
   // Los totales del sector se cuentan sobre TODAS las tareas, tengan o no
   // colaborador: si no, el total del sector no cerraría con la suma de la planta.
-  const terminadas = delSector.filter((t) => terminadaEnVentana(t, v)).length
-  const planificadas = delSector.filter((t) => objetivoEnVentana(t, v)).length
+  const sumar = (ts: Tarea[]) => ts.reduce((acc, t) => acc + cantidadTarea(t), 0)
+  const terminadas = sumar(delSector.filter((t) => terminadaEnVentana(t, v)))
+  const planificadas = sumar(delSector.filter((t) => objetivoEnVentana(t, v)))
 
   return {
     sectorId,

@@ -3,6 +3,7 @@ import { areaDemora, esReparacion, sectorById } from '../types'
 import { componentePorCodigo } from '../data/catalogo'
 import { metricasTarea } from './kpi'
 import { mediana } from './estandaresSugeridos'
+import { cantidadTarea } from './saldoOF'
 
 // ============================================================
 // TIEMPOS REALES POR SEMIELABORADO (v2.14)
@@ -90,8 +91,10 @@ export function tiemposPorSemielaborado(tareas: Tarea[], areas?: AreaDemora[]): 
       semielaborado: etiqueta, codigo: t.componenteCodigo, modelo: t.modelo,
       area, sectorId: t.sectorId, netos: [], estandares: [],
     }
-    g.netos.push(m.real - m.justificada)
-    g.estandares.push(m.estimado)
+    // v2.55: tiempo POR PIEZA. Una tarea de 30 bobinas se divide por 30.
+    const n = cantidadTarea(t)
+    g.netos.push((m.real - m.justificada) / n)
+    g.estandares.push(m.estimado / n)
     grupos.set(id, g)
   }
 

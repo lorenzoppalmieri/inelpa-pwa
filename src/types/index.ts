@@ -276,7 +276,11 @@ export interface Tarea {
   semanaObjetivo?: string  // ISO week congelada al crear. NUNCA actualizar.
   prioridad: number        // 1 = mas alta
   estado: EstadoTarea
-  tiempoEstandarMin: number // tiempo estandar de la operacion (min)
+  tiempoEstandarMin: number // tiempo estandar de la operacion (min). v2.55: TOTAL de la tarea (por unidad × cantidad)
+  // v2.55: unidades del semielaborado que cubre la tarea (una OF de SAP de 100
+  // bobinas se reparte entre estaciones). Sin valor = 1, como todas las
+  // anteriores. Leer SIEMPRE con `cantidadTarea(t)` de lib/saldoOF.
+  cantidad?: number
   // v1.5: semielaborado (componente del catalogo maestro) que produce esta tarea,
   // segun el sector. Ej. en Bobinado Dist A.T. se designa la bobina AT del modelo.
   componenteCodigo?: string  // = ComponenteSemielaborado.codigo (ItemCode SAP)

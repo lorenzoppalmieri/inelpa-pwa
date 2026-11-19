@@ -2,6 +2,7 @@ import type { Tarea, TiempoEstandar, AreaDemora, SectorId } from '../types'
 import { areaDemora, claveEstandar, esReparacion, modeloBase, sectorById } from '../types'
 import { componentePorCodigo } from '../data/catalogo'
 import { tiempoNetoMin, tiempoEstimadoMin } from './kpi'
+import { cantidadTarea } from './saldoOF'
 
 // ============================================================
 // ASISTENTE DE MEJORA CONTINUA (v1.24) — sugiere ajustar los tiempos ESTANDAR
@@ -89,8 +90,12 @@ export function sugerenciasEstandar(
     const g = grupos.get(id) ?? {
       area, sectorId: t.sectorId, modelo: etiquetaModelo, maquinaId: usaMaquina ? t.maquinaId : undefined, netos: [], estandares: [],
     }
-    g.netos.push(neto)
-    g.estandares.push(tiempoEstimadoMin(t))
+    // v2.55: el estándar es POR UNIDAD. Una tarea de 30 bobinas aporta el
+    // tiempo de UNA (neto / 30); si no, la mediana saltaría ×30 y el asistente
+    // sugeriría estándares absurdos para las tareas de 1 bobina.
+    const n = cantidadTarea(t)
+    g.netos.push(neto / n)
+    g.estandares.push(tiempoEstimadoMin(t) / n)
     grupos.set(id, g)
   }
 

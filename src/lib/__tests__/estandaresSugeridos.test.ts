@@ -145,3 +145,28 @@ describe('sugerenciasEstandar consolida por modelo base', () => {
     expect(sugerenciasEstandar(tareas, [], nombreMaquina, { minMuestras: 3 })).toHaveLength(0)
   })
 })
+
+// ============================================================
+// v2.55 — Una tarea de varias bobinas aporta el tiempo de UNA.
+// ============================================================
+describe('estándar por unidad con tareas de varias bobinas', () => {
+  const COD = 'BOBALT0000151'
+
+  it('3 bobinas en 450 min con estándar 3 × 100 = 150 min por bobina (+50%)', () => {
+    // Tres tareas de 3 unidades: neto 450' contra un estándar total de 300'.
+    const tareas = [0, 1, 2].map((n) => ({ ...bobina(`m-${n}`, COD, 450, 300), cantidad: 3 }) as Tarea)
+    const out = sugerenciasEstandar(tareas, [], nombreMaquina)
+    expect(out).toHaveLength(1)
+    expect(out[0].sugeridoMin).toBe(150)  // por bobina, no 450
+    expect(out[0].actualMin).toBe(100)    // el estándar por bobina, no 300
+  })
+
+  it('mezclar tareas de 1 y de 3 bobinas no distorsiona la mediana', () => {
+    const tareas = [
+      bobina('u1', COD, 150, 100), bobina('u2', COD, 150, 100),
+      { ...bobina('t3', COD, 450, 300), cantidad: 3 } as Tarea,
+    ]
+    expect(sugerenciasEstandar(tareas, [], nombreMaquina)[0].sugeridoMin).toBe(150)
+  })
+})
+

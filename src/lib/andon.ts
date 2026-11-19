@@ -1,6 +1,7 @@
 import type { Tarea, AndonAreaId, SectorId } from '../types'
 import { esReparacion, periodoMensual } from '../types'
 import { componentePorCodigo } from '../data/catalogo'
+import { cantidadTarea } from './saldoOF'
 
 // ============================================================
 // ANDON — calculo de cumplimiento mensual por area + escala de premios.
@@ -110,7 +111,8 @@ export function calcularAndon(
   const finMes = tareas.filter((t) => t.estado === 'finalizada' && !esReparacion(t) && mesDe(t.finReal) === periodo)
   const repMes = tareas.filter((t) => esReparacion(t) && (mesDe(t.finReal) === periodo || mesDe(t.inicioPlanificado) === periodo))
   return ANDON_AREAS.map((area) => {
-    const terminados = finMes.filter((t) => cuentaParaArea(t, area.id)).length
+    // v2.55: unidades, no tareas. Dirección (DireccionView) lee de acá las "unidades" del mes.
+    const terminados = finMes.filter((t) => cuentaParaArea(t, area.id)).reduce((acc, t) => acc + cantidadTarea(t), 0)
     const retrabajos = repMes.filter((t) => esRetrabajoArea(t, area.id)).length
     const objetivo = objetivos.get(area.id) ?? 0
     const pct = objetivo > 0 ? terminados / objetivo : 0

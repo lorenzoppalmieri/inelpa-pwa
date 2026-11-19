@@ -10,6 +10,7 @@ import { useAuth } from '../../auth/AuthContext'
 import { hhmm, cronometro, fmtDur, fechaCorta } from '../../lib/time'
 import { calcularTiempoNetoProductivo, calcularTiempoProductivo, recuperacionDiariaVigente } from '../../lib/calendario'
 import { componentePorCodigo } from '../../data/catalogo'
+import { cantidadTarea } from '../../lib/saldoOF'
 import { tiempoNetoMin } from '../../lib/kpi'
 import ModalParada from './ModalParada'
 import ConfirmarAccion from '../ui/ConfirmarAccion'
@@ -274,6 +275,9 @@ export default function TareaCard({ tarea, onIniciar }: { tarea: Tarea; onInicia
   // Titulo principal = SEMIELABORADO completo (o "PROTOTIPO · nota" si es prueba).
   const comp = componentePorCodigo(tarea.componenteCodigo)
   const titulo = nombreSemielaborado(tarea, comp?.descripcion)
+  // v2.55: unidades de esta tarea (una OF de SAP se reparte entre estaciones).
+  // Se muestra solo si es más de 1: las de siempre se ven igual que antes.
+  const cant = cantidadTarea(tarea)
 
   // v2.45: lo que el operario ve en la confirmación para verificar que es la
   // pieza correcta antes de tocar "Sí".
@@ -282,6 +286,7 @@ export default function TareaCard({ tarea, onIniciar }: { tarea: Tarea; onInicia
     <>
       {orden?.nroOrden && <div>OF <strong>{orden.nroOrden}</strong></div>}
       <div><strong>{titulo}</strong>{tarea.fase ? ` · ${tarea.fase}` : ''}</div>
+      {cant > 1 && <div>Cantidad: <strong>{cant} unidades</strong></div>}
       {tarea.nroTransformador && <div>N° transformador: <strong>{tarea.nroTransformador}</strong></div>}
       <div className="meta">{sector.nombre}{responsable ? ` · ${responsable}` : ''}</div>
     </>
@@ -293,7 +298,7 @@ export default function TareaCard({ tarea, onIniciar }: { tarea: Tarea; onInicia
         <div>
           {/* v2.33: la OF va ADENTRO del mismo <h3>, así tiene exactamente el
               tamaño y el peso del título, en todas las áreas. */}
-          <h3>{orden?.nroOrden ? `${orden.nroOrden} - ` : ''}{titulo}{tarea.fase ? ` · ${tarea.fase}` : ''}</h3>
+          <h3>{orden?.nroOrden ? `${orden.nroOrden} - ` : ''}{titulo}{tarea.fase ? ` · ${tarea.fase}` : ''}{cant > 1 ? ` · ${cant} u.` : ''}</h3>
           <div className="meta">{sector.nombre}{comp ? ` · Modelo ${tarea.modelo}` : ''}</div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
