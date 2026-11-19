@@ -2,7 +2,7 @@ import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/
 import { db } from '../db/dexie'
 import { supabase, SUPABASE_HABILITADO } from '../lib/supabaseClient'
 import { traerTabla, traerTodoDe, type ConsultaPaginable } from '../lib/supabaseFetch'
-import type { Rol, SyncOp, Tarea, Parada, OrdenProduccion, Semielaborado, SectorId, Objetivo, TareaLogistica, SolicitudLogistica, Feriado, Ausencia, CorteLuz, Mensaje, MensajeLectura, TiempoEstandar, DespachoTrafo, FleteInterno, TareaLaboratorio, PlantillaRecurrente, ColaboradorEpp, EntregaEpp, SolicitudEpp, ReglaEpp } from '../types'
+import type { Rol, SyncOp, Tarea, Parada, OrdenProduccion, Semielaborado, SectorId, Objetivo, TareaLogistica, SolicitudLogistica, PreparacionMaterial, Feriado, Ausencia, CorteLuz, Mensaje, MensajeLectura, TiempoEstandar, DespachoTrafo, FleteInterno, TareaLaboratorio, PlantillaRecurrente, ColaboradorEpp, EntregaEpp, SolicitudEpp, ReglaEpp } from '../types'
 import type { EventoSGO, AccionSGO, AuditoriaSGO } from '../sgo/types'
 import type { IndicadorSGO, MedicionIndicadorSGO } from '../sgo/indicadores'
 import type { ControlProgramadoSGO, EjecucionControlSGO } from '../sgo/controles'
@@ -17,6 +17,7 @@ import {
   tareaFromRow, paradaFromRow, ordenFromRow, semiFromRow, maquinaFromRow, usuarioFromRow, objetivoFromRow, tareaLogFromRow, solicitudLogFromRow, feriadoFromRow, ausenciaFromRow, corteLuzFromRow, mensajeFromRow, lecturaFromRow, estandarFromRow, despachoFromRow, fleteFromRow, laboratorioFromRow, plantillaFromRow, eventoSGOFromRow, accionSGOFromRow, indicadorSGOFromRow, medicionIndicadorSGOFromRow, auditoriaSGOFromRow, controlProgramadoSGOFromRow, ejecucionControlSGOFromRow, actividadAgendaISOFromRow, tareaSGOFromRow, comentarioTareaSGOFromRow,
   colaboradorEppFromRow, entregaEppFromRow, solicitudEppFromRow, reglaEppFromRow,
   lineaRecetaFromRow, type LineaRecetaRow,
+  preparacionFromRow, preparacionToRow, type PreparacionMaterialRow,
   type ColaboradorEppRow, type EntregaEppRow, type SolicitudEppRow, type ReglaEppRow,
   tareaToRow, paradaToRow, ordenToRow, semiToRow, objetivoToRow, tareaLogToRow, solicitudLogToRow, feriadoToRow, ausenciaToRow, corteLuzToRow, mensajeToRow, lecturaToRow, estandarToRow, despachoToRow, fleteToRow, laboratorioToRow, plantillaToRow, eventoSGOToRow, accionSGOToRow, indicadorSGOToRow, medicionIndicadorSGOToRow, controlProgramadoSGOToRow, ejecucionControlSGOToRow, actividadAgendaISOToRow, tareaSGOToRow, comentarioTareaSGOToRow,
   colaboradorEppToRow, entregaEppToRow, solicitudEppToRow, reglaEppToRow,
@@ -203,7 +204,7 @@ export async function fetchInicial(rol?: Rol): Promise<void> {
       db.mensajes.clear(), db.mensajesLectura.clear(), db.estandares.clear(), db.despachos.clear(), db.fletes.clear(), db.laboratorio.clear(),
       db.plantillasRecurrentes.clear(), db.datosTecnicos.clear(),
       db.colaboradoresEpp.clear(), db.entregasEpp.clear(), db.solicitudesEpp.clear(), db.reglasEpp.clear(),
-      db.materialesReceta.clear(),
+      db.materialesReceta.clear(), db.preparacionesMaterial.clear(),
     ])
 
     // ---- TAREAS + PARADAS (las únicas que se acotan por ventana) ----
@@ -227,7 +228,7 @@ export async function fetchInicial(rol?: Rol): Promise<void> {
       ? await traerTabla<ParadaRow>('paradas')
       : await traerParadasDe(tareasRows.map((t) => t.id))
 
-    const [maqs, usrs, uss, ords, semis, objs, tlog, slog, fers, auss, cortes, msgs, lects, ests, desp, flts, labs, plts, eventosSgo, accionesSgo, indicadoresSgo, medicionesSgo, auditoriaSgo, controlesSgo, ejecucionesSgo, agendaIso, tareasSgo, comentariosTareasSgo, dtec, eppCol, eppEnt, eppSol, eppReg, recetas] = await Promise.all([
+    const [maqs, usrs, uss, ords, semis, objs, tlog, slog, fers, auss, cortes, msgs, lects, ests, desp, flts, labs, plts, eventosSgo, accionesSgo, indicadoresSgo, medicionesSgo, auditoriaSgo, controlesSgo, ejecucionesSgo, agendaIso, tareasSgo, comentariosTareasSgo, dtec, eppCol, eppEnt, eppSol, eppReg, recetas, preps] = await Promise.all([
       traerTodo('maquinas'),
       supabase.from('usuarios').select('id, nombre, usuario, rol, grupo_nomina, activo'),
       supabase.from('usuario_sectores').select('usuario_id, sector_id'),
@@ -265,6 +266,8 @@ export async function fetchInicial(rol?: Rol): Promise<void> {
       // no las 20.000 de la tabla). Si la vista no existe todavía (SQL v2.57
       // sin correr), traerTabla avisa por consola y devuelve vacío: no rompe.
       traerTodo('v_receta_materiales'),
+      // v2.58: estado de preparación/entrega de materiales (sin la tabla: vacío, no rompe).
+      traerTodo('preparaciones_material'),
     ])
 
     // Maquinas
@@ -288,6 +291,7 @@ export async function fetchInicial(rol?: Rol): Promise<void> {
 
     // v2.57: recetas de SAP (materiales de cada tarea, solo lectura)
     if (recetas.data) await db.materialesReceta.bulkPut((recetas.data as LineaRecetaRow[]).map(lineaRecetaFromRow))
+    if (preps.data) await db.preparacionesMaterial.bulkPut((preps.data as PreparacionMaterialRow[]).map(preparacionFromRow))
 
     // Semielaborados
     if (semis.data) await db.semielaborados.bulkPut((semis.data as SemiRow[]).map(semiFromRow))
@@ -483,6 +487,12 @@ async function onTareaLogChange(payload: Payload) {
   await db.tareasLogistica.put(tareaLogFromRow(payload.new as unknown as TareaLogisticaRow))
 }
 
+// v2.58: preparación/entrega de materiales (tablero de logística + aviso al operario).
+async function onPreparacionChange(payload: Payload) {
+  if (payload.eventType === 'DELETE') { await db.preparacionesMaterial.delete((payload.old as { id: string }).id); return }
+  await db.preparacionesMaterial.put(preparacionFromRow(payload.new as unknown as PreparacionMaterialRow))
+}
+
 async function onSolicitudLogChange(payload: Payload) {
   if (payload.eventType === 'DELETE') { await db.solicitudesLogistica.delete((payload.old as { id: string }).id); return }
   await db.solicitudesLogistica.put(solicitudLogFromRow(payload.new as unknown as SolicitudLogisticaRow))
@@ -623,6 +633,7 @@ function suscribirRealtime() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'objetivos' }, onObjetivoChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'tareas_logistica' }, onTareaLogChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'solicitudes_logistica' }, onSolicitudLogChange)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'preparaciones_material' }, onPreparacionChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'feriados' }, onFeriadoChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'ausencias' }, onAusenciaChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'cortes_luz' }, onCorteLuzChange)
@@ -815,6 +826,7 @@ async function empujar(op: SyncOp): Promise<EmpujeResultado> {
         : op.entidad === 'objetivo' ? 'objetivos'
         : op.entidad === 'tarea_logistica' ? 'tareas_logistica'
         : op.entidad === 'solicitud_logistica' ? 'solicitudes_logistica'
+        : op.entidad === 'preparacion_material' ? 'preparaciones_material'
         : op.entidad === 'feriado' ? 'feriados'
         : op.entidad === 'ausencia' ? 'ausencias'
         : op.entidad === 'corte_luz' ? 'cortes_luz'
@@ -973,6 +985,18 @@ async function empujar(op: SyncOp): Promise<EmpujeResultado> {
       case 'tarea_logistica': {
         const { error } = await supabase.from('tareas_logistica').upsert(tareaLogToRow(op.payload as TareaLogistica), { onConflict: 'id' })
         return error ? fallo('upsert tarea_logistica', error.message) : OK_EMPUJE
+      }
+      // v2.58: FALTABA. Sin este case la solicitud caía en `default`, se daba
+      // por subida y se descartaba: el estado de la cola de material (en
+      // camino / entregado) nunca llegaba a la base. En la copia de producción
+      // (INELPA-TEST) hay 0 filas en solicitudes_logistica.
+      case 'solicitud_logistica': {
+        const { error } = await supabase.from('solicitudes_logistica').upsert(solicitudLogToRow(op.payload as SolicitudLogistica), { onConflict: 'id' })
+        return error ? fallo('upsert solicitud_logistica', error.message) : OK_EMPUJE
+      }
+      case 'preparacion_material': {
+        const { error } = await supabase.from('preparaciones_material').upsert(preparacionToRow(op.payload as PreparacionMaterial), { onConflict: 'id' })
+        return error ? fallo('upsert preparacion_material', error.message) : OK_EMPUJE
       }
       case 'feriado': {
         const { error } = await supabase.from('feriados').upsert(feriadoToRow(op.payload as Feriado), { onConflict: 'id' })
@@ -1444,6 +1468,17 @@ export async function eliminarTareaLogistica(t: TareaLogistica): Promise<void> {
 export async function guardarSolicitudLogistica(s: SolicitudLogistica): Promise<void> {
   await db.solicitudesLogistica.put(s)
   await encolar({ entidad: 'solicitud_logistica', entidadId: s.id, tipo: 'upsert', payload: s })
+}
+
+// v2.58: preparación/entrega de materiales de una tarea (id = tarea.id).
+export async function guardarPreparacionMaterial(p: PreparacionMaterial): Promise<void> {
+  await db.preparacionesMaterial.put(p)
+  await encolar({ entidad: 'preparacion_material', entidadId: p.id, tipo: 'upsert', payload: p })
+}
+/** "Deshacer" desde En preparación: la tarea vuelve a Por preparar. */
+export async function eliminarPreparacionMaterial(id: string): Promise<void> {
+  await db.preparacionesMaterial.delete(id)
+  await encolar({ entidad: 'preparacion_material', entidadId: id, tipo: 'delete', payload: { id } })
 }
 
 // v1.18: mensajes (planificador -> colaborador) + acuse de lectura.

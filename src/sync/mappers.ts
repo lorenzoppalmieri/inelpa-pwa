@@ -7,7 +7,7 @@
 //   - al ESCRIBIR: se separa la tarea (sin paradas) y cada parada por su lado.
 // ============================================================
 import type {
-  LineaReceta,
+  LineaReceta, PreparacionMaterial, EstadoPreparacion,
   Tarea, Parada, OrdenProduccion, Semielaborado, Maquina, Usuario,
   SectorId, Rol, EstadoTarea, MaterialBobina, LineaProduccion,
   EstadoSemielaborado, TipoEstacion, GrupoNomina, DatosBobinado, TipoTarea,
@@ -187,6 +187,44 @@ export function lineaRecetaFromRow(r: LineaRecetaRow): LineaReceta {
     uom: u(r.uom),
     childName: u(r.child_name),
     esSemielaborado: !!r.child_con_receta,
+  }
+}
+
+// v2.58: preparaciones_material (docs/supabase_preparaciones_material_v2.58.sql).
+export interface PreparacionMaterialRow {
+  id: string
+  estado: string
+  responsable: string | null
+  registrado_por: string | null
+  preparando_en: string | null
+  entregado_en: string | null
+  unidades_entregadas: number | string | null
+  actualizado_en: string | null
+}
+
+export function preparacionFromRow(r: PreparacionMaterialRow): PreparacionMaterial {
+  return {
+    id: r.id,
+    estado: (r.estado === 'entregado' ? 'entregado' : 'en_preparacion') as EstadoPreparacion,
+    responsable: u(r.responsable),
+    registradoPor: u(r.registrado_por),
+    preparandoEn: u(r.preparando_en),
+    entregadoEn: u(r.entregado_en),
+    unidadesEntregadas: r.unidades_entregadas == null ? undefined : Number(r.unidades_entregadas),
+    actualizado: r.actualizado_en ?? new Date().toISOString(),
+  }
+}
+
+export function preparacionToRow(p: PreparacionMaterial): PreparacionMaterialRow {
+  return {
+    id: p.id,
+    estado: p.estado,
+    responsable: p.responsable ?? null,
+    registrado_por: p.registradoPor ?? null,
+    preparando_en: p.preparandoEn ?? null,
+    entregado_en: p.entregadoEn ?? null,
+    unidades_entregadas: p.unidadesEntregadas ?? null,
+    actualizado_en: p.actualizado,
   }
 }
 

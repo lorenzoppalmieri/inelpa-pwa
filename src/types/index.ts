@@ -381,6 +381,23 @@ export interface LineaReceta {
   esSemielaborado: boolean // el material tiene receta propia (sale de otra OF)
 }
 
+// ============================================================
+// v2.58 — PREPARACIÓN Y ENTREGA DE MATERIALES (una por tarea, id = tarea.id).
+// Sin registro = Por preparar. Registro operativo de la entrega física en
+// planta; el movimiento de stock sigue siendo la transferencia de SAP.
+// ============================================================
+export type EstadoPreparacion = 'en_preparacion' | 'entregado'
+export interface PreparacionMaterial {
+  id: string                  // = tarea.id
+  estado: EstadoPreparacion
+  responsable?: string        // quién del equipo de logística
+  registradoPor?: string      // usuario que tocó el botón
+  preparandoEn?: string
+  entregadoEn?: string
+  unidadesEntregadas?: number // unidades de la tarea que cubrió la entrega
+  actualizado: string
+}
+
 export interface OrdenProduccion {
   id: string               // mapea a Orden de Fabricacion SAP
   nroOrden: string
@@ -1414,7 +1431,7 @@ export function mensajeEsPara(m: Mensaje, u: { id: string; rol: Rol; sectores: S
 // Cola de sincronizacion: cada cambio offline se encola y se empuja al backend.
 export interface SyncOp {
   id: string
-  entidad: 'tarea' | 'parada' | 'orden' | 'semielaborado' | 'objetivo' | 'tarea_logistica' | 'solicitud_logistica' | 'feriado' | 'ausencia' | 'corte_luz' | 'mensaje' | 'mensaje_lectura' | 'estandar' | 'despacho' | 'flete' | 'laboratorio' | 'plantilla_recurrente' | 'evento_sgo' | 'accion_sgo' | 'indicador_sgo' | 'medicion_indicador_sgo' | 'control_programado_sgo' | 'ejecucion_control_sgo' | 'agenda_iso' | 'tarea_sgo' | 'comentario_tarea_sgo' | 'colaborador_epp' | 'entrega_epp' | 'solicitud_epp' | 'regla_epp'
+  entidad: 'tarea' | 'parada' | 'orden' | 'semielaborado' | 'objetivo' | 'tarea_logistica' | 'solicitud_logistica' | 'preparacion_material' | 'feriado' | 'ausencia' | 'corte_luz' | 'mensaje' | 'mensaje_lectura' | 'estandar' | 'despacho' | 'flete' | 'laboratorio' | 'plantilla_recurrente' | 'evento_sgo' | 'accion_sgo' | 'indicador_sgo' | 'medicion_indicador_sgo' | 'control_programado_sgo' | 'ejecucion_control_sgo' | 'agenda_iso' | 'tarea_sgo' | 'comentario_tarea_sgo' | 'colaborador_epp' | 'entrega_epp' | 'solicitud_epp' | 'regla_epp'
   entidadId: string
   tipo: 'upsert' | 'delete'
   payload: unknown

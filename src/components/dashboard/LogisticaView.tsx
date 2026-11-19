@@ -72,7 +72,7 @@ export default function LogisticaView() {
       <div className="tabs no-print">
         <button className={'tab' + (pestania === 'gantt' ? ' active' : '')} onClick={() => setPestania('gantt')}>Gantt de planta</button>
         <button className={'tab' + (pestania === 'tareas' ? ' active' : '')} onClick={() => setPestania('tareas')}>📋 Tareas logísticas</button>
-        {/* v2.57: qué preparar por estación (receta de SAP × cantidad). Solo lectura. */}
+        {/* v2.57/v2.58: tablero de entrega de materiales (receta de SAP × cantidad): Preparar -> Entregado. */}
         <button className={'tab' + (pestania === 'materiales' ? ' active' : '')} onClick={() => setPestania('materiales')}>📦 Materiales por estación</button>
         {!esEquipoLog && <button className={'tab' + (pestania === 'reportes' ? ' active' : '')} onClick={() => setPestania('reportes')}>📊 Reportes</button>}
         {/* v1.47: llegó desde el módulo SGO. Es una herramienta operativa de

@@ -705,6 +705,24 @@ button { font-family: inherit; cursor: pointer; border: none; }
 /* v2.57: desplegable de materiales de la tarea (receta de SAP × cantidad). */
 .materiales-tarea { margin-top: 8px; }
 .materiales-tarea summary { cursor: pointer; font-weight: 700; color: var(--azul-claro); padding: 6px 0; min-height: 32px; }
+/* v2.58: tablero de entrega de materiales (Logística). Dos columnas en
+   escritorio; en celular se apilan (ver @media al final del bloque). */
+.prep-tablero { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+.prep-card { background: var(--panel); border: 1px solid var(--borde); border-radius: var(--radio); padding: 12px 14px; margin-bottom: 10px; }
+.prep-card.es-urgente { border-left: 4px solid var(--rojo); }
+.prep-card-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+.prep-card-titulo { font-weight: 800; margin: 2px 0 4px; }
+.prep-chip { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: .72rem; font-weight: 800; background: rgba(148,163,184,.22); color: #e2e8f0; }
+.prep-chip.urgente { background: rgba(239,68,68,.22); color: #fecaca; }
+.prep-chip.hoy { background: rgba(245,158,11,.22); color: #fde68a; }
+.prep-chip.complemento { background: rgba(59,130,246,.22); color: #bfdbfe; }
+.prep-chip.entregado { background: rgba(34,197,94,.2); color: #bbf7d0; }
+.prep-acciones { display: flex; gap: 8px; margin-top: 10px; }
+.prep-acciones .btn-primary { flex: 1; min-height: 44px; }
+.prep-btn-ok { background: var(--estado-fin); border-color: var(--estado-fin); color: #052e16; }
+@media (max-width: 768px) {
+  .prep-tablero { grid-template-columns: 1fr; }
+}
 
 /* ---------- Logistica: organizador de tareas ---------- */
 .logi-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 14px; }

@@ -4,6 +4,7 @@ import { db } from '../db/dexie'
 import type { LineaReceta, Tarea } from '../types'
 import { formatoCantidad, materialesDeTarea, recetaPorArticulo } from '../lib/materiales'
 import { cantidadTarea } from '../lib/saldoOF'
+import { etapaEntrega } from '../lib/preparacionMaterial'
 
 // ============================================================
 // v2.57 — Materiales de UNA tarea (receta de SAP × cantidad). Desplegable,
@@ -18,12 +19,20 @@ export default function MaterialesTarea({ tarea }: { tarea: Tarea }) {
     [codigo],
   ) ?? []
   const materiales = useMemo(() => materialesDeTarea(tarea, recetaPorArticulo(lineas)), [tarea, lineas])
+  // v2.58: en qué anda la entrega de logística (el operario ve si le viene el material).
+  const prep = useLiveQuery(() => db.preparacionesMaterial.get(tarea.id), [tarea.id])
   if (materiales.length === 0) return null
   const n = cantidadTarea(tarea)
+  const { etapa, complemento } = etapaEntrega(tarea, prep)
+  const estadoEntrega = etapa === 'entregado'
+    ? <span className="prep-chip entregado">✓ Entregado</span>
+    : etapa === 'en_preparacion'
+      ? <span className="prep-chip hoy">🚚 En preparación</span>
+      : complemento ? <span className="prep-chip complemento">Entrega parcial</span> : null
 
   return (
     <details className="materiales-tarea">
-      <summary>📦 Materiales ({materiales.length}){n > 1 ? ` · para ${n} unidades` : ''}</summary>
+      <summary>📦 Materiales ({materiales.length}){n > 1 ? ` · para ${n} unidades` : ''}{estadoEntrega && <> {estadoEntrega}</>}</summary>
       <div style={{ overflowX: 'auto' }}>
         <table className="tabla-detalle">
           <thead><tr><th>Material</th><th className="num">Cantidad</th></tr></thead>

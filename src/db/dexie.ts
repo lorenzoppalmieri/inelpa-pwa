@@ -5,7 +5,7 @@ import type {
   Mensaje, MensajeLectura, TiempoEstandar, DespachoTrafo, FleteInterno, TareaLaboratorio,
   PlantillaRecurrente,
   ColaboradorEpp, EntregaEpp, SolicitudEpp, ReglaEpp,
-  LineaReceta,
+  LineaReceta, PreparacionMaterial,
 } from '../types'
 import type { EventoSGO, AccionSGO, AuditoriaSGO } from '../sgo/types'
 import type { IndicadorSGO, MedicionIndicadorSGO } from '../sgo/indicadores'
@@ -63,6 +63,8 @@ export class InelpaDB extends Dexie {
   avisosMant!: Table<AvisoMantPendiente, string>
   // v2.57: recetas de SAP de los artículos con OF vigente (solo lectura).
   materialesReceta!: Table<LineaReceta, string>
+  // v2.58: estado de preparación/entrega de materiales por tarea (id = tarea.id).
+  preparacionesMaterial!: Table<PreparacionMaterial, string>
 
   constructor() {
     super('inelpa_pwa')
@@ -229,6 +231,11 @@ export class InelpaDB extends Dexie {
     // `parentCode` (el artículo de la tarea): por eso va indexado.
     this.version(33).stores({
       materialesReceta: 'id, parentCode',
+    })
+    // v2.58 — preparación y entrega de materiales. Se lee entera (pocas filas
+    // vivas); `estado` indexado por si hace falta filtrar.
+    this.version(34).stores({
+      preparacionesMaterial: 'id, estado',
     })
   }
 }
