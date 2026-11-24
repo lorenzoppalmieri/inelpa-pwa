@@ -8,6 +8,7 @@ import type { EstadoTarea, Tarea, CausaParada } from '../../types'
 import { sectorById, TIPO_ESTACION_LABEL, maquinaSirveSector, esSectorBobinado, causaLabel, areaDemora, compararFifo } from '../../types'
 import { guardarTarea } from '../../sync/syncEngine'
 import TareaCard from './TareaCard'
+import DiagnosticoOperario from './DiagnosticoOperario'
 import MensajesInbox, { useMensajesNoLeidos } from '../mensajes/MensajesInbox'
 // v2.17: se fueron los imports de ModalParada, avisos de mantenimiento y NC de
 // calidad. La pausa de estación ya no puede tener otra causa que almuerzo, así
@@ -248,6 +249,7 @@ export default function OperarioView() {
                 </button>
               )
             })}
+        {usuario && <DiagnosticoOperario usuario={usuario} maquinaId="" nombreMaquina={nombreMaquina} />}
       </div>
     )
   }
@@ -347,6 +349,9 @@ export default function OperarioView() {
       {vis.length === 0
         ? <div className="empty">No hay tareas en esta vista.</div>
         : vis.map((t) => <TareaCard key={t.id} tarea={t} onIniciar={() => setFiltro('activas')} />)}
+
+      {/* v2.63: diagnóstico plegado, para cuando "no aparece una tarea". */}
+      {usuario && <DiagnosticoOperario usuario={usuario} maquinaId={maquinaId} nombreMaquina={nombreMaquina} />}
 
     </div>
   )
