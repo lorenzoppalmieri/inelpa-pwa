@@ -56,6 +56,38 @@ export async function traerTodoDe<T>(
 }
 
 /**
+ * v2.65 — Igual que `traerTodoDe`, pero ESTRICTO: ante cualquier error devuelve
+ * null (nunca una lista a medias) y reintenta una vez.
+ *
+ * Para las tareas del espejo local: si la consulta se corta (caso real
+ * 24/11/2026: "canceling statement due to statement timeout" en la tablet de
+ * mazza.alexander), una lista vacía o parcial hacía que el equipo se quedara
+ * SIN tareas. Con null, el que llama sabe que falló y conserva lo que tenía.
+ */
+export async function traerTodoDeEstricto<T>(
+  etiqueta: string,
+  construir: () => ConsultaPaginable<T>,
+  intentos = 2,
+): Promise<T[] | null> {
+  for (let intento = 1; intento <= intentos; intento++) {
+    const filas: T[] = []
+    let fallo = false
+    for (let desde = 0; desde < TOPE_FILAS; desde += PAGINA) {
+      const { data, error } = await construir().range(desde, desde + PAGINA - 1)
+      if (error || !data) {
+        console.warn(`[supabase] ${etiqueta}: falló la página ${desde} (intento ${intento}) —`, error?.message)
+        fallo = true
+        break
+      }
+      filas.push(...data)
+      if (data.length < PAGINA) break
+    }
+    if (!fallo) return filas
+  }
+  return null
+}
+
+/**
  * Atajo para el caso más común: traer una tabla entera.
  * Ordena por `id`, que es la PK en todas las tablas del proyecto.
  */
