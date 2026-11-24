@@ -7,6 +7,7 @@ import type { EventoSGO, AccionSGO, AuditoriaSGO } from '../sgo/types'
 import type { IndicadorSGO, MedicionIndicadorSGO } from '../sgo/indicadores'
 import type { ControlProgramadoSGO, EjecucionControlSGO } from '../sgo/controles'
 import { activarPonerseAlDia, desactivarPonerseAlDia, ponerseAlDiaTareas } from './ponerseAlDia'
+import { traerTodoDeEstricto } from '../lib/supabaseFetch'
 import type { ActividadAgendaISO } from '../sgo/agendaISO'
 import type { ComentarioTareaSGO, TareaSGO } from '../sgo/tareasSGO'
 import { setFeriados, setAusencias } from '../lib/calendario'
@@ -192,15 +193,22 @@ async function traerParadasDe(ids: string[]): Promise<ParadaRow[]> {
   return out
 }
 
-export async function fetchInicial(rol?: Rol): Promise<void> {
-  if (!supabase) return
+export async function fetchInicial(rol?: Rol): Promise<'ok' | 'sin_sesion' | 'error'> {
+  if (!supabase) return 'error'
+  // v2.65: SIN SESIÓN VÁLIDA NO SE LIMPIA EL ESPEJO. Como anónimo la RLS
+  // devuelve todo vacío y sin error: esto vaciaba la tablet y la dejaba vacía
+  // hasta volver a iniciar sesión. Mejor conservar lo que tiene.
+  try {
+    const { data: ses, error: errSes } = await supabase.auth.getSession()
+    if (errSes || !ses?.session) { console.warn('[sync] sin sesión válida: no se descarga ni se limpia el espejo'); return 'sin_sesion' }
+  } catch { return 'sin_sesion' }
   estado = { ...estado, sincronizando: true }; emit()
   try {
     // Espejo limpio: borramos las tablas reflejadas (no la cola de sync) para que
     // no queden restos de datos demo (ids text) mezclados con los uuid de Supabase.
     await Promise.all([
       db.maquinas.clear(), db.usuarios.clear(), db.ordenes.clear(),
-      db.semielaborados.clear(), db.tareas.clear(), db.objetivos.clear(),
+      db.semielaborados.clear(), db.objetivos.clear(), // v2.65: `tareas` se limpia recién cuando llegan (ver abajo)
       db.tareasLogistica.clear(), db.solicitudesLogistica.clear(), db.feriados.clear(), db.ausencias.clear(), db.cortesLuz.clear(),
       db.mensajes.clear(), db.mensajesLectura.clear(), db.estandares.clear(), db.despachos.clear(), db.fletes.clear(), db.laboratorio.clear(),
       db.plantillasRecurrentes.clear(), db.datosTecnicos.clear(),
@@ -212,22 +220,33 @@ export async function fetchInicial(rol?: Rol): Promise<void> {
     // Se piden aparte porque las paradas dependen de qué tareas se trajeron.
     const dias = ventanaDiasPara(rol)
     const sb = supabase
-    let tareasRows: TareaRow[]
+    // ============================================================
+    // v2.65 — SI LAS TAREAS NO LLEGAN, EL EQUIPO CONSERVA LAS QUE TENÍA.
+    // Antes se vaciaba la tabla local ANTES de pedir las tareas, y si la consulta
+    // fallaba (caso real: "statement timeout" en la tablet de mazza.alexander)
+    // el equipo quedaba con 0 tareas hasta el próximo inicio de sesión. Ahora se
+    // piden con una consulta estricta (null = falló) y recién si llegan enteras
+    // se reemplaza el espejo. Si no, queda lo anterior y la puesta al día
+    // periódica vuelve a intentar.
+    // ============================================================
+    let tareasRows: TareaRow[] | null
     if (dias == null) {
-      tareasRows = await traerTabla<TareaRow>('tareas')          // igual que siempre
+      tareasRows = await traerTodoDeEstricto<TareaRow>('tareas', () =>
+        sb.from('tareas').select('*').order('id') as unknown as ConsultaPaginable<TareaRow>)
     } else {
       // Tablet: últimos N días + TODO lo que siga abierto (sin importar antigüedad).
       const corte = new Date(Date.now() - dias * 86400000).toISOString()
-      tareasRows = await traerTodoDe<TareaRow>('tareas', () =>
+      tareasRows = await traerTodoDeEstricto<TareaRow>('tareas', () =>
         sb.from('tareas').select('*')
           .or(`estado.neq.finalizada,inicio_real.gte.${corte},inicio_planificado.gte.${corte}`)
           .order('id') as unknown as ConsultaPaginable<TareaRow>)
     }
     // Las paradas se traen POR ID DE TAREA: así nunca se pierde la parada de una
     // tarea vieja que sigue abierta (fue la causa del bug de "justificada = 0").
-    const paradasRows = dias == null
-      ? await traerTabla<ParadaRow>('paradas')
-      : await traerParadasDe(tareasRows.map((t) => t.id))
+    const paradasRows = !tareasRows ? []
+      : dias == null
+        ? await traerTabla<ParadaRow>('paradas')
+        : await traerParadasDe(tareasRows.map((t) => t.id))
 
     const [maqs, usrs, uss, ords, semis, objs, tlog, slog, fers, auss, cortes, msgs, lects, ests, desp, flts, labs, plts, eventosSgo, accionesSgo, indicadoresSgo, medicionesSgo, auditoriaSgo, controlesSgo, ejecucionesSgo, agendaIso, tareasSgo, comentariosTareasSgo, dtec, eppCol, eppEnt, eppSol, eppReg, recetas, preps] = await Promise.all([
       traerTodo('maquinas'),
@@ -365,8 +384,11 @@ export async function fetchInicial(rol?: Rol): Promise<void> {
     if (msgs.data) await db.mensajes.bulkPut((msgs.data as MensajeRow[]).map(mensajeFromRow))
     if (lects.data) await db.mensajesLectura.bulkPut((lects.data as MensajeLecturaRow[]).map(lecturaFromRow))
 
-    // Tareas (+ paradas anidadas)
-    {
+    // Tareas (+ paradas anidadas). v2.65: solo si llegaron enteras.
+    if (!tareasRows) {
+      console.warn('[sync] no llegaron las tareas: se conservan las que tenía este equipo')
+    } else {
+      await db.tareas.clear()
       const porTarea = new Map<string, ReturnType<typeof paradaFromRow>[]>()
       for (const pr of paradasRows) {
         const p = paradaFromRow(pr)
@@ -382,8 +404,10 @@ export async function fetchInicial(rol?: Rol): Promise<void> {
     }
 
     estado = { ...estado, ultimaSync: new Date().toISOString() }
+    return 'ok'
   } catch (e) {
     console.warn('[sync] fetchInicial fallo:', e)
+    return 'error'
   } finally {
     estado = { ...estado, sincronizando: false }; emit()
   }
@@ -675,7 +699,9 @@ let syncActiva = false
 export async function iniciarSync(rol?: Rol): Promise<void> {
   if (!BACKEND_ACTIVO || syncActiva) return
   syncActiva = true
-  await fetchInicial(rol)
+  // v2.65: sin sesión no se arranca nada y queda libre para reintentar cuando
+  // el usuario vuelva a entrar (si quedaba "activa", el nuevo login no bajaba datos).
+  if (await fetchInicial(rol) === 'sin_sesion') { syncActiva = false; return }
   activarPonerseAlDia() // v2.59: red de seguridad del tiempo real (ver ponerseAlDia.ts)
   suscribirRealtime()
   void procesarCola() // vaciar cualquier cambio offline pendiente

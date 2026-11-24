@@ -42,8 +42,9 @@ function local(id: string, estado: Tarea['estado'] = 'pendiente', paradas: Tarea
 }
 
 /** Supabase de mentira: from().select().neq()/in().order().range(). */
-function fakeSupabase(tablas: { tareas: TareaRow[]; paradas: ParadaRow[] }, falla?: 'tareas' | 'paradas') {
+function fakeSupabase(tablas: { tareas: TareaRow[]; paradas: ParadaRow[] }, falla?: 'tareas' | 'paradas', conSesion = true) {
   return {
+    auth: { getSession: async () => ({ data: { session: conSesion ? { user: { id: 'auth-alex' } } : null }, error: null }) },
     from(tabla: 'tareas' | 'paradas') {
       let filas: Record<string, unknown>[] = [...tablas[tabla]] as unknown as Record<string, unknown>[]
       const b = {
@@ -97,11 +98,11 @@ describe('puesta al día contra el servidor', () => {
   })
 
   it('una tarea borrada en Planificación desaparece; una finalizada en otra tablet se actualiza', async () => {
-    mem.tareas = [local('borrada', 'pendiente'), local('terminada', 'en_proceso')]
-    mem.supabase = fakeSupabase({ tareas: [fila('terminada', 'finalizada')], paradas: [] })
+    mem.tareas = [local('borrada', 'pendiente'), local('terminada', 'en_proceso'), local('sigue')]
+    mem.supabase = fakeSupabase({ tareas: [fila('terminada', 'finalizada'), fila('sigue')], paradas: [] })
     const r = await ponerseAlDiaTareas('test', true)
     expect(r).toMatchObject({ borradas: 1 })
-    expect(mem.tareas.map((t) => [t.id, t.estado])).toEqual([['terminada', 'finalizada']])
+    expect(mem.tareas.map((t) => [t.id, t.estado]).sort()).toEqual([['sigue', 'pendiente'], ['terminada', 'finalizada']])
   })
 
   it('SIN RED: no toca absolutamente nada', async () => {
@@ -133,5 +134,21 @@ describe('puesta al día contra el servidor', () => {
     })
     await ponerseAlDiaTareas('test', true)
     expect(mem.tareas[0].paradas).toHaveLength(1)
+  })
+})
+
+describe('v2.65 — nunca vaciar la tablet por una respuesta vacía', () => {
+  it('SIN SESIÓN (Supabase responde como anónimo: 0 filas sin error): no toca nada', async () => {
+    mem.tareas = [local('a'), local('b', 'en_proceso')]
+    mem.supabase = fakeSupabase({ tareas: [], paradas: [] }, undefined, false)
+    expect(await ponerseAlDiaTareas('test', true)).toBeNull()
+    expect(mem.tareas.map((t) => t.id)).toEqual(['a', 'b'])
+  })
+
+  it('0 abiertas en el servidor con abiertas en el equipo: no borra nada', async () => {
+    mem.tareas = [local('a'), local('b')]
+    mem.supabase = fakeSupabase({ tareas: [], paradas: [] })
+    expect(await ponerseAlDiaTareas('test', true)).toBeNull()
+    expect(mem.tareas.map((t) => t.id)).toEqual(['a', 'b'])
   })
 })

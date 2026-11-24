@@ -159,11 +159,32 @@ export async function ponerseAlDiaTareas(motivo = 'manual', forzar = false): Pro
 
   async function correr(): Promise<{ nuevas: number; actualizadas: number; borradas: number } | null> {
     const sb = supabase!
+    // ============================================================
+    // v2.65 — SIN SESIÓN VÁLIDA NO SE TOCA NADA.
+    // Si el equipo perdió la sesión (token vencido que no se pudo renovar) pero
+    // la app sigue mostrando al usuario guardado, Supabase responde como ANÓNIMO:
+    // la RLS devuelve 0 filas y NO da error. Sin este control, la puesta al día
+    // creía que el colaborador ya no tenía tareas y las sacaba de la tablet
+    // (caso mazza.alexander, 24/11: en la base estaban las 6; en su equipo, 0).
+    // ============================================================
+    const { data: ses, error: errSes } = await sb.auth.getSession()
+    if (errSes || !ses?.session) {
+      ultimoError = 'Este equipo no tiene una sesión válida: cerrá sesión y volvé a entrar.'
+      return null
+    }
     const servidor = await traerCompleto<TareaRow>(() => sb.from('tareas').select('*').neq('estado', 'finalizada').order('id'))
     if (!servidor) return null
     delServidor = servidor.length
 
     const locales = await db.tareas.toArray()
+    // Segunda red: 0 abiertas en el servidor con abiertas en el equipo es casi
+    // siempre una respuesta "vacía" por permisos, no la realidad. No se borra
+    // nada; la próxima carga completa (al iniciar sesión) ordena el equipo.
+    const abiertasLocales = locales.filter((t) => t.estado !== 'finalizada').length
+    if (servidor.length === 0 && abiertasLocales > 0) {
+      ultimoError = `El servidor devolvió 0 tareas abiertas y este equipo tiene ${abiertasLocales}: no se borró nada. Cerrá sesión y volvé a entrar.`
+      return null
+    }
     const plan = planificarPonerseAlDia(servidor, locales, await idsPendientes())
 
     // Las que el servidor ya no lista como abiertas: se pregunta por cada una.
