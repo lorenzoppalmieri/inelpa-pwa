@@ -6,6 +6,7 @@ import type { Rol, SyncOp, Tarea, Parada, OrdenProduccion, Semielaborado, Sector
 import type { EventoSGO, AccionSGO, AuditoriaSGO } from '../sgo/types'
 import type { IndicadorSGO, MedicionIndicadorSGO } from '../sgo/indicadores'
 import type { ControlProgramadoSGO, EjecucionControlSGO } from '../sgo/controles'
+import { activarPonerseAlDia, desactivarPonerseAlDia, ponerseAlDiaTareas } from './ponerseAlDia'
 import type { ActividadAgendaISO } from '../sgo/agendaISO'
 import type { ComentarioTareaSGO, TareaSGO } from '../sgo/tareasSGO'
 import { setFeriados, setAusencias } from '../lib/calendario'
@@ -654,7 +655,13 @@ function suscribirRealtime() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'sgo_agenda_iso' }, onActividadAgendaISOChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'sgo_tareas' }, onTareaSGOChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'sgo_tarea_comentarios' }, onComentarioTareaSGOChange)
-    .subscribe()
+    // v2.59: cada vez que el tiempo real (re)conecta, se recupera lo que pasó
+    // mientras estuvo caído. Supabase NO reenvía los avisos perdidos: sin esto,
+    // una tarea asignada durante un corte de Wi-Fi no llegaba nunca a la tablet.
+    .subscribe((estadoCanal) => {
+      if (estadoCanal === 'SUBSCRIBED') void ponerseAlDiaTareas('tiempo real')
+      else if (estadoCanal === 'CHANNEL_ERROR' || estadoCanal === 'TIMED_OUT') console.warn(`[sync] tiempo real: ${estadoCanal}; se reintenta solo`)
+    })
 }
 
 // Arranca la sincronizacion al haber sesion (lo llama AuthContext).
@@ -664,12 +671,14 @@ export async function iniciarSync(rol?: Rol): Promise<void> {
   if (!BACKEND_ACTIVO || syncActiva) return
   syncActiva = true
   await fetchInicial(rol)
+  activarPonerseAlDia() // v2.59: red de seguridad del tiempo real (ver ponerseAlDia.ts)
   suscribirRealtime()
   void procesarCola() // vaciar cualquier cambio offline pendiente
 }
 
 // Corta la sincronizacion al cerrar sesion.
 export async function detenerSync(): Promise<void> {
+  desactivarPonerseAlDia()
   if (canal && supabase) { await supabase.removeChannel(canal) }
   canal = null
   if (canalEpp && supabase) { await supabase.removeChannel(canalEpp) }
