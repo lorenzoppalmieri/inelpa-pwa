@@ -31,6 +31,12 @@ export interface LineaReceta {
   itemCode: string
   quantity: number
   uom: string | null
+  /**
+   * v2.65 (opcional): descripción del componente. Para los insumos que SAP no
+   * manda como artículo (alambre, chapa, canales...): sin esto, logística ve el
+   * código suelto. Si el artículo existe en el maestro, manda el maestro.
+   */
+  itemName?: string
 }
 
 export interface ArticuloSap {
@@ -186,8 +192,9 @@ export function validarArticulo(raw: unknown): Validacion<ArticuloSap> {
         const code = texto(l.itemCode, `${p}.itemCode`, errores, { requerido: true, max: MAX_CODIGO })
         const qty = numeroPositivo(l.quantity, `${p}.quantity`, errores)
         const lUom = texto(l.uom, `${p}.uom`, errores, { max: 20 })
+        const lName = texto(l.itemName, `${p}.itemName`, errores, { max: 200 })
         if (code && itemCode && code === itemCode) errores.push(`${p}: un artículo no puede ser componente de sí mismo`)
-        if (code && qty !== null) bom!.push({ itemCode: code, quantity: qty, uom: lUom })
+        if (code && qty !== null) bom!.push(lName ? { itemCode: code, quantity: qty, uom: lUom, itemName: lName } : { itemCode: code, quantity: qty, uom: lUom })
       })
     }
   }

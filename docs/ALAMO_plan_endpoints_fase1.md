@@ -1,12 +1,16 @@
 # Integración SAP B1 ↔ PWA INELPA
 ## Fase 1 — Entrada de datos (SAP → PWA): contrato de API
 
-**Rev. 2.1 · 26/10/2026**
+**Rev. 2.2 · 24/11/2026**
 **Autor:** INELPA (equipo PWA)
 **Para:** ALAMO
 **Estado:** contrato implementado y probado internamente. Listo para la prueba conjunta con Postman en cuanto esté el entorno de test.
 
 ---
+
+## Cambios de la rev. 2.2 (24/11/2026)
+
+- **Líneas de receta: nuevo campo opcional `bom[].itemName`** (descripción del componente, ≤ 200). Hoy los insumos (alambre, chapa, canales, bulones) no llegan como artículo, así que en la PWA se ven con el código suelto. Con `itemName` en la línea, logística ve el nombre. Es **compatible hacia atrás**: si no se manda, todo sigue igual. Si el componente también llega como artículo, manda el maestro (§3.2). El nombre no cuenta como cambio de receta.
 
 ## Cambios de la rev. 2.1 (después de la minuta del 21-22/10)
 
@@ -100,16 +104,16 @@ Content-Type: application/json
       "defaultWarehouse": "03",
       "hasBatch": false,
       "bom": [
-        { "itemCode": "BOBBAJ0000109", "quantity": 1, "uom": "UN" },
-        { "itemCode": "BOBBAJ0000110", "quantity": 1, "uom": "UN" },
-        { "itemCode": "BOBBAJ0000111", "quantity": 1, "uom": "UN" },
-        { "itemCode": "BOBALT0000109", "quantity": 1, "uom": "UN" },
-        { "itemCode": "BOBALT0000110", "quantity": 1, "uom": "UN" },
-        { "itemCode": "BOBALT0000111", "quantity": 1, "uom": "UN" },
-        { "itemCode": "PARDIS0000001", "quantity": 1, "uom": "UN" },
-        { "itemCode": "CUBDIS0000037", "quantity": 1, "uom": "UN" },
-        { "itemCode": "TANDIS0000001", "quantity": 1, "uom": "UN" },
-        { "itemCode": "TAPDIS0000001", "quantity": 1, "uom": "UN" }
+        { "itemCode": "BOBBAJ0000109", "itemName": "Bobina BT Distribucion Trifasica Cuadrado 16/13 F1 Cu", "quantity": 1, "uom": "UN" },
+        { "itemCode": "BOBBAJ0000110", "itemName": "Bobina BT Distribucion Trifasica Cuadrado 16/13 F2 Cu", "quantity": 1, "uom": "UN" },
+        { "itemCode": "BOBBAJ0000111", "itemName": "Bobina BT Distribucion Trifasica Cuadrado 16/13 F3 Cu", "quantity": 1, "uom": "UN" },
+        { "itemCode": "BOBALT0000109", "itemName": "Bobina AT Distribucion Trifasica Cuadrado 16/13 F1 Cu", "quantity": 1, "uom": "UN" },
+        { "itemCode": "BOBALT0000110", "itemName": "Bobina AT Distribucion Trifasica Cuadrado 16/13 F2 Cu", "quantity": 1, "uom": "UN" },
+        { "itemCode": "BOBALT0000111", "itemName": "Bobina AT Distribucion Trifasica Cuadrado 16/13 F3 Cu", "quantity": 1, "uom": "UN" },
+        { "itemCode": "PARDIS0000001", "itemName": "Parte Activa Distribucion Trifasica 16/13 Cu", "quantity": 1, "uom": "UN" },
+        { "itemCode": "CUBDIS0000037", "itemName": "Cuba Distribucion Trifasica Plataforma 16/13 Cu (DESUSO)", "quantity": 1, "uom": "UN" },
+        { "itemCode": "TANDIS0000001", "itemName": "Tanque Expansion TTD 16/13 Cu", "quantity": 1, "uom": "UN" },
+        { "itemCode": "TAPDIS0000001", "itemName": "Tapa Distribucion con Tanque Expansion 16/13 Cu", "quantity": 1, "uom": "UN" }
       ]
     }
   ]
@@ -131,6 +135,7 @@ Content-Type: application/json
 | `bom[].itemCode` | string | **sí** | No puede ser el mismo artículo. Puede no existir todavía. |
 | `bom[].quantity` | number > 0 | **sí** | Acepta decimales (kilos, metros). |
 | `bom[].uom` | string | no | |
+| `bom[].itemName` | string ≤ 200 | no (**recomendado**) | Rev. 2.2. Descripción del componente (`OITM.ItemName`). Imprescindible para los insumos que no se mandan como artículo. |
 
 Máximo **500 artículos por envío** y **500 líneas por receta**.
 

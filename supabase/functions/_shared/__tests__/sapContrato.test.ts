@@ -29,6 +29,20 @@ describe('validarArticulo', () => {
     if (r.ok) expect(r.valor.bom).toEqual([{ itemCode: 'BOBALT0000109', quantity: 1, uom: 'UN' }])
   })
 
+  it('v2.65: la línea de receta acepta la descripción del insumo (opcional)', () => {
+    const r = validarArticulo(articuloOk({ bom: [
+      { itemCode: 'ALAALU0000016', quantity: 34.6, uom: 'Kilogramos', itemName: '  Alambre de Aluminio Esmaltado D: 2.10mm ' },
+      { itemCode: 'AISCAN0000013', quantity: 6.48, uom: 'Kilogramos' },
+    ] }))
+    expect(r.ok).toBe(true)
+    if (r.ok) {
+      expect(r.valor.bom?.[0]).toEqual({ itemCode: 'ALAALU0000016', quantity: 34.6, uom: 'Kilogramos', itemName: 'Alambre de Aluminio Esmaltado D: 2.10mm' })
+      expect(r.valor.bom?.[1]).not.toHaveProperty('itemName')   // sin nombre: igual que antes
+    }
+    const largo = validarArticulo(articuloOk({ bom: [{ itemCode: 'ALAALU0000016', quantity: 1, itemName: 'x'.repeat(201) }] }))
+    expect(largo.ok).toBe(false)
+  })
+
   it('sin "bom" (o bom null) NO toca la receta: el campo queda ausente', () => {
     for (const extra of [{}, { bom: null }]) {
       const r = validarArticulo(articuloOk(extra))
