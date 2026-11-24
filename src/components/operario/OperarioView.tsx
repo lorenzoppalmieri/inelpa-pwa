@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/dexie'
 import { useAuth } from '../../auth/AuthContext'
@@ -37,6 +37,7 @@ export default function OperarioView() {
     if (usuario) localStorage.setItem(lsKey(usuario.id), id)
   }
   function cambiar() {
+    pestanaDecidida.current = '' // v2.62: al volver a elegir, se decide de nuevo la pestaña
     setMaquinaId('')
     if (usuario) localStorage.removeItem(lsKey(usuario.id))
   }
@@ -107,6 +108,26 @@ export default function OperarioView() {
     .sort((a, b) => b.n - a.n || a.nombre.localeCompare(b.nombre))
 
   const [filtro, setFiltro] = useState<'activas' | 'pendientes' | 'finalizadas'>('activas')
+  // ============================================================
+  // v2.62 — SI NO HAY NADA EN CURSO, SE ABRE EN "PENDIENTES".
+  //
+  // Caso Alexander Mazza (24/11/2026): tenía 6 tareas pendientes bien asignadas
+  // (su perfil, su sector, su estación) y "no se veían". La pantalla abría
+  // siempre en "En curso", que estaba vacía ("No hay tareas en esta vista"); las
+  // tareas nuevas estaban en la pestaña de al lado, "Pendientes", y nadie la tocaba.
+  //
+  // Ahora, al entrar a una estación, si no tiene nada en curso y sí pendientes,
+  // arranca en "Pendientes". Se decide UNA vez por estación (no en cada cambio):
+  // si se reevaluara siempre, al tocar "Iniciar" la vista saltaría de vuelta a
+  // Pendientes durante el instante en que la tarea todavía figura pendiente.
+  // ============================================================
+  const pestanaDecidida = useRef('')
+  useEffect(() => {
+    if (!maquinaId || !tareas || tareas.length === 0 || pestanaDecidida.current === maquinaId) return
+    pestanaDecidida.current = maquinaId
+    const hayEnCurso = tareas.some((t) => t.estado === 'en_proceso' || t.estado === 'pausada')
+    if (!hayEnCurso && tareas.some((t) => t.estado === 'pendiente')) setFiltro('pendientes')
+  }, [maquinaId, tareas])
   // v1.18: pausa/reanudación GLOBAL de la estación (montaje PA/PO: el equipo para
   // junto, ej. almuerzo). Soporta PARADAS CONCURRENTES: una tarea ya pausada por
   // otro motivo recibe TAMBIÉN la parada global (dos paradas abiertas a la vez);
