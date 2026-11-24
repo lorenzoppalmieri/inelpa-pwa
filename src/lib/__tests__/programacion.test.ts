@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Tarea } from '../../types'
-import { programar } from '../programacion'
+import { describirMotivo, programar } from '../programacion'
 import { setAusencias, setFeriados, sumarMinutosLaborables } from '../calendario'
 import { auditarTiempos, type Totales } from '../auditoriaTiempos'
 
@@ -683,5 +683,136 @@ describe('fin proyectado de las tareas abiertas (suma las pausas)', () => {
     const p = programar(ts, local(11)).get('A')!
     expect(ms(p.endISO)).toBe(ms(local(9, 15)))
     expect(p.restanteMin).toBeUndefined()
+  })
+})
+
+// ============================================================
+// v2.60 — "Planificamos una tarea para hoy y la lleva sola al 26"
+// (mazza.alexander, 24/11/2026). La cascada puede correr una pendiente por
+// cuatro motivos; ahora cada pendiente dice cuál fue.
+// ============================================================
+describe('por qué una pendiente arranca donde arranca', () => {
+  afterEach(() => { setAusencias(new Map()); setFeriados([]) })
+  const porId = (ts: Tarea[]) => (id: string) => ts.find((t) => t.id === id)
+
+  it('libre: arranca ya y no hay nada que explicar', () => {
+    const plan = programar([tarea({ id: 'N', creada: local(7) })], local(8))
+    expect(plan.get('N')!.motivo).toEqual({ tipo: 'ahora' })
+  })
+
+  it('EL CASO: tiene otras tareas antes en su cola -> lo dice y nombra la que la frena', () => {
+    const ts = [
+      tarea({ id: 'VIEJA', creada: local(7), tiempoEstandarMin: 900, modelo: 'TTD 315/13' }),
+      tarea({ id: 'HOY', creada: local(9), inicioPlanificado: local(9) }),
+    ]
+    const plan = programar(ts, local(10))
+    const m = plan.get('HOY')!.motivo!
+    expect(m.tipo).toBe('colaborador')
+    expect(m.tareaId).toBe('VIEJA')
+    expect(diaAr(plan.get('HOY')!.startISO)).not.toBe('lunes')
+    expect(describirMotivo(m, porId(ts))).toContain('TTD 315/13')
+  })
+
+  it('una tarea PAUSADA hace días que sigue sumando también se señala, con la fecha de la pausa', () => {
+    const vieja = tarea({ id: 'P', estado: 'pausada', inicioReal: '2026-09-10T08:00:00.000-03:00', tiempoEstandarMin: 600,
+      paradas: [{ id: 'x', tareaId: 'P', causa: 'espera_consumibles', inicio: '2026-09-10T09:00:00.000-03:00' } as Tarea['paradas'][number]] })
+    const ts = [vieja, tarea({ id: 'HOY', creada: local(9) })]
+    const plan = programar(ts, local(10))
+    const m = plan.get('HOY')!.motivo!
+    expect(m).toMatchObject({ tipo: 'colaborador', tareaId: 'P' })
+    const txt = describirMotivo(m, porId(ts))
+    expect(txt).toContain('PAUSADA desde el 10/09')
+    expect(txt).toContain('reanudala o finalizala')
+  })
+
+  it('la estación está ocupada por OTRO colaborador', () => {
+    const ts = [
+      tarea({ id: 'OTRO', operarioId: 'op2', creada: local(7), tiempoEstandarMin: 240 }),
+      tarea({ id: 'MIA', operarioId: 'op1', creada: local(8) }),
+    ]
+    const plan = programar(ts, local(8))
+    expect(plan.get('MIA')!.motivo).toMatchObject({ tipo: 'estacion', tareaId: 'OTRO' })
+  })
+
+  it('ausencia cargada: lo dice con los días', () => {
+    setAusencias(new Map([['op1', new Set(['2026-09-14', '2026-09-15'])]]))
+    const plan = programar([tarea({ id: 'N', creada: local(7) })], local(8))
+    expect(plan.get('N')!.motivo!.ausencias).toEqual(['2026-09-14', '2026-09-15'])
+    expect(diaAr(plan.get('N')!.startISO)).toBe('miércoles')
+    expect(describirMotivo(plan.get('N')!.motivo, () => undefined)).toContain('AUSENCIA cargada del colaborador: 14/09, 15/09')
+  })
+
+  it('fecha futura: es una reserva', () => {
+    const plan = programar([tarea({ id: 'R', inicioPlanificado: '2026-09-16T07:00:00.000-03:00', creada: local(7) })], local(8))
+    expect(plan.get('R')!.motivo!.tipo).toBe('reserva')
+  })
+
+  it('no cambia ninguna fecha: solo agrega la explicación', () => {
+    const ts = [
+      tarea({ id: 'A', estado: 'en_proceso', inicioReal: local(8), tiempoEstandarMin: 60 }),
+      tarea({ id: 'B', inicioPlanificado: local(9), tiempoEstandarMin: 120 }),
+    ]
+    const plan = programar(ts, local(15, 40))
+    expect(diaAr(plan.get('B')!.endISO)).toBe('martes')
+    expect(ms(plan.get('B')!.startISO)).toBeGreaterThanOrEqual(ms(plan.get('A')!.endISO))
+  })
+})
+
+// ============================================================
+// v2.61 — LA BOBINADORA SE OCUPA POR TRAMOS.
+// Caso real (24/11): a Alexander le planificaban una bobina para HOY y caía el
+// 26. Moreira tenía bobinas pendientes en la MISMA bobinadora y estaba ausente
+// el 24 y el 25: la máquina quedaba "ocupada hasta" el 26 aunque estuviera libre.
+// ============================================================
+describe('la estación se ocupa por tramos (huecos aprovechables)', () => {
+  afterEach(() => { setAusencias(new Map()); setFeriados([]) })
+
+  it('EL CASO REPORTADO: el compañero ausente no le bloquea la máquina a Alexander', () => {
+    setAusencias(new Map([['moreira', new Set(['2026-09-14', '2026-09-15'])]]))
+    const ts = [
+      tarea({ id: 'MOREIRA', operarioId: 'moreira', creada: local(7), tiempoEstandarMin: 240 }),
+      tarea({ id: 'ALEX', operarioId: 'alexander', creada: local(9), tiempoEstandarMin: 120 }),
+    ]
+    const plan = programar(ts, local(10))
+    // Moreira vuelve el miércoles; Alexander usa la máquina HOY.
+    expect(diaAr(plan.get('MOREIRA')!.startISO)).toBe('miércoles')
+    expect(ms(plan.get('ALEX')!.startISO)).toBe(ms(local(10)))
+    expect(plan.get('ALEX')!.motivo).toEqual({ tipo: 'ahora' })
+    expect(solapes(ts, plan, (t) => t.maquinaId)).toBe(0)
+  })
+
+  it('si no entra entera en el hueco, va después del tramo ocupado (nunca se pisan)', () => {
+    setAusencias(new Map([['moreira', new Set(['2026-09-14', '2026-09-15'])]]))
+    const ts = [
+      tarea({ id: 'MOREIRA', operarioId: 'moreira', creada: local(7), tiempoEstandarMin: 240 }),
+      // 3 jornadas: no entra antes del miércoles 07:00.
+      tarea({ id: 'ALEX', operarioId: 'alexander', creada: local(9), tiempoEstandarMin: 1500 }),
+    ]
+    const plan = programar(ts, local(10))
+    expect(ms(plan.get('ALEX')!.startISO)).toBeGreaterThanOrEqual(ms(plan.get('MOREIRA')!.endISO))
+    expect(plan.get('ALEX')!.motivo).toMatchObject({ tipo: 'estacion', tareaId: 'MOREIRA' })
+    expect(solapes(ts, plan, (t) => t.maquinaId)).toBe(0)
+  })
+
+  it('la máquina libre mientras su colaborador está en otra estación se puede usar', () => {
+    // Moreira está ocupado toda la mañana en la bob 02; su tarea en la bob 01
+    // recién arranca después. Mientras tanto la bob 01 está libre para Alexander.
+    const ts = [
+      tarea({ id: 'M-ANTES', operarioId: 'moreira', maquinaId: 'm_bob_02', creada: local(6), tiempoEstandarMin: 240 }),
+      tarea({ id: 'M-BOB1', operarioId: 'moreira', maquinaId: 'm_bob_01', creada: local(7), tiempoEstandarMin: 60 }),
+      tarea({ id: 'ALEX', operarioId: 'alexander', maquinaId: 'm_bob_01', creada: local(8), tiempoEstandarMin: 60 }),
+    ]
+    const plan = programar(ts, local(8))
+    expect(ms(plan.get('ALEX')!.startISO)).toBe(ms(local(8)))
+    expect(solapes(ts, plan, (t) => t.maquinaId)).toBe(0)
+  })
+
+  it('la cola PROPIA del colaborador no se reordena (sigue el orden de asignación)', () => {
+    const ts = [
+      tarea({ id: 'A1', operarioId: 'alexander', maquinaId: 'm_bob_01', creada: local(7), tiempoEstandarMin: 240 }),
+      tarea({ id: 'A2', operarioId: 'alexander', maquinaId: 'm_bob_02', creada: local(8), tiempoEstandarMin: 30 }),
+    ]
+    const plan = programar(ts, local(8))
+    expect(ms(plan.get('A2')!.startISO)).toBeGreaterThanOrEqual(ms(plan.get('A1')!.endISO))
   })
 })

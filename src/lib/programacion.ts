@@ -1,6 +1,7 @@
 import type { Tarea, SectorId } from '../types'
 import { minutosRecupTarea } from '../types'
-import { sumarMinutosLaborables, proximoInstanteLaborable, esSabadoDevolucion, type GrupoAlmuerzo, GRUPO_ALMUERZO_DEFAULT } from './calendario'
+import { sumarMinutosLaborables, proximoInstanteLaborable, esSabadoDevolucion, estaAusente, type GrupoAlmuerzo, GRUPO_ALMUERZO_DEFAULT } from './calendario'
+import { fechaLocalISO } from './time'
 import { metricasTarea, tiempoEstimadoMin } from './kpi'
 
 // ============================================================
@@ -167,6 +168,67 @@ export interface Plan {
    */
   trabajadoMin?: number
   restanteMin?: number
+  /** v2.60 — solo PENDIENTES: por qué arranca donde arranca (ver `MotivoInicio`). */
+  motivo?: MotivoInicio
+}
+
+/**
+ * v2.60 — POR QUÉ UNA PENDIENTE ARRANCA DONDE ARRANCA.
+ *
+ * Reclamo (24/11/2026, mazza.alexander): "planificamos una tarea para hoy y la
+ * lleva sola al 26". La cascada puede correr una tarea por cuatro motivos
+ * distintos y desde la pantalla no había forma de saber cuál:
+ *   - colaborador: tiene otras tareas antes en su cola (o una abierta que todavía
+ *                  no terminó, incluida una PAUSADA hace días que sigue sumando);
+ *   - estacion:    la máquina está ocupada por tareas de OTRO colaborador;
+ *   - reserva:     la tarea tiene una fecha futura ("no antes de");
+ *   - ausencia:    el colaborador tiene ausencias cargadas esos días.
+ * Ahora `programar()` registra cuál fue y el Gantt lo dice en el tooltip.
+ */
+export interface MotivoInicio {
+  tipo: 'ahora' | 'reserva' | 'colaborador' | 'estacion'
+  /** Tarea que ocupa al colaborador / la estación hasta que esta arranca. */
+  tareaId?: string
+  /** Hasta cuándo estaba ocupado el recurso que la frenó. */
+  hastaISO?: string
+  /** Días ('YYYY-MM-DD') que se saltearon por ausencia cargada del colaborador. */
+  ausencias?: string[]
+}
+
+const ddmm = (iso: string) => { const d = new Date(iso); return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}` }
+const ddmmhh = (iso: string) => { const d = new Date(iso); return `${ddmm(iso)} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` }
+
+/**
+ * Texto para la planificadora. `tarea` resuelve la tarea que frenó (para decir
+ * cuál es y si está pausada desde hace días, que es lo que hay que corregir).
+ */
+export function describirMotivo(
+  m: MotivoInicio | undefined,
+  tarea: (id: string) => Tarea | undefined,
+  nombreOperario: (id?: string) => string = (id) => id ?? '',
+): string {
+  if (!m) return ''
+  const partes: string[] = []
+  const ocupante = m.tareaId ? tarea(m.tareaId) : undefined
+  const queEs = (t: Tarea) => {
+    const pausa = t.estado === 'pausada'
+      ? (t.paradas ?? []).filter((p) => !p.fin).map((p) => p.inicio).sort((a, b) => ms(a) - ms(b))[0]
+      : undefined
+    const estado = t.estado === 'pendiente' ? 'pendiente, asignada antes'
+      : t.estado === 'pausada' ? `PAUSADA${pausa ? ` desde el ${ddmmhh(pausa)}` : ''}`
+        : t.estado === 'en_proceso' ? `en curso desde el ${t.inicioReal ? ddmmhh(t.inicioReal) : '?'}` : t.estado
+    return `«${t.modelo}${t.nroTransformador ? ` · ${t.nroTransformador}` : ''}» (${estado})`
+  }
+  if (m.tipo === 'colaborador') {
+    partes.push(`El colaborador está ocupado hasta el ${m.hastaISO ? ddmmhh(m.hastaISO) : '?'}${ocupante ? ` — termina con ${queEs(ocupante)}` : ''}.`)
+    if (ocupante?.estado === 'pausada') partes.push('Si esa pausa quedó abierta por error, reanudala o finalizala y la cola se acomoda sola.')
+  } else if (m.tipo === 'estacion') {
+    partes.push(`La estación está ocupada hasta el ${m.hastaISO ? ddmmhh(m.hastaISO) : '?'}${ocupante ? ` por ${queEs(ocupante)} de ${nombreOperario(ocupante.operarioId) || 'otro colaborador'}` : ''}. Si hay otra estación libre, conviene moverla.`)
+  } else if (m.tipo === 'reserva') {
+    partes.push('Tiene fecha reservada ("no antes de"): no se adelanta aunque haya lugar.')
+  }
+  if (m.ausencias?.length) partes.push(`Se saltean días con AUSENCIA cargada del colaborador: ${m.ausencias.map((d) => d.slice(8, 10) + '/' + d.slice(5, 7)).join(', ')}.`)
+  return partes.join(' ')
 }
 
 /**
@@ -257,9 +319,8 @@ export function programar(
   opts: OpcionesProgramar = {},
 ): Map<string, Plan> {
   const out = new Map<string, Plan>()
-  // Cursor = instante en que se libera cada recurso. v2.18: con N huecos, para
-  // que Montaje PA Rural pueda llevar dos partes activas en paralelo.
-  const finMaquina = new Map<string, Huecos>()
+  // Cursor = instante en que se libera cada COLABORADOR. v2.18: con N huecos.
+  // v2.61: las estaciones ya no usan cursor: se ocupan por tramos (ver `ocupMaquina`).
   const finOperario = new Map<string, Huecos>()
   // v2.37: hasta cuándo está ocupada cada PERSONA, con todo lo que tiene (de
   // cualquier sector). Solo lo LEEN las tareas de encadenado estricto; para el
@@ -275,6 +336,64 @@ export function programar(
     let h = mapa.get(clave)
     if (!h) { h = new Huecos(capacidadRecurso(sectorId)); mapa.set(clave, h) }
     return h
+  }
+  // v2.60: QUIÉN ocupa cada recurso hasta más tarde (solo para explicar el
+  // arranque de las pendientes; no cambia ninguna cuenta).
+  const quien = new Map<string, { fin: number; id: string }>()
+  const registrar = (clave: string, finMs: number, id: string) => {
+    if (!Number.isFinite(finMs)) return
+    const prev = quien.get(clave)
+    if (!prev || finMs >= prev.fin) quien.set(clave, { fin: finMs, id })
+  }
+  // ============================================================
+  // v2.61 — LA ESTACIÓN SE OCUPA POR TRAMOS, NO "HASTA LA ÚLTIMA".
+  //
+  // Caso real (24/11/2026): a Alexander Mazza le planificaban una bobina para
+  // HOY y la cascada la mandaba al 26. Moreira tenía bobinas pendientes en la
+  // MISMA bobinadora y estaba ausente el 24 y el 25: sus tareas se corrían al 26
+  // y la máquina quedaba "ocupada hasta" el 26 en adelante, aunque estuviera
+  // libre los dos días anteriores. La de Alexander esperaba detrás.
+  //
+  // Es el mismo error que v2.37 encontró en los boxes de soldadura ("el segundo
+  // espera a que el primero termine TODA su cola en ese box aunque él esté
+  // libre"), ahora en el pool de bobinadoras, donde dos bobinadores pueden
+  // compartir máquina en la planificación.
+  //
+  // Antes la máquina guardaba un solo número: el fin de lo último que se le
+  // asignó. Ahora guarda los TRAMOS ocupados y una pendiente entra en el primer
+  // hueco donde quepa ENTERA. La regla física se mantiene: una bobinadora nunca
+  // tiene dos tareas a la vez. Lo que cambia es que un hueco libre (por una
+  // ausencia, una reserva o porque el otro colaborador está en otra cosa) ya no
+  // se desperdicia.
+  //
+  // Lo del COLABORADOR no cambia: su cola sigue siendo un cursor, en orden de
+  // asignación (v2.30). Una persona nunca "salta" tareas suyas que le asignaron
+  // antes.
+  // ============================================================
+  const ocupMaquina = new Map<string, { ini: number; fin: number; id: string }[]>()
+  const anotarMaquina = (mk: string | undefined, sectorId: SectorId, iniMs: number, finMs: number, id: string) => {
+    if (!mk || !Number.isFinite(capacidadRecurso(sectorId))) return // montaje: sin límite
+    if (!Number.isFinite(iniMs) || !Number.isFinite(finMs)) return
+    const arr = ocupMaquina.get(mk) ?? []
+    arr.push({ ini: iniMs, fin: Math.max(iniMs, finMs), id })
+    ocupMaquina.set(mk, arr)
+  }
+  /** El tramo ocupado de la máquina que se pisa con [iniMs, finMs) (el que termina más tarde). */
+  const choqueEnMaquina = (mk: string, iniMs: number, finMs: number) =>
+    (ocupMaquina.get(mk) ?? [])
+      .filter((iv) => iv.ini < Math.max(finMs, iniMs + 1) && iniMs < iv.fin)
+      .sort((a, b) => b.fin - a.fin)[0]
+
+  /** Días con ausencia del colaborador que `proximoInstanteLaborable` salteó. */
+  const ausenciasSalteadas = (desdeISO: string, recup: number, sab: boolean, operarioId?: string): string[] => {
+    if (!operarioId) return []
+    const sinAus = ms(proximoInstanteLaborable(desdeISO, grupo, recup, undefined, sab))
+    const conAus = ms(proximoInstanteLaborable(desdeISO, grupo, recup, operarioId, sab))
+    const out: string[] = []
+    for (let d = new Date(sinAus); d.getTime() < conAus && out.length < 60; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) {
+      if (estaAusente(operarioId, d)) out.push(fechaLocalISO(d))
+    }
+    return out
   }
 
   // Se procesa TODO en orden cronologico (no por maquina): asi los cursores de
@@ -390,23 +509,32 @@ export function programar(
       const endISO = proy?.endISO ?? t.finReal ?? sumar(t.inicioReal, t.tiempoEstandarMin)
       out.set(t.id, { startISO: t.inicioReal, endISO, estimada: false, trabajadoMin: proy?.trabajadoMin, restanteMin: proy?.restanteMin })
       // El recurso queda ocupado hasta el fin (real si cerro, proyectado si sigue).
-      if (mk) huecosDe(finMaquina, mk, t.sectorId).ocupar(ms(endISO))
+      // v2.61: la estación, por TRAMO (de su arranque real a su fin).
+      anotarMaquina(mk, t.sectorId, ms(t.inicioReal), ms(endISO), t.id)
       if (ok) huecosDe(finOperario, ok, t.sectorId).ocupar(ms(endISO))
       anotarOperario(ok, ms(endISO))
+      if (ok) registrar(`o:${ok}`, ms(endISO), t.id)
       continue
     }
 
     // v2.37: encadenado estricto (Soldadura Dist.). Arranca donde se libera el
     // COLABORADOR, o ahora; ni el box ni la fecha planificada lo corren.
     if (esEncadenadoEstricto(t) && !planSabado(t)) {
-      let iniMs = Math.max(ahoraMs, ocupadoHasta.get(ok!) ?? -Infinity)
+      const libreOp = ocupadoHasta.get(ok!) ?? -Infinity
+      let iniMs = Math.max(ahoraMs, libreOp)
       if (!Number.isFinite(iniMs)) iniMs = ahoraMs
       const iniISO = proximoInstanteLaborable(new Date(iniMs).toISOString(), grupo, recup, t.operarioId, sab)
       const finISO = sumar(iniISO, t.tiempoEstandarMin)
-      out.set(t.id, { startISO: iniISO, endISO: finISO, estimada: true })
-      if (mk) huecosDe(finMaquina, mk, t.sectorId).ocupar(ms(finISO))
+      const motivo: MotivoInicio = libreOp > ahoraMs
+        ? { tipo: 'colaborador', tareaId: quien.get(`o:${ok}`)?.id, hastaISO: new Date(libreOp).toISOString() }
+        : { tipo: 'ahora' }
+      const aus = ausenciasSalteadas(new Date(iniMs).toISOString(), recup, sab, t.operarioId)
+      if (aus.length) motivo.ausencias = aus
+      out.set(t.id, { startISO: iniISO, endISO: finISO, estimada: true, motivo })
+      anotarMaquina(mk, t.sectorId, ms(iniISO), ms(finISO), t.id) // el box se anota, pero no frena (v2.37)
       if (ok) huecosDe(finOperario, ok, t.sectorId).ocupar(ms(finISO))
       anotarOperario(ok, ms(finISO))
+      if (ok) registrar(`o:${ok}`, ms(finISO), t.id)
       continue
     }
 
@@ -422,13 +550,17 @@ export function programar(
     // quedarse clavada en su horario viejo.
     let startISO = esPosterior(planificado, ahoraISO) ? planificado : ahoraISO
     let startMs = ms(startISO)
-    if (mk) startMs = Math.max(startMs, huecosDe(finMaquina, mk, t.sectorId).libreDesde())
+    // v2.60: se anota cuál de los límites fue el que mandó (el más tardío).
+    let motivo: MotivoInicio = esPosterior(planificado, ahoraISO) ? { tipo: 'reserva' } : { tipo: 'ahora' }
+    // v2.61: la estación ya no se mira acá como "libre desde": se busca el
+    // primer hueco donde la tarea entre entera, más abajo.
     if (ok) {
       // v2.42: una PERSONA de Montaje PA espera a terminar todo lo suyo (de
       // cualquier sector). El resto, con los huecos de siempre.
       const libre = encadenaPorPersona(t, opts.nombreOperario)
         ? (ocupadoHasta.get(ok) ?? -Infinity)
         : huecosDe(finOperario, ok, t.sectorId).libreDesde()
+      if (libre > startMs && libre > ahoraMs) motivo = { tipo: 'colaborador', tareaId: quien.get(`o:${ok}`)?.id, hastaISO: new Date(libre).toISOString() }
       startMs = Math.max(startMs, libre)
     }
     if (Number.isFinite(startMs)) startISO = new Date(startMs).toISOString()
@@ -436,12 +568,29 @@ export function programar(
     // Si no entra en lo que queda del dia, sumarMinutosLaborables la parte y la
     // sigue al dia siguiente; pasado el viernes cae el lunes a las 07:00. El
     // desborde a la semana que viene sale de aca, no hace falta nada extra.
+    const ausencias = new Set(ausenciasSalteadas(startISO, recup, sab, t.operarioId))
     startISO = proximoInstanteLaborable(startISO, grupo, recup, t.operarioId, sab)
-    const endISO = sumar(startISO, t.tiempoEstandarMin)
-    out.set(t.id, { startISO, endISO, estimada: true })
-    if (mk) huecosDe(finMaquina, mk, t.sectorId).ocupar(ms(endISO))
+    let endISO = sumar(startISO, t.tiempoEstandarMin)
+
+    // v2.61: primer hueco de la ESTACIÓN donde la tarea entra entera. Si se pisa
+    // con un tramo ocupado, se corre al final de ese tramo y se vuelve a probar.
+    if (mk) {
+      for (let intento = 0; intento < 500; intento++) {
+        const choque = choqueEnMaquina(mk, ms(startISO), ms(endISO))
+        if (!choque) break
+        const hastaISO = new Date(choque.fin).toISOString()
+        motivo = { tipo: 'estacion', tareaId: choque.id, hastaISO }
+        for (const d of ausenciasSalteadas(hastaISO, recup, sab, t.operarioId)) ausencias.add(d)
+        startISO = proximoInstanteLaborable(hastaISO, grupo, recup, t.operarioId, sab)
+        endISO = sumar(startISO, t.tiempoEstandarMin)
+      }
+    }
+    if (ausencias.size) motivo.ausencias = [...ausencias].sort()
+    out.set(t.id, { startISO, endISO, estimada: true, motivo })
+    anotarMaquina(mk, t.sectorId, ms(startISO), ms(endISO), t.id)
     if (ok) huecosDe(finOperario, ok, t.sectorId).ocupar(ms(endISO))
     anotarOperario(ok, ms(endISO))
+    if (ok) registrar(`o:${ok}`, ms(endISO), t.id)
   }
   return out
 }

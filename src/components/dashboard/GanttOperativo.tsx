@@ -4,7 +4,7 @@ import { sectorById, causaLabel, esParadaNoProductiva, nombreSemielaborado, minu
 import { componentePorCodigo } from '../../data/catalogo'
 import { hhmm, fmtDur, isoWeek, fechaCorta } from '../../lib/time'
 import { proximoInstanteLaborable, tramosLaborables, calcularTiempoNetoProductivo, calcularTiempoProductivo, estaAusente, esSabadoDevolucion, type GrupoAlmuerzo } from '../../lib/calendario'
-import { programar, capacidadRecurso, encadenaPorPersona, type Plan } from '../../lib/programacion'
+import { programar, capacidadRecurso, encadenaPorPersona, describirMotivo, type Plan } from '../../lib/programacion'
 import { desglosePausas, demoraSinJustificarHasta, type TramoPausa } from '../../lib/kpi'
 import { guardarTarea } from '../../sync/syncEngine'
 
@@ -171,6 +171,8 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
   // 60s es suficiente: la grilla mas fina es de 1 hora, y un tick mas corto
   // recalcularia programar() sobre 1400+ tareas sin que se note en pantalla.
   // ============================================================
+  // v2.60: para explicar en el tooltip qué tarea frena a una pendiente.
+  const tareaPorId = useMemo(() => new Map(tareas.map((t) => [t.id, t])), [tareas])
   const [ahora, setAhora] = useState(() => new Date())
   useEffect(() => {
     const id = setInterval(() => setAhora(new Date()), 60_000)
@@ -713,6 +715,11 @@ export default function GanttOperativo({ tareas, agrupar, maquinas, operarios, n
                         }\n${b.tarea.estado} · ${nombreMaquina(b.tarea.maquinaId)} · ${b.tarea.operarioId ? nombreOperario(b.tarea.operarioId) : 'sin colaborador'} · ${rangoFechaHora(b.plan.startISO, b.plan.endISO)} · ${fmtDur(b.tarea.tiempoEstandarMin)}${
                           /* v2.54: tarea abierta → el fin es PROYECTADO e incluye las pausas. */
                           b.plan.restanteMin !== undefined ? `\nTrabajado: ${fmtDur(b.plan.trabajadoMin ?? 0)} · falta ${fmtDur(b.plan.restanteMin)} · fin proyectado (suma las pausas)` : ''
+                        }${
+                          /* v2.60: pendiente que NO arranca ya → por qué arranca acá. */
+                          b.plan.motivo && b.plan.motivo.tipo !== 'ahora' || b.plan.motivo?.ausencias?.length
+                            ? `\n¿Por qué arranca acá? ${describirMotivo(b.plan.motivo, (id) => tareaPorId.get(id), (id) => (id ? nombreOperario(id) : ''))}`
+                            : ''
                         }${reparacion ? ' · no productivo (excluido del OEE)' : ''}${recup ? ` · recuperación +${recupMin}m` : ''}${arrastrable ? ' · arrastrá para reprogramar' : ''}${resumenParadas(b.tarea)}`}
                       >
                         {reparacion && b.esInicio && <span className="gantt-rep-tag">🔧</span>}
