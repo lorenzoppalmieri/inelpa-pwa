@@ -4,6 +4,7 @@ import { registerSW } from 'virtual:pwa-register'
 import App from './App'
 import AvisoEntorno from './components/AvisoEntorno'
 import { ES_ENTORNO_PRUEBA } from './lib/entorno'
+import { instalarRegistroGlobal } from './lib/registroErrores'
 import { AuthProvider } from './auth/AuthContext'
 import { purgarDemo, ensureCatalogo } from './db/seed'
 import { recargarFeriadosCalendario, recargarAusenciasCalendario, recargarCortesLuz } from './sync/syncEngine'
@@ -13,6 +14,9 @@ import './index.css'
 // version automaticamente; immediate registra al cargar para que la tablet quede
 // lista para abrir sin red cuanto antes. No bloquea el arranque de la app.
 registerSW({ immediate: true })
+
+// v2.67: registro automático de errores (ver lib/registroErrores.ts).
+instalarRegistroGlobal()
 
 // HOTFIX lunes: NO se siembran datos demo (causaban "tareas fantasma"). El sistema
 // muestra SOLO datos reales de Supabase (fetch inicial + Realtime). Ademas se
