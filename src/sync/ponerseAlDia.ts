@@ -42,6 +42,20 @@ let enCurso = false
 let ultimaCorrida = 0
 let timer: ReturnType<typeof setInterval> | undefined
 
+/** v2.63: lo que pasó en la última puesta al día (para el panel de diagnóstico). */
+export interface EstadoPuestaAlDia {
+  en?: string
+  motivo?: string
+  /** Tareas abiertas que devolvió el servidor (ya filtradas por la RLS de este usuario). */
+  delServidor?: number
+  nuevas?: number
+  borradas?: number
+  error?: string
+}
+let ultimoEstado: EstadoPuestaAlDia = {}
+let ultimoError = ''
+export function estadoPuestaAlDia(): EstadoPuestaAlDia { return { ...ultimoEstado } }
+
 export interface PlanPonerseAlDia {
   /** Filas del servidor que se escriben en el espejo. */
   escribir: TareaRow[]
@@ -83,7 +97,10 @@ async function traerCompleto<T>(construir: () => unknown): Promise<T[] | null> {
   const filas: T[] = []
   for (let desde = 0; desde < 200000; desde += PAGINA) {
     const { data, error } = await (construir() as Paginable).range(desde, desde + PAGINA - 1)
-    if (error || !data) return null
+    if (error || !data) {
+      ultimoError = error ? String((error as { message?: string }).message ?? error) : 'respuesta vacía'
+      return null
+    }
     filas.push(...(data as T[]))
     if (data.length < PAGINA) return filas
   }
@@ -121,9 +138,30 @@ export async function ponerseAlDiaTareas(motivo = 'manual', forzar = false): Pro
   if (!forzar && Date.now() - ultimaCorrida < MINIMO_ENTRE_CORRIDAS_MS) return null
   enCurso = true
   ultimaCorrida = Date.now()
+  ultimoError = ''
+  let resultado: { nuevas: number; actualizadas: number; borradas: number } | null = null
+  let delServidor: number | undefined
   try {
+    resultado = await correr()
+    return resultado
+  } catch (e) {
+    ultimoError = e instanceof Error ? e.message : String(e)
+    console.warn('[sync] no se pudo poner al día las tareas', e)
+    return null
+  } finally {
+    enCurso = false
+    ultimoEstado = {
+      en: new Date().toISOString(), motivo, delServidor,
+      nuevas: resultado?.nuevas, borradas: resultado?.borradas,
+      error: resultado ? undefined : (ultimoError || 'no se pudo completar'),
+    }
+  }
+
+  async function correr(): Promise<{ nuevas: number; actualizadas: number; borradas: number } | null> {
+    const sb = supabase!
     const servidor = await traerCompleto<TareaRow>(() => sb.from('tareas').select('*').neq('estado', 'finalizada').order('id'))
     if (!servidor) return null
+    delServidor = servidor.length
 
     const locales = await db.tareas.toArray()
     const plan = planificarPonerseAlDia(servidor, locales, await idsPendientes())
@@ -155,11 +193,6 @@ export async function ponerseAlDiaTareas(motivo = 'manual', forzar = false): Pro
 
     if (nuevas || aBorrar.length) console.info(`[sync] puesta al día (${motivo}): ${nuevas} nueva(s), ${aBorrar.length} quitada(s)`)
     return { nuevas, actualizadas: tareas.length - nuevas, borradas: aBorrar.length }
-  } catch (e) {
-    console.warn('[sync] no se pudo poner al día las tareas', e)
-    return null
-  } finally {
-    enCurso = false
   }
 }
 

@@ -621,6 +621,10 @@ function suscribirRealtimeEpp() {
     })
 }
 
+// v2.63: último estado del canal de tiempo real (lo muestra el diagnóstico de Mi trabajo).
+let estadoTiempoReal: { estado: string; en?: string } = { estado: 'sin iniciar' }
+export function estadoTiempoRealSync(): { estado: string; en?: string } { return { ...estadoTiempoReal } }
+
 function suscribirRealtime() {
   suscribirRealtimeEpp()
   if (!supabase || canal) return
@@ -659,6 +663,7 @@ function suscribirRealtime() {
     // mientras estuvo caído. Supabase NO reenvía los avisos perdidos: sin esto,
     // una tarea asignada durante un corte de Wi-Fi no llegaba nunca a la tablet.
     .subscribe((estadoCanal) => {
+      estadoTiempoReal = { estado: estadoCanal, en: new Date().toISOString() } // v2.63: panel de diagnóstico
       if (estadoCanal === 'SUBSCRIBED') void ponerseAlDiaTareas('tiempo real')
       else if (estadoCanal === 'CHANNEL_ERROR' || estadoCanal === 'TIMED_OUT') console.warn(`[sync] tiempo real: ${estadoCanal}; se reintenta solo`)
     })
