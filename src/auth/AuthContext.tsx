@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { supabase, usuarioAEmail } from '../lib/supabaseClient'
 import { iniciarSync, detenerSync } from '../sync/syncEngine'
+import { setContextoErrores } from '../lib/registroErrores'
 import { PERMISOS, type Permisos } from './roles'
 import type { Usuario, Rol, SectorId, GrupoNomina } from '../types'
 
@@ -77,7 +78,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [cargando, setCargando] = useState(true)
   // Ref espejo para handlers (online) sin recrear el efecto.
   const usuarioRef = useRef<Usuario | null>(null)
-  useEffect(() => { usuarioRef.current = usuario }, [usuario])
+  useEffect(() => {
+    usuarioRef.current = usuario
+    setContextoErrores(usuario) // v2.67: cada error queda anotado con quién estaba usando el equipo
+  }, [usuario])
 
   useEffect(() => {
     if (!supabase) { setCargando(false); return }

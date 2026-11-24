@@ -8,6 +8,7 @@ import type { IndicadorSGO, MedicionIndicadorSGO } from '../sgo/indicadores'
 import type { ControlProgramadoSGO, EjecucionControlSGO } from '../sgo/controles'
 import { activarPonerseAlDia, desactivarPonerseAlDia, ponerseAlDiaTareas } from './ponerseAlDia'
 import { traerTodoDeEstricto } from '../lib/supabaseFetch'
+import { registrarError } from '../lib/registroErrores'
 import type { ActividadAgendaISO } from '../sgo/agendaISO'
 import type { ComentarioTareaSGO, TareaSGO } from '../sgo/tareasSGO'
 import { setFeriados, setAusencias } from '../lib/calendario'
@@ -387,6 +388,7 @@ export async function fetchInicial(rol?: Rol): Promise<'ok' | 'sin_sesion' | 'er
     // Tareas (+ paradas anidadas). v2.65: solo si llegaron enteras.
     if (!tareasRows) {
       console.warn('[sync] no llegaron las tareas: se conservan las que tenía este equipo')
+      registrarError('descarga', 'No llegaron las tareas al iniciar (se conservaron las del equipo)') // v2.67
     } else {
       await db.tareas.clear()
       const porTarea = new Map<string, ReturnType<typeof paradaFromRow>[]>()
@@ -407,6 +409,7 @@ export async function fetchInicial(rol?: Rol): Promise<'ok' | 'sin_sesion' | 'er
     return 'ok'
   } catch (e) {
     console.warn('[sync] fetchInicial fallo:', e)
+    registrarError('descarga', 'Falló la descarga inicial', e) // v2.67
     return 'error'
   } finally {
     estado = { ...estado, sincronizando: false }; emit()
@@ -689,7 +692,10 @@ function suscribirRealtime() {
     .subscribe((estadoCanal) => {
       estadoTiempoReal = { estado: estadoCanal, en: new Date().toISOString() } // v2.63: panel de diagnóstico
       if (estadoCanal === 'SUBSCRIBED') void ponerseAlDiaTareas('tiempo real')
-      else if (estadoCanal === 'CHANNEL_ERROR' || estadoCanal === 'TIMED_OUT') console.warn(`[sync] tiempo real: ${estadoCanal}; se reintenta solo`)
+      else if (estadoCanal === 'CHANNEL_ERROR' || estadoCanal === 'TIMED_OUT') {
+        console.warn(`[sync] tiempo real: ${estadoCanal}; se reintenta solo`)
+        registrarError('tiempo_real', `Canal de tiempo real: ${estadoCanal}`) // v2.67
+      }
     })
 }
 
@@ -793,6 +799,7 @@ export async function procesarCola(): Promise<void> {
       const intentos = (op.intentos ?? 0) + 1
       if (r.estado === 'fatal') {
         console.error(`[sync] ⛔ DESCARTADA ${op.entidad}/${op.entidadId} (${op.tipo}) — error definitivo: ${r.msg}`, op.payload)
+        registrarError('sync', `No se pudo subir ${op.entidad} (error definitivo)`, `${op.entidadId} · ${r.msg ?? ''}`) // v2.67
         await db.syncQueue.update(op.id, { errorSync: r.msg ?? 'error definitivo', intentos })
         continue
       }
@@ -800,6 +807,7 @@ export async function procesarCola(): Promise<void> {
       // de rendirse. La clave foránea se resuelve sola cuando sube la fila padre.
       if (intentos >= MAX_INTENTOS) {
         console.error(`[sync] ⛔ DESCARTADA ${op.entidad}/${op.entidadId} — ${intentos} intentos: ${r.msg}`, op.payload)
+        registrarError('sync', `No se pudo subir ${op.entidad} (reintentos agotados)`, `${op.entidadId} · ${r.msg ?? ''}`) // v2.67
         await db.syncQueue.update(op.id, { errorSync: `reintentos agotados: ${r.msg ?? ''}`, intentos })
         continue
       }

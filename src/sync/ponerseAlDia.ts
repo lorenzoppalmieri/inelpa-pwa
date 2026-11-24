@@ -1,6 +1,7 @@
 import { db } from '../db/dexie'
 import { supabase } from '../lib/supabaseClient'
 import { PAGINA } from '../lib/supabaseFetch'
+import { registrarError } from '../lib/registroErrores'
 import { paradaFromRow, tareaFromRow, type ParadaRow, type TareaRow } from './mappers'
 import type { Parada, Tarea } from '../types'
 
@@ -155,6 +156,8 @@ export async function ponerseAlDiaTareas(motivo = 'manual', forzar = false): Pro
       nuevas: resultado?.nuevas, borradas: resultado?.borradas,
       error: resultado ? undefined : (ultimoError || 'no se pudo completar'),
     }
+    // v2.67: queda anotado en el registro de errores (sin red no: eso es normal en planta).
+    if (!resultado && ultimoEstado.error && typeof navigator !== 'undefined' && navigator.onLine) registrarError('puesta_al_dia', ultimoEstado.error, `motivo: ${motivo}`)
   }
 
   async function correr(): Promise<{ nuevas: number; actualizadas: number; borradas: number } | null> {
