@@ -78,6 +78,34 @@ export default function OperarioView() {
     }).toArray()
   }, [maquinaId, usuario?.id])
 
+  // ============================================================
+  // v2.59 — TAREAS MÍAS EN OTRAS ESTACIONES.
+  //
+  // "Mi trabajo" muestra solo la cola de la estación elegida, y esa elección
+  // queda guardada en la tablet. En bobinado hay un pool de 30 máquinas: si la
+  // planificadora le asigna una tarea en la Bobinadora 12 y la tablet sigue en la
+  // 7 (la de ayer), la tarea existe pero no aparece en ningún lado. Es uno de los
+  // dos motivos del reclamo "no me llegan las tareas" (el otro, el tiempo real
+  // perdido, está en sync/ponerseAlDia.ts).
+  //
+  // Ahora se buscan TODAS las tareas abiertas asignadas a la persona, en
+  // cualquier estación, y se avisa con un botón para ir directo.
+  // ============================================================
+  const mias = useLiveQuery(
+    () => usuario
+      ? db.tareas.where('operarioId').equals(usuario.id).filter((t) => t.estado !== 'finalizada').toArray()
+      : Promise.resolve([] as Tarea[]),
+    [usuario?.id],
+  )
+  const todasMaquinas = useLiveQuery(() => db.maquinas.toArray(), [])
+  const nombreMaquina = (id: string) => todasMaquinas?.find((m) => m.id === id)?.nombre ?? 'Estación'
+  const misPorEstacion = new Map<string, number>()
+  for (const t of mias ?? []) misPorEstacion.set(t.maquinaId, (misPorEstacion.get(t.maquinaId) ?? 0) + 1)
+  const otrasEstaciones = [...misPorEstacion.entries()]
+    .filter(([id]) => id !== maquinaId)
+    .map(([id, n]) => ({ id, n, nombre: nombreMaquina(id) }))
+    .sort((a, b) => b.n - a.n || a.nombre.localeCompare(b.nombre))
+
   const [filtro, setFiltro] = useState<'activas' | 'pendientes' | 'finalizadas'>('activas')
   // v1.18: pausa/reanudación GLOBAL de la estación (montaje PA/PO: el equipo para
   // junto, ej. almuerzo). Soporta PARADAS CONCURRENTES: una tarea ya pausada por
@@ -178,18 +206,27 @@ export default function OperarioView() {
 
   // --- Paso 1: elegir estacion de trabajo ---
   if (!maquinaId) {
+    // v2.59: las estaciones donde la persona TIENE tareas van primero y lo dicen.
+    // Se suman las que no son de sus sectores pero tienen algo asignado a ella,
+    // para que ninguna tarea suya quede sin forma de abrirse.
+    const extra = (todasMaquinas ?? []).filter((m) => misPorEstacion.has(m.id) && !maquinas.some((x) => x.id === m.id))
+    const lista = [...maquinas, ...extra].sort((a, b) =>
+      (misPorEstacion.get(b.id) ?? 0) - (misPorEstacion.get(a.id) ?? 0))
     return (
       <div>
         {tabsTop}
         <div className="section-title">¿En qué estación vas a trabajar hoy?</div>
-        {maquinas.length === 0
+        {lista.length === 0
           ? <div className="empty">No tenés estaciones asignadas. Avisá a tu encargado.</div>
-          : maquinas.map((m) => (
-              <button key={m.id} className="btn btn-bloque" style={{ justifyContent: 'space-between', marginBottom: 10 }} onClick={() => elegir(m.id)}>
-                <span>{m.nombre}</span>
-                <span className="rol-badge">{esSectorBobinado(m.sectorId) ? 'Bobinado · cualquier formato' : sectorById(m.sectorId).nombre}</span>
-              </button>
-            ))}
+          : lista.map((m) => {
+              const n = misPorEstacion.get(m.id) ?? 0
+              return (
+                <button key={m.id} className={'btn btn-bloque' + (n ? ' btn-primary' : '')} style={{ justifyContent: 'space-between', marginBottom: 10 }} onClick={() => elegir(m.id)}>
+                  <span>{m.nombre}{n ? ` · 📌 ${n} tarea${n === 1 ? '' : 's'} para vos` : ''}</span>
+                  <span className="rol-badge">{esSectorBobinado(m.sectorId) ? 'Bobinado · cualquier formato' : sectorById(m.sectorId).nombre}</span>
+                </button>
+              )
+            })}
       </div>
     )
   }
@@ -259,6 +296,22 @@ export default function OperarioView() {
               ▶ Volver del almuerzo — {causaLabel(pausaGlobal)}{nConPausaGlobal > 0 ? ` (${nConPausaGlobal})` : ''}
             </button>
           )}
+        </div>
+      )}
+
+      {/* v2.59: tareas asignadas a esta persona en OTRA estación. Antes no se
+          veían en ningún lado hasta que cambiaba de estación "a ciegas". */}
+      {otrasEstaciones.length > 0 && (
+        <div className="card" style={{ marginBottom: 12, borderLeft: '5px solid var(--azul-claro)' }} role="status">
+          <strong>📌 Tenés {otrasEstaciones.reduce((s, e) => s + e.n, 0)} tarea(s) asignada(s) en otra estación</strong>
+          <div className="meta" style={{ margin: '4px 0 8px' }}>Tocá la estación para ir a verlas.</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {otrasEstaciones.map((e) => (
+              <button key={e.id} className="btn btn-primary" onClick={() => elegir(e.id)}>
+                {e.nombre} · {e.n}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
