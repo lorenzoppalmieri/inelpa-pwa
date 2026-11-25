@@ -1063,6 +1063,25 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
   // secciones por estado la misma barra se habría repetido idéntica en cada
   // sección. Ahora va UNA vez, arriba de todo, y sigue siendo dinámico: sumar
   // tareas sube el denominador y cerrarlas sube el numerador.
+  //
+  // v2.68 — AGRUPADO POR MODELO: cada fila se despliega (▸ / ▾) y muestra QUIÉN
+  // hizo o tiene cada tarea de ese modelo y en qué SECTOR. Arranca cerrado.
+  // Sale de `visibles`, así que respeta período, estado, sector y fase.
+  const [modelosAbiertos, setModelosAbiertos] = useState<Set<string>>(() => new Set())
+  const alternarModelo = (clave: string) => setModelosAbiertos((prev) => {
+    const s = new Set(prev)
+    if (s.has(clave)) s.delete(clave); else s.add(clave)
+    return s
+  })
+  const nombreColaborador = (id?: string) => (id ? nombreOperario(id) : 'Sin asignar')
+  const tareasDelModelo = (clave: string): Tarea[] => {
+    const orden: Record<EstadoTarea, number> = { en_proceso: 0, pausada: 1, pendiente: 2, finalizada: 3 }
+    return visibles
+      .filter((t) => (t.modelo || '__sin__') === clave)
+      .sort((a, b) => (orden[a.estado] - orden[b.estado])
+        || nombreColaborador(a.operarioId).localeCompare(nombreColaborador(b.operarioId))
+        || sectorById(a.sectorId).nombre.localeCompare(sectorById(b.sectorId).nombre))
+  }
   const avance = useMemo(() => {
     // v2.24: `kvaSuma`/`kvaN` acumulan la potencia encubada. Solo se cargan para
     // tareas FINALIZADAS de Montaje PO (es donde el transformador queda
@@ -1092,9 +1111,11 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
       }
       m.set(key, g)
     }
-    return [...m.values()]
-      .map((g) => ({
+    return [...m.entries()]
+      .map(([clave, g]) => ({
         ...g,
+        // v2.68: la clave del grupo, para desplegar sus tareas (agrupado por modelo).
+        clave,
         pct: g.total > 0 ? Math.round((g.fin / g.total) * 100) : 0,
         // null = no corresponde mostrarlo (o no hubo nada legible).
         kvaProm: g.kvaN > 0 ? Math.round(g.kvaSuma / g.kvaN) : null,
@@ -1558,8 +1579,23 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
       {/* v2.08: avance por grupo, una sola vez y arriba de las secciones. */}
       {visibles.length > 0 && avance.length > 0 && (
         <div className="card" style={{ marginBottom: 12 }}>
-          {avance.map((g) => (
-            <div className="grupo-tit" key={g.label}>
+          {avance.map((g) => {
+            // v2.68: con "Agrupar por modelo" la fila se despliega.
+            const desplegable = agruparPor === 'modelo'
+            const abierto = desplegable && modelosAbiertos.has(g.clave)
+            return (
+            <div key={g.label}>
+            <div className="grupo-tit"
+              {...(desplegable ? {
+                role: 'button', tabIndex: 0, 'aria-expanded': abierto,
+                title: abierto ? 'Ocultar quién hizo cada tarea' : 'Ver quién hizo cada tarea y en qué sector',
+                onClick: () => alternarModelo(g.clave),
+                onKeyDown: (e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); alternarModelo(g.clave) } },
+                style: { cursor: 'pointer' },
+              } : {})}>
+              {desplegable && (
+                <span aria-hidden="true" style={{ display: 'inline-block', width: 14, transition: 'transform .15s', transform: abierto ? 'rotate(90deg)' : 'none' }}>▸</span>
+              )}
               <span className="grupo-lbl">{g.label}</span>
               <span className={'grupo-n' + (g.pct === 100 ? ' completo' : '')}>{g.fin} / {g.total} completadas</span>
               <span className="grupo-barra" title={`${g.pct}% completado · ${g.curso} en curso · ${g.total - g.fin - g.curso} pendiente(s)`}>
@@ -1576,7 +1612,34 @@ function PanelAsignar({ soloReparacion = false, focoTareaId = null, onFocoConsum
                 </span>
               )}
             </div>
-          ))}
+            {/* v2.68: detalle del modelo — colaborador, sector y estado de cada tarea. */}
+            {abierto && (
+              <div style={{ margin: '-2px 0 12px 22px', display: 'grid', gap: 4 }}>
+                {tareasDelModelo(g.clave).map((t) => {
+                  const semi = componentePorCodigo(t.componenteCodigo)?.descripcion
+                  const of = t.ordenId ? nroOrdenDe.get(t.ordenId) : undefined
+                  const extra = [of ? `OF ${of}` : '', semi ?? '', t.nroTransformador ? `N° ${t.nroTransformador}` : '', t.esPrototipo ? 'Prototipo' : '']
+                    .filter(Boolean).join(' · ')
+                  const color = t.estado === 'finalizada' ? 'var(--estado-fin)' : t.estado === 'pausada' ? 'var(--estado-pausa)'
+                    : t.estado === 'en_proceso' ? 'var(--estado-proceso)' : 'var(--estado-pendiente)'
+                  return (
+                    <div key={t.id} style={{ display: 'grid', gridTemplateColumns: 'minmax(150px, 1.3fr) minmax(130px, 1fr) auto', gap: 10, alignItems: 'center', padding: '6px 10px', borderRadius: 8, background: 'var(--panel-2)', fontSize: '.85rem' }}>
+                      <div style={{ minWidth: 0 }}>
+                        <strong>{nombreColaborador(t.operarioId)}</strong>
+                        {extra && <div className="meta" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={extra}>{extra}</div>}
+                      </div>
+                      <div>{sectorById(t.sectorId).nombre}</div>
+                      <span style={{ fontWeight: 700, fontSize: '.78rem', padding: '2px 8px', borderRadius: 999, border: `1px solid ${color}`, color }}>
+                        {LABEL_ESTADO[t.estado]}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+            </div>
+            )
+          })}
         </div>
       )}
 
